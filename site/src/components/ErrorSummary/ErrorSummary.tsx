@@ -49,7 +49,7 @@ export const ErrorSummary: FC<React.PropsWithChildren<ErrorSummaryProps>> = ({
       <Stack direction="row" alignItems="center" className={styles.messageBox}>
         <Stack direction="row" spacing={0}>
           <span className={styles.errorMessage}>{message}</span>
-          {!!detail && <Expander expanded={showDetails} setExpanded={setShowDetails} />}
+          {Boolean(detail) && <Expander expanded={showDetails} setExpanded={setShowDetails} />}
         </Stack>
         {dismissible && (
           <IconButton onClick={closeError} className={styles.iconButton}>

@@ -303,7 +303,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	for _, peer := range c.netMap.Peers {
 		if peerStatus, ok := status.Peer[peer.Key]; ok {
 			// Clear out inactive connections!
-			if !peerStatus.Active {
+			// If a connection hasn't been active for a minute post creation, we assume it's dead.
+			if !peerStatus.Active && peer.Created.Before(time.Now().Add(-time.Minute)) {
+				c.logger.Debug(context.Background(), "clearing peer", slog.F("peerStatus", peerStatus))
 				continue
 			}
 		}
@@ -311,8 +313,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	}
 	for _, node := range nodes {
 		peerStatus, ok := status.Peer[node.Key]
-		peerMap[node.ID] = &tailcfg.Node{
+		peerNode := &tailcfg.Node{
 			ID:         node.ID,
+			Created:    time.Now(),
 			Key:        node.Key,
 			DiscoKey:   node.DiscoKey,
 			Addresses:  node.Addresses,
@@ -325,6 +328,11 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
+		existingNode, ok := peerMap[node.ID]
+		if ok {
+			peerNode.Created = existingNode.Created
+		}
+		peerMap[node.ID] = peerNode
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
 	for _, peer := range peerMap {

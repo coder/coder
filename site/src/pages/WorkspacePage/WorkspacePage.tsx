@@ -51,7 +51,7 @@ export const WorkspacePage: FC = () => {
     cancellationError,
   } = workspaceState.context
 
-  const canUpdateWorkspace = !!permissions?.updateWorkspace
+  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
@@ -69,9 +69,9 @@ export const WorkspacePage: FC = () => {
   if (workspaceState.matches("error")) {
     return (
       <div className={styles.error}>
-        {!!getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
-        {!!refreshTemplateError && <ErrorSummary error={refreshTemplateError} />}
-        {!!checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
+        {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
+        {Boolean(refreshTemplateError) && <ErrorSummary error={refreshTemplateError} />}
+        {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
   } else if (!workspace || !permissions) {

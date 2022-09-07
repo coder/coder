@@ -270,7 +270,11 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
 				return
 			}
+			a.closeMutex.Lock()
+			a.connCloseWait.Add(1)
+			a.closeMutex.Unlock()
 			go func() {
+				defer a.connCloseWait.Done()
 				_ = speedtest.ServeConn(conn)
 			}()
 		}

@@ -2303,41 +2303,57 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuditLogsBefore(_ context.Context, arg database.GetAuditLogsBeforeParams) ([]database.AuditLog, error) {
+func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	logs := make([]database.AuditLog, 0)
-	start := database.AuditLog{}
-
-	if arg.ID != uuid.Nil {
-		for _, alog := range q.auditLogs {
-			if alog.ID == arg.ID {
-				start = alog
-				break
-			}
-		}
-	} else {
-		start.ID = uuid.New()
-		start.Time = arg.StartTime
-	}
-
-	if start.ID == uuid.Nil {
-		return nil, sql.ErrNoRows
-	}
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.Limit)
 
 	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
 	for _, alog := range q.auditLogs {
-		if alog.Time.Before(start.Time) {
-			logs = append(logs, alog)
+		if arg.Offset > 0 {
+			arg.Offset--
+			continue
 		}
 
-		if len(logs) >= int(arg.RowLimit) {
+		user, err := q.GetUserByID(ctx, alog.UserID)
+		userValid := err == nil
+
+		logs = append(logs, database.GetAuditLogsOffsetRow{
+			ID:               alog.ID,
+			RequestID:        alog.RequestID,
+			OrganizationID:   alog.OrganizationID,
+			Ip:               alog.Ip,
+			UserAgent:        alog.UserAgent,
+			ResourceType:     database.ResourceType(alog.UserAgent),
+			ResourceID:       alog.ResourceID,
+			ResourceTarget:   alog.ResourceTarget,
+			ResourceIcon:     alog.ResourceIcon,
+			Action:           alog.Action,
+			Diff:             alog.Diff,
+			StatusCode:       alog.StatusCode,
+			AdditionalFields: alog.AdditionalFields,
+			UserID:           alog.UserID,
+			UserUsername:     sql.NullString{String: user.Username, Valid: userValid},
+			UserEmail:        sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:    sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserStatus:       user.Status,
+			UserRoles:        user.RBACRoles,
+		})
+
+		if len(logs) >= int(arg.Limit) {
 			break
 		}
 	}
 
 	return logs, nil
+}
+
+func (q *fakeQuerier) GetAuditLogCount(_ context.Context) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return int64(len(q.auditLogs)), nil
 }
 
 func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
