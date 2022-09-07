@@ -212,7 +212,7 @@
     },
     {
       "title": "Admin",
-      "description": "How to install and deploy Coder",
+      "description": "How to administer and manage Coder",
       "icon_path": "./images/icons/cog.svg",
       "children": [
         {
