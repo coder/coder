@@ -10,9 +10,9 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { t } from "i18next"
 import { ComponentProps, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import userAgentParser from "ua-parser-js"
 import { createDayString } from "util/createDayString"
 import { AuditLogDiff } from "./AuditLogDiff"
-import userAgentParser from "ua-parser-js"
 
 const pillTypeByHttpStatus = (httpStatus: number): ComponentProps<typeof Pill>["type"] => {
   if (httpStatus >= 300 && httpStatus < 500) {
