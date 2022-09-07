@@ -92,3 +92,5 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     </>
   )
 }
+
+export default TemplatePage

@@ -500,21 +500,35 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
+      - name: Build site
+        run: make -B site/out/index.html
+
       - name: Build Release
         run: |
           set -euo pipefail
           go mod download
 
-          version="$(./scripts/version.sh)"
-          make -j \
-            build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+          mkdir -p ./dist
+          # build slim binaries
+          ./scripts/build_go_slim.sh \
+            --output ./dist/ \
+            --compress 22 \
+            linux:amd64,armv7,arm64 \
+            windows:amd64,arm64 \
+            darwin:amd64,arm64
+
+          # build linux amd64 packages
+          ./scripts/build_go_matrix.sh \
+            --output ./dist/ \
+            --package-linux \
+            linux:amd64 \
+            windows:amd64
 
       - name: Install Release
         run: |
           gcloud config set project coder-dogfood
           gcloud config set compute/zone us-central1-a
-          gcloud compute scp ./build/coder_*_linux_amd64.deb coder:/tmp/coder.deb
+          gcloud compute scp ./dist/coder_*_linux_amd64.deb coder:/tmp/coder.deb
           gcloud compute ssh coder -- sudo dpkg -i --force-confdef /tmp/coder.deb
           gcloud compute ssh coder -- sudo systemctl daemon-reload
 
@@ -525,9 +539,12 @@ jobs:
         with:
           name: coder
           path: |
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.deb
+            ./dist/*.zip
+            ./dist/*.exe
+            ./dist/*.tar.gz
+            ./dist/*.apk
+            ./dist/*.deb
+            ./dist/*.rpm
           retention-days: 7
 
   test-js:

@@ -51,7 +51,7 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
       <BorderedMenu
         anchorEl={anchorEl}
         getContentAnchorEl={null}
-        open={!!anchorEl}
+        open={Boolean(anchorEl)}
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
