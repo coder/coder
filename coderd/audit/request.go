@@ -74,6 +74,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		})
 		if err != nil {
 			p.Log.Error(ctx, "export audit log", slog.Error(err))
+			return
 		}
 	}
 }

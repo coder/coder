@@ -308,7 +308,8 @@ SELECT
     users.email AS user_email,
     users.created_at AS user_created_at,
     users.status AS user_status,
-    users.rbac_roles AS user_roles
+    users.rbac_roles AS user_roles,
+    users.avatar_url AS user_avatar_url
 FROM
 	audit_logs
 LEFT JOIN
@@ -347,6 +348,7 @@ type GetAuditLogsOffsetRow struct {
 	UserCreatedAt    sql.NullTime    `db:"user_created_at" json:"user_created_at"`
 	UserStatus       UserStatus      `db:"user_status" json:"user_status"`
 	UserRoles        []string        `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl    sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -381,6 +383,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.UserCreatedAt,
 			&i.UserStatus,
 			pq.Array(&i.UserRoles),
+			&i.UserAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
