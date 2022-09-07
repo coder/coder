@@ -112,7 +112,7 @@ func (s *featuresService) EntitlementsAPI(rw http.ResponseWriter, r *http.Reques
 		if n > e.activeUsers.limit {
 			resp.Warnings = append(resp.Warnings,
 				fmt.Sprintf(
-					"Your deployment has %d active users but is only licensed for %d",
+					"Your deployment has %d active users but is only licensed for %d.",
 					n, e.activeUsers.limit))
 		}
 	}
@@ -125,7 +125,7 @@ func (s *featuresService) EntitlementsAPI(rw http.ResponseWriter, r *http.Reques
 	}
 	if e.auditLogs.state == gracePeriod && s.enablements.AuditLogs {
 		resp.Warnings = append(resp.Warnings,
-			"Audit logging is enabled but your license for this feature is expired")
+			"Audit logging is enabled but your license for this feature is expired.")
 	}
 
 	httpapi.Write(rw, http.StatusOK, resp)
