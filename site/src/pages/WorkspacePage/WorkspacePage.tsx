@@ -6,7 +6,7 @@ import { FC, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
-import { DestructiveDialog } from "../../components/Dialogs/DestructiveDialog/DestructiveDialog"
+import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
@@ -139,7 +139,7 @@ export const WorkspacePage: FC = () => {
           }}
           buildInfo={buildInfoState.context.buildInfo}
         />
-        <DestructiveDialog
+        <DeleteDialog
           title={t("deleteDialog.title")}
           description={t("deleteDialog.description")}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}

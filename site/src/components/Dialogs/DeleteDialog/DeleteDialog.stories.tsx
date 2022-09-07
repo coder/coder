@@ -1,9 +1,9 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { DestructiveDialog, DestructiveDialogProps } from "./DestructiveDialog"
+import { DeleteDialog, DeleteDialogProps } from "./DeleteDialog"
 
 export default {
-  title: "Components/Dialogs/DestructiveDialog",
-  component: DestructiveDialog,
+  title: "Components/Dialogs/DeleteDialog",
+  component: DeleteDialog,
   argTypes: {
     onClose: {
       action: "onClose",
@@ -23,9 +23,9 @@ export default {
         "This is irreversible. To confirm, type the name of the thing you want to delete.",
     },
   },
-} as ComponentMeta<typeof DestructiveDialog>
+} as ComponentMeta<typeof DeleteDialog>
 
-const Template: Story<DestructiveDialogProps> = (args) => <DestructiveDialog {...args} />
+const Template: Story<DeleteDialogProps> = (args) => <DeleteDialog {...args} />
 
 export const Example = Template.bind({})
 Example.args = {

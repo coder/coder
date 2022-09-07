@@ -1,7 +1,7 @@
 import React, { ReactNode } from "react"
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
 
-export interface DestructiveDialogProps {
+export interface DeleteDialogProps {
   isOpen: boolean
   handleConfirm: () => void
   handleCancel: () => void
@@ -10,7 +10,7 @@ export interface DestructiveDialogProps {
   confirmLoading?: boolean
 }
 
-export const DestructiveDialog: React.FC<React.PropsWithChildren<DestructiveDialogProps>> = ({
+export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> = ({
   isOpen,
   handleCancel,
   handleConfirm,
