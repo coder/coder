@@ -49,7 +49,7 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220905194158-291661887d25
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220907030728-c713fe41e3e6
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
