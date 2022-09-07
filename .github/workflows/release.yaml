@@ -71,27 +71,10 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
-      - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
       - name: Install nfpm
         run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
       - name: Install zstd
         run: sudo apt-get install -y zstd
-      - name: Install Protoc
-        run: |
-          # protoc must be in lockstep with our dogfood Dockerfile
-          # or the version in the comments will differ.
-          set -euxo pipefail
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
 
       - name: Build Linux and Windows Binaries
         run: |
@@ -99,6 +82,7 @@ jobs:
           go mod download
 
           version="$(./scripts/version.sh)"
+          make gen/mark-fresh
           make -j \
             -W coderd/database/querier.go \
             build/coder_"$version"_linux_{amd64,arm64,armv7}.{tar.gz,apk,deb,rpm} \
@@ -183,19 +167,6 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
-      - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.x'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install dependencies
         run: |
           set -euo pipefail
@@ -217,15 +188,13 @@ jobs:
           # Used for compressing embedded slim binaries
           brew install zstd
 
-      - name: Build Site
-        run: make site/out/index.html
-
       - name: Build darwin Binaries (with signatures)
         run: |
           set -euo pipefail
           go mod download
 
           version="$(./scripts/version.sh)"
+          make gen/mark-fresh
           make -j \
             build/coder_"$version"_darwin_{amd64,arm64}.zip
         env:

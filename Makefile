@@ -320,13 +320,22 @@ build/coder_helm_$(VERSION).tgz:
 		--version "$(VERSION)" \
 		--output "$@"
 
-# Runs migrations to output a dump of the database.
-coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)
-	go run coderd/database/gen/dump/main.go
+site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
+	./scripts/yarn_install.sh
+	cd site
+	yarn typegen
+	yarn build
 
-# Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
-	coderd/database/generate.sh
+install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
+	install_dir="$$(go env GOPATH)/bin"
+	output_file="$${install_dir}/coder$(GOOS_BIN_EXT)"
+
+	mkdir -p "$$install_dir"
+	cp "$<" "$$output_file"
+.PHONY: install
+
+fmt: fmt/prettier fmt/terraform fmt/shfmt
+.PHONY: fmt
 
 fmt/prettier:
 	echo "--- prettier"
@@ -353,20 +362,6 @@ else
 endif
 .PHONY: fmt/shfmt
 
-fmt: fmt/prettier fmt/terraform fmt/shfmt
-.PHONY: fmt
-
-gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
-.PHONY: gen
-
-install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
-	install_dir="$$(go env GOPATH)/bin"
-	output_file="$${install_dir}/coder$(GOOS_BIN_EXT)"
-
-	mkdir -p "$$install_dir"
-	cp "$<" "$$output_file"
-.PHONY: install
-
 lint: lint/shellcheck lint/go
 .PHONY: lint
 
@@ -381,6 +376,41 @@ lint/shellcheck: $(shell shfmt -f .)
 	shellcheck --external-sources $(shell shfmt -f .)
 .PHONY: lint/shellcheck
 
+# all gen targets should be added here and to gen/mark-fresh
+gen: \
+	coderd/database/dump.sql \
+	coderd/database/querier.go \
+	peerbroker/proto/peerbroker.pb.go \
+	provisionersdk/proto/provisioner.pb.go \
+	provisionerd/proto/provisionerd.pb.go \
+	site/src/api/typesGenerated.ts
+.PHONY: gen
+
+# Mark all generated files as fresh so make thinks they're up-to-date. This is
+# used during releases so we don't run generation scripts.
+gen/mark-fresh:
+	files="coderd/database/dump.sql coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts"
+	for file in $$files; do
+		echo "$$file"
+		if [ ! -f "$$file" ]; then
+			echo "File '$$file' does not exist"
+			exit 1
+		fi
+
+		# touch sets the mtime of the file to the current time
+		touch $$file
+	done
+.PHONY: gen/mark-fresh
+
+# Runs migrations to output a dump of the database schema after migrations are
+# applied.
+coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)
+	go run coderd/database/gen/dump/main.go
+
+# Generates Go code for querying the database.
+coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
+	./coderd/database/generate.sh
+
 peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 	protoc \
 		--go_out=. \
@@ -388,14 +418,6 @@ peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./peerbroker/proto/peerbroker.proto
-
-provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./provisionerd/proto/provisionerd.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
@@ -405,11 +427,13 @@ provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionersdk/proto/provisioner.proto
 
-site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
-	./scripts/yarn_install.sh
-	cd site
-	yarn typegen
-	yarn build
+provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./provisionerd/proto/provisionerd.proto
 
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
