@@ -41,9 +41,9 @@
           "path": "./install/upgrade.md"
         },
         {
-          "title": "Licensed Features",
-          "description": "Learn how to enable licensed features.",
-          "path": "./install/license.md"
+          "title": "Enterprise",
+          "description": "Learn how to enable Enterprise features.",
+          "path": "./install/enterprise.md"
         }
       ]
     },

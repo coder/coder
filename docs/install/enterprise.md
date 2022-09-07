@@ -1,4 +1,4 @@
-# Licensed Features
+# Enterprise Features
 
 Coder is free to use and includes some features that are only accessible with a paid license.
 Contact sales@coder.com to obtain a license.
