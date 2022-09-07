@@ -220,6 +220,15 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/audit", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+
+			r.Get("/", api.auditLogs)
+			r.Get("/count", api.auditLogCount)
+			r.Post("/testgenerate", api.generateFakeAuditLog)
+		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
