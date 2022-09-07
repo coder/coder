@@ -10,23 +10,15 @@ environment variables, or passwords.
 
 You can find a full list of the data we collect in the source code [here](https://github.com/coder/coder/blob/main/coderd/telemetry/telemetry.go).
 
-We offer three levels of telemetry that can be configured with the
-`CODER_TELEMETRY=x` environment variable. For example, telemetry level 1 can
-be configured with `CODER_TELEMETRY=1`.
+Telemetry that can be configured with the `CODER_TELEMETRY=x` environment variable.
+For example, telemetry can be disabled with `CODER_TELEMETRY=false`.
 
-`CODER_TELEMETRY=2` is our default level. It includes user email and
+`CODER_TELEMETRY=true` is our default level. It includes user email and
 IP addresses. This information is used in aggregate to understand where our
 users are and general demographic information. We may reach out to the
 deployment admin, but will never use these emails for outbound marketing.
 
-`CODER_TELEMETRY=1` is our lightweight telemetry setting. It excludes
-email and IP addresses, but everything else in the aforementioned source
-code is still sent out. In this level, it is nearly impossible for Coder
-to associate an installation to specific organizations or users.
-
-`CODER_TELEMETRY=0` disables telemetry altogether. We reserve this setting
-for our enterprise customers. You can also reach out to contact@coder.com if
-you need a zero-telemetry license due to security policy requirements.
+`CODER_TELEMETRY=false` disables telemetry altogether.
 
 ## How we use telemetry
 
