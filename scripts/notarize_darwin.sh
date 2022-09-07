@@ -31,7 +31,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 # Check dependencies
 dependencies rcodesign
-requiredenvs AC_APIKEY_ISSUER_ID AC_KEY_ID AC_APIKEY_FILE
+requiredenvs AC_APIKEY_ISSUER_ID AC_APIKEY_ID AC_APIKEY_FILE
 
 # Encode the notarization key components into a JSON file for easily calling
 # `rcodesign notary-submit`.
@@ -40,7 +40,7 @@ chmod 600 "$key_file"
 trap 'rm -f "$key_file"' EXIT
 rcodesign encode-app-store-connect-api-key \
 	"$AC_APIKEY_ISSUER_ID" \
-	"$AC_KEY_ID" \
+	"$AC_APIKEY_ID" \
 	"$AC_APIKEY_FILE" \
 	>"$key_file"
 
