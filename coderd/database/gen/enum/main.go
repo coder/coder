@@ -96,7 +96,7 @@ func writeContents[T any](dest string, arg T, fn func(T) ([]byte, error)) error 
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("goimports", "-w", dest)
+	cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/goimports@latest", "-w", dest)
 	return cmd.Run()
 }
 
