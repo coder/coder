@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -113,7 +114,7 @@ func TestStatePush(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		cmd, root := clitest.New(t, "state", "push", "--build", workspace.LatestBuild.Name, workspace.Name, "-")
+		cmd, root := clitest.New(t, "state", "push", "--build", strconv.Itoa(int(workspace.LatestBuild.BuildNumber)), workspace.Name, "-")
 		clitest.SetupConfig(t, client, root)
 		cmd.SetIn(strings.NewReader("some magic state"))
 		err := cmd.Execute()

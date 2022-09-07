@@ -1,6 +1,6 @@
 import { fireEvent, render } from "@testing-library/react"
 import { FC } from "react"
-import { WrapperComponent } from "../../testHelpers/renderHelpers"
+import { WrapperComponent } from "../../../testHelpers/renderHelpers"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
 
 namespace Helpers {

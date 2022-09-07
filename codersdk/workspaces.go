@@ -122,19 +122,6 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
-func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, name string) (WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds/%s", workspace, name), nil)
-	if err != nil {
-		return WorkspaceBuild{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceBuild{}, readBodyAsError(res)
-	}
-	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
-}
-
 func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
 	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
 	if err != nil {

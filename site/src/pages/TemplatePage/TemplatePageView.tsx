@@ -88,7 +88,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
       <>
         <PageHeader
           actions={
-            <Stack direction="row" spacing={1}>
+            <>
               <Link
                 underline="none"
                 component={RouterLink}
@@ -115,7 +115,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
               ) : (
                 createWorkspaceButton()
               )}
-            </Stack>
+            </>
           }
         >
           <Stack direction="row" spacing={3} className={styles.pageTitle}>
