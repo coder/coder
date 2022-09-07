@@ -80,11 +80,6 @@ if [[ ! -f "$1" ]]; then
 fi
 input_file="$(realpath "$1")"
 
-sign_darwin="$([[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]] && echo 1 || echo 0)"
-if [[ "$sign_darwin" == 1 ]] && [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-	error "AC_APPLICATION_IDENTITY must be set when --sign-darwin or CODER_SIGN_DARWIN=1 is supplied"
-fi
-
 # Check dependencies
 if [[ "$format" == "zip" ]]; then
 	dependencies zip
@@ -92,6 +87,8 @@ fi
 if [[ "$format" == "tar.gz" ]]; then
 	dependencies tar
 fi
+
+sign_darwin="$([[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]] && echo 1 || echo 0)"
 if [[ "$sign_darwin" == 1 ]]; then
 	dependencies rcodesign
 	requiredenvs AC_APIKEY_ISSUER_ID AC_KEY_ID AC_APIKEY_FILE
