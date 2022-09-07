@@ -73,7 +73,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
 	if selectedMembership == nil {
 		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "You aren't a member of the authorized Github organizations!",
