@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Get support in our Discord
+    url: https://coder.com/chat
+    about: Need help debugging issues with Coder? Check out our Discord to chat live with the team. 
