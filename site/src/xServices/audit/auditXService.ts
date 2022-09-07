@@ -10,11 +10,11 @@ export const auditMachine = createMachine(
     schema: {
       context: {} as { auditLogs?: AuditLog[]; count?: number; page: number; limit: number },
       services: {} as {
-        loadAuditLogs: {
-          data: AuditLog[]
-        }
-        loadAuditLogsCount: {
-          data: number
+        loadAuditLogsAndCount: {
+          data: {
+            auditLogs: AuditLog[]
+            count: number
+          }
         }
       },
       events: {} as
@@ -33,42 +33,35 @@ export const auditMachine = createMachine(
     initial: "loading",
     states: {
       loading: {
-        invoke: [
-          {
-            src: "loadAuditLogs",
-            onDone: {
-              actions: ["assignAuditLogs"],
-            },
-            onError: {
-              target: "error",
-              actions: ["displayLoadAuditLogsError"],
-            },
+        // Right now, XState doesn't a good job with state + context typing so
+        // this forces the AuditPageView to showing the loading state when the
+        // loading state is called again by cleaning up the audit logs data
+        entry: "clearPreviousAuditLogs",
+        invoke: {
+          src: "loadAuditLogsAndCount",
+          onDone: {
+            target: "success",
+            actions: ["assignAuditLogsAndCount"],
           },
-          {
-            src: "loadAuditLogsCount",
-            onDone: {
-              actions: ["assignCount"],
-            },
-            onError: {
-              target: "error",
-              actions: ["displayLoadAuditLogsCountError"],
-            },
+          onError: {
+            target: "error",
+            actions: ["displayApiError"],
           },
-        ],
+        },
         onDone: "success",
       },
       success: {
         on: {
           NEXT: {
-            actions: ["assignNextPage"],
+            actions: ["assignNextPage", "onPageChange"],
             target: "loading",
           },
           PREVIOUS: {
-            actions: ["assignPreviousPage"],
+            actions: ["assignPreviousPage", "onPageChange"],
             target: "loading",
           },
           GO_TO_PAGE: {
-            actions: ["assignPage"],
+            actions: ["assignPage", "onPageChange"],
             target: "loading",
           },
         },
@@ -80,11 +73,12 @@ export const auditMachine = createMachine(
   },
   {
     actions: {
-      assignAuditLogs: assign({
-        auditLogs: (_, event) => event.data,
+      clearPreviousAuditLogs: assign({
+        auditLogs: (_) => undefined,
       }),
-      assignCount: assign({
-        count: (_, event) => event.data,
+      assignAuditLogsAndCount: assign({
+        auditLogs: (_, event) => event.data.auditLogs,
+        count: (_, event) => event.data.count,
       }),
       assignNextPage: assign({
         page: ({ page }) => page + 1,
@@ -93,25 +87,29 @@ export const auditMachine = createMachine(
         page: ({ page }) => page - 1,
       }),
       assignPage: assign({
-        page: ({ page }) => page,
+        page: (_, { page }) => page,
       }),
-      displayLoadAuditLogsError: (_, event) => {
+      displayApiError: (_, event) => {
         const message = getErrorMessage(event.data, "Error on loading audit logs.")
-        displayError(message)
-      },
-      displayLoadAuditLogsCountError: (_, event) => {
-        const message = getErrorMessage(event.data, "Error on loading number of audit log entries.")
         displayError(message)
       },
     },
     services: {
-      loadAuditLogs: ({ page, limit }, _) =>
-        getAuditLogs({
-          // The page in the API starts at 0
-          offset: (page - 1) * limit,
-          limit,
-        }).then((data) => data.audit_logs),
-      loadAuditLogsCount: () => getAuditLogsCount().then((data) => data.count),
+      loadAuditLogsAndCount: async ({ page, limit }, _) => {
+        const [auditLogs, count] = await Promise.all([
+          getAuditLogs({
+            // The page in the API starts at 0
+            offset: (page - 1) * limit,
+            limit,
+          }).then((data) => data.audit_logs),
+          getAuditLogsCount().then((data) => data.count),
+        ])
+
+        return {
+          auditLogs,
+          count,
+        }
+      },
     },
   },
 )

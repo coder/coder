@@ -83,7 +83,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         </Table>
       </TableContainer>
 
-      {!isLoading && count > limit ? (
+      {count && count > limit ? (
         <PaginationWidget
           prevLabel=""
           nextLabel=""
