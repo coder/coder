@@ -21,6 +21,10 @@ on:
         type: boolean
         required: true
 
+permissions:
+  # Necessary to push docker images to ghcr.io.
+  packages: write
+
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
 
