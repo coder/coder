@@ -131,7 +131,7 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"$cmd_path" 1>&2
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
-	execrelative ./scripts/sign_darwin.sh "$output_path" 1>&2
+	execrelative ./sign_darwin.sh "$output_path" 1>&2
 fi
 
 echo "$output_path"
