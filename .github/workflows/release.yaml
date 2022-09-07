@@ -195,7 +195,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
-          version: '3.21.5'
+          version: '3.x'
 
       - name: Install dependencies
         run: |
