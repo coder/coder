@@ -22,6 +22,8 @@ on:
         required: true
 
 permissions:
+  # Required to publish a release
+  contents: write
   # Necessary to push docker images to ghcr.io.
   packages: write
 
