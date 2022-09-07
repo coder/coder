@@ -51,7 +51,7 @@ rc=0
 for i in $(seq 1 2); do
 	rcodesign notary-submit \
 		-vvv \
-		--key "$key_file" \
+		--api-key-path "$key_file" \
 		--wait "$@" \
 		1>&2 && rc=0 && break || rc=$?
 
