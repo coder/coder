@@ -213,7 +213,7 @@
     {
       "title": "Admin",
       "description": "How to administer and manage Coder",
-      "icon_path": "./images/icons/cog.svg",
+      "icon_path": "./images/icons/gear.svg",
       "children": [
         {
           "title": "Telemetry",
