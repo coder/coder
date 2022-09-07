@@ -1,5 +1,4 @@
 import { fireEvent, screen } from "@testing-library/react"
-import { Language as CopyButtonLanguage } from "components/CopyButton/CopyButton"
 import { Language as AuditTooltipLanguage } from "components/Tooltips/AuditHelpTooltip"
 import { Language as TooltipLanguage } from "components/Tooltips/HelpTooltip/HelpTooltip"
 import { MockAuditLog, MockAuditLog2, render } from "testHelpers/renderHelpers"
@@ -24,17 +23,6 @@ describe("AuditPage", () => {
     const tooltipIcon = await screen.findByRole("button", { name: TooltipLanguage.ariaLabel })
     fireEvent.mouseOver(tooltipIcon)
     expect(await screen.findByText(AuditTooltipLanguage.title)).toBeInTheDocument()
-  })
-
-  it("describes the CLI command", async () => {
-    // When
-    render(<AuditPage />)
-
-    // Then
-    await screen.findByText("coder audit [organization_ID]") // CLI command; untranslated
-    const copyIcon = await screen.findByRole("button", { name: CopyButtonLanguage.ariaLabel })
-    fireEvent.mouseOver(copyIcon)
-    expect(await screen.findByText(AuditViewLanguage.tooltipTitle)).toBeInTheDocument()
   })
 
   it("shows the audit logs", async () => {
