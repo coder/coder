@@ -193,16 +193,9 @@ jobs:
         run: go install golang.org/x/tools/cmd/goimports@latest
 
       - name: Install Protoc
-        run: |
-          # protoc must be in lockstep with our dogfood Dockerfile
-          # or the version in the comments will differ.
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.21.5'
 
       - name: Install dependencies
         run: |
