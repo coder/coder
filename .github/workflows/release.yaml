@@ -21,13 +21,19 @@ on:
         type: boolean
         required: true
 
+permissions:
+  # Necessary to push docker images to ghcr.io.
+  packages: write
+
+env:
+  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
+
 jobs:
   linux-windows:
     runs-on: ubuntu-latest
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
-      CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
     steps:
       - uses: actions/checkout@v3
         with:
