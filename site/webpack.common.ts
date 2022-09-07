@@ -60,6 +60,9 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     // REMARK: It's important to use [contenthash] here to invalidate caches.
     filename: "bundle.[contenthash].js",
     path: path.resolve(__dirname, "out"),
+    // Don't clean output directory on rebuilds to save time. This is the
+    // default behavior in webpack. We override this for production in
+    // webpack.prod.ts.
     clean: false,
   },
 

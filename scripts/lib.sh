@@ -81,6 +81,21 @@ dependencies() {
 	fi
 }
 
+requiredenvs() {
+	local fail=0
+	for env in "$@"; do
+		if [[ "${!env:-}" == "" ]]; then
+			log "ERROR: The '$env' environment variable is required, but is not set."
+			fail=1
+		fi
+	done
+
+	if [[ "$fail" == 1 ]]; then
+		log
+		error "One or more required environment variables are not set, check above log output for more details."
+	fi
+}
+
 # maybedryrun prints the given program and flags, and then, if the first
 # argument is 0, executes it. The reason the first argument should be 0 is that
 # it is expected that you have a dry_run variable in your script that is set to
