@@ -143,6 +143,7 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 			CreatedAt: dblog.UserCreatedAt.Time,
 			Status:    codersdk.UserStatus(dblog.UserStatus),
 			Roles:     []codersdk.Role{},
+			AvatarURL: dblog.UserAvatarUrl.String,
 		}
 
 		for _, roleName := range dblog.UserRoles {

@@ -7,7 +7,8 @@ SELECT
     users.email AS user_email,
     users.created_at AS user_created_at,
     users.status AS user_status,
-    users.rbac_roles AS user_roles
+    users.rbac_roles AS user_roles,
+    users.avatar_url AS user_avatar_url
 FROM
 	audit_logs
 LEFT JOIN
