@@ -774,22 +774,6 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuild, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() != arg.WorkspaceID.String() {
-			continue
-		}
-		if !strings.EqualFold(workspaceBuild.Name, arg.Name) {
-			continue
-		}
-		return workspaceBuild, nil
-	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1926,7 +1910,6 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
 		WorkspaceID:       arg.WorkspaceID,
-		Name:              arg.Name,
 		TemplateVersionID: arg.TemplateVersionID,
 		BuildNumber:       arg.BuildNumber,
 		Transition:        arg.Transition,

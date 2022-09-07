@@ -1,8 +1,8 @@
 import DialogContentText from "@material-ui/core/DialogContentText"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
-import * as TypesGen from "../../api/typesGenerated"
-import { CodeExample } from "../CodeExample/CodeExample"
+import * as TypesGen from "../../../api/typesGenerated"
+import { CodeExample } from "../../CodeExample/CodeExample"
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
 
 export interface ResetPasswordDialogProps {

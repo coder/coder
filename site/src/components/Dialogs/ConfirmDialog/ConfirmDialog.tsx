@@ -2,8 +2,8 @@ import DialogActions from "@material-ui/core/DialogActions"
 import { fade, makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React, { ReactNode } from "react"
-import { Dialog, DialogActionButtons, DialogActionButtonsProps } from "../Dialog/Dialog"
-import { ConfirmDialogType } from "../Dialog/types"
+import { Dialog, DialogActionButtons, DialogActionButtonsProps } from "../Dialog"
+import { ConfirmDialogType } from "../types"
 
 interface ConfirmDialogTypeConfig {
   confirmText: ReactNode

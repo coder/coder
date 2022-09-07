@@ -1,9 +1,9 @@
 import { Story } from "@storybook/react"
-import { MockUser } from "../../testHelpers/renderHelpers"
+import { MockUser } from "../../../testHelpers/renderHelpers"
 import { ResetPasswordDialog, ResetPasswordDialogProps } from "./ResetPasswordDialog"
 
 export default {
-  title: "components/ResetPasswordDialog",
+  title: "components/Dialogs/ResetPasswordDialog",
   component: ResetPasswordDialog,
   argTypes: {
     onClose: { action: "onClose" },

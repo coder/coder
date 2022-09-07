@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -438,7 +438,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			UpdatedAt:         now,
 			WorkspaceID:       workspace.ID,
 			TemplateVersionID: templateVersion.ID,
-			Name:              namesgenerator.GetRandomName(1),
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransitionStart,
 			JobID:             provisionerJob.ID,
@@ -870,7 +869,6 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 			UpdatedAt:         workspaceBuild.UpdatedAt,
 			WorkspaceID:       workspaceBuild.WorkspaceID,
 			TemplateVersionID: workspaceBuild.TemplateVersionID,
-			Name:              workspaceBuild.Name,
 			BuildNumber:       workspaceBuild.BuildNumber,
 			Transition:        workspaceBuild.Transition,
 			InitiatorID:       workspaceBuild.InitiatorID,
@@ -916,6 +914,15 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		}
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace, build, job, template, &owner, &initiator))
 	}
+	sort.Slice(apiWorkspaces, func(i, j int) bool {
+		iw := apiWorkspaces[i]
+		jw := apiWorkspaces[j]
+		if jw.LastUsedAt.IsZero() && iw.LastUsedAt.IsZero() {
+			return iw.Name < jw.Name
+		}
+		return iw.LastUsedAt.After(jw.LastUsedAt)
+	})
+
 	return apiWorkspaces, nil
 }
 
