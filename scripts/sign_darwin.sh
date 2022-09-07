@@ -29,9 +29,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 dependencies rcodesign
 requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 
-# Do the thing
+# -v is quite verbose, the default output is pretty good on it's own.
 rcodesign sign \
-	-vvv \
 	--binary-identifier "com.coder.cli" \
 	--p12-file "$AC_CERTIFICATE_FILE" \
 	--p12-password-file "$AC_CERTIFICATE_PASSWORD_FILE" \

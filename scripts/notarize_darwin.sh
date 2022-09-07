@@ -49,10 +49,12 @@ rcodesign encode-app-store-connect-api-key \
 # with a delay of 30 seconds between attempts.
 rc=0
 for i in $(seq 1 2); do
+	# -v is quite verbose, the default output is pretty good on it's own. Adding
+	# -v makes it dump the credentials used for uploading to Apple's S3 bucket.
 	rcodesign notary-submit \
-		-vvv \
 		--api-key-path "$key_file" \
-		--wait "$@" \
+		--wait \
+		"$@" \
 		1>&2 && rc=0 && break || rc=$?
 
 	log "rcodesign exit code: $rc"
