@@ -12,7 +12,7 @@
 # with "vX" (e.g. "v7", "v8").
 #
 # Unless overridden via --output, the built binary will be dropped in
-# "$repo_root/build/coder_$version_$os_$arch" (with a ".exe" suffix for windows
+# "$repo_root/dist/coder_$version_$os_$arch" (with a ".exe" suffix for windows
 # builds) and the absolute path to the binary will be printed to stdout on
 # completion.
 #
@@ -26,12 +26,13 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+cdroot
 
 version=""
 os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
 slim="${CODER_SLIM_BUILD:-0}"
-sign_darwin="${CODER_SIGN_DARWIN:-0}"
+sign_darwin=0
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
@@ -52,7 +53,6 @@ while true; do
 		shift 2
 		;;
 	--output)
-		mkdir -p "$(dirname "$2")"
 		output_path="$(realpath "$2")"
 		shift 2
 		;;
@@ -81,8 +81,6 @@ while true; do
 	esac
 done
 
-cdroot
-
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
@@ -104,8 +102,9 @@ fi
 
 # Compute default output path.
 if [[ "$output_path" == "" ]]; then
-	mkdir -p "build"
-	output_path="build/coder_${version}_${os}_${arch}"
+	dist_dir="dist"
+	mkdir -p "$dist_dir"
+	output_path="${dist_dir}/coder_${version}_${os}_${arch}"
 	if [[ "$os" == "windows" ]]; then
 		output_path+=".exe"
 	fi
@@ -133,13 +132,7 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"$cmd_path" 1>&2
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
-	codesign \
-		-f -v \
-		-s "$AC_APPLICATION_IDENTITY" \
-		--timestamp \
-		--options runtime \
-		"$output_path" \
-		1>&2
+	codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
 fi
 
 echo "$output_path"
