@@ -126,7 +126,6 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 		"{workspace}":           workspace.ID.String(),
 		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
 		"{workspacename}":       workspace.Name,
-		"{workspacebuildname}":  workspace.LatestBuild.Name,
 		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
 		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
 		"{template}":            template.ID.String(),
@@ -210,10 +209,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
 			AssertObject: rbac.ResourceWorkspace,
 			AssertAction: rbac.ActionRead,
-		},
-		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
 			AssertAction: rbac.ActionRead,

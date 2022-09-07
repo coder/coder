@@ -1,8 +1,18 @@
-import { makeStyles } from "@material-ui/core/styles"
+import Table from "@material-ui/core/Table"
+import TableBody from "@material-ui/core/TableBody"
+import TableCell from "@material-ui/core/TableCell"
+import TableContainer from "@material-ui/core/TableContainer"
+import TableHead from "@material-ui/core/TableHead"
+import TableRow from "@material-ui/core/TableRow"
+import { AuditLog } from "api/typesGenerated"
+import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
 import { CodeExample } from "components/CodeExample/CodeExample"
+import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { Stack } from "components/Stack/Stack"
+import { TableLoader } from "components/TableLoader/TableLoader"
 import { AuditHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 
@@ -12,48 +22,79 @@ export const Language = {
   tooltipTitle: "Copy to clipboard and try the Coder CLI",
 }
 
-export const AuditPageView: FC = () => {
-  const styles = useStyles()
+export interface AuditPageViewProps {
+  auditLogs?: AuditLog[]
+  count?: number
+  page: number
+  limit: number
+  onNext: () => void
+  onPrevious: () => void
+  onGoToPage: (page: number) => void
+}
+
+export const AuditPageView: FC<AuditPageViewProps> = ({
+  auditLogs,
+  count,
+  page,
+  limit,
+  onNext,
+  onPrevious,
+  onGoToPage,
+}) => {
+  const isLoading = auditLogs === undefined || count === undefined
+  const isEmpty = !isLoading && auditLogs.length === 0
+  const hasResults = !isLoading && auditLogs.length > 0
 
   return (
     <Margins>
-      <Stack justifyContent="space-between" className={styles.headingContainer}>
-        <PageHeader className={styles.headingStyles}>
-          <PageHeaderTitle>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <span>{Language.title}</span>
-              <AuditHelpTooltip />
-            </Stack>
-          </PageHeaderTitle>
-          <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
-        </PageHeader>
-        <CodeExample
-          className={styles.codeExampleStyles}
-          tooltipTitle={Language.tooltipTitle}
-          code="coder audit [organization_ID]"
+      <PageHeader
+        actions={
+          <CodeExample tooltipTitle={Language.tooltipTitle} code="coder audit [organization_ID]" />
+        }
+      >
+        <PageHeaderTitle>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <span>{Language.title}</span>
+            <AuditHelpTooltip />
+          </Stack>
+        </PageHeaderTitle>
+        <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+      </PageHeader>
+
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell style={{ paddingLeft: 32 }}>Logs</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {isLoading && <TableLoader />}
+            {hasResults &&
+              auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)}
+            {isEmpty && (
+              <TableRow>
+                <TableCell colSpan={999}>
+                  <EmptyState message="No audit logs available" />
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {count && count > limit ? (
+        <PaginationWidget
+          prevLabel=""
+          nextLabel=""
+          onPrevClick={onPrevious}
+          onNextClick={onNext}
+          onPageClick={onGoToPage}
+          numRecords={count}
+          activePage={page}
+          numRecordsPerPage={limit}
         />
-      </Stack>
+      ) : null}
     </Margins>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  headingContainer: {
-    marginTop: theme.spacing(6),
-    marginBottom: theme.spacing(5),
-    flexDirection: "row",
-    alignItems: "center",
-
-    [theme.breakpoints.down("sm")]: {
-      flexDirection: "column",
-      alignItems: "start",
-    },
-  },
-  headingStyles: {
-    paddingTop: "0px",
-    paddingBottom: "0px",
-  },
-  codeExampleStyles: {
-    height: "fit-content",
-  },
-}))

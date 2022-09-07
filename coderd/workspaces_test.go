@@ -876,45 +876,6 @@ func TestPostWorkspaceBuild(t *testing.T) {
 	})
 }
 
-func TestWorkspaceBuildByName(t *testing.T) {
-	t.Parallel()
-	t.Run("NotFound", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.WorkspaceBuildByName(ctx, workspace.ID, "something")
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-	})
-
-	t.Run("Found", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		build, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-		require.NoError(t, err)
-		_, err = client.WorkspaceBuildByName(ctx, workspace.ID, build.Name)
-		require.NoError(t, err)
-	})
-}
-
 func TestWorkspaceUpdateAutostart(t *testing.T) {
 	t.Parallel()
 	dublinLoc := mustLocation(t, "Europe/Dublin")

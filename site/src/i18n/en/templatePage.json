@@ -1,8 +1,7 @@
 {
   "deleteDialog": {
     "title": "Delete template",
-    "message": "Are you sure you want to delete this template?",
-    "confirm": "Delete"
+    "description": "Deleting a template is irreversible. Are you sure you want to proceed?"
   },
   "deleteSuccess": "Template successfully deleted."
 }

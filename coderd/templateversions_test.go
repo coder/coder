@@ -396,9 +396,9 @@ func TestTemplateVersionResources(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resources)
 		require.Len(t, resources, 4)
-		require.Equal(t, "some", resources[0].Name)
-		require.Equal(t, "example", resources[0].Type)
-		require.Len(t, resources[0].Agents, 1)
+		require.Equal(t, "some", resources[2].Name)
+		require.Equal(t, "example", resources[2].Type)
+		require.Len(t, resources[2].Agents, 1)
 	})
 }
 

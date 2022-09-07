@@ -21,15 +21,6 @@ LIMIT
 -- name: GetWorkspaceBuildsCreatedAfter :many
 SELECT * FROM workspace_builds WHERE created_at > $1;
 
--- name: GetWorkspaceBuildByWorkspaceIDAndName :one
-SELECT
-	*
-FROM
-	workspace_builds
-WHERE
-	workspace_id = $1
-	AND "name" = $2;
-
 -- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
 	*
@@ -122,7 +113,6 @@ INSERT INTO
 		workspace_id,
 		template_version_id,
 		"build_number",
-		"name",
 		transition,
 		initiator_id,
 		job_id,
@@ -131,7 +121,7 @@ INSERT INTO
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: UpdateWorkspaceBuildByID :exec
 UPDATE
