@@ -1,18 +1,17 @@
 import { getAuditLogs, getAuditLogsCount } from "api/api"
 import { getErrorMessage } from "api/errors"
+import { AuditLog } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
-
-type AuditLogs = Awaited<ReturnType<typeof getAuditLogs>>
 
 export const auditMachine = createMachine(
   {
     id: "auditMachine",
     schema: {
-      context: {} as { auditLogs?: AuditLogs; count?: number; page: number; limit: number },
+      context: {} as { auditLogs?: AuditLog[]; count?: number; page: number; limit: number },
       services: {} as {
         loadAuditLogs: {
-          data: AuditLogs
+          data: AuditLog[]
         }
         loadAuditLogsCount: {
           data: number
@@ -111,8 +110,8 @@ export const auditMachine = createMachine(
           // The page in the API starts at 0
           offset: (page - 1) * limit,
           limit,
-        }),
-      loadAuditLogsCount: () => getAuditLogsCount(),
+        }).then((data) => data.audit_logs),
+      loadAuditLogsCount: () => getAuditLogsCount().then((data) => data.count),
     },
   },
 )
