@@ -58,6 +58,7 @@ const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = (
         id={schema.name}
         size="small"
         defaultValue={schema.default_source_value}
+        placeholder={schema.default_source_value}
         disabled={disabled}
         onChange={(event) => {
           onChange(event.target.value)

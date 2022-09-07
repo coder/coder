@@ -56,7 +56,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTes
 		t.Error("NewAuthTester cannot be called with custom Authorizer")
 	}
 	options.Authorizer = authorizer
-	options.IncludeProvisionerD = true
+	options.IncludeProvisionerDaemon = true
 
 	client, _, api := newWithAPI(t, options)
 	admin := CreateFirstUser(t, client)
@@ -167,6 +167,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
 		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
+		"GET:/derp":                 "This requires a WebSocket upgrade!",
+		"GET:/derp/latency-check":   "This always returns a 200!",
 	}
 
 	assertRoute := map[string]RouteCheck{
@@ -193,12 +195,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/derp":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/coordinate":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/version":                 {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/wireguardlisten":          {NoAuthorize: true},
-		"POST:/api/v2/workspaceagents/me/keys":                    {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/report-stats":             {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/derp":       {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(a.Admin.OrganizationID)},
@@ -268,6 +268,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: workspaceExecObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: workspaceExecObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/coordinate": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},

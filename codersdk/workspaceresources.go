@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"inet.af/netaddr"
-	"tailscale.com/types/key"
 )
 
 type WorkspaceAgentStatus string
@@ -37,6 +35,11 @@ type WorkspaceResourceMetadata struct {
 	Sensitive bool   `json:"sensitive"`
 }
 
+type DERPRegion struct {
+	Preferred           bool    `json:"preferred"`
+	LatencyMilliseconds float64 `json:"latency_ms"`
+}
+
 type WorkspaceAgent struct {
 	ID                   uuid.UUID            `json:"id"`
 	CreatedAt            time.Time            `json:"created_at"`
@@ -53,11 +56,10 @@ type WorkspaceAgent struct {
 	OperatingSystem      string               `json:"operating_system"`
 	StartupScript        string               `json:"startup_script,omitempty"`
 	Directory            string               `json:"directory,omitempty"`
-	Apps                 []WorkspaceApp       `json:"apps"`
-	WireguardPublicKey   key.NodePublic       `json:"wireguard_public_key"`
-	DiscoPublicKey       key.DiscoPublic      `json:"disco_public_key"`
-	IPv6                 netaddr.IPPrefix     `json:"ipv6"`
 	Version              string               `json:"version"`
+	Apps                 []WorkspaceApp       `json:"apps"`
+	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
+	DERPLatency map[string]DERPRegion `json:"latency,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

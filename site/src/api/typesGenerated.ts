@@ -29,6 +29,13 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/templates.go
+export interface AgentStatsReportResponse {
+  readonly num_comms: number
+  readonly rx_bytes: number
+  readonly tx_bytes: number
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean
@@ -40,9 +47,9 @@ export type AuditDiff = Record<string, AuditDiffField>
 // From codersdk/audit.go
 export interface AuditDiffField {
   // eslint-disable-next-line
-  readonly old: any
+  readonly old?: any
   // eslint-disable-next-line
-  readonly new: any
+  readonly new?: any
   readonly secret: boolean
 }
 
@@ -67,6 +74,16 @@ export interface AuditLog {
   readonly additional_fields: string
   readonly description: string
   readonly user?: User
+}
+
+// From codersdk/audit.go
+export interface AuditLogCountResponse {
+  readonly count: number
+}
+
+// From codersdk/audit.go
+export interface AuditLogResponse {
+  readonly audit_logs: AuditLog[]
 }
 
 // From codersdk/users.go
@@ -163,6 +180,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
+  readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -173,6 +191,18 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/templates.go
+export interface DAUEntry {
+  readonly date: string
+  readonly amount: number
+}
+
+// From codersdk/workspaceresources.go
+export interface DERPRegion {
+  readonly preferred: boolean
+  readonly latency_ms: number
 }
 
 // From codersdk/features.go
@@ -356,6 +386,11 @@ export interface Template {
   readonly created_by_name: string
 }
 
+// From codersdk/templates.go
+export interface TemplateDAUsResponse {
+  readonly entries: DAUEntry[]
+}
+
 // From codersdk/templateversions.go
 export interface TemplateVersion {
   readonly id: string
@@ -434,6 +469,7 @@ export interface User {
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
+  readonly avatar_url: string
 }
 
 // From codersdk/users.go
@@ -490,6 +526,7 @@ export interface Workspace {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
+  readonly last_used_at: string
 }
 
 // From codersdk/workspaceresources.go
@@ -509,22 +546,21 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
-  readonly apps: WorkspaceApp[]
-  // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly wireguard_public_key: any
-  // Named type "tailscale.com/types/key.DiscoPublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly disco_public_key: any
-  // Named type "inet.af/netaddr.IPPrefix" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ipv6: any
   readonly version: string
+  readonly apps: WorkspaceApp[]
+  readonly latency?: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentConnectionInfo {
+  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly derp_map?: any
 }
 
 // From codersdk/workspaceresources.go

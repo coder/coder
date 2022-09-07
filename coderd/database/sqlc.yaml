@@ -16,14 +16,9 @@ packages:
     # deleted after generation.
     output_db_file_name: db_tmp.go
 
-overrides:
-  - column: workspace_agents.wireguard_node_public_key
-    go_type: github.com/coder/coder/coderd/database/dbtypes.NodePublic
-  - column: workspace_agents.wireguard_disco_public_key
-    go_type: github.com/coder/coder/coderd/database/dbtypes.DiscoPublic
-
 rename:
   api_key: APIKey
+  avatar_url: AvatarURL
   login_type_oidc: LoginTypeOIDC
   oauth_access_token: OAuthAccessToken
   oauth_expiry: OAuthExpiry
@@ -34,5 +29,5 @@ rename:
   gitsshkey: GitSSHKey
   rbac_roles: RBACRoles
   ip_address: IPAddress
-  wireguard_node_ipv6: WireguardNodeIPv6
+  ip_addresses: IPAddresses
   jwt: JWT

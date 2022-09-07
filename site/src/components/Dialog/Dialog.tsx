@@ -1,12 +1,9 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@material-ui/core/Dialog"
 import MuiDialogTitle from "@material-ui/core/DialogTitle"
-import InputAdornment from "@material-ui/core/InputAdornment"
-import OutlinedInput, { OutlinedInputProps } from "@material-ui/core/OutlinedInput"
 import { darken, fade, lighten, makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
-import { SearchIcon } from "../Icons/SearchIcon"
 import { LoadingButton, LoadingButtonProps } from "../LoadingButton/LoadingButton"
 import { ConfirmDialogType } from "./types"
 
@@ -299,53 +296,6 @@ const useButtonStyles = makeStyles((theme) => ({
     },
   },
 }))
-
-export type DialogSearchProps = Omit<
-  OutlinedInputProps,
-  "className" | "fullWidth" | "labelWidth" | "startAdornment"
->
-
-/**
- * Formats a search bar right below the title of a Dialog. Passes all props
- * through to the Material UI OutlinedInput component contained within.
- */
-export const DialogSearch: React.FC<DialogSearchProps> = (props) => {
-  const styles = useSearchStyles()
-  return (
-    <div className={styles.root}>
-      <OutlinedInput
-        {...props}
-        fullWidth
-        labelWidth={0}
-        className={styles.input}
-        startAdornment={
-          <InputAdornment position="start">
-            <SearchIcon className={styles.icon} />
-          </InputAdornment>
-        }
-      />
-    </div>
-  )
-}
-
-const useSearchStyles = makeStyles(
-  (theme) => ({
-    root: {
-      position: "relative",
-      padding: `${theme.spacing(2)}px ${theme.spacing(4)}px`,
-      boxShadow: `0 2px 6px ${fade("#1D407E", 0.2)}`,
-      zIndex: 2,
-    },
-    input: {
-      margin: 0,
-    },
-    icon: {
-      width: 16,
-      height: 16,
-    },
-  }),
-  { name: "CdrDialogSearch" },
-)
 
 export type DialogProps = MuiDialogProps
 

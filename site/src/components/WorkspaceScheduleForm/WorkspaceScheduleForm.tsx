@@ -164,7 +164,7 @@ export const validationSchema = Yup.object({
     .test("positive-if-auto-stop", Language.errorNoStop, function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
       if (parent.autoStopEnabled) {
-        return !!value
+        return Boolean(value)
       } else {
         return true
       }

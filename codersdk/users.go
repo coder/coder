@@ -50,6 +50,7 @@ type User struct {
 	Status          UserStatus  `json:"status" table:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 	Roles           []Role      `json:"roles"`
+	AvatarURL       string      `json:"avatar_url"`
 }
 
 type APIKey struct {

@@ -41,6 +41,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -65,6 +66,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/tailnet"
 )
 
 // nolint:gocyclo
@@ -73,6 +75,12 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		accessURL             string
 		address               string
 		autobuildPollInterval time.Duration
+		derpServerEnabled     bool
+		derpServerRegionID    int
+		derpServerRegionCode  string
+		derpServerRegionName  string
+		derpServerSTUNAddrs   []string
+		derpConfigURL         string
 		promEnabled           bool
 		promAddress           string
 		pprofEnabled          bool
@@ -94,6 +102,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		oidcEmailDomain                  string
 		oidcIssuerURL                    string
 		oidcScopes                       []string
+		tailscaleEnable                  bool
 		telemetryEnable                  bool
 		telemetryURL                     string
 		tlsCertFile                      string
@@ -111,6 +120,8 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		autoImportTemplates              []string
 		spooky                           bool
 		verbose                          bool
+		metricsCacheRefreshInterval      time.Duration
+		agentStatRefreshInterval         time.Duration
 	)
 
 	root := &cobra.Command{
@@ -245,6 +256,17 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse URL: %w", err)
 			}
+			accessURLPortRaw := accessURLParsed.Port()
+			if accessURLPortRaw == "" {
+				accessURLPortRaw = "80"
+				if accessURLParsed.Scheme == "https" {
+					accessURLPortRaw = "443"
+				}
+			}
+			accessURLPort, err := strconv.Atoi(accessURLPortRaw)
+			if err != nil {
+				return xerrors.Errorf("parse access URL port: %w", err)
+			}
 
 			// Warn the user if the access URL appears to be a loopback address.
 			isLocal, err := isLocalURL(ctx, accessURLParsed)
@@ -307,20 +329,45 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				validatedAutoImportTemplates[i] = v
 			}
 
+			defaultRegion := &tailcfg.DERPRegion{
+				RegionID:   derpServerRegionID,
+				RegionCode: derpServerRegionCode,
+				RegionName: derpServerRegionName,
+				Nodes: []*tailcfg.DERPNode{{
+					Name:      fmt.Sprintf("%db", derpServerRegionID),
+					RegionID:  derpServerRegionID,
+					HostName:  accessURLParsed.Hostname(),
+					DERPPort:  accessURLPort,
+					STUNPort:  -1,
+					ForceHTTP: accessURLParsed.Scheme == "http",
+				}},
+			}
+			if !derpServerEnabled {
+				defaultRegion = nil
+			}
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL)
+			if err != nil {
+				return xerrors.Errorf("create derp map: %w", err)
+			}
+
 			options := &coderd.Options{
-				AccessURL:            accessURLParsed,
-				ICEServers:           iceServers,
-				Logger:               logger.Named("coderd"),
-				Database:             databasefake.New(),
-				Pubsub:               database.NewPubsubInMemory(),
-				CacheDir:             cacheDir,
-				GoogleTokenValidator: googleTokenValidator,
-				SecureAuthCookie:     secureAuthCookie,
-				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
-				TURNServer:           turnServer,
-				TracerProvider:       tracerProvider,
-				Telemetry:            telemetry.NewNoop(),
-				AutoImportTemplates:  validatedAutoImportTemplates,
+				AccessURL:                   accessURLParsed,
+				ICEServers:                  iceServers,
+				Logger:                      logger.Named("coderd"),
+				Database:                    databasefake.New(),
+				DERPMap:                     derpMap,
+				Pubsub:                      database.NewPubsubInMemory(),
+				CacheDir:                    cacheDir,
+				GoogleTokenValidator:        googleTokenValidator,
+				SecureAuthCookie:            secureAuthCookie,
+				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
+				TailscaleEnable:             tailscaleEnable,
+				TURNServer:                  turnServer,
+				TracerProvider:              tracerProvider,
+				Telemetry:                   telemetry.NewNoop(),
+				AutoImportTemplates:         validatedAutoImportTemplates,
+				MetricsCacheRefreshInterval: metricsCacheRefreshInterval,
+				AgentStatsRefreshInterval:   agentStatRefreshInterval,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -704,6 +751,24 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
+	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
+		"Specifies a URL to periodically fetch a DERP map. See: https://tailscale.com/kb/1118/custom-derp-servers/")
+	cliflag.BoolVarP(root.Flags(), &derpServerEnabled, "derp-server-enable", "", "CODER_DERP_SERVER_ENABLE", true, "Specifies whether to enable or disable the embedded DERP server.")
+	cliflag.IntVarP(root.Flags(), &derpServerRegionID, "derp-server-region-id", "", "CODER_DERP_SERVER_REGION_ID", 999, "Specifies the region ID to use for the embedded DERP server.")
+	cliflag.StringVarP(root.Flags(), &derpServerRegionCode, "derp-server-region-code", "", "CODER_DERP_SERVER_REGION_CODE", "coder", "Specifies the region code that is displayed in the Coder UI for the embedded DERP server.")
+	cliflag.StringVarP(root.Flags(), &derpServerRegionName, "derp-server-region-name", "", "CODER_DERP_SERVER_REGION_NAME", "Coder Embedded DERP", "Specifies the region name that is displayed in the Coder UI for the embedded DERP server.")
+	cliflag.StringArrayVarP(root.Flags(), &derpServerSTUNAddrs, "derp-server-stun-addresses", "", "CODER_DERP_SERVER_STUN_ADDRESSES", []string{
+		"stun.l.google.com:19302",
+	}, "Specify addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections entirely.")
+
+	// Mark hidden while this feature is in testing!
+	_ = root.Flags().MarkHidden("derp-config-url")
+	_ = root.Flags().MarkHidden("derp-server-enable")
+	_ = root.Flags().MarkHidden("derp-server-region-id")
+	_ = root.Flags().MarkHidden("derp-server-region-code")
+	_ = root.Flags().MarkHidden("derp-server-region-name")
+	_ = root.Flags().MarkHidden("derp-server-stun-addresses")
+
 	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
 	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
 	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
@@ -743,6 +808,9 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		"Specifies an issuer URL to use for OIDC.")
 	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
 		"Specifies scopes to grant when authenticating with OIDC.")
+	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", false,
+		"Specifies whether Tailscale networking is used for web applications and terminals.")
+	_ = root.Flags().MarkHidden("tailscale")
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
@@ -774,8 +842,16 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
 	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{}, "Which templates to auto-import. Available auto-importable templates are: kubernetes")
 	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
-	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
 	_ = root.Flags().MarkHidden("spooky")
+	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
+
+	// These metrics flags are for manually testing the metric system.
+	// The defaults should be acceptable for any Coder deployment of any
+	// reasonable size.
+	cliflag.DurationVarP(root.Flags(), &metricsCacheRefreshInterval, "metrics-cache-refresh-interval", "", "CODER_METRICS_CACHE_REFRESH_INTERVAL", time.Hour, "How frequently metrics are refreshed")
+	_ = root.Flags().MarkHidden("metrics-cache-refresh-interval")
+	cliflag.DurationVarP(root.Flags(), &agentStatRefreshInterval, "agent-stats-refresh-interval", "", "CODER_AGENT_STATS_REFRESH_INTERVAL", time.Minute*10, "How frequently agent stats are recorded")
+	_ = root.Flags().MarkHidden("agent-stats-report-interval")
 
 	return root
 }

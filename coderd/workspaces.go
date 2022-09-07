@@ -389,6 +389,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			return xerrors.Errorf("insert workspace: %w", err)
 		}
 		for _, parameterValue := range createWorkspace.ParameterValues {
+			// If the value is empty, we don't want to save it on database so
+			// Terraform can use the default value
+			if parameterValue.SourceValue == "" {
+				continue
+			}
+
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
@@ -941,6 +947,7 @@ func convertWorkspace(
 		Name:              workspace.Name,
 		AutostartSchedule: autostartSchedule,
 		TTLMillis:         ttlMillis,
+		LastUsedAt:        workspace.LastUsedAt,
 	}
 }
 

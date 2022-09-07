@@ -5,6 +5,10 @@ import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
 
 export const handlers = [
+  rest.get("/api/v2/templates/:templateId/daus", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockTemplateDAUResponse))
+  }),
+
   // build info
   rest.get("/api/v2/buildinfo", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))
@@ -39,6 +43,9 @@ export const handlers = [
   }),
   rest.get("/api/v2/templateversions/:templateVersionId/resources", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]))
+  }),
+  rest.delete("/api/v2/templates/:templateId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
 
   // users
