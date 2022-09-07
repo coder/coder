@@ -21,15 +21,13 @@ on:
         type: boolean
         required: true
 
-env:
-  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
-
 jobs:
   linux-windows:
     runs-on: ubuntu-latest
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+      CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -71,24 +69,21 @@ jobs:
         run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
-
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
       - name: Install Protoc
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile
           # or the version in the comments will differ.
-          set -x
+          set -euxo pipefail
           cd dogfood
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
           protoc_path=/usr/local/bin/protoc
           docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
           chmod +x $protoc_path
           protoc --version
-
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
-
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
 
       - name: Build Linux and Windows Binaries
         run: |
@@ -98,21 +93,16 @@ jobs:
           version="$(./scripts/version.sh)"
           make -j \
             -W coderd/database/querier.go \
-            build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
+            build/coder_"$version"_linux_{amd64,arm64,armv7}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_windows_{amd64,arm64}.zip \
 
       - name: Build Linux Docker images
         run: |
           set -euxo pipefail
 
-          # build and (maybe) push Docker images for each architecture
+          # build Docker images for each architecture
           version="$(./scripts/version.sh)"
-          push=""
-          if [[ "$CODER_RELEASE" == *t* ]]; then
-            push="push/"
-          fi
-          make -j \
-            "$push"build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -121,18 +111,18 @@ jobs:
             exit 0
           fi
 
-          # build and push multi-arch manifest
+          # build and push multi-arch manifest, this depends on the other images
+          # being pushed so will automatically push them.
           make -j push/build/coder_"$version"_linux.tag
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
-            make -j push/build/coder_"$version"_linux.tag
             ./scripts/build_docker_multiarch.sh \
-              --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
-              "${images[@]}"
+              --push \
+              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
 
       - name: Upload binary artifacts

@@ -57,18 +57,16 @@ PACKAGE_OS_ARCHES := linux_amd64 linux_armv7 linux_arm64
 DOCKER_ARCHES := amd64 arm64 armv7
 
 # Computed variables based on the above.
-CODER_SLIM_BINARIES          := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
-CODER_FAT_BINARIES           := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
-CODER_ALL_BINARIES           := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
-CODER_TAR_GZ_ARCHIVES        := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
-CODER_ZIP_ARCHIVES           := $(foreach os_arch, $(ARCHIVE_ZIP), build/coder_$(VERSION)_$(os_arch).zip)
-CODER_ALL_ARCHIVES           := $(CODER_TAR_GZ_ARCHIVES) $(CODER_ZIP_ARCHIVES)
-CODER_ALL_PACKAGES           := $(foreach os_arch, $(PACKAGE_OS_ARCHES), $(addprefix build/coder_$(VERSION)_$(os_arch).,$(PACKAGE_FORMATS)))
-CODER_ALL_ARCH_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_$(VERSION)_linux_$(arch).tag)
-CODER_ALL_ARCH_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_ARCH_IMAGES))
-CODER_MAIN_IMAGE             := build/coder_$(VERSION)_linux.tag
-CODER_ALL_IMAGES             := $(CODER_ALL_ARCH_IMAGES) $(CODER_MAIN_IMAGE)
-CODER_ALL_IMAGES_PUSHED      := $(addprefix push/, $(CODER_ALL_IMAGES))
+CODER_SLIM_BINARIES      := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
+CODER_FAT_BINARIES       := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
+CODER_ALL_BINARIES       := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
+CODER_TAR_GZ_ARCHIVES    := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
+CODER_ZIP_ARCHIVES       := $(foreach os_arch, $(ARCHIVE_ZIP), build/coder_$(VERSION)_$(os_arch).zip)
+CODER_ALL_ARCHIVES       := $(CODER_TAR_GZ_ARCHIVES) $(CODER_ZIP_ARCHIVES)
+CODER_ALL_PACKAGES       := $(foreach os_arch, $(PACKAGE_OS_ARCHES), $(addprefix build/coder_$(VERSION)_$(os_arch).,$(PACKAGE_FORMATS)))
+CODER_ARCH_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_$(VERSION)_linux_$(arch).tag)
+CODER_ARCH_IMAGES_PUSHED := $(addprefix push/, $(CODER_ARCH_IMAGES))
+CODER_MAIN_IMAGE         := build/coder_$(VERSION)_linux.tag
 
 CODER_SLIM_NOVERSION_BINARIES     := $(addprefix build/coder-slim_,$(OS_ARCHES))
 CODER_FAT_NOVERSION_BINARIES      := $(addprefix build/coder_,$(OS_ARCHES))
@@ -88,7 +86,7 @@ build-slim: $(CODER_SLIM_BINARIES)
 build-fat build-full build: $(CODER_FAT_BINARIES)
 .PHONY: build-fat build-full build
 
-release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ALL_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
+release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
 .PHONY: release
 
 build/coder-slim_$(VERSION)_checksums.sha1 site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
@@ -270,7 +268,7 @@ $(CODER_ALL_NOVERSION_IMAGES_PUSHED): push/build/coder_%: push/build/coder_$(VER
 #
 # Images need to run after the archives and packages are built, otherwise they
 # cause errors like "file changed as we read it".
-$(CODER_ALL_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: \
+$(CODER_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: \
 	build/coder_$(VERSION)_% \
 	build/coder_$(VERSION)_%.apk \
 	build/coder_$(VERSION)_%.deb \
@@ -290,20 +288,26 @@ $(CODER_ALL_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: \
 
 # Multi-arch Docker image. This requires all architecture-specific images to be
 # built AND pushed.
-build/coder_$(VERSION)_linux.tag: $(CODER_ALL_ARCH_IMAGES_PUSHED)
+$(CODER_MAIN_IMAGE): $(CODER_ARCH_IMAGES_PUSHED)
 	image_tag="$$(./scripts/image_tag.sh --version "$(VERSION)")"
 	./scripts/build_docker_multiarch.sh \
 		--target "$$image_tag" \
 		--version "$(VERSION)" \
-		$(foreach img, $^, "$$(cat "$(img)")")
+		$(foreach img, $^, "$$(cat "$(img:push/%=%)")")
 
 	echo "$$image_tag" > "$@"
 
 # Push a Docker image.
-$(CODER_ALL_IMAGES_PUSHED): push/%: %
+$(CODER_ARCH_IMAGES_PUSHED): push/%: %
 	image_tag="$$(cat "$<")"
 	docker push "$$image_tag"
-.PHONY: $(CODER_ALL_IMAGES_PUSHED)
+.PHONY: $(CODER_ARCH_IMAGES_PUSHED)
+
+# Push the multi-arch Docker manifest.
+push/$(CODER_MAIN_IMAGE): $(CODER_MAIN_IMAGE)
+	image_tag="$$(cat "$<")"
+	docker manifest push "$$image_tag"
+.PHONY: push/$(CODER_MAIN_IMAGE)
 
 # Shortcut for Helm chart package.
 build/coder_helm.tgz: build/coder_helm_$(VERSION).tgz
