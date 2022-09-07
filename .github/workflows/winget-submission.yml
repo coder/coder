@@ -5,7 +5,8 @@ on:
     types: [published]
 
 env:
-  packageFileName: coder_${VERSION}_windows_amd64.zip    # Need to get VERSION from latest release to use here
+  version: "$(git describe --tags --abbrev=0)"
+  packageFileName: coder_${version}_windows_amd64.zip
   packageId: MyPackageIdInWinget  # Need to ge an official Winget Package ID
   
 jobs:
