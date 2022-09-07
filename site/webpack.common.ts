@@ -60,6 +60,7 @@ export const createCommonWebpackConfig = (options?: { skipTypecheck: boolean }):
     // REMARK: It's important to use [contenthash] here to invalidate caches.
     filename: "bundle.[contenthash].js",
     path: path.resolve(__dirname, "out"),
+    clean: false,
   },
 
   // modules specify how different modules are loaded

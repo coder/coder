@@ -47,8 +47,11 @@ export const config: Configuration = {
   output: {
     ...commonWebpackConfig.output,
 
-    // regenerate the entire dist/ directory when producing production builds
-    clean: true,
+    // Regenerate the entire out/ directory (except GITKEEP and out/bin/) when
+    // producing production builds
+    clean: {
+      keep: /(GITKEEP|bin\/)/,
+    },
   },
 
   plugins: [
