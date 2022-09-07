@@ -1,5 +1,5 @@
 import { useMachine, useSelector } from "@xstate/react"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { DestructiveDialog } from "components/Dialogs/DestructiveDialog/DestructiveDialog"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
@@ -74,20 +74,17 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
         deleteTemplateError={deleteTemplateError}
       />
 
-      <ConfirmDialog
-        type="delete"
-        hideCancel={false}
-        open={templateState.matches("confirmingDelete")}
+      <DestructiveDialog
+        isOpen={templateState.matches("confirmingDelete")}
         confirmLoading={templateState.matches("deleting")}
         title={t("deleteDialog.title")}
-        confirmText={t("deleteDialog.confirm")}
-        onConfirm={() => {
+        description={t("deleteDialog.description")}
+        handleConfirm={() => {
           templateSend("CONFIRM_DELETE")
         }}
-        onClose={() => {
+        handleCancel={() => {
           templateSend("CANCEL_DELETE")
         }}
-        description={<>{t("deleteDialog.message")}</>}
       />
     </>
   )

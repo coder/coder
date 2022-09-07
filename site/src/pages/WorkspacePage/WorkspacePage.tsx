@@ -4,8 +4,9 @@ import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
+import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
-import { DeleteWorkspaceDialog } from "../../components/Dialogs/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
+import { DestructiveDialog } from "../../components/Dialogs/DestructiveDialog/DestructiveDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
@@ -24,6 +25,8 @@ export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
+
+  const { t } = useTranslation("workspacePage")
 
   const xServices = useContext(XServiceContext)
   const me = useSelector(xServices.authXService, selectUser)
@@ -136,7 +139,9 @@ export const WorkspacePage: FC = () => {
           }}
           buildInfo={buildInfoState.context.buildInfo}
         />
-        <DeleteWorkspaceDialog
+        <DestructiveDialog
+          title={t("deleteDialog.title")}
+          description={t("deleteDialog.description")}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
           handleCancel={() => workspaceSend("CANCEL_DELETE")}
           handleConfirm={() => {
