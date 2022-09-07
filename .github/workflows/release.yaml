@@ -15,6 +15,12 @@ on:
         type: boolean
         required: true
 
+permissions:
+  # Required to publish a release
+  contents: write
+  # Necessary to push docker images to ghcr.io.
+  packages: write
+
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
 
@@ -41,7 +47,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-go@v3
@@ -64,7 +70,6 @@ jobs:
           set -euo pipefail
           wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
           sudo dpkg -i /tmp/nfpm.deb
-
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
@@ -98,6 +103,7 @@ jobs:
           go mod download
 
           version="$(./scripts/version.sh)"
+          make gen/mark-fresh
           make -j \
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
@@ -117,14 +123,9 @@ jobs:
         run: |
           set -euxo pipefail
 
-          # build and (maybe) push Docker images for each architecture
+          # build Docker images for each architecture
           version="$(./scripts/version.sh)"
-          push=""
-          if [[ "$CODER_RELEASE" == *t* ]]; then
-            push="push/"
-          fi
-          make -j \
-            "$push"build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -133,22 +134,22 @@ jobs:
             exit 0
           fi
 
-          # build and push multi-arch manifest
+          # build and push multi-arch manifest, this depends on the other images
+          # being pushed so will automatically push them.
           make -j push/build/coder_"$version"_linux.tag
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
-            make -j push/build/coder_"$version"_linux.tag
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
-              "${images[@]}"
+              $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
 
       - name: ls build
-        run: ls build
+        run: ls -lh build
 
       - name: Publish release
         run: |
@@ -162,3 +163,17 @@ jobs:
             ./build/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts to actions (if dry-run or snapshot)
+        if: ${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: release-artifacts
+          path: |
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.tgz
+            ./build/*.apk
+            ./build/*.deb
+            ./build/*.rpm
+          retention-days: 7

@@ -47,10 +47,10 @@ export type AuditDiff = Record<string, AuditDiffField>
 // From codersdk/audit.go
 export interface AuditDiffField {
   // eslint-disable-next-line
-  readonly Old: any
+  readonly old?: any
   // eslint-disable-next-line
-  readonly New: any
-  readonly Secret: boolean
+  readonly new?: any
+  readonly secret: boolean
 }
 
 // From codersdk/audit.go
@@ -74,6 +74,16 @@ export interface AuditLog {
   readonly additional_fields: string
   readonly description: string
   readonly user?: User
+}
+
+// From codersdk/audit.go
+export interface AuditLogCountResponse {
+  readonly count: number
+}
+
+// From codersdk/audit.go
+export interface AuditLogResponse {
+  readonly audit_logs: AuditLog[]
 }
 
 // From codersdk/users.go

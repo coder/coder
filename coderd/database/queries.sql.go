@@ -287,36 +287,79 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAuditLogsBefore = `-- name: GetAuditLogsBefore :many
+const getAuditLogCount = `-- name: GetAuditLogCount :one
 SELECT
-	id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
+    COUNT(*) as count
+FROM
+    audit_logs
+`
+
+func (q *sqlQuerier) GetAuditLogCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAuditLogCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
+SELECT
+	audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+    users.username AS user_username,
+    users.email AS user_email,
+    users.created_at AS user_created_at,
+    users.status AS user_status,
+    users.rbac_roles AS user_roles
 FROM
 	audit_logs
-WHERE
-	audit_logs."time" < COALESCE((SELECT "time" FROM audit_logs a WHERE a.id = $1), $2)
+LEFT JOIN
+    users ON audit_logs.user_id = users.id
 ORDER BY
     "time" DESC
 LIMIT
-	$3
+    $1
+OFFSET
+    $2
 `
 
-type GetAuditLogsBeforeParams struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	RowLimit  int32     `db:"row_limit" json:"row_limit"`
+type GetAuditLogsOffsetParams struct {
+	Limit  int32 `db:"limit" json:"limit"`
+	Offset int32 `db:"offset" json:"offset"`
 }
 
-// GetAuditLogsBefore retrieves `limit` number of audit logs before the provided
+type GetAuditLogsOffsetRow struct {
+	ID               uuid.UUID       `db:"id" json:"id"`
+	Time             time.Time       `db:"time" json:"time"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip               pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent        string          `db:"user_agent" json:"user_agent"`
+	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
+	Action           AuditAction     `db:"action" json:"action"`
+	Diff             json.RawMessage `db:"diff" json:"diff"`
+	StatusCode       int32           `db:"status_code" json:"status_code"`
+	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
+	UserUsername     sql.NullString  `db:"user_username" json:"user_username"`
+	UserEmail        sql.NullString  `db:"user_email" json:"user_email"`
+	UserCreatedAt    sql.NullTime    `db:"user_created_at" json:"user_created_at"`
+	UserStatus       UserStatus      `db:"user_status" json:"user_status"`
+	UserRoles        []string        `db:"user_roles" json:"user_roles"`
+}
+
+// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 // ID.
-func (q *sqlQuerier) GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBeforeParams) ([]AuditLog, error) {
-	rows, err := q.db.QueryContext(ctx, getAuditLogsBefore, arg.ID, arg.StartTime, arg.RowLimit)
+func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsOffset, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AuditLog
+	var items []GetAuditLogsOffsetRow
 	for rows.Next() {
-		var i AuditLog
+		var i GetAuditLogsOffsetRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Time,
@@ -333,6 +376,11 @@ func (q *sqlQuerier) GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBef
 			&i.AdditionalFields,
 			&i.RequestID,
 			&i.ResourceIcon,
+			&i.UserUsername,
+			&i.UserEmail,
+			&i.UserCreatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRoles),
 		); err != nil {
 			return nil, err
 		}

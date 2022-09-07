@@ -247,7 +247,7 @@ func CanAssignRole(roles []string, assignedRole string) bool {
 func RoleByName(name string) (Role, error) {
 	roleName, orgID, err := roleSplit(name)
 	if err != nil {
-		return Role{}, xerrors.Errorf(":%w", err)
+		return Role{}, xerrors.Errorf("parse role name: %w", err)
 	}
 
 	roleFunc, ok := builtInRoles[roleName]

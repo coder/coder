@@ -167,10 +167,11 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 	# old version of Make installed out of the box that doesn't support new
 	# features like ONESHELL.
 	#
-	# Piping commands directly into `head -n1` may result in ERRPIPE errors, so
-	# we capture the version output first before
-	make_version_raw="$(make --version 2>/dev/null)"
-	make_version="$(echo "$make_version_raw" | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+	# We have to disable pipefail temporarily to avoid ERRPIPE errors when
+	# piping into `head -n1`.
+	set +o pipefail
+	make_version="$(make --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+	set -o pipefail
 	if [[ ${make_version//.*/} -lt 4 ]]; then
 		libsh_bad_dependencies=1
 		log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."
