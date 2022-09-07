@@ -42,7 +42,6 @@ const AuditPage: FC = () => {
           auditSend("PREVIOUS")
         }}
         onGoToPage={(page) => {
-          console.log("PAGE", page)
           auditSend("GO_TO_PAGE", { page })
         }}
       />
