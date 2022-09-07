@@ -165,9 +165,9 @@ func TestFeaturesService_EntitlementsAPI(t *testing.T) {
 		assert.Nil(t, al.Actual)
 		assert.Len(t, result.Warnings, 2)
 		assert.Contains(t, result.Warnings,
-			"Your deployment has 5 active users but is only licensed for 4")
+			"Your deployment has 5 active users but is only licensed for 4.")
 		assert.Contains(t, result.Warnings,
-			"Audit logging is enabled but your license for this feature is expired")
+			"Audit logging is enabled but your license for this feature is expired.")
 	})
 }
 
