@@ -504,6 +504,7 @@ type User struct {
 	RBACRoles      []string       `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
 	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted        bool           `db:"deleted" json:"deleted"`
 }
 
 type UserLink struct {
