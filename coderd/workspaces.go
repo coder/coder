@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -916,6 +917,15 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		}
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace, build, job, template, &owner, &initiator))
 	}
+	sort.Slice(apiWorkspaces, func(i, j int) bool {
+		iw := apiWorkspaces[i]
+		jw := apiWorkspaces[j]
+		if jw.LastUsedAt.IsZero() && iw.LastUsedAt.IsZero() {
+			return iw.Name < jw.Name
+		}
+		return iw.LastUsedAt.After(jw.LastUsedAt)
+	})
+
 	return apiWorkspaces, nil
 }
 
