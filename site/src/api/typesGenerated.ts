@@ -604,7 +604,6 @@ export interface WorkspaceBuild {
   readonly workspace_owner_name: string
   readonly template_version_id: string
   readonly build_number: number
-  readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
   readonly initiator_name: string

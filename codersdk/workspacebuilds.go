@@ -45,7 +45,6 @@ type WorkspaceBuild struct {
 	WorkspaceOwnerName string              `json:"workspace_owner_name"`
 	TemplateVersionID  uuid.UUID           `json:"template_version_id"`
 	BuildNumber        int32               `json:"build_number"`
-	Name               string              `json:"name"`
 	Transition         WorkspaceTransition `json:"transition"`
 	InitiatorID        uuid.UUID           `json:"initiator_id"`
 	InitiatorUsername  string              `json:"initiator_name"`
