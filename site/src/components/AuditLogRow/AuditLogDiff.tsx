@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { AuditLog } from "api/typesGenerated"
 import { colors } from "theme/colors"
+import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
 
 const getDiffValue = (value: number | string | boolean) => {
@@ -55,6 +56,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "flex-start",
     fontSize: theme.typography.body2.fontSize,
     borderTop: `1px solid ${theme.palette.divider}`,
+    fontFamily: MONOSPACE_FONT_FAMILY,
   },
 
   diffColumn: {

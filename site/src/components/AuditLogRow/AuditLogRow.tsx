@@ -9,8 +9,10 @@ import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { t } from "i18next"
 import { ComponentProps, useState } from "react"
+import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { createDayString } from "util/createDayString"
 import { AuditLogDiff } from "./AuditLogDiff"
+import userAgentParser from "ua-parser-js"
 
 const pillTypeByHttpStatus = (httpStatus: number): ComponentProps<typeof Pill>["type"] => {
   if (httpStatus >= 300 && httpStatus < 500) {
@@ -58,6 +60,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen)
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
+  const userAgent = userAgentParser(auditLog.user_agent)
 
   const toggle = () => {
     if (shouldDisplayDiff) {
@@ -66,11 +69,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   }
 
   return (
-    <TableRow
-      key={auditLog.id}
-      hover={shouldDisplayDiff}
-      data-testid={`audit-log-row-${auditLog.id}`}
-    >
+    <TableRow key={auditLog.id} data-testid={`audit-log-row-${auditLog.id}`}>
       <TableCell className={styles.auditLogCell}>
         <Stack
           style={{ cursor: shouldDisplayDiff ? "pointer" : undefined }}
@@ -120,7 +119,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <strong>IP</strong> {auditLog.ip}
                 </div>
                 <div>
-                  <strong>Agent</strong> {auditLog.user_agent}
+                  <strong>OS</strong> {userAgent.os.name}
+                </div>
+                <div>
+                  <strong>Browser</strong> {userAgent.browser.name} {userAgent.browser.version}
                 </div>
               </Stack>
             </Stack>
@@ -148,6 +150,10 @@ const useStyles = makeStyles((theme) => ({
 
   auditLogRow: {
     padding: theme.spacing(2, 4),
+
+    "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+    },
   },
 
   auditLogRowInfo: {
@@ -162,6 +168,7 @@ const useStyles = makeStyles((theme) => ({
 
   auditLogTime: {
     ...theme.typography.body2,
+    fontSize: 12,
     fontFamily: "inherit",
     color: theme.palette.text.secondary,
     display: "block",
@@ -173,7 +180,7 @@ const useStyles = makeStyles((theme) => ({
 
   auditLogExtraInfo: {
     ...theme.typography.body2,
-    fontFamily: "inherit",
+    fontFamily: MONOSPACE_FONT_FAMILY,
     color: theme.palette.text.secondary,
     whiteSpace: "nowrap",
   },
