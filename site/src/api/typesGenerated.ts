@@ -693,7 +693,14 @@ export type ProvisionerStorageMethod = "file"
 export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/audit.go
-export type ResourceType = "organization" | "template" | "template_version" | "user" | "workspace"
+export type ResourceType =
+  | "api_key"
+  | "git_ssh_key"
+  | "organization"
+  | "template"
+  | "template_version"
+  | "user"
+  | "workspace"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

@@ -258,6 +258,8 @@ const (
 	ResourceTypeTemplateVersion ResourceType = "template_version"
 	ResourceTypeUser            ResourceType = "user"
 	ResourceTypeWorkspace       ResourceType = "workspace"
+	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
+	ResourceTypeApiKey          ResourceType = "api_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {

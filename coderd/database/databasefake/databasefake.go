@@ -2325,7 +2325,7 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			OrganizationID:   alog.OrganizationID,
 			Ip:               alog.Ip,
 			UserAgent:        alog.UserAgent,
-			ResourceType:     database.ResourceType(alog.UserAgent),
+			ResourceType:     alog.ResourceType,
 			ResourceID:       alog.ResourceID,
 			ResourceTarget:   alog.ResourceTarget,
 			ResourceIcon:     alog.ResourceIcon,
