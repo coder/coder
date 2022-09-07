@@ -118,12 +118,17 @@ You will also need to have a Kubernetes cluster running K8s 1.19+.
        --values values.yaml
    ```
 
-You can watch Coder start up by running `kubectl get pods`. Once Coder has
-started, the `coder-*` pods should enter the `Running` state.
+   You can watch Coder start up by running `kubectl get pods`. Once Coder has
+   started, the `coder-*` pods should enter the `Running` state.
 
-You can view Coder's logs by getting the pod name from `kubectl get pods` and
-then running `kubectl logs <pod name>`. You can also view these logs in your
-Cloud's log management system if you are using managed Kubernetes.
+1. Log in to Coder
+
+   Use `kubectl get svc -n coder` to get the IP address of the
+   LoadBalancer. Visit this in the browser to set up your first account.
+
+   If you do not have a domain, you should set `CODER_ACCESS_URL`
+   to this URL in the Helm chart and upgrade Coder (see below).
+   This allows workspaces to connect to the proper Coder URL.
 
 ## Upgrading Coder via Helm
 
@@ -137,6 +142,10 @@ $ helm upgrade coder ./coder_helm_x.y.z.tgz \
 ```
 
 ## Troubleshooting
+
+You can view Coder's logs by getting the pod name from `kubectl get pods` and then running `kubectl logs <pod name>`. You can also
+view these logs in your
+Cloud's log management system if you are using managed Kubernetes.
 
 ### Kubernetes-based workspace is stuck in "Connecting..."
 
