@@ -92,7 +92,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
             className={styles.auditLogRowInfo}
           >
             <Stack direction="row" alignItems="center">
-              <UserAvatar username={auditLog.user?.username ?? ""} />
+              <UserAvatar
+                username={auditLog.user?.username ?? ""}
+                avatarURL={auditLog.user?.avatar_url}
+              />
               <div>
                 <span className={styles.auditLogResume}>
                   <strong>{auditLog.user?.username}</strong> {readableActionMessage(auditLog)}{" "}

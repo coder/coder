@@ -7,6 +7,7 @@ import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
 import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
 import { CodeExample } from "components/CodeExample/CodeExample"
+import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
@@ -40,7 +41,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   onPrevious,
   onGoToPage,
 }) => {
-  const isReady = auditLogs && count
+  const isLoading = auditLogs === undefined || count === undefined
+  const isEmpty = !isLoading && auditLogs.length === 0
+  const hasResults = !isLoading && auditLogs.length > 0
 
   return (
     <Margins>
@@ -66,16 +69,21 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {isReady ? (
-              auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)
-            ) : (
-              <TableLoader />
+            {isLoading && <TableLoader />}
+            {hasResults &&
+              auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)}
+            {isEmpty && (
+              <TableRow>
+                <TableCell colSpan={999}>
+                  <EmptyState message="No audit logs available" />
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {isReady && count > limit && (
+      {!isLoading && count > limit ? (
         <PaginationWidget
           prevLabel=""
           nextLabel=""
@@ -86,7 +94,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
           activePage={page}
           numRecordsPerPage={limit}
         />
-      )}
+      ) : null}
     </Margins>
   )
 }
