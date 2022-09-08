@@ -66,7 +66,3 @@ rm -rf ~/.config/coderv2
 ```console
 C:\Users\USER\AppData\Roaming\coderv2
 ```
-
-## Up Next
-
-- [Learn how to configure Coder](./configure.md).
