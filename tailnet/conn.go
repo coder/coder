@@ -260,29 +260,38 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 			DERPLatency:   c.lastDERPLatency,
 		}
 	}
+	// A send queue must be used so nodes are sent in order.
+	queue := make(chan *Node, 16)
+	go func() {
+		for {
+			select {
+			case <-c.closed:
+				return
+			case node := <-queue:
+				callback(node)
+			}
+		}
+	}()
 	c.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
 		node := makeNode()
+		queue <- node
 		c.lastMutex.Unlock()
-		callback(node)
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		if err != nil {
 			return
 		}
-		endpoints := make([]string, 0, len(s.LocalAddrs))
+		c.lastMutex.Lock()
+		c.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
 		for _, addr := range s.LocalAddrs {
-			endpoints = append(endpoints, addr.Addr.String())
+			c.lastEndpoints = append(c.lastEndpoints, addr.Addr.String())
 		}
-		go func() {
-			c.lastMutex.Lock()
-			c.lastEndpoints = endpoints
-			node := makeNode()
-			c.lastMutex.Unlock()
-			callback(node)
-		}()
+		node := makeNode()
+		queue <- node
+		c.lastMutex.Unlock()
 	})
 }
 
