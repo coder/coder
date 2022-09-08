@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -391,6 +392,7 @@ func TestPostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -453,6 +455,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, "newusername")
 		assert.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -516,6 +519,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.NoError(t, err, "member should be able to update own password")
 		assert.Len(t, auditor.AuditLogs, 2)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
 	})
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
@@ -545,6 +549,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.NoError(t, err, "admin should be able to update own password without providing old password")
 		assert.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -774,6 +779,7 @@ func TestPutUserSuspend(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 		assert.Len(t, auditor.AuditLogs, 2)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
 	})
 
 	t.Run("SuspendItSelf", func(t *testing.T) {
