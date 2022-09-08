@@ -38,6 +38,8 @@ const resourceLabelByResourceType: Record<AuditLog["resource_type"], string> = {
   template_version: "template version",
   user: "user",
   workspace: "workspace",
+  git_ssh_key: "git ssh key",
+  api_key: "api key",
 }
 
 const readableActionMessage = (auditLog: AuditLog) => {

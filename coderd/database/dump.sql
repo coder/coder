@@ -73,7 +73,9 @@ CREATE TYPE resource_type AS ENUM (
     'template',
     'template_version',
     'user',
-    'workspace'
+    'workspace',
+    'git_ssh_key',
+    'api_key'
 );
 
 CREATE TYPE user_status AS ENUM (
