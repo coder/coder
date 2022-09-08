@@ -737,21 +737,28 @@ func TestInitialRoles(t *testing.T) {
 func TestPutUserSuspend(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SuspendAnotherUser", func(t *testing.T) {
+	t.Run("SuspendAnOwner", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		me := coderdtest.CreateFirstUser(t, client)
+		_, user := coderdtest.CreateAnotherUserWithUser(t, client, me.OrganizationID, rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client.User(ctx, codersdk.Me)
-		user, _ := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "bruno@coder.com",
-			Username:       "bruno",
-			Password:       "password",
-			OrganizationID: me.OrganizationID,
-		})
+		_, err := client.UpdateUserStatus(ctx, user.Username, codersdk.UserStatusSuspended)
+		require.Error(t, err, "cannot suspend owners")
+	})
+
+	t.Run("SuspendAnotherUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		me := coderdtest.CreateFirstUser(t, client)
+		_, user := coderdtest.CreateAnotherUserWithUser(t, client, me.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		user, err := client.UpdateUserStatus(ctx, user.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
@@ -827,7 +834,7 @@ func TestGetUser(t *testing.T) {
 func TestUsersFilter(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -841,7 +848,7 @@ func TestUsersFilter(t *testing.T) {
 	for i := 0; i < 15; i++ {
 		roles := []string{}
 		if i%2 == 0 {
-			roles = append(roles, rbac.RoleOwner())
+			roles = append(roles, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
 		}
 		if i%3 == 0 {
 			roles = append(roles, "auditor")
@@ -1126,7 +1133,7 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

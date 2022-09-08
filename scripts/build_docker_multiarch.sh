@@ -75,7 +75,7 @@ for image_tag in "$@"; do
 	create_args+=(--amend "$image_tag")
 done
 
-# Sadly, multi-arch images don't seem to support labels.
+# Sadly, manifests don't seem to support labels.
 log "--- Creating multi-arch Docker image ($target)"
 docker manifest create \
 	"$target" \

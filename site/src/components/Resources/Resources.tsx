@@ -5,18 +5,22 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC } from "react"
-import { getDisplayAgentStatus, getWorkspaceStatus, WorkspaceStateEnum } from "util/workspace"
-import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
+import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
+import { BuildInfoResponse, Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentHelpTooltip } from "../Tooltips/AgentHelpTooltip"
+import { AgentOutdatedTooltip } from "../Tooltips/AgentOutdatedTooltip"
 import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
+import { ResourceAgentLatency } from "./ResourceAgentLatency"
 import { ResourceAvatarData } from "./ResourceAvatarData"
 
 const Language = {
@@ -24,6 +28,9 @@ const Language = {
   resourceLabel: "Resource",
   agentsLabel: "Agents",
   agentLabel: "Agent",
+  statusLabel: "status: ",
+  versionLabel: "version: ",
+  osLabel: "os: ",
 }
 
 interface ResourcesProps {
@@ -31,6 +38,7 @@ interface ResourcesProps {
   getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
+  buildInfo?: BuildInfoResponse | undefined
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -38,13 +46,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   getResourcesError,
   workspace,
   canUpdateWorkspace,
+  buildInfo,
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
-
-  const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
-    workspace.latest_build,
-  )
+  const serverVersion = buildInfo?.version || ""
 
   return (
     <div aria-label={Language.resources} className={styles.wrapper}>
@@ -91,6 +97,10 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     )
                   }
 
+                  const { displayVersion, outdated } = getDisplayVersionStatus(
+                    agent.version,
+                    serverVersion,
+                  )
                   const agentStatus = getDisplayAgentStatus(theme, agent)
                   return (
                     <TableRow key={`${resource.id}-${agent.id}`}>
@@ -103,21 +113,32 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                       )}
 
                       <TableCell className={styles.agentColumn}>
-                        {agent.name}
-                        <div className={styles.agentInfo}>
-                          <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                          {WorkspaceStateEnum[workspaceStatus] !==
-                            WorkspaceStateEnum["stopped"] && (
+                        <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
+                        <div className={styles.data}>
+                          <div className={styles.dataRow}>
+                            <strong>{Language.statusLabel}</strong>
                             <span style={{ color: agentStatus.color }} className={styles.status}>
                               {agentStatus.status}
                             </span>
-                          )}
+                          </div>
+                          <div className={styles.dataRow}>
+                            <strong>{Language.osLabel}</strong>
+                            <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                          </div>
+                          <div className={styles.dataRow}>
+                            <strong>{Language.versionLabel}</strong>
+                            <span className={styles.agentVersion}>{displayVersion}</span>
+                            <AgentOutdatedTooltip outdated={outdated} />
+                          </div>
+                          <div className={styles.dataRow}>
+                            <ResourceAgentLatency latency={agent.latency} />
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <>
+                        <div className={styles.accessLinks}>
                           {canUpdateWorkspace && agent.status === "connected" && (
-                            <div className={styles.accessLinks}>
+                            <>
                               <SSHButton workspaceName={workspace.name} agentName={agent.name} />
                               <TerminalLink
                                 workspaceName={workspace.name}
@@ -134,9 +155,15 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                   agentName={agent.name}
                                 />
                               ))}
-                            </div>
+                            </>
                           )}
-                        </>
+                          {canUpdateWorkspace && agent.status === "connecting" && (
+                            <>
+                              <Skeleton width={80} height={60} />
+                              <Skeleton width={120} height={60} />
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -181,17 +208,13 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: `${theme.spacing(4)}px !important`,
   },
 
-  agentInfo: {
-    display: "flex",
-    gap: theme.spacing(1.5),
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
-  },
-
   operatingSystem: {
     display: "block",
     textTransform: "capitalize",
+  },
+
+  agentVersion: {
+    display: "block",
   },
 
   accessLinks: {
@@ -203,5 +226,25 @@ const useStyles = makeStyles((theme) => ({
 
   status: {
     whiteSpace: "nowrap",
+  },
+
+  data: {
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+    marginTop: theme.spacing(0.75),
+    display: "grid",
+    gridAutoFlow: "row",
+    whiteSpace: "nowrap",
+    gap: theme.spacing(0.75),
+    height: "fit-content",
+  },
+
+  dataRow: {
+    display: "flex",
+    alignItems: "center",
+
+    "& strong": {
+      marginRight: theme.spacing(1),
+    },
   },
 }))

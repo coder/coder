@@ -3,6 +3,7 @@ import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
+import semver from "semver"
 import { WorkspaceBuildTransition } from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -93,6 +94,11 @@ export const DisplayWorkspaceBuildStatusLanguage = {
   canceling: "Canceling",
   canceled: "Canceled",
   failed: "Failed",
+}
+
+export const DisplayAgentVersionLanguage = {
+  unknown: "unknown",
+  outdated: "outdated",
 }
 
 export const getDisplayWorkspaceBuildStatus = (
@@ -208,6 +214,28 @@ export const getDisplayAgentStatus = (
         color: theme.palette.text.secondary,
         status: DisplayAgentStatusLanguage["disconnected"],
       }
+  }
+}
+
+export const getDisplayVersionStatus = (
+  agentVersion: string,
+  serverVersion: string,
+): { displayVersion: string; outdated: boolean } => {
+  if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
+    return {
+      displayVersion: `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
+      outdated: false,
+    }
+  } else if (semver.lt(agentVersion, serverVersion)) {
+    return {
+      displayVersion: `${agentVersion} (${DisplayAgentVersionLanguage.outdated})`,
+      outdated: true,
+    }
+  } else {
+    return {
+      displayVersion: agentVersion,
+      outdated: false,
+    }
   }
 }
 

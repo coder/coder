@@ -1,11 +1,12 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useMachine, useSelector } from "@xstate/react"
+import { useActor, useMachine, useSelector } from "@xstate/react"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
+import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
-import { DeleteWorkspaceDialog } from "../../components/DeleteWorkspaceDialog/DeleteWorkspaceDialog"
+import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
@@ -24,6 +25,8 @@ export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
+
+  const { t } = useTranslation("workspacePage")
 
   const xServices = useContext(XServiceContext)
   const me = useSelector(xServices.authXService, selectUser)
@@ -48,9 +51,10 @@ export const WorkspacePage: FC = () => {
     cancellationError,
   } = workspaceState.context
 
-  const canUpdateWorkspace = !!permissions?.updateWorkspace
+  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
+  const [buildInfoState] = useActor(xServices.buildInfoXService)
 
   const styles = useStyles()
 
@@ -65,9 +69,9 @@ export const WorkspacePage: FC = () => {
   if (workspaceState.matches("error")) {
     return (
       <div className={styles.error}>
-        {!!getWorkspaceError && <ErrorSummary error={getWorkspaceError} />}
-        {!!refreshTemplateError && <ErrorSummary error={refreshTemplateError} />}
-        {!!checkPermissionsError && <ErrorSummary error={checkPermissionsError} />}
+        {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
+        {Boolean(refreshTemplateError) && <ErrorSummary error={refreshTemplateError} />}
+        {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
   } else if (!workspace || !permissions) {
@@ -133,11 +137,14 @@ export const WorkspacePage: FC = () => {
             [WorkspaceErrors.BUILD_ERROR]: buildError,
             [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
           }}
+          buildInfo={buildInfoState.context.buildInfo}
         />
-        <DeleteWorkspaceDialog
+        <DeleteDialog
+          title={t("deleteDialog.title")}
+          description={t("deleteDialog.description")}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
-          handleCancel={() => workspaceSend("CANCEL_DELETE")}
-          handleConfirm={() => {
+          onCancel={() => workspaceSend("CANCEL_DELETE")}
+          onConfirm={() => {
             workspaceSend("DELETE")
           }}
         />

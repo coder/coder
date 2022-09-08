@@ -43,7 +43,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	tcpAddr, _ := ln.Addr().(*net.TCPAddr)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
@@ -81,8 +81,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

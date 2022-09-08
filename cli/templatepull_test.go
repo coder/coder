@@ -32,7 +32,7 @@ func TestTemplatePull(t *testing.T) {
 	t.Run("Stdout", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// Create an initial template bundle.
@@ -70,7 +70,7 @@ func TestTemplatePull(t *testing.T) {
 	t.Run("ToFile", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// Create an initial template bundle.

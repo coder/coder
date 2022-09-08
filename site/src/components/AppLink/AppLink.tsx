@@ -26,7 +26,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   appIcon,
 }) => {
   const styles = useStyles()
-  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${appName}`
+  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}`
 
   return (
     <Link

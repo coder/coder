@@ -15,7 +15,7 @@ func TestTemplateList(t *testing.T) {
 	t.Parallel()
 	t.Run("ListTemplates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		firstVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, firstVersion.ID)
@@ -49,7 +49,7 @@ func TestTemplateList(t *testing.T) {
 	})
 	t.Run("NoTemplates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 
 		cmd, root := clitest.New(t, "templates", "list")

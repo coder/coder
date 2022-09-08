@@ -10,10 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
@@ -36,7 +41,7 @@ func TestTemplate(t *testing.T) {
 
 	t.Run("WorkspaceCount", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
@@ -481,6 +486,27 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
+
+	t.Run("RemoveIcon", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.Icon = "/icons/code.png"
+		})
+		req := codersdk.UpdateTemplateMeta{
+			Icon: "",
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Equal(t, updated.Icon, "")
+	})
 }
 
 func TestDeleteTemplate(t *testing.T) {
@@ -502,7 +528,7 @@ func TestDeleteTemplate(t *testing.T) {
 
 	t.Run("Workspaces", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -517,4 +543,104 @@ func TestDeleteTemplate(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
+}
+
+func TestTemplateDAUs(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:    true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		Logger:            slogtest.Make(t, nil),
+		StatsReporter:     agentClient.AgentReportStats,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	daus, err := client.TemplateDAUs(context.Background(), template.ID)
+	require.NoError(t, err)
+
+	require.Equal(t, &codersdk.TemplateDAUsResponse{
+		Entries: []codersdk.DAUEntry{},
+	}, daus, "no DAUs when stats are empty")
+
+	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	assert.Zero(t, workspaces[0].LastUsedAt)
+
+	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("tailnet"), resources[0].Agents[0].ID)
+	require.NoError(t, err)
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	sshConn, err := conn.SSHClient()
+	require.NoError(t, err)
+	_ = sshConn.Close()
+
+	want := &codersdk.TemplateDAUsResponse{
+		Entries: []codersdk.DAUEntry{
+			{
+
+				Date:   time.Now().UTC().Truncate(time.Hour * 24),
+				Amount: 1,
+			},
+		},
+	}
+	require.Eventuallyf(t, func() bool {
+		daus, err = client.TemplateDAUs(ctx, template.ID)
+		require.NoError(t, err)
+
+		return assert.ObjectsAreEqual(want, daus)
+	},
+		testutil.WaitShort, testutil.IntervalFast,
+		"got %+v != %+v", daus, want,
+	)
+
+	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	assert.WithinDuration(t,
+		time.Now(), workspaces[0].LastUsedAt, time.Minute,
+	)
 }

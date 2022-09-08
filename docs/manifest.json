@@ -1,9 +1,5 @@
 {
-  "versions": [
-    "main",
-    "v0.8.1",
-    "v0.7.12"
-  ],
+  "versions": ["main", "v0.8.1", "v0.7.12"],
   "routes": [
     {
       "title": "About",
@@ -23,22 +19,32 @@
       "title": "Installation",
       "description": "How to install and deploy Coder",
       "icon_path": "./images/icons/wrench.svg",
-      "path": "./install.md",
+      "path": "./install/index.md",
       "children": [
         {
-          "title": "Authentication",
-          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
-          "path": "./install/auth.md"
+          "title": "Install script",
+          "description": "One-line install script for macOS and Linux.",
+          "path": "./install/install.sh.md"
         },
         {
-          "title": "Configuration",
-          "description": "Learn how to configure Coder",
-          "path": "./install/configure.md"
+          "title": "System packages",
+          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine.",
+          "path": "./install/packages.md"
         },
         {
-          "title": "Upgrading",
-          "description": "Learn how to upgrade Coder.",
-          "path": "./install/upgrade.md"
+          "title": "Kubernetes",
+          "description": "Install Coder with Kubernetes via Helm.",
+          "path": "./install/kubernetes.md"
+        },
+        {
+          "title": "Docker",
+          "description": "Install Coder with Docker / docker-compose/",
+          "path": "./install/docker.md"
+        },
+        {
+          "title": "Standalone binaries",
+          "description": "Download binaries for macOS, Windows, and Linux.",
+          "path": "./install/binary.md"
         },
         {
           "title": "Uninstall",
@@ -134,10 +140,33 @@
       "path": "./secrets.md"
     },
     {
-      "title": "Users",
-      "description": "Learn about user roles available in Coder and how to create and manage users",
-      "icon_path": "./images/icons/users.svg",
-      "path": "./users.md"
+      "title": "Administration",
+      "description": "How to install and deploy Coder",
+      "icon_path": "./images/icons/wrench.svg",
+      "path": "./admin/index.md",
+      "children": [
+        {
+          "title": "Users",
+          "description": "Learn about user roles available in Coder and how to create and manage users",
+          "icon_path": "./images/icons/users.svg",
+          "path": "./admin/users.md"
+        },
+        {
+          "title": "Authentication",
+          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "path": "./admin/auth.md"
+        },
+        {
+          "title": "Configuration",
+          "description": "Learn how to configure Coder",
+          "path": "./admin/configure.md"
+        },
+        {
+          "title": "Upgrading",
+          "description": "Learn how to upgrade Coder.",
+          "path": "./admin/upgrade.md"
+        }
+      ]
     },
     {
       "title": "Contributing",

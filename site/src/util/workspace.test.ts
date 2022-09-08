@@ -3,6 +3,7 @@ import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
   defaultWorkspaceExtension,
+  getDisplayVersionStatus,
   getDisplayWorkspaceBuildInitiatedBy,
   isWorkspaceDeleted,
   isWorkspaceOn,
@@ -127,5 +128,24 @@ describe("util > workspace", () => {
     ])(`getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`, (build, initiatedBy) => {
       expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
     })
+  })
+
+  describe("getDisplayVersionStatus", () => {
+    it.each<[string, string, string, boolean]>([
+      ["", "", "(unknown)", false],
+      ["", "v1.2.3", "(unknown)", false],
+      ["v1.2.3", "", "v1.2.3", false],
+      ["v1.2.3", "v1.2.3", "v1.2.3", false],
+      ["v1.2.3", "v1.2.4", "v1.2.3 (outdated)", true],
+      ["v1.2.4", "v1.2.3", "v1.2.4", false],
+      ["foo", "bar", "foo", false],
+    ])(
+      `getDisplayVersionStatus(theme, %p, %p) returns (%p, %p)`,
+      (agentVersion, serverVersion, expectedVersion, expectedOutdated) => {
+        const { displayVersion, outdated } = getDisplayVersionStatus(agentVersion, serverVersion)
+        expect(displayVersion).toEqual(expectedVersion)
+        expect(expectedOutdated).toEqual(outdated)
+      },
+    )
   })
 })

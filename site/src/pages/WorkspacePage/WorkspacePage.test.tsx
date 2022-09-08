@@ -4,7 +4,7 @@ import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceActions/ActionCtas"
+import { Language } from "../../components/DropdownButton/ActionCtas"
 import {
   MockBuilds,
   MockCanceledWorkspace,
@@ -19,6 +19,7 @@ import {
   MockTemplate,
   MockWorkspace,
   MockWorkspaceAgent,
+  MockWorkspaceAgentConnecting,
   MockWorkspaceAgentDisconnected,
   MockWorkspaceBuild,
   renderWithAuth,
@@ -204,11 +205,15 @@ describe("WorkspacePage", () => {
       const agent1Status = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
       )
-      expect(agent1Status.length).toEqual(2)
-      const agent2Status = await screen.findAllByText(
+      expect(agent1Status.length).toEqual(4)
+      const agentDisconnected = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )
-      expect(agent2Status.length).toEqual(2)
+      expect(agentDisconnected.length).toEqual(1)
+      const agentConnecting = await screen.findAllByText(
+        DisplayAgentStatusLanguage[MockWorkspaceAgentConnecting.status],
+      )
+      expect(agentConnecting.length).toEqual(1)
       expect(getTemplateMock).toBeCalled()
     })
   })
