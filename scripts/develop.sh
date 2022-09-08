@@ -46,7 +46,7 @@ curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something i
 # node_modules if necessary.
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
-make "build/coder_${GOOS}_${GOARCH}"
+make -j "build/coder_${GOOS}_${GOARCH}"
 
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
@@ -76,7 +76,11 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	# exist, then let's try to create a template!
 	example_template="code-server"
 	template_name="docker"
-	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}"; then
+	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
+		# sometimes terraform isn't installed yet when we go to create the
+		# template
+		sleep 5
+
 		temp_template_dir="$(mktemp -d)"
 		echo "${example_template}" | "${CODER_DEV_SHIM}" templates init "${temp_template_dir}"
 
