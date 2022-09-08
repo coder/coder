@@ -1,5 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
-import dayjs from "dayjs"
+import { fireEvent, screen } from "@testing-library/react"
 import { rest } from "msw"
 import { ResizeObserver } from "resize-observer"
 import { server } from "testHelpers/server"
@@ -58,22 +57,5 @@ describe("TemplatePage", () => {
     })
     const dropdownButton = screen.queryByLabelText("open-dropdown")
     expect(dropdownButton).toBe(null)
-  })
-  it("automatically reflects updates", async () => {
-    renderWithAuth(<TemplatePage />, {
-      route: `/templates/${MockTemplate.id}`,
-      path: "/templates/:template",
-    })
-    const lastUpdated = screen.queryByText("a minute ago")
-    expect(lastUpdated).toBeNull()
-    server.use(
-      rest.get(`/api/v2/templates/${MockTemplate.id}/authorization`, async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json({ ...MockTemplate, updated_at: dayjs() }))
-      }),
-    )
-    await waitFor(() => {
-      const lastUpdated2 = screen.getByText("a minute ago")
-      expect(lastUpdated2).not.toBeNull()
-    })
   })
 })
