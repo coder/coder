@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -72,7 +73,7 @@ type Options struct {
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
-	FeaturesService      FeaturesService
+	FeaturesService      features.Service
 
 	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
