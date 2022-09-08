@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -132,11 +133,15 @@ func list() *cobra.Command {
 	if err != nil {
 		panic(err)
 	}
+	for i, s := range availColumns {
+		availColumns[i] = strings.Replace(s, " ", "_", -1)
+	}
+	columnString := strings.Join(availColumns[:], ", ")
 
 	cmd.Flags().BoolVarP(&all, "all", "a", false,
 		"Specifies whether all workspaces will be listed or not.")
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
-		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", availColumns))
+		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", columnString))
 	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
 	return cmd
 }
