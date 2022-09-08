@@ -25,7 +25,7 @@ func TestWorkspaceResource(t *testing.T) {
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Resources: []*proto.Resource{{
-							Name: "some",
+							Name: "beta",
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
@@ -36,6 +36,9 @@ func TestWorkspaceResource(t *testing.T) {
 								Name: "a",
 								Auth: &proto.Agent_Token{},
 							}},
+						}, {
+							Name: "alpha",
+							Type: "example",
 						}},
 					},
 				},
@@ -51,7 +54,10 @@ func TestWorkspaceResource(t *testing.T) {
 
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		resource, err := client.WorkspaceResource(ctx, resources[0].ID)
+		// Ensure it's sorted alphabetically!
+		require.Equal(t, "alpha", resources[0].Name)
+		require.Equal(t, "beta", resources[1].Name)
+		resource, err := client.WorkspaceResource(ctx, resources[1].ID)
 		require.NoError(t, err)
 		require.Len(t, resource.Agents, 2)
 		// Ensure it's sorted alphabetically!
