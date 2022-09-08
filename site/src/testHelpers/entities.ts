@@ -2,6 +2,13 @@ import { FieldError } from "api/errors"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
+export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
+  entries: [
+    { date: "2022-08-27T00:00:00Z", amount: 1 },
+    { date: "2022-08-29T00:00:00Z", amount: 2 },
+    { date: "2022-08-30T00:00:00Z", amount: 1 },
+  ],
+}
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
   session_token: "my-session-token",
 }
@@ -63,6 +70,7 @@ export const MockUser: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockOwnerRole],
+  avatar_url: "https://github.com/coder.png",
 }
 
 export const MockUserAdmin: TypesGen.User = {
@@ -73,6 +81,7 @@ export const MockUserAdmin: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockUserAdminRole],
+  avatar_url: "",
 }
 
 export const MockUser2: TypesGen.User = {
@@ -83,6 +92,7 @@ export const MockUser2: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
+  avatar_url: "",
 }
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -93,6 +103,7 @@ export const SuspendedMockUser: TypesGen.User = {
   status: "suspended",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
+  avatar_url: "",
 }
 
 export const MockOrganization: TypesGen.Organization = {
@@ -121,6 +132,7 @@ export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "failed",
 }
+
 export const MockCancelingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "canceling",
@@ -189,7 +201,6 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  name: "a-workspace-build",
   template_version_id: "",
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
@@ -200,6 +211,26 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
 }
+
+export const MockFailedWorkspaceBuild = (
+  transition: TypesGen.WorkspaceTransition = "start",
+): TypesGen.WorkspaceBuild => ({
+  build_number: 1,
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "1",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
+  job: MockFailedProvisionerJob,
+  template_version_id: "",
+  transition: transition,
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
+  deadline: "2022-05-17T23:39:00.00Z",
+  reason: "initiator",
+})
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
   ...MockWorkspaceBuild,
@@ -229,6 +260,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
+  last_used_at: "",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -302,9 +334,13 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   resource_id: "",
   status: "connected",
   updated_at: "",
-  wireguard_public_key: "",
-  disco_public_key: "",
-  ipv6: "",
+  version: MockBuildInfo.version,
+  latency: {
+    "Coder Embedded DERP": {
+      latency_ms: 32.55,
+      preferred: true,
+    },
+  },
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -312,10 +348,44 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-2",
   name: "another-workspace-agent",
   status: "disconnected",
+  version: "",
+  latency: {},
+}
+
+export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-3",
+  name: "an-outdated-workspace-agent",
+  version: "v99.999.9998+abcdef",
+  operating_system: "Windows",
+  latency: {
+    ...MockWorkspaceAgent.latency,
+    Chicago: {
+      preferred: false,
+      latency_ms: 95.11,
+    },
+    "San Francisco": {
+      preferred: false,
+      latency_ms: 111.55,
+    },
+    Paris: {
+      preferred: false,
+      latency_ms: 221.66,
+    },
+  },
+}
+
+export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-2",
+  name: "another-workspace-agent",
+  status: "connecting",
+  version: "",
+  latency: {},
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentConnecting, MockWorkspaceAgentOutdated],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
@@ -328,10 +398,14 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   ],
 }
 
-export const MockWorkspaceResource2 = {
-  ...MockWorkspaceResource,
+export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  created_at: "",
   id: "test-workspace-resource-2",
+  job_id: "",
   name: "another-workspace-resource",
+  type: "google_compute_disk",
+  workspace_transition: "start",
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
@@ -681,6 +755,49 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
     audit_log: {
       enabled: true,
       entitlement: "entitled",
+    },
+  },
+}
+
+export const MockAuditLog: TypesGen.AuditLog = {
+  id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+  request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  time: "2022-05-19T16:45:57.122Z",
+  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  ip: "127.0.0.1",
+  user_agent:
+    '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+  resource_type: "workspace",
+  resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
+  resource_target: "bruno-dev",
+  resource_icon: "",
+  action: "create",
+  diff: {},
+  status_code: 200,
+  additional_fields: "",
+  description: "Colin Adler updated the workspace bruno-dev",
+  user: MockUser,
+}
+
+export const MockAuditLog2: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  action: "write",
+  diff: {
+    workspace_name: {
+      old: "old-workspace-name",
+      new: MockWorkspace.name,
+      secret: false,
+    },
+    workspace_auto_off: {
+      old: true,
+      new: false,
+      secret: false,
+    },
+    template_version_id: {
+      old: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+      new: "53bded77-7b9d-4e82-8771-991a34d759f9",
+      secret: false,
     },
   },
 }

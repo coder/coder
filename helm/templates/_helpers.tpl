@@ -33,6 +33,16 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Coder Docker image URI
+*/}}
+{{- define "coder.image" -}}
+{{- if and (eq .Values.coder.image.tag "") (eq .Chart.AppVersion "0.1.0") -}}
+{{ fail "You must specify coder.image.tag if you're installing the Helm chart directly from Git." }}
+{{- end -}}
+{{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
 Coder listen port (must be > 1024)
 */}}
 {{- define "coder.port" }}

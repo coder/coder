@@ -1,8 +1,7 @@
-import { Theme } from "@material-ui/core/styles"
-import { SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
+import { lighten, Theme } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { colors } from "./colors"
-import { borderRadius, MONOSPACE_FONT_FAMILY } from "./constants"
+import { borderRadius } from "./constants"
 
 export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
@@ -14,6 +13,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
           backgroundAttachment: "fixed",
           letterSpacing: "-0.015em",
         },
+        ":root": {
+          colorScheme: palette.type,
+        },
       },
     },
     MuiAvatar: {
@@ -23,7 +25,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         fontSize: 18,
       },
       colorDefault: {
-        backgroundColor: "#a1adc9",
+        backgroundColor: colors.gray[6],
       },
     },
     MuiButton: {
@@ -31,7 +33,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         // Prevents a loading button from collapsing!
         minHeight: 42,
         fontWeight: "normal",
-        fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         textTransform: "none",
         letterSpacing: "none",
@@ -41,9 +42,16 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         boxShadow: "none",
         color: palette.text.primary,
         backgroundColor: colors.gray[17],
+
         "&:hover": {
           boxShadow: "none",
-          backgroundColor: "#000000",
+          backgroundColor: colors.gray[17],
+          borderColor: lighten(palette.divider, 0.2),
+        },
+
+        "&.Mui-disabled": {
+          backgroundColor: palette.background.paper,
+          color: palette.secondary.main,
         },
       },
       sizeSmall: {
@@ -75,7 +83,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     MuiTableHead: {
       root: {
         display: "table-header-group",
-        fontFamily: MONOSPACE_FONT_FAMILY,
       },
     },
     MuiTableContainer: {
@@ -86,9 +93,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     },
     MuiTable: {
       root: {
-        borderCollapse: "collapse",
+        borderCollapse: "unset",
         border: "none",
-        background: palette.background.default,
+        background: palette.background.paper,
         boxShadow: `0 0 0 1px ${palette.background.default} inset`,
         overflow: "hidden",
 
@@ -109,11 +116,10 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
     MuiTableCell: {
       head: {
         fontSize: 14,
-        color: colors.gray[5],
+        color: palette.text.secondary,
         fontWeight: 600,
       },
       root: {
-        fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         background: palette.background.paper,
         borderBottom: `1px solid ${palette.divider}`,
@@ -128,6 +134,15 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
     },
+
+    MuiTableRow: {
+      root: {
+        "&:last-child .MuiTableCell-body": {
+          borderBottom: 0,
+        },
+      },
+    },
+
     MuiInputBase: {
       root: {
         borderRadius,
@@ -142,14 +157,15 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         "& input:-webkit-autofill": {
           WebkitBoxShadow: `0 0 0 1000px ${palette.background.paper} inset`,
         },
-        "&:hover .MuiOutlinedInput-notchedOutline": {
+
+        "&:hover:not(.Mui-focused) .MuiOutlinedInput-notchedOutline": {
           borderColor: palette.divider,
         },
       },
     },
     MuiLink: {
       root: {
-        color: (palette.primary as SimplePaletteColorOptions).light,
+        color: palette.primary.light,
       },
     },
     MuiPaper: {

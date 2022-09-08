@@ -87,6 +87,16 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
+CREATE TABLE agent_stats (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    user_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    payload jsonb NOT NULL
+);
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -112,7 +122,10 @@ CREATE TABLE audit_logs (
     resource_target text NOT NULL,
     action audit_action NOT NULL,
     diff jsonb NOT NULL,
-    status_code integer NOT NULL
+    status_code integer NOT NULL,
+    additional_fields jsonb NOT NULL,
+    request_id uuid NOT NULL,
+    resource_icon text NOT NULL
 );
 
 CREATE TABLE files (
@@ -285,7 +298,8 @@ CREATE TABLE users (
     updated_at timestamp with time zone NOT NULL,
     status user_status DEFAULT 'active'::public.user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::public.login_type NOT NULL
+    login_type login_type DEFAULT 'password'::public.login_type NOT NULL,
+    avatar_url text
 );
 
 CREATE TABLE workspace_agents (
@@ -306,10 +320,10 @@ CREATE TABLE workspace_agents (
     instance_metadata jsonb,
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    wireguard_node_ipv6 inet DEFAULT '::'::inet NOT NULL,
-    wireguard_node_public_key character varying(128) DEFAULT 'nodekey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL,
-    wireguard_disco_public_key character varying(128) DEFAULT 'discokey:0000000000000000000000000000000000000000000000000000000000000000'::character varying NOT NULL
+    version text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -328,7 +342,6 @@ CREATE TABLE workspace_builds (
     updated_at timestamp with time zone NOT NULL,
     workspace_id uuid NOT NULL,
     template_version_id uuid NOT NULL,
-    name character varying(64) NOT NULL,
     build_number integer NOT NULL,
     transition workspace_transition NOT NULL,
     initiator_id uuid NOT NULL,
@@ -364,10 +377,14 @@ CREATE TABLE workspaces (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     autostart_schedule text,
-    ttl bigint
+    ttl bigint,
+    last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
+
+ALTER TABLE ONLY agent_stats
+    ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
@@ -453,9 +470,6 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
-ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
-
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
 
@@ -464,6 +478,10 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX idx_agent_stats_created_at ON agent_stats USING btree (created_at);
+
+CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 

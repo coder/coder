@@ -133,7 +133,7 @@ func (p *PTY) ExpectMatch(str string) string {
 		p.logf("matched %q = %q", str, buffer.String())
 		return buffer.String()
 	case <-timeout.Done():
-		// Ensure goroutine is cleaned up before test exit.
+		// Ensure gorouine is cleaned up before test exit.
 		_ = p.out.closeErr(p.Close())
 		<-match
 

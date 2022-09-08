@@ -1,20 +1,17 @@
-import { fade, makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { useActor } from "@xstate/react"
+import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
-import { AvatarData } from "../AvatarData/AvatarData"
-import {
-  TableCellData,
-  TableCellDataPrimary,
-  TableCellDataSecondary,
-} from "../TableCellData/TableCellData"
+import { TableCellData, TableCellDataPrimary } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
+import { WorkspaceLastUsed } from "./WorkspaceLastUsed"
 
 const Language = {
   upToDateLabel: "Up to date",
@@ -45,16 +42,10 @@ export const WorkspacesRow: FC<
       className={styles.clickableTableRow}
     >
       <TableCellLink to={workspacePageLink}>
-        <TableCellData>
-          <TableCellDataPrimary highlight>{workspace.name}</TableCellDataPrimary>
-          <TableCellDataSecondary>{workspace.owner_name}</TableCellDataSecondary>
-        </TableCellData>
-      </TableCellLink>
-
-      <TableCellLink to={workspacePageLink}>
         <AvatarData
-          title={workspace.template_name}
-          highlightTitle={false}
+          highlightTitle
+          title={workspace.name}
+          subtitle={workspace.owner_name}
           avatar={
             hasTemplateIcon ? (
               <div className={styles.templateIconWrapper}>
@@ -64,6 +55,16 @@ export const WorkspacesRow: FC<
           }
         />
       </TableCellLink>
+
+      <TableCellLink to={workspacePageLink}>
+        <TableCellDataPrimary>{workspace.template_name}</TableCellDataPrimary>
+      </TableCellLink>
+      <TableCellLink to={workspacePageLink}>
+        <TableCellData>
+          <WorkspaceLastUsed lastUsedAt={workspace.last_used_at} />
+        </TableCellData>
+      </TableCellLink>
+
       <TableCellLink to={workspacePageLink}>
         {workspace.outdated ? (
           <span className={styles.outdatedLabel}>
@@ -94,7 +95,7 @@ export const WorkspacesRow: FC<
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.dark, 0.1),
+      backgroundColor: theme.palette.action.hover,
     },
 
     "&:focus": {
@@ -106,7 +107,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   arrowRight: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
+    color: theme.palette.text.secondary,
     width: 20,
     height: 20,
   },

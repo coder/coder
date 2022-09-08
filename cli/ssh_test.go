@@ -19,7 +19,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
@@ -32,9 +31,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func setupWorkspaceForSSH(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
+func setupWorkspaceForAgent(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
 	t.Helper()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -70,7 +69,7 @@ func TestSSH(t *testing.T) {
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
@@ -89,8 +88,11 @@ func TestSSH(t *testing.T) {
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent"),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -102,14 +104,17 @@ func TestSSH(t *testing.T) {
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			agentClient := codersdk.New(client.URL)
 			agentClient.SessionToken = agentToken
-			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			agentCloser := agent.New(agent.Options{
+				FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+				WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+				CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+				Logger:            slogtest.Make(t, nil).Named("agent"),
 			})
 			<-ctx.Done()
 			_ = agentCloser.Close()
@@ -170,12 +175,15 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForSSH(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent"),
 		})
 		defer agentCloser.Close()
 

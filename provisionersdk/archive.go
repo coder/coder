@@ -16,12 +16,47 @@ const (
 	TemplateArchiveLimit = 1 << 20
 )
 
-// Tar archives a directory.
+func dirHasExt(dir string, ext string) (bool, error) {
+	dirEnts, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+
+	for _, fi := range dirEnts {
+		if strings.HasSuffix(fi.Name(), ext) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// Tar archives a Terraform directory.
 func Tar(directory string, limit int64) ([]byte, error) {
 	var buffer bytes.Buffer
 	tarWriter := tar.NewWriter(&buffer)
 	totalSize := int64(0)
-	err := filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
+
+	const tfExt = ".tf"
+	hasTf, err := dirHasExt(directory, tfExt)
+	if err != nil {
+		return nil, err
+	}
+	if !hasTf {
+		absPath, err := filepath.Abs(directory)
+		if err != nil {
+			return nil, err
+		}
+
+		// Show absolute path to aid in debugging. E.g. showing "." is
+		// useless.
+		return nil, xerrors.Errorf(
+			"%s is not a valid template since it has no %s files",
+			absPath, tfExt,
+		)
+	}
+
+	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

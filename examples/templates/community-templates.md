@@ -11,3 +11,4 @@ maintained, please submit a pull request to improve this list. Thank you!
 
 - [ntimo/coder-hetzner-cloud-template](https://github.com/ntimo/coder-hetzner-cloud-template) - Setup a Hetzner Cloud instance as dev environment with or without vscode.
 - [matifali/coder-templates](https://github.com/matifali/coder-templates) - Deeplearning with Jupyter Notebook/Lab and Matlab in browser. 
+- [m.lan/coder-templates](https://gitlab.com/m.lan/coder-templates) - Kubernetes template with DinD.

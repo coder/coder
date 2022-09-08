@@ -28,7 +28,7 @@ func TestScheduleShow(t *testing.T) {
 			sched     = "30 7 * * 1-5"
 			schedCron = fmt.Sprintf("CRON_TZ=%s %s", tz, sched)
 			ttl       = 8 * time.Hour
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -62,7 +62,7 @@ func TestScheduleShow(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -96,7 +96,7 @@ func TestScheduleShow(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -115,7 +115,7 @@ func TestScheduleStart(t *testing.T) {
 
 	var (
 		ctx       = context.Background()
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user      = coderdtest.CreateFirstUser(t, client)
 		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -168,7 +168,7 @@ func TestScheduleStop(t *testing.T) {
 	t.Parallel()
 
 	var (
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user      = coderdtest.CreateFirstUser(t, client)
 		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -221,7 +221,7 @@ func TestScheduleOverride(t *testing.T) {
 		var (
 			err       error
 			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -262,7 +262,7 @@ func TestScheduleOverride(t *testing.T) {
 		var (
 			err       error
 			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -298,7 +298,7 @@ func TestScheduleOverride(t *testing.T) {
 		var (
 			err       error
 			ctx       = context.Background()
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -349,7 +349,7 @@ func TestScheduleOverride(t *testing.T) {
 func TestScheduleStartDefaults(t *testing.T) {
 	t.Setenv("TZ", "Pacific/Tongatapu")
 	var (
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user      = coderdtest.CreateFirstUser(t, client)
 		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

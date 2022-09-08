@@ -215,8 +215,8 @@ type ApplicationURL struct {
 
 // ParseSubdomainAppURL parses an application from the subdomain of r's Host header.
 // If the application string is not valid, returns a non-nil error.
-//   1) {USERNAME}--{WORKSPACE_NAME}}--{{AGENT_NAME}}--{{PORT/AppName}}
-//  	(eg. http://admin--myenv--main--8080.cdrdeploy.c8s.io)
+//  1. {USERNAME}--{WORKSPACE_NAME}}--{{AGENT_NAME}}--{{PORT/AppName}}
+//     (eg. http://admin--myenv--main--8080.cdrdeploy.c8s.io)
 func ParseSubdomainAppURL(r *http.Request) (ApplicationURL, error) {
 	host := httpapi.RequestHost(r)
 	if host == "" {

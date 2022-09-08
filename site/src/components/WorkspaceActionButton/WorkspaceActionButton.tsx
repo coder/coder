@@ -18,7 +18,7 @@ export const WorkspaceActionButton: FC<React.PropsWithChildren<WorkspaceActionBu
 }) => {
   return (
     <Button className={className} startIcon={icon} onClick={onClick} aria-label={ariaLabel}>
-      {!!label && label}
+      {Boolean(label) && label}
     </Button>
   )
 }

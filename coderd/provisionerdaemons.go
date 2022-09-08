@@ -23,13 +23,11 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -804,9 +802,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
-			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
-			WireguardNodePublicKey:  dbtypes.NodePublic{},
-			WireguardDiscoPublicKey: dbtypes.DiscoPublic{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

@@ -30,6 +30,7 @@ type Workspace struct {
 	Name              string         `json:"name"`
 	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
 	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
+	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -38,6 +39,8 @@ type CreateWorkspaceBuildRequest struct {
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
+	// Orphan may be set for the Destroy transition.
+	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
@@ -113,19 +116,6 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return WorkspaceBuild{}, readBodyAsError(res)
-	}
-	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
-}
-
-func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, name string) (WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds/%s", workspace, name), nil)
-	if err != nil {
-		return WorkspaceBuild{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
 		return WorkspaceBuild{}, readBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
