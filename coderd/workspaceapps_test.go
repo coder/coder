@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -175,87 +174,87 @@ func TestParseSubdomainAppURL(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		Name          string
-		URL           string
+		Host          string
 		Expected      coderd.ApplicationURL
 		ExpectedError string
 	}{
 		{
-			Name:          "Empty",
-			URL:           "https://example.com",
+			Name:          "Invalid_Empty",
+			Host:          "example.com",
 			Expected:      coderd.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
-			Name:          "Workspace.Agent+App",
-			URL:           "https://workspace.agent--app.coder.com",
+			Name:          "Invalid_Workspace.Agent--App",
+			Host:          "workspace.agent--app.coder.com",
 			Expected:      coderd.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
-			Name:          "Workspace+App",
-			URL:           "https://workspace--app.coder.com",
+			Name:          "Invalid_Workspace--App",
+			Host:          "workspace--app.coder.com",
+			Expected:      coderd.ApplicationURL{},
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:          "Invalid_App--Workspace--User",
+			Host:          "app--workspace--user.coder.com",
+			Expected:      coderd.ApplicationURL{},
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:          "Invalid_TooManyComponents",
+			Host:          "1--2--3--4--5.coder.com",
 			Expected:      coderd.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		// Correct
 		{
-			Name: "User+Workspace+App",
-			URL:  "https://app--workspace--user.coder.com",
+			Name: "AppName--Agent--Workspace--User",
+			Host: "app--agent--workspace--user.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "app",
+				Port:          0,
+				AgentName:     "agent",
 				WorkspaceName: "workspace",
-				Agent:         "",
 				Username:      "user",
-				Path:          "",
-				Domain:        "coder.com",
+				BaseHostname:  "coder.com",
 			},
 		},
 		{
-			Name: "User+Workspace+Port",
-			URL:  "https://8080--workspace--user.coder.com",
+			Name: "Port--Agent--Workspace--User",
+			Host: "8080--agent--workspace--user.coder.com",
 			Expected: coderd.ApplicationURL{
-				AppName:       "8080",
+				AppName:       "",
+				Port:          8080,
+				AgentName:     "agent",
 				WorkspaceName: "workspace",
-				Agent:         "",
 				Username:      "user",
-				Path:          "",
-				Domain:        "coder.com",
+				BaseHostname:  "coder.com",
 			},
 		},
 		{
-			Name: "User+Workspace.Agent+App",
-			URL:  "https://app--workspace--agent--user.coder.com",
+			Name: "DeepSubdomain",
+			Host: "app--agent--workspace--user.dev.dean-was-here.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "app",
+				Port:          0,
+				AgentName:     "agent",
 				WorkspaceName: "workspace",
-				Agent:         "agent",
 				Username:      "user",
-				Path:          "",
-				Domain:        "coder.com",
-			},
-		},
-		{
-			Name: "User+Workspace.Agent+Port",
-			URL:  "https://8080--workspace--agent--user.coder.com",
-			Expected: coderd.ApplicationURL{
-				AppName:       "8080",
-				WorkspaceName: "workspace",
-				Agent:         "agent",
-				Username:      "user",
-				Path:          "",
-				Domain:        "coder.com",
+				BaseHostname:  "dev.dean-was-here.coder.com",
 			},
 		},
 		{
 			Name: "HyphenatedNames",
-			URL:  "https://app-name--workspace-thing--agent-thing--admin-user.coder.com",
+			Host: "app-name--agent-name--workspace-name--user-name.coder.com",
 			Expected: coderd.ApplicationURL{
 				AppName:       "app-name",
-				WorkspaceName: "workspace-thing",
-				Agent:         "agent-thing",
-				Username:      "admin-user",
-				Path:          "",
-				Domain:        "coder.com",
+				Port:          0,
+				AgentName:     "agent-name",
+				WorkspaceName: "workspace-name",
+				Username:      "user-name",
+				BaseHostname:  "coder.com",
 			},
 		},
 	}
@@ -264,9 +263,8 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			r := httptest.NewRequest("GET", c.URL, nil)
 
-			app, err := coderd.ParseSubdomainAppURL(r)
+			app, err := coderd.ParseSubdomainAppURL(c.Host)
 			if c.ExpectedError == "" {
 				require.NoError(t, err)
 				require.Equal(t, c.Expected, app, "expected app")
