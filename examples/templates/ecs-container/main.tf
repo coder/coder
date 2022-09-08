@@ -15,6 +15,13 @@ variable "ecs-cluster" {
   description = "Input the ECS cluster ARN to host the workspace"
   default     = ""
 }
+variable "cpu" {
+  default = "1024"
+}
+
+variable "memory" {
+  default = "2048"
+}
 
 # configure AWS provider with creds present on Coder server host
 provider "aws" {
@@ -27,8 +34,8 @@ resource "aws_ecs_task_definition" "workspace" {
   family = "coder"
 
   requires_compatibilities = ["EC2"]
-  cpu                      = 1024
-  memory                   = 2048
+  cpu                      = var.cpu
+  memory                   = var.memory
   container_definitions = jsonencode([
     {
       name      = "coder-workspace-${data.coder_workspace.me.id}"
