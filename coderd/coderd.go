@@ -114,7 +114,7 @@ func New(options *Options) *API {
 		options.LicenseHandler = licenses()
 	}
 	if options.FeaturesService == nil {
-		options.FeaturesService = featuresService{}
+		options.FeaturesService = &featuresService{}
 	}
 
 	siteCacheDir := options.CacheDir
