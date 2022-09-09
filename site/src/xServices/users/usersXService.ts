@@ -70,6 +70,8 @@ export type UsersEvent =
 
 export const usersMachine = createMachine(
   {
+    id: "usersState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./usersXService.typegen").Typegen0,
     schema: {
       context: {} as UsersContext,
@@ -95,7 +97,6 @@ export const usersMachine = createMachine(
         }
       },
     },
-    id: "usersState",
     initial: "idle",
     states: {
       idle: {

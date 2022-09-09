@@ -53,6 +53,8 @@ export type WorkspaceScheduleEvent =
 
 export const workspaceSchedule = createMachine(
   {
+    id: "workspaceScheduleState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./workspaceScheduleXService.typegen").Typegen0,
     schema: {
       context: {} as WorkspaceScheduleContext,
@@ -63,7 +65,6 @@ export const workspaceSchedule = createMachine(
         }
       },
     },
-    id: "workspaceScheduleState",
     initial: "idle",
     on: {
       GET_WORKSPACE: "gettingWorkspace",

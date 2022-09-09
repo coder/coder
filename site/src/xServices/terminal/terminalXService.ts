@@ -36,6 +36,8 @@ export const terminalMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QBcwCcC2BLAdgQwBsBlZPVAOhmWVygHk0o8csAvMrAex1gGIJuYcrgBunANZCqDJi3Y1u8JCAAOnWFgU5EoAB6IA7AE4AzOSMBGAEwBWCyYAsANgs2bVgDQgAnohNGbcgsnEIcHCwAOBwAGCKMHAF8Er1RMXEISMikwaloZZjYORV50NE40chUCMgAzcoxKHPy5Ip4dVXVNLm1lfQQIiLMIpxMbQYjYo2jXL18EawtyAwGwk1HTMdGklPRsfGJSCioaHCgAdXLxWBU8AGMwfkFhHDFJRuQLtCub+-a1DS07T69icVnILisDhspiccQ2sz8y3INmiqNGsMcBmiNm2IFSewyh2yuVOn2+dwepXKlWqyDqmHeZOuFL+nUBvUQILBEKhMLhowRCAMTkCIzWDkcEyMBhsBlx+PSByy7xO50uzPuAEEYDhkI8cEJRBJiUyfmBtWBdayAd0gZyjCFyFZbKjnC4jKYLIK7GYYqirCYBk5olYDIlknjdorMkccqrTRSLbqSmgyhUqrV6oz1Wak8hrV1uHb5g6nE6XdE3RYPSYvT5EWCA2s7E4sbZhfKo-sY0JbtwDbdVfrDS9jeQ+zgB-nlP9Cz09IhIcLyCZIUYotEDCZNxEDN7peY1ms4gYrNNBp20t2ieP+2BB7QU2maZmGROpwX2QuEEuy6uHOuMRbjue71ggdiLPY4phiYMoWNYl4EkqFDvveqAQLwZwAEoAJIACoAKKfraHI-gYkTkCGAFYmG0TbnWcw2A4YKmGskJno44RWIh0Y3qhg6QLwWEEZqAAixFFqRobViusKngYMpWEGgpQmWUFsSEcSOHRPHXsq-Hobwok4UQADCdAAHIWQRpl4RJ84gH0SmtuQDgTNWMJTDKJgqUEq4RNCljTOs3ERgqekUBAWCwAZgnmVZNl2TObIkd+zplrEYanvY0SwrCESCs6BiuaidGrgGTgekYSQRjgnAQHA7ThYSyrHHkjAFPI3RKKAs5fo5iAxIEXHMSMErWNiTiFa4K6ldi1ayu4FjhjsV4tbGJJql8GpgPZxYWNMDiubBdh2Ju7pGIK-jFW6rYiq4bZOLp63EvGOaJjq069Slknfq4jrOii51udiMpXbC5ATKi1ghNEljNs9yG9neD6nHtUlnhErmgqeIyosKazejNZ7+qMi3BiYiM9rek5oZA6NpeR0ROmGpgnhT0qCmNSxHhKW4BiGERUzeUUxSj6EMwN4HM5ukLLXBViRKGNhXVj64etM0JOG5YTC1kktORlp7hA4CtK2DYEALQQ8M5FKQd27OJTNVAA */
   createMachine(
     {
+      id: "terminalState",
+      predictableActionArguments: true,
       tsTypes: {} as import("./terminalXService.typegen").Typegen0,
       schema: {
         context: {} as TerminalContext,
@@ -52,7 +54,6 @@ export const terminalMachine =
           }
         },
       },
-      id: "terminalState",
       initial: "gettingWorkspace",
       states: {
         gettingWorkspace: {

@@ -28,7 +28,8 @@ const emptyEntitlements = {
 export const entitlementsMachine = createMachine(
   {
     id: "entitlementsMachine",
-    initial: "idle",
+    predictableActionArguments: true,
+    tsTypes: {} as import("./entitlementsXService.typegen").Typegen0,
     schema: {
       context: {} as EntitlementsContext,
       events: {} as EntitlementsEvent,
@@ -38,10 +39,10 @@ export const entitlementsMachine = createMachine(
         },
       },
     },
-    tsTypes: {} as import("./entitlementsXService.typegen").Typegen0,
     context: {
       entitlements: emptyEntitlements,
     },
+    initial: "idle",
     states: {
       idle: {
         on: {

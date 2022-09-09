@@ -7,7 +7,9 @@ export const templateSettingsMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QBcwFsAOAbAhqgymMsgJYB2UsAdFgPY4TlQDEEtZYV5AbrQNadUmXASKkK1OgyYIetAMZ4S7ANoAGALqJQGWrBKl22kAA9EANgCMVAKwB2AByWATJbWWAnABYv55w-MAGhAAT0RnAGZnKgibGw9nD3M1JJsHNQiAX0zgoWw8MEJiJmpIAyZmfABBADUAUWNdfUMyYzMESx9bSK8IhwdncwcbF2dgsIRejypzX2dXf09zCLUbbNz0fNFiiSpYHG4Ktg4uMl4BKjyRQrESvYOZOUUW9S0kECbyo3f25KoHOxeDwODx9EYeNTzcYWGxqKgeGw+SJ2cx+VZebI5EBkWgQODGK4FIriSg0eiMCiNPRfVo-RBeMahRAQqhqNnuWERFFeOyedYgQnbEmlRgkqnNZS00DtSwRcz-EY2PzeeYOLk2aEIWJ2WwOIEBNIeBG8-mCm47Un7Q6U96fFptenWRJDIZy+y9AFBJkIEbRbxeWUBRwIyx2U2ba7Eu5WyDimkOhAI2yxSx+foMpWWTV2RLJgIrPoA4bh4RE24SOP2ukdHXOgJq8zuvoozWWBys9nzSydNt2NQYzFAA */
   createMachine(
     {
-      initial: "loading",
+      id: "templateSettings",
+      predictableActionArguments: true,
+      tsTypes: {} as import("./templateSettingsXService.typegen").Typegen0,
       schema: {} as {
         context: {
           organizationId: string
@@ -26,7 +28,7 @@ export const templateSettingsMachine =
         }
         events: { type: "SAVE"; templateSettings: UpdateTemplateMeta }
       },
-      tsTypes: {} as import("./templateSettingsXService.typegen").Typegen0,
+      initial: "loading",
       states: {
         loading: {
           invoke: {
@@ -71,7 +73,6 @@ export const templateSettingsMachine =
           type: "final",
         },
       },
-      id: "templateSettings",
     },
     {
       services: {

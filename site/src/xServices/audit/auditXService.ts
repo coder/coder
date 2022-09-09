@@ -7,6 +7,8 @@ import { assign, createMachine } from "xstate"
 export const auditMachine = createMachine(
   {
     id: "auditMachine",
+    predictableActionArguments: true,
+    tsTypes: {} as import("./auditXService.typegen").Typegen0,
     schema: {
       context: {} as { auditLogs?: AuditLog[]; count?: number; page: number; limit: number },
       services: {} as {
@@ -29,7 +31,6 @@ export const auditMachine = createMachine(
             page: number
           },
     },
-    tsTypes: {} as import("./auditXService.typegen").Typegen0,
     initial: "loading",
     states: {
       loading: {

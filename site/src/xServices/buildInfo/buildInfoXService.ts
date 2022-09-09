@@ -9,6 +9,8 @@ export interface BuildInfoContext {
 
 export const buildInfoMachine = createMachine(
   {
+    id: "buildInfoState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./buildInfoXService.typegen").Typegen0,
     schema: {
       context: {} as BuildInfoContext,
@@ -21,7 +23,6 @@ export const buildInfoMachine = createMachine(
     context: {
       buildInfo: undefined,
     },
-    id: "buildInfoState",
     initial: "gettingBuildInfo",
     states: {
       gettingBuildInfo: {
