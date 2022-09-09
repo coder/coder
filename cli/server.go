@@ -687,7 +687,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 			cmd.Println("Waiting for WebSocket connections to close...")
 			_ = coderAPI.Close()
-			cmd.Println("Done wainting for WebSocket connections")
+			cmd.Println("Done waiting for WebSocket connections")
 
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel {

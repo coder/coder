@@ -32,10 +32,21 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Determine the real path that was hit. The * URL parameter in Chi will not
+	// include the leading slash if it was present, so we need to add it back.
+	chiPath := chi.URLParam(r, "*")
+	basePath := strings.TrimSuffix(r.URL.Path, chiPath)
+	if strings.HasSuffix(basePath, "/") {
+		chiPath = "/" + chiPath
+	}
+
+	appName, port := AppNameOrPort(chi.URLParam(r, "workspaceapp"))
 	api.proxyWorkspaceApplication(proxyApplication{
 		Workspace: workspace,
 		Agent:     agent,
-		AppName:   chi.URLParam(r, "workspaceapp"),
+		AppName:   appName,
+		Port:      port,
+		Path:      chiPath,
 	}, rw, r)
 }
 
@@ -80,6 +91,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 					Agent:     agent,
 					AppName:   app.AppName,
 					Port:      app.Port,
+					Path:      r.URL.Path,
 				}, rw, r)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -94,6 +106,8 @@ type proxyApplication struct {
 	// Either AppName or Port must be set, but not both.
 	AppName string
 	Port    uint16
+	// Path must either be empty or have a leading slash.
+	Path string
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
@@ -134,11 +148,33 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	appURL, err := url.Parse(internalURL)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("App url %q must be a valid url.", internalURL),
+			Message: fmt.Sprintf("App URL %q is invalid.", internalURL),
 			Detail:  err.Error(),
 		})
 		return
 	}
+
+	// Ensure path and query parameter correctness.
+	if proxyApp.Path == "" {
+		// Web applications typically request paths relative to the
+		// root URL. This allows for routing behind a proxy or subpath.
+		// See https://github.com/coder/code-server/issues/241 for examples.
+		http.Redirect(rw, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
+		return
+	}
+	if proxyApp.Path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
+		// If the application defines a default set of query parameters,
+		// we should always respect them. The reverse proxy will merge
+		// query parameters for server-side requests, but sometimes
+		// client-side applications require the query parameters to render
+		// properly. With code-server, this is the "folder" param.
+		r.URL.RawQuery = appURL.RawQuery
+		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+		return
+	}
+
+	r.URL.Path = proxyApp.Path
+	appURL.RawQuery = ""
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -151,26 +187,6 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		}))
 		api.siteHandler.ServeHTTP(w, r)
 	}
-	path := chi.URLParam(r, "*")
-	if !strings.HasSuffix(r.URL.Path, "/") && path == "" {
-		// Web applications typically request paths relative to the
-		// root URL. This allows for routing behind a proxy or subpath.
-		// See https://github.com/coder/code-server/issues/241 for examples.
-		r.URL.Path += "/"
-		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
-		return
-	}
-	if r.URL.RawQuery == "" && appURL.RawQuery != "" {
-		// If the application defines a default set of query parameters,
-		// we should always respect them. The reverse proxy will merge
-		// query parameters for server-side requests, but sometimes
-		// client-side applications require the query parameters to render
-		// properly. With code-server, this is the "folder" param.
-		r.URL.RawQuery = appURL.RawQuery
-		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
-		return
-	}
-	r.URL.Path = path
 
 	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
 	if err != nil {
@@ -238,17 +254,10 @@ func ParseSubdomainAppURL(hostname string) (ApplicationURL, error) {
 	}
 	matchGroup := matches[0]
 
-	appName := matchGroup[appURL.SubexpIndex("AppName")]
-	port, err := strconv.ParseUint(appName, 10, 16)
-	if err != nil || port == 0 {
-		port = 0
-	} else {
-		appName = ""
-	}
-
+	appName, port := AppNameOrPort(matchGroup[appURL.SubexpIndex("AppName")])
 	return ApplicationURL{
 		AppName:       appName,
-		Port:          uint16(port),
+		Port:          port,
 		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
 		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
 		Username:      matchGroup[appURL.SubexpIndex("Username")],
@@ -268,6 +277,19 @@ func SplitSubdomain(hostname string) (subdomain string, rest string, err error) 
 	}
 
 	return toks[0], toks[1], nil
+}
+
+// AppNameOrPort takes a string and returns either the input string or a port
+// number.
+func AppNameOrPort(val string) (string, uint16) {
+	port, err := strconv.ParseUint(val, 10, 16)
+	if err != nil || port == 0 {
+		port = 0
+	} else {
+		val = ""
+	}
+
+	return val, uint16(port)
 }
 
 // applicationCookie is a helper function to copy the auth cookie to also

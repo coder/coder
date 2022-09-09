@@ -26,7 +26,10 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   appIcon,
 }) => {
   const styles = useStyles()
-  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}`
+
+  // The backend redirects if the trailing slash isn't included, so we add it
+  // here to avoid extra roundtrips.
+  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}/`
 
   return (
     <Link

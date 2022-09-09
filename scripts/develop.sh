@@ -59,18 +59,22 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	# rather than leaving things in an inconsistent state.
 	trap 'kill -TERM -$$' ERR
 	cdroot
-	"${CODER_DEV_SHIM}" server --address 127.0.0.1:3000 --tunnel || kill -INT -$$ &
+	"${CODER_DEV_SHIM}" server --address 0.0.0.0:3000 --tunnel || kill -INT -$$ &
 
 	echo '== Waiting for Coder to become ready'
 	timeout 60s bash -c 'until curl -s --fail http://localhost:3000 > /dev/null 2>&1; do sleep 0.5; done'
 
-	# Try to create the initial admin user.
-	"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --username=admin --email=admin@coder.com --password="${password}" ||
-		echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
+	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
+		# Try to create the initial admin user.
+		"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --username=admin --email=admin@coder.com --password="${password}" ||
+			echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
 
-	# Try to create a regular user.
-	"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --password="${password}" ||
-		echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
+		# Try to create a regular user.
+		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --password="${password}" ||
+			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
+
+		touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
+	fi
 
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
