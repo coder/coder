@@ -12,7 +12,7 @@ describe("ResourceTable", () => {
   it("hides status text when a workspace is stopped", async () => {
     // When
     const props = {
-      resource: [{ ...MockWorkspaceResource }, { ...MockWorkspaceResource2 }],
+      resources: [{ ...MockWorkspaceResource }, { ...MockWorkspaceResource2 }],
       workspace: { ...MockStoppedWorkspace },
       canUpdateWorkspace: false,
     }
