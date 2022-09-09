@@ -378,6 +378,7 @@ export interface Template {
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
   readonly workspace_owner_count: number
+  readonly active_user_count: number
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
@@ -604,7 +605,6 @@ export interface WorkspaceBuild {
   readonly workspace_owner_name: string
   readonly template_version_id: string
   readonly build_number: number
-  readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
   readonly initiator_name: string
@@ -636,6 +636,7 @@ export interface WorkspaceResource {
   readonly workspace_transition: WorkspaceTransition
   readonly type: string
   readonly name: string
+  readonly hide: boolean
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
 }
@@ -693,7 +694,14 @@ export type ProvisionerStorageMethod = "file"
 export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/audit.go
-export type ResourceType = "organization" | "template" | "template_version" | "user" | "workspace"
+export type ResourceType =
+  | "api_key"
+  | "git_ssh_key"
+  | "organization"
+  | "template"
+  | "template_version"
+  | "user"
+  | "workspace"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

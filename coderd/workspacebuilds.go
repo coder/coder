@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
@@ -226,51 +225,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK,
-		convertWorkspaceBuild(findUser(workspace.OwnerID, users), findUser(workspaceBuild.InitiatorID, users),
-			workspace, workspaceBuild, job))
-}
-
-func (api *API) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
-	workspaceBuildName := chi.URLParam(r, "workspacebuildname")
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndName(r.Context(), database.GetWorkspaceBuildByWorkspaceIDAndNameParams{
-		WorkspaceID: workspace.ID,
-		Name:        workspaceBuildName,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build by name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting user.",
 			Detail:  err.Error(),
 		})
 		return
@@ -502,7 +456,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			WorkspaceID:       workspace.ID,
 			TemplateVersionID: templateVersion.ID,
 			BuildNumber:       priorBuildNum + 1,
-			Name:              namesgenerator.GetRandomName(1),
 			ProvisionerState:  state,
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransition(createBuild.Transition),
@@ -700,7 +653,6 @@ func convertWorkspaceBuild(
 		WorkspaceName:      workspace.Name,
 		TemplateVersionID:  workspaceBuild.TemplateVersionID,
 		BuildNumber:        workspaceBuild.BuildNumber,
-		Name:               workspaceBuild.Name,
 		Transition:         codersdk.WorkspaceTransition(workspaceBuild.Transition),
 		InitiatorID:        workspaceBuild.InitiatorID,
 		InitiatorUsername:  initiatorName,
@@ -746,6 +698,7 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Transition: codersdk.WorkspaceTransition(resource.Transition),
 		Type:       resource.Type,
 		Name:       resource.Name,
+		Hide:       resource.Hide,
 		Agents:     agents,
 		Metadata:   convertedMetadata,
 	}

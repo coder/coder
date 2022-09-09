@@ -10,11 +10,9 @@
 # If the --output parameter is not set, the default output path is the binary
 # path (minus any .exe suffix) plus the format extension ".zip" or ".tar.gz".
 #
-# If --sign-darwin is specified, the zip file is signed with the `codesign`
-# utility and then notarized using the `gon` utility, which may take a while.
-# $AC_APPLICATION_IDENTITY must be set and the signing certificate must be
-# imported for this to work. Also, the input binary must already be signed with
-# the `codesign` tool.
+# If --sign-darwin is specified, the zip file will be notarized using
+# ./notarize_darwin.sh, which may take a while. Read that file for more details
+# on the requirements.
 #
 # If the --agpl parameter is specified, only the AGPL license is included in the
 # outputted archive.
@@ -82,11 +80,6 @@ if [[ ! -f "$1" ]]; then
 fi
 input_file="$(realpath "$1")"
 
-sign_darwin="$([[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]] && echo 1 || echo 0)"
-if [[ "$sign_darwin" == 1 ]] && [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-	error "AC_APPLICATION_IDENTITY must be set when --sign-darwin or CODER_SIGN_DARWIN=1 is supplied"
-fi
-
 # Check dependencies
 if [[ "$format" == "zip" ]]; then
 	dependencies zip
@@ -94,8 +87,11 @@ fi
 if [[ "$format" == "tar.gz" ]]; then
 	dependencies tar
 fi
+
+sign_darwin="$([[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]] && echo 1 || echo 0)"
 if [[ "$sign_darwin" == 1 ]]; then
-	dependencies jq codesign gon
+	dependencies rcodesign
+	requiredenvs AC_APIKEY_ISSUER_ID AC_APIKEY_ID AC_APIKEY_FILE
 fi
 
 # Determine default output path.
@@ -139,7 +135,7 @@ rm -rf "$temp_dir"
 
 if [[ "$sign_darwin" == 1 ]]; then
 	log "Notarizing archive..."
-	execrelative ./sign_darwin.sh "$output_path"
+	execrelative ./notarize_darwin.sh "$output_path"
 fi
 
 echo "$output_path"

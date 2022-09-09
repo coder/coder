@@ -22,6 +22,7 @@ import (
 	agplAudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -165,9 +166,9 @@ func TestFeaturesService_EntitlementsAPI(t *testing.T) {
 		assert.Nil(t, al.Actual)
 		assert.Len(t, result.Warnings, 2)
 		assert.Contains(t, result.Warnings,
-			"Your deployment has 5 active users but is only licensed for 4")
+			"Your deployment has 5 active users but is only licensed for 4.")
 		assert.Contains(t, result.Warnings,
-			"Audit logging is enabled but your license for this feature is expired")
+			"Audit logging is enabled but your license for this feature is expired.")
 	})
 }
 
@@ -285,7 +286,7 @@ func TestFeaturesServiceSyncEntitlements(t *testing.T) {
 	})
 }
 
-func requestEntitlements(t *testing.T, uut agplCoderd.FeaturesService) codersdk.Entitlements {
+func requestEntitlements(t *testing.T, uut features.Service) codersdk.Entitlements {
 	t.Helper()
 	r := httptest.NewRequest("GET", "https://example.com/api/v2/entitlements", nil)
 	rw := httptest.NewRecorder()

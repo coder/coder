@@ -52,7 +52,7 @@ You can modify the installation process by including flags. Run the help command
 curl -L https://coder.com/install.sh | sh -s -- --help
 ```
 
-> See [install](docs/install.md) for additional methods.
+> See [install](docs/install) for additional methods.
 
 Once installed, you can start a production deployment<sup>1</sup> with a single command:
 

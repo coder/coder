@@ -19,6 +19,7 @@ import (
 	agpl "github.com/coder/coder/coderd"
 	agplAudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
@@ -55,7 +56,7 @@ func newFeaturesService(
 	db database.Store,
 	pubsub database.Pubsub,
 	enablements Enablements,
-) agpl.FeaturesService {
+) features.Service {
 	fs := &featuresService{
 		logger:      logger,
 		database:    db,
@@ -112,7 +113,7 @@ func (s *featuresService) EntitlementsAPI(rw http.ResponseWriter, r *http.Reques
 		if n > e.activeUsers.limit {
 			resp.Warnings = append(resp.Warnings,
 				fmt.Sprintf(
-					"Your deployment has %d active users but is only licensed for %d",
+					"Your deployment has %d active users but is only licensed for %d.",
 					n, e.activeUsers.limit))
 		}
 	}
@@ -125,7 +126,7 @@ func (s *featuresService) EntitlementsAPI(rw http.ResponseWriter, r *http.Reques
 	}
 	if e.auditLogs.state == gracePeriod && s.enablements.AuditLogs {
 		resp.Warnings = append(resp.Warnings,
-			"Audit logging is enabled but your license for this feature is expired")
+			"Audit logging is enabled but your license for this feature is expired.")
 	}
 
 	httpapi.Write(rw, http.StatusOK, resp)

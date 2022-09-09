@@ -28,4 +28,4 @@ These features are:
 
 ## Up Next
 
-- [Get started using Coder](../quickstart.md).
+- [Learn how to contribute to Coder](../contributing.md).

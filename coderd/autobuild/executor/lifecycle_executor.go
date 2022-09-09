@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -290,7 +289,6 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		WorkspaceID:       workspace.ID,
 		TemplateVersionID: priorHistory.TemplateVersionID,
 		BuildNumber:       priorBuildNumber + 1,
-		Name:              namesgenerator.GetRandomName(1),
 		ProvisionerState:  priorHistory.ProvisionerState,
 		InitiatorID:       workspace.OwnerID,
 		Transition:        trans,

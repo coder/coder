@@ -10,7 +10,7 @@ This article walks you through how to upgrade your Coder server.
 </blockquote>
 
 To upgrade your Coder server, simply reinstall Coder using your original method
-of [install](../install.md).
+of [install](../install).
 
 ## Via install.sh
 

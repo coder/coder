@@ -52,8 +52,7 @@ const NavItems: React.FC<
           {Language.users}
         </NavLink>
       </ListItem>
-      {/* REMARK: the below link is under-construction  */}
-      {process.env.NODE_ENV !== "production" && canViewAuditLog && (
+      {canViewAuditLog && (
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/audit">
             {Language.audit}

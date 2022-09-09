@@ -175,7 +175,8 @@ export const MockTemplate: TypesGen.Template = {
   name: "test-template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
-  workspace_owner_count: 1,
+  workspace_owner_count: 2,
+  active_user_count: 1,
   description: "This is a test description.",
   max_ttl_ms: 24 * 60 * 60 * 1000,
   min_autostart_interval_ms: 60 * 60 * 1000,
@@ -201,7 +202,6 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  name: "a-workspace-build",
   template_version_id: "",
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
@@ -222,7 +222,6 @@ export const MockFailedWorkspaceBuild = (
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockFailedProvisionerJob,
-  name: "a-workspace-build",
   template_version_id: "",
   transition: transition,
   updated_at: "2022-05-17T17:39:01.382927298Z",
@@ -394,6 +393,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   name: "a-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  hide: false,
   metadata: [
     { key: "type", value: "a-workspace-resource", sensitive: false },
     { key: "api_key", value: "12345678", sensitive: true },
@@ -408,6 +408,22 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   name: "another-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  hide: false,
+  metadata: [
+    { key: "type", value: "google_compute_disk", sensitive: false },
+    { key: "size", value: "32GB", sensitive: false },
+  ],
+}
+
+export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  created_at: "",
+  id: "test-workspace-resource-3",
+  job_id: "",
+  name: "another-workspace-resource",
+  type: "google_compute_disk",
+  workspace_transition: "start",
+  hide: true,
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
@@ -757,6 +773,54 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
     audit_log: {
       enabled: true,
       entitlement: "entitled",
+    },
+  },
+}
+
+export const MockAuditLog: TypesGen.AuditLog = {
+  id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+  request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  time: "2022-05-19T16:45:57.122Z",
+  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  ip: "127.0.0.1",
+  user_agent:
+    '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+  resource_type: "workspace",
+  resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
+  resource_target: "bruno-dev",
+  resource_icon: "",
+  action: "create",
+  diff: {},
+  status_code: 200,
+  additional_fields: "",
+  description: "{user} updated workspace {target}",
+  user: MockUser,
+}
+
+export const MockAuditLog2: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  action: "write",
+  diff: {
+    workspace_name: {
+      old: "old-workspace-name",
+      new: MockWorkspace.name,
+      secret: false,
+    },
+    workspace_auto_off: {
+      old: true,
+      new: false,
+      secret: false,
+    },
+    template_version_id: {
+      old: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+      new: "53bded77-7b9d-4e82-8771-991a34d759f9",
+      secret: false,
+    },
+    roles: {
+      old: null,
+      new: ["admin", "auditor"],
+      secret: false,
     },
   },
 }
