@@ -193,8 +193,15 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
             size="small"
             onClick={() => setShouldDisplayHideResources((v) => !v)}
           >
-            Show hidden resources{" "}
-            {shouldDisplayHideResources ? <CloseDropdown /> : <OpenDropdown />}
+            {shouldDisplayHideResources ? (
+              <>
+                Hide resources <CloseDropdown />
+              </>
+            ) : (
+              <>
+                Show hidden resources <OpenDropdown />
+              </>
+            )}
           </Button>
         </div>
       )}
