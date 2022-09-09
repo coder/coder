@@ -563,7 +563,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			Features: api.FeaturesService,
 			Log:      api.Logger,
 			Request:  r,
-			Action:   database.AuditActionCreate,
+			Action:   database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()

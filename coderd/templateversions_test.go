@@ -546,7 +546,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("Found", func(t *testing.T) {
@@ -565,8 +565,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 3)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
 	})
 }
 

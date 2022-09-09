@@ -340,8 +340,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 
-		require.Len(t, auditor.AuditLogs, 3)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[2].Action)
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
 	})
 
 	t.Run("NoMaxTTL", func(t *testing.T) {
@@ -535,8 +535,9 @@ func TestDeleteTemplate(t *testing.T) {
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		require.NoError(t, err)
-		assert.Len(t, auditor.AuditLogs, 1)
-		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[0].Action)
+
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[3].Action)
 	})
 
 	t.Run("Workspaces", func(t *testing.T) {
