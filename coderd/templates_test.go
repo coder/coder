@@ -95,9 +95,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
-		require.Len(t, auditor.AuditLogs, 2)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
+
+		require.Len(t, auditor.AuditLogs, 3)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[2].Action)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
