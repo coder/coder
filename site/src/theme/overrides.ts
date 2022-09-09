@@ -67,8 +67,9 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
       },
       outlined: {
         border: `1px solid ${palette.divider}`,
+
         "&:hover": {
-          backgroundColor: palette.background.default,
+          backgroundColor: palette.action.hover,
         },
       },
     },
