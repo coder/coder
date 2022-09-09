@@ -19,6 +19,7 @@ import (
 	agpl "github.com/coder/coder/coderd"
 	agplAudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
@@ -55,7 +56,7 @@ func newFeaturesService(
 	db database.Store,
 	pubsub database.Pubsub,
 	enablements Enablements,
-) agpl.FeaturesService {
+) features.Service {
 	fs := &featuresService{
 		logger:      logger,
 		database:    db,
