@@ -43,6 +43,35 @@ func TestDelete(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("Orphan", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		cmd, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
+
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		cmd.SetErr(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			// When running with the race detector on, we sometimes get an EOF.
+			if err != nil {
+				assert.ErrorIs(t, err, io.EOF)
+			}
+		}()
+		pty.ExpectMatch("Cleaning Up")
+		<-doneChan
+	})
+
 	t.Run("DifferentUser", func(t *testing.T) {
 		t.Parallel()
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

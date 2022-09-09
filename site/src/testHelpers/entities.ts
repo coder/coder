@@ -132,6 +132,7 @@ export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "failed",
 }
+
 export const MockCancelingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "canceling",
@@ -201,7 +202,6 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  name: "a-workspace-build",
   template_version_id: "",
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
@@ -212,6 +212,26 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
 }
+
+export const MockFailedWorkspaceBuild = (
+  transition: TypesGen.WorkspaceTransition = "start",
+): TypesGen.WorkspaceBuild => ({
+  build_number: 1,
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "1",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
+  job: MockFailedProvisionerJob,
+  template_version_id: "",
+  transition: transition,
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
+  deadline: "2022-05-17T23:39:00.00Z",
+  reason: "initiator",
+})
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
   ...MockWorkspaceBuild,
@@ -736,6 +756,54 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
     audit_log: {
       enabled: true,
       entitlement: "entitled",
+    },
+  },
+}
+
+export const MockAuditLog: TypesGen.AuditLog = {
+  id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+  request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  time: "2022-05-19T16:45:57.122Z",
+  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  ip: "127.0.0.1",
+  user_agent:
+    '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+  resource_type: "workspace",
+  resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
+  resource_target: "bruno-dev",
+  resource_icon: "",
+  action: "create",
+  diff: {},
+  status_code: 200,
+  additional_fields: "",
+  description: "{user} updated workspace {target}",
+  user: MockUser,
+}
+
+export const MockAuditLog2: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  id: "53bded77-7b9d-4e82-8771-991a34d759f9",
+  action: "write",
+  diff: {
+    workspace_name: {
+      old: "old-workspace-name",
+      new: MockWorkspace.name,
+      secret: false,
+    },
+    workspace_auto_off: {
+      old: true,
+      new: false,
+      secret: false,
+    },
+    template_version_id: {
+      old: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+      new: "53bded77-7b9d-4e82-8771-991a34d759f9",
+      secret: false,
+    },
+    roles: {
+      old: null,
+      new: ["admin", "auditor"],
+      secret: false,
     },
   },
 }

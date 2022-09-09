@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/url"
@@ -78,6 +79,7 @@ func Core() []*cobra.Command {
 		schedules(),
 		show(),
 		ssh(),
+		speedtest(),
 		start(),
 		state(),
 		stop(),
@@ -109,10 +111,17 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 				return
 			}
 
-			// Login handles checking the versions itself since it
-			// has a handle to an unauthenticated client.
-			// Server is skipped for obvious reasons.
-			if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "gitssh" {
+			// login handles checking the versions itself since it has a handle
+			// to an unauthenticated client.
+			//
+			// server is skipped for obvious reasons.
+			//
+			// agent is skipped because these checks use the global coder config
+			// and not the agent URL and token from the environment.
+			//
+			// gitssh is skipped because it's usually not called by users
+			// directly.
+			if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "agent" || cmd.Name() == "gitssh" {
 				return
 			}
 
@@ -122,6 +131,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 			if err != nil {
 				return
 			}
+
 			err = checkVersions(cmd, client)
 			if err != nil {
 				// Just log the error here. We never want to fail a command
@@ -130,7 +140,14 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 					cliui.Styles.Warn.Render("check versions error: %s"), err)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
-			checkWarnings(cmd, client)
+
+			err = checkWarnings(cmd, client)
+			if err != nil {
+				// Same as above
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+					cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+			}
 		},
 		Example: formatExamples(
 			example{
@@ -467,9 +484,11 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 		return nil
 	}
 
-	clientVersion := buildinfo.Version()
+	ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+	defer cancel()
 
-	info, err := client.BuildInfo(cmd.Context())
+	clientVersion := buildinfo.Version()
+	info, err := client.BuildInfo(ctx)
 	// Avoid printing errors that are connection-related.
 	if codersdk.IsConnectionErr(err) {
 		return nil
@@ -493,15 +512,21 @@ download the server version with: 'curl -L https://coder.com/install.sh | sh -s 
 	return nil
 }
 
-func checkWarnings(cmd *cobra.Command, client *codersdk.Client) {
+func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
 	if cliflag.IsSetBool(cmd, varNoFeatureWarning) {
-		return
+		return nil
 	}
-	entitlements, err := client.Entitlements(cmd.Context())
+
+	ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+	defer cancel()
+
+	entitlements, err := client.Entitlements(ctx)
 	if err != nil {
-		return
+		return xerrors.Errorf("get entitlements to show warnings: %w", err)
 	}
 	for _, w := range entitlements.Warnings {
 		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
 	}
+
+	return nil
 }

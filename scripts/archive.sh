@@ -3,20 +3,19 @@
 # This script creates an archive containing the given binary renamed to
 # `coder(.exe)?`, as well as the README.md and LICENSE files from the repo root.
 #
-# Usage: ./archive.sh --format tar.gz [--output path/to/output.tar.gz] [--sign-darwin] [--agpl] path/to/binary
+# Usage: ./archive.sh --format tar.gz --os linux/darwin/windows [--output path/to/output.tar.gz] [--sign-darwin] [--agpl] path/to/binary
 #
 # The --format parameter must be set, and must either be "zip" or "tar.gz".
 #
 # If the --output parameter is not set, the default output path is the binary
 # path (minus any .exe suffix) plus the format extension ".zip" or ".tar.gz".
 #
-# If --sign-darwin is specified, the zip file is signed with the `codesign`
-# utility and then notarized using the `gon` utility, which may take a while.
-# $AC_APPLICATION_IDENTITY must be set and the signing certificate must be
-# imported for this to work. Also, the input binary must already be signed with
-# the `codesign` tool.=
+# If --sign-darwin is specified, the zip file will be notarized using
+# ./notarize_darwin.sh, which may take a while. Read that file for more details
+# on the requirements.
 #
-# If the --agpl parameter is specified, only includes AGPL license.
+# If the --agpl parameter is specified, only the AGPL license is included in the
+# outputted archive.
 #
 # The absolute output path is printed on success.
 
@@ -26,10 +25,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 format=""
 output_path=""
-sign_darwin=0
+sign_darwin="${CODER_SIGN_DARWIN:-0}"
+os=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$(getopt -o "" -l format:,output:,sign-darwin,agpl -- "$@")"
+args="$(getopt -o "" -l format:,output:,sign-darwin,os:,agpl -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -46,10 +46,11 @@ while true; do
 		output_path="$(realpath "$2")"
 		shift 2
 		;;
+	--os)
+		os="$2"
+		shift 2
+		;;
 	--sign-darwin)
-		if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-			error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
-		fi
 		sign_darwin=1
 		shift
 		;;
@@ -86,8 +87,11 @@ fi
 if [[ "$format" == "tar.gz" ]]; then
 	dependencies tar
 fi
+
+sign_darwin="$([[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]] && echo 1 || echo 0)"
 if [[ "$sign_darwin" == 1 ]]; then
-	dependencies jq codesign gon
+	dependencies rcodesign
+	requiredenvs AC_APIKEY_ISSUER_ID AC_APIKEY_ID AC_APIKEY_FILE
 fi
 
 # Determine default output path.
@@ -131,7 +135,7 @@ rm -rf "$temp_dir"
 
 if [[ "$sign_darwin" == 1 ]]; then
 	log "Notarizing archive..."
-	execrelative ./sign_darwin.sh "$output_path"
+	execrelative ./notarize_darwin.sh "$output_path"
 fi
 
 echo "$output_path"

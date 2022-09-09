@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -282,6 +283,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		}
 		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
+	sort.Slice(apiResources, func(i, j int) bool {
+		return apiResources[i].Name < apiResources[j].Name
+	})
 
 	httpapi.Write(rw, http.StatusOK, apiResources)
 }

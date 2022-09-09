@@ -40,7 +40,7 @@ resource "coder_agent" "dev" {
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
   name     = "code-server"
-  url      = "http://localhost:13337/?folder=/home/coder"
+  url      = "http://localhost:13337/"
   icon     = "/icon/code.svg"
 }
 
@@ -63,16 +63,22 @@ data "docker_registry_image" "dogfood" {
   name = "codercom/oss-dogfood:main"
 }
 
+
+locals {
+  container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+}
+
 resource "docker_image" "dogfood" {
   name          = data.docker_registry_image.dogfood.name
   pull_triggers = [data.docker_registry_image.dogfood.sha256_digest]
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.dogfood.name
   # Uses lower() to avoid Docker restriction on container names.
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = local.container_name
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]

@@ -39,7 +39,8 @@ You can add instructions here
 [Some link info](https://coder.com)
 \`\`\`
 # This is a really long sentence to test that the code block wraps into a new line properly.
-\`\`\``,
+\`\`\`
+`,
   },
   templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
   templateVersions: [Mocks.MockTemplateVersion],

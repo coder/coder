@@ -12,13 +12,13 @@
 # with "vX" (e.g. "v7", "v8").
 #
 # Unless overridden via --output, the built binary will be dropped in
-# "$repo_root/dist/coder_$version_$os_$arch" (with a ".exe" suffix for windows
+# "$repo_root/build/coder_$version_$os_$arch" (with a ".exe" suffix for windows
 # builds) and the absolute path to the binary will be printed to stdout on
 # completion.
 #
-# If the --sign-darwin parameter is specified and the OS is darwin, binaries
-# will be signed using the `codesign` utility. $AC_APPLICATION_IDENTITY must be
-# set and the signing certificate must be imported for this to work.
+# If the --sign-darwin parameter is specified and the OS is darwin, the output
+# binary will be signed using ./sign_darwin.sh. Read that file for more details
+# on the requirements.
 #
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
@@ -26,13 +26,12 @@
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-cdroot
 
 version=""
 os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
 slim="${CODER_SLIM_BUILD:-0}"
-sign_darwin=0
+sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
@@ -53,6 +52,7 @@ while true; do
 		shift 2
 		;;
 	--output)
+		mkdir -p "$(dirname "$2")"
 		output_path="$(realpath "$2")"
 		shift 2
 		;;
@@ -65,9 +65,6 @@ while true; do
 		shift
 		;;
 	--sign-darwin)
-		if [[ "${AC_APPLICATION_IDENTITY:-}" == "" ]]; then
-			error "AC_APPLICATION_IDENTITY must be set when --sign-darwin is supplied"
-		fi
 		sign_darwin=1
 		shift
 		;;
@@ -81,6 +78,8 @@ while true; do
 	esac
 done
 
+cdroot
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
@@ -90,7 +89,8 @@ fi
 # Check dependencies
 dependencies go
 if [[ "$sign_darwin" == 1 ]]; then
-	dependencies codesign
+	dependencies rcodesign
+	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 fi
 
 build_args=(
@@ -102,9 +102,8 @@ fi
 
 # Compute default output path.
 if [[ "$output_path" == "" ]]; then
-	dist_dir="dist"
-	mkdir -p "$dist_dir"
-	output_path="${dist_dir}/coder_${version}_${os}_${arch}"
+	mkdir -p "build"
+	output_path="build/coder_${version}_${os}_${arch}"
 	if [[ "$os" == "windows" ]]; then
 		output_path+=".exe"
 	fi
@@ -132,7 +131,7 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"$cmd_path" 1>&2
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
-	codesign -s "$AC_APPLICATION_IDENTITY" -f -v --timestamp --options runtime "$output_path"
+	execrelative ./sign_darwin.sh "$output_path" 1>&2
 fi
 
 echo "$output_path"

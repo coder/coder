@@ -258,6 +258,8 @@ const (
 	ResourceTypeTemplateVersion ResourceType = "template_version"
 	ResourceTypeUser            ResourceType = "user"
 	ResourceTypeWorkspace       ResourceType = "workspace"
+	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
+	ResourceTypeApiKey          ResourceType = "api_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -568,7 +570,6 @@ type WorkspaceBuild struct {
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	Name              string              `db:"name" json:"name"`
 	BuildNumber       int32               `db:"build_number" json:"build_number"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`

@@ -47,10 +47,10 @@ export type AuditDiff = Record<string, AuditDiffField>
 // From codersdk/audit.go
 export interface AuditDiffField {
   // eslint-disable-next-line
-  readonly Old: any
+  readonly old?: any
   // eslint-disable-next-line
-  readonly New: any
-  readonly Secret: boolean
+  readonly new?: any
+  readonly secret: boolean
 }
 
 // From codersdk/audit.go
@@ -74,6 +74,16 @@ export interface AuditLog {
   readonly additional_fields: string
   readonly description: string
   readonly user?: User
+}
+
+// From codersdk/audit.go
+export interface AuditLogCountResponse {
+  readonly count: number
+}
+
+// From codersdk/audit.go
+export interface AuditLogResponse {
+  readonly audit_logs: AuditLog[]
 }
 
 // From codersdk/users.go
@@ -170,6 +180,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
+  readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -594,7 +605,6 @@ export interface WorkspaceBuild {
   readonly workspace_owner_name: string
   readonly template_version_id: string
   readonly build_number: number
-  readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
   readonly initiator_name: string
@@ -683,7 +693,14 @@ export type ProvisionerStorageMethod = "file"
 export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/audit.go
-export type ResourceType = "organization" | "template" | "template_version" | "user" | "workspace"
+export type ResourceType =
+  | "api_key"
+  | "git_ssh_key"
+  | "organization"
+  | "template"
+  | "template_version"
+  | "user"
+  | "workspace"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

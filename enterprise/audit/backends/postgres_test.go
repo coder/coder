@@ -3,9 +3,7 @@ package backends_test
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
@@ -30,13 +28,12 @@ func TestPostgresBackend(t *testing.T) {
 		err := pgb.Export(ctx, alog)
 		require.NoError(t, err)
 
-		got, err := db.GetAuditLogsBefore(ctx, database.GetAuditLogsBeforeParams{
-			ID:        uuid.Nil,
-			StartTime: time.Now().Add(time.Second),
-			RowLimit:  1,
+		got, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
+			Offset: 0,
+			Limit:  1,
 		})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
-		require.Equal(t, alog, got[0])
+		require.Equal(t, alog.ID, got[0].ID)
 	})
 }

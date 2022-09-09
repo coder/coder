@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 
 	scp "github.com/bramvdbogaerde/go-scp"
@@ -547,6 +548,21 @@ func TestAgent(t *testing.T) {
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
+
+	t.Run("Speedtest", func(t *testing.T) {
+		t.Parallel()
+		if testing.Short() {
+			t.Skip("The minimum duration for a speedtest is hardcoded in Tailscale to 5s!")
+		}
+		derpMap := tailnettest.RunDERPAndSTUN(t)
+		conn, _ := setupAgent(t, agent.Metadata{
+			DERPMap: derpMap,
+		}, 0)
+		defer conn.Close()
+		res, err := conn.Speedtest(speedtest.Upload, speedtest.MinDuration)
+		require.NoError(t, err)
+		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
@@ -678,7 +694,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			DERPMap:   metadata.DERPMap,
-			Logger:    slogtest.Make(t, nil).Named("tailnet"),
+			Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 		clientConn, serverConn := net.Pipe()
