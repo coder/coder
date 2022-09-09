@@ -49,6 +49,7 @@ type metadataItem struct {
 
 // ConvertResources consumes Terraform state and a GraphViz representation produced by
 // `terraform graph` to produce resources consumable by Coder.
+// nolint:gocyclo
 func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
