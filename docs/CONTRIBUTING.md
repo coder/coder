@@ -40,11 +40,16 @@ direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_
 
 Alternatively if you do not want to use nix then you'll need to install the need the following tools by hand:
 - Go 1.18+
+  - on macOS, run `brew install go`
 - Node 14+
-- GNU Make
+  - on macOS, run `brew install node`
+- GNU Make 4.0+
+  - on macOS, run `brew install make`
 - [`shfmt`](https://github.com/mvdan/sh#shfmt)
+  - on macOS, run `brew install shfmt`
 - [`nfpm`](https://nfpm.goreleaser.com/install)
-- [`pg_dump`]
+  - on macOS, run `brew install goreleaser/tap/nfpm && brew install nfpm`
+- [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
 
