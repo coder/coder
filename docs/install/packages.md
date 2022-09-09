@@ -4,7 +4,7 @@ Coder publishes the following system packages [in GitHub releases](https://githu
 - .rpm (Fedora, CentOS, RHEL, SUSE)
 - .apk (Alpine)
 
-Once installed, you can run Coder as a system service.
+Once [installed](https://coder.com/docs/coder-oss/latest/install/install.sh), you can run Coder as a system service.
 
 ```sh
 # Set up an access URL or enable CODER_TUNNEL
