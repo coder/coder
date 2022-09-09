@@ -52,6 +52,16 @@ Alternatively if you do not want to use nix then you'll need to install the need
 - [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
+- [`pkg-config`]()
+  - on macOS, run `brew install pkg-config`
+- [`pixman`]()
+  - on macOS, run `brew install pixman`
+- [`cairo`]()
+  - on macOS, run `brew install cairo`
+- [`pango`]()
+  - on macOS, run `brew install pango`
+- [`pandoc`]()
+  - on macOS, run `brew install pandocomatic`
 
 
 ### Development workflow
