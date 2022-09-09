@@ -392,6 +392,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   name: "a-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  hide: false,
   metadata: [
     { key: "type", value: "a-workspace-resource", sensitive: false },
     { key: "api_key", value: "12345678", sensitive: true },
@@ -406,6 +407,7 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   name: "another-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  hide: false,
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
