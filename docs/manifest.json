@@ -169,7 +169,7 @@
         {
           "title": "Enterprise",
           "description": "Learn how to enable Enterprise features.",
-          "path": "./install/enterprise.md"
+          "path": "./admin/enterprise.md"
         }
       ]
     },
