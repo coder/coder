@@ -1,10 +1,10 @@
 # Audit Logs
 
-Audit logs is an enterprise feature that allows **Admins** and **Auditors** to monitoring what is happening on their deployment.
+This is an enterprise feature that allows **Admins** and **Auditors** to monitor what is happening in their deployment.
 
 ## Tracked Events
 
-The following events are tracked by this feature:
+The following events are tracked:
 
 - Create
 - Update
@@ -21,4 +21,4 @@ For the following resources:
 
 ## Enabling this feature
 
-To enable this feature an Admin needs to purchase an enterprise license.
+This feature is autoenabled for all enterprise deployments. An Admin can purchase a license [here](link)
