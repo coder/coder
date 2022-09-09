@@ -4,13 +4,7 @@ This is an enterprise feature that allows **Admins** and **Auditors** to monitor
 
 ## Tracked Events
 
-The following events are tracked:
-
-- Create
-- Update
-- Delete
-
-For the following resources:
+This feature tracks **create, update and delete** events for the following resources:
 
 - GitSSHKey
 - Template
@@ -21,4 +15,4 @@ For the following resources:
 
 ## Enabling this feature
 
-This feature is autoenabled for all enterprise deployments. An Admin can purchase a license [here](link)
+This feature is autoenabled for all enterprise deployments. An Admin can contact us to purchase a license [here](https://coder.com/contact?note=I%20want%20to%20upgrade%20my%20license).
