@@ -636,6 +636,7 @@ export interface WorkspaceResource {
   readonly workspace_transition: WorkspaceTransition
   readonly type: string
   readonly name: string
+  readonly hide: boolean
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
 }

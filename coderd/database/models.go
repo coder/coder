@@ -586,6 +586,7 @@ type WorkspaceResource struct {
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
+	Hide       bool                `db:"hide" json:"hide"`
 }
 
 type WorkspaceResourceMetadatum struct {
