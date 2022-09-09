@@ -57,7 +57,7 @@ resource "coder_metadata" "deployment" {
 
 ## Hiding resources in the UI
 
-Sometimes, some resources don't need to be exposed in the UI. That helps to keep the workspace view clean and hide not helpful info. To hide a resource from the UI you can use the `hide` attribute like the example below:
+Sometimes, some resources don't need to be exposed in the UI. That helps to keep the workspace view clean for your developers. To hide a resource from the UI, use the `hide` attribute like the example below:
 
 ```hcl
 resource "coder_metadata" "deployment" {
