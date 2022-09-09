@@ -4,7 +4,7 @@
    - .rpm (Fedora, CentOS, RHEL, SUSE)
    - .apk (Alpine)
 
-1. Once installed, you can run Coder as a system service.
+1. Run Coder as a system service.
 
    ```sh
    # Set up an access URL or enable CODER_TUNNEL
