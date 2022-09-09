@@ -13,6 +13,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FIRST_PR_REACTIONS: '+1, hooray, rocket, heart'
           FIRST_PR_COMMENT: |
-            👋 Welcome @{{ author }} to Coder! Yo @coder/docs this is @{{ author }}'s first pull-request here! 
+            👋 Welcome @{{ author }} to Coder! Yo @coder/docs this is @{{ author }}'s first pull-request here! [ƛ](https://github.com/coder/coder-meta/issues/14) 👀👀👀
           FIRST_PR_MERGED: |
-            🎉 Thanks for the contribution @{{ author }}! Yo @coder/docs @{{ author }}'s first contribution has been merged! 👀👀👀
+            🎉 Thanks for the contribution @{{ author }}! Yo @coder/docs @{{ author }}'s first contribution has been merged! [ƛ](https://github.com/coder/coder-meta/issues/14) 👀👀👀
