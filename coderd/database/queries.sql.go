@@ -2361,7 +2361,7 @@ func (q *sqlQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTe
 	return err
 }
 
-const updateTemplateMetaByID = `-- name: UpdateTemplateMetaByID :exec
+const updateTemplateMetaByID = `-- name: UpdateTemplateMetaByID :one
 UPDATE
 	templates
 SET
@@ -2387,8 +2387,8 @@ type UpdateTemplateMetaByIDParams struct {
 	Icon                 string    `db:"icon" json:"icon"`
 }
 
-func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateMetaByID,
+func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
+	row := q.db.QueryRowContext(ctx, updateTemplateMetaByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.Description,
@@ -2397,7 +2397,23 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.Name,
 		arg.Icon,
 	)
-	return err
+	var i Template
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.Deleted,
+		&i.Name,
+		&i.Provisioner,
+		&i.ActiveVersionID,
+		&i.Description,
+		&i.MaxTtl,
+		&i.MinAutostartInterval,
+		&i.CreatedBy,
+		&i.Icon,
+	)
+	return i, err
 }
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one

@@ -16,6 +16,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -82,7 +83,18 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
-	template := httpmw.TemplateParam(r)
+	var (
+		template          = httpmw.TemplateParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionDelete,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = template
+
 	if !api.Authorize(r, rbac.ActionDelete, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -91,10 +103,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	workspaces, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
 		TemplateIds: []uuid.UUID{template.ID},
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces by template id.",
 			Detail:  err.Error(),
@@ -126,9 +135,26 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 
 // Create a new template in an organization.
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
-	var createTemplate codersdk.CreateTemplateRequest
-	organization := httpmw.OrganizationParam(r)
-	apiKey := httpmw.APIKey(r)
+	var (
+		createTemplate                     codersdk.CreateTemplateRequest
+		organization                       = httpmw.OrganizationParam(r)
+		apiKey                             = httpmw.APIKey(r)
+		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionCreate,
+		})
+		templateVersionAudit, commitTemplateVersionAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitTemplateAudit()
+	defer commitTemplateVersionAudit()
+
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -175,6 +201,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	templateVersionAudit.Old = templateVersion
+
 	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -234,6 +262,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
+		templateAudit.New = dbTemplate
+
 		err = db.UpdateTemplateVersionByID(r.Context(), database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
@@ -245,6 +275,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return xerrors.Errorf("insert template version: %s", err)
 		}
+		newTemplateVersion := templateVersion
+		newTemplateVersion.TemplateID = uuid.NullUUID{
+			UUID:  dbTemplate.ID,
+			Valid: true,
+		}
+		templateVersionAudit.New = newTemplateVersion
 
 		for _, parameterValue := range createTemplate.ParameterValues {
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
@@ -397,7 +433,18 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 }
 
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
-	template := httpmw.TemplateParam(r)
+	var (
+		template          = httpmw.TemplateParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = template
+
 	if !api.Authorize(r, rbac.ActionUpdate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -474,7 +521,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}
 
-		if err := s.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
+		updated, err = s.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
 			ID:                   template.ID,
 			UpdatedAt:            database.Now(),
 			Name:                 name,
@@ -482,28 +529,24 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Icon:                 icon,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
-		}); err != nil {
-			return err
-		}
-
-		updated, err = s.GetTemplateByID(r.Context(), template.ID)
+		})
 		if err != nil {
 			return err
 		}
+
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating template metadata.",
-			Detail:  err.Error(),
-		})
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 
 	if updated.UpdatedAt.IsZero() {
+		aReq.New = template
 		httpapi.Write(rw, http.StatusNotModified, nil)
 		return
 	}
+	aReq.New = updated
 
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(r.Context(), api.Database, []database.Template{updated})
 	if err != nil {
