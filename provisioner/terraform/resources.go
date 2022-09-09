@@ -384,8 +384,9 @@ func applyAutomaticInstanceID(resource *tfjson.StateResource, agents []*proto.Ag
 	}
 }
 
-// findResourcesUpGraph traverses upwards in a graph until a resource is found,
+// findResourcesInGraph traverses directionally in a graph until a resource is found,
 // then it stores the depth it was found at, and continues working up the tree.
+// nolint:revive
 func findResourcesInGraph(graph *gographviz.Graph, tfResourceByLabel map[string]*tfjson.StateResource, nodeName string, currentDepth uint, up bool) []*graphResource {
 	graphResources := make([]*graphResource, 0)
 	mapping := graph.Edges.DstToSrcs
