@@ -40,4 +40,4 @@ docker-compose pull coder && docker-compose up coder -d
 
 ## Up Next
 
-- [Learn how to configure Coder](./configure.md).
+- [Learn how to enable Enterprise features](./enterprise.md).
