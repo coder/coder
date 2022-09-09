@@ -79,7 +79,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count, createdByNameMap[template.ID.String()]))
+	httpapi.Write(rw, http.StatusOK, api.convertTemplate(template, count, createdByNameMap[template.ID.String()]))
 }
 
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -304,7 +304,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("get creator name: %w", err)
 		}
 
-		template = convertTemplate(dbTemplate, 0, createdByNameMap[dbTemplate.ID.String()])
+		template = api.convertTemplate(dbTemplate, 0, createdByNameMap[dbTemplate.ID.String()])
 		return nil
 	})
 	if err != nil {
@@ -375,7 +375,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts, createdByNameMap))
+	httpapi.Write(rw, http.StatusOK, api.convertTemplates(templates, workspaceCounts, createdByNameMap))
 }
 
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
@@ -429,7 +429,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count, createdByNameMap[template.ID.String()]))
+	httpapi.Write(rw, http.StatusOK, api.convertTemplate(template, count, createdByNameMap[template.ID.String()]))
 }
 
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
@@ -557,7 +557,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
+	httpapi.Write(rw, http.StatusOK, api.convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
 }
 
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
@@ -567,9 +567,12 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := api.metricsCache.TemplateDAUs(template.ID)
-	if resp.Entries == nil {
-		resp.Entries = []codersdk.DAUEntry{}
+	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
+	if resp == nil || resp.Entries == nil {
+		httpapi.Write(rw, http.StatusOK, &codersdk.TemplateDAUsResponse{
+			Entries: []codersdk.DAUEntry{},
+		})
+		return
 	}
 	httpapi.Write(rw, http.StatusOK, resp)
 }
@@ -726,7 +729,7 @@ func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, temp
 	return creators, nil
 }
 
-func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow, createdByNameMap map[string]string) []codersdk.Template {
+func (api *API) convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow, createdByNameMap map[string]string) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 
 	for _, template := range templates {
@@ -735,24 +738,27 @@ func convertTemplates(templates []database.Template, workspaceCounts []database.
 			if workspaceCount.TemplateID.String() != template.ID.String() {
 				continue
 			}
-			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(workspaceCount.Count), createdByNameMap[template.ID.String()]))
+			apiTemplates = append(apiTemplates, api.convertTemplate(template, uint32(workspaceCount.Count), createdByNameMap[template.ID.String()]))
 			found = true
 			break
 		}
 		if !found {
-			apiTemplates = append(apiTemplates, convertTemplate(template, uint32(0), createdByNameMap[template.ID.String()]))
+			apiTemplates = append(apiTemplates, api.convertTemplate(template, uint32(0), createdByNameMap[template.ID.String()]))
 		}
 	}
 
-	// Sort templates by WorkspaceOwnerCount DESC
+	// Sort templates by ActiveUserCount DESC
 	sort.SliceStable(apiTemplates, func(i, j int) bool {
-		return apiTemplates[i].WorkspaceOwnerCount > apiTemplates[j].WorkspaceOwnerCount
+		return apiTemplates[i].ActiveUserCount > apiTemplates[j].ActiveUserCount
 	})
 
 	return apiTemplates
 }
 
-func convertTemplate(template database.Template, workspaceOwnerCount uint32, createdByName string) codersdk.Template {
+func (api *API) convertTemplate(
+	template database.Template, workspaceOwnerCount uint32, createdByName string,
+) codersdk.Template {
+	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
 	return codersdk.Template{
 		ID:                         template.ID,
 		CreatedAt:                  template.CreatedAt,
@@ -762,6 +768,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32, cre
 		Provisioner:                codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:            template.ActiveVersionID,
 		WorkspaceOwnerCount:        workspaceOwnerCount,
+		ActiveUserCount:            activeCount,
 		Description:                template.Description,
 		Icon:                       template.Icon,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),

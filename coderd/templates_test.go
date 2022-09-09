@@ -593,6 +593,8 @@ func TestTemplateDAUs(t *testing.T) {
 		}},
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	require.Equal(t, -1, template.ActiveUserCount)
+
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -635,7 +637,7 @@ func TestTemplateDAUs(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	want := &codersdk.TemplateDAUsResponse{
+	wantDAUs := &codersdk.TemplateDAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 
@@ -647,12 +649,18 @@ func TestTemplateDAUs(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		daus, err = client.TemplateDAUs(ctx, template.ID)
 		require.NoError(t, err)
-
-		return assert.ObjectsAreEqual(want, daus)
+		return len(daus.Entries) > 0
 	},
 		testutil.WaitShort, testutil.IntervalFast,
-		"got %+v != %+v", daus, want,
+		"template daus never loaded",
 	)
+	gotDAUs, err := client.TemplateDAUs(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, gotDAUs, wantDAUs)
+
+	template, err = client.Template(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, template.ActiveUserCount)
 
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)

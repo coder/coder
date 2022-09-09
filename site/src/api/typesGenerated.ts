@@ -378,6 +378,7 @@ export interface Template {
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
   readonly workspace_owner_count: number
+  readonly active_user_count: number
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
