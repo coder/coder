@@ -4,9 +4,13 @@ import { colors } from "theme/colors"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
 
-const getDiffValue = (value: number | string | boolean) => {
+const getDiffValue = (value: number | string | boolean | null) => {
   if (typeof value === "string") {
     return `"${value}"`
+  }
+
+  if (!value) {
+    return `""`
   }
 
   return value.toString()

@@ -775,7 +775,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   diff: {},
   status_code: 200,
   additional_fields: "",
-  description: "Colin Adler updated the workspace bruno-dev",
+  description: "{user} updated workspace {target}",
   user: MockUser,
 }
 
