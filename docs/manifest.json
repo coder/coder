@@ -33,18 +33,23 @@
         },
         {
           "title": "Kubernetes",
-          "description": "Install Coder with Kubernetes via Helm",
+          "description": "Install Coder with Kubernetes via Helm.",
           "path": "./install/kubernetes.md"
         },
         {
           "title": "Docker",
-          "description": "Install Coder with Docker / docker-compose",
+          "description": "Install Coder with Docker / docker-compose/",
           "path": "./install/docker.md"
         },
         {
           "title": "Standalone binaries",
           "description": "Download binaries for macOS, Windows, and Linux.",
           "path": "./install/binary.md"
+        },
+        {
+          "title": "Uninstall",
+          "description": "Learn how to uninstall Coder.",
+          "path": "./install/uninstall.md"
         }
       ]
     },
