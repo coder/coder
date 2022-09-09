@@ -13,6 +13,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -556,7 +557,18 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
-	template := httpmw.TemplateParam(r)
+	var (
+		template          = httpmw.TemplateParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = template
+
 	if !api.Authorize(r, rbac.ActionUpdate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -581,7 +593,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	if version.TemplateID.UUID.String() != template.ID.String() {
-		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provided template version doesn't belong to the specified template.",
 		})
 		return
@@ -605,6 +617,10 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	newTemplate := template
+	newTemplate.ActiveVersionID = req.ID
+	aReq.New = newTemplate
+
 	httpapi.Write(rw, http.StatusOK, codersdk.Response{
 		Message: "Updated the active template version!",
 	})
@@ -612,10 +628,27 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 
 // Creates a new version of a template. An import job is queued to parse the storage method provided.
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
-	organization := httpmw.OrganizationParam(r)
-	var req codersdk.CreateTemplateVersionRequest
+	var (
+		apiKey            = httpmw.APIKey(r)
+		organization      = httpmw.OrganizationParam(r)
+		aReq, commitAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionCreate,
+		})
+
+		req codersdk.CreateTemplateVersionRequest
+	)
+	defer commitAudit()
+
 	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	// Making a new template version is the same permission as creating a new template.
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -648,12 +681,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Message: "Internal error fetching file.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	// Making a new template version is the same permission as creating a new template.
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -778,6 +805,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		})
 		return
 	}
+	aReq.New = templateVersion
 
 	createdByName, err := getUsernameByUserID(r.Context(), api.Database, templateVersion.CreatedBy)
 	if err != nil {

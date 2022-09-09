@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -76,7 +78,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
 			Parse:           echo.ParseComplete,
@@ -102,6 +105,9 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -545,7 +551,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -557,6 +564,9 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 			ID: version.ID,
 		})
 		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs, 3)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
 }
 
