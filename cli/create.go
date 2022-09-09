@@ -82,12 +82,12 @@ func create() *cobra.Command {
 					templateName := template.Name
 
 					if template.ActiveUserCount > 0 {
-						developerText := "developer"
-						if template.ActiveUserCount != 1 {
-							developerText = "developers"
-						}
-
-						templateName += cliui.Styles.Placeholder.Render(fmt.Sprintf(" (used by %d %s)", template.ActiveUserCount, developerText))
+						templateName += cliui.Styles.Placeholder.Render(
+							fmt.Sprintf(
+								" (used by %s)",
+								formatActiveDevelopers(template.ActiveUserCount),
+							),
+						)
 					}
 
 					templateNames = append(templateNames, templateName)

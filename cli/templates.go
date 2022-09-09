@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -64,11 +63,6 @@ type templateTableRow struct {
 func displayTemplates(filterColumns []string, templates ...codersdk.Template) (string, error) {
 	rows := make([]templateTableRow, len(templates))
 	for i, template := range templates {
-		suffix := ""
-		if template.ActiveUserCount != 1 {
-			suffix = "s"
-		}
-
 		rows[i] = templateTableRow{
 			Name:                 template.Name,
 			CreatedAt:            template.CreatedAt.Format("January 2, 2006"),
@@ -76,7 +70,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) (s
 			OrganizationID:       template.OrganizationID,
 			Provisioner:          template.Provisioner,
 			ActiveVersionID:      template.ActiveVersionID,
-			UsedBy:               cliui.Styles.Fuchsia.Render(fmt.Sprintf("%d developer%s", template.ActiveUserCount, suffix)),
+			UsedBy:               cliui.Styles.Fuchsia.Render(formatActiveDevelopers(template.ActiveUserCount)),
 			MaxTTL:               (time.Duration(template.MaxTTLMillis) * time.Millisecond),
 			MinAutostartInterval: (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond),
 		}

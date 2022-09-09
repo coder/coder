@@ -34,8 +34,8 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 export const Language = {
-  developerCount: (ownerCount: number): string => {
-    return `${formatTemplateActiveDevelopers(ownerCount)} developer${ownerCount !== 1 ? "s" : ""}`
+  developerCount: (activeCount: number): string => {
+    return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""}`
   },
   nameLabel: "Name",
   usedByLabel: "Used by",

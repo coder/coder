@@ -568,7 +568,7 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, _ := api.metricsCache.TemplateDAUs(template.ID)
-	if resp.Entries == nil {
+	if resp == nil || resp.Entries == nil {
 		resp.Entries = []codersdk.DAUEntry{}
 	}
 	httpapi.Write(rw, http.StatusOK, resp)

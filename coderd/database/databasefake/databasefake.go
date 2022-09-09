@@ -180,13 +180,13 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 		seens[date] = dateEntry
 	}
 
-	countKeys := maps.Keys(seens)
-	sort.Slice(countKeys, func(i, j int) bool {
-		return countKeys[i].Before(countKeys[j])
+	seenKeys := maps.Keys(seens)
+	sort.Slice(seenKeys, func(i, j int) bool {
+		return seenKeys[i].Before(seenKeys[j])
 	})
 
 	var rs []database.GetTemplateDAUsRow
-	for _, key := range countKeys {
+	for _, key := range seenKeys {
 		ids := seens[key]
 		for id := range ids {
 			rs = append(rs, database.GetTemplateDAUsRow{
