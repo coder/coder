@@ -109,7 +109,7 @@ message Resource {
         bool is_null = 4;
     }
     repeated Metadata metadata = 4;
-	bool hide = 5;
+    bool hide = 5;
 }
 
 // Parse consumes source-code from a directory to produce inputs.
