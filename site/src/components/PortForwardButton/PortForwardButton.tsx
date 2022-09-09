@@ -31,8 +31,8 @@ export const PortForwardButton: React.FC<React.PropsWithChildren<PortForwardButt
   const { location } = window
   const urlExample =
     process.env.CODER_ENABLE_WILDCARD_APPS === "true"
-      ? `${location.protocol}//${port}--${workspaceName}--${agentName}--${username}.${location.host}`
-      : `${location.protocol}//${location.host}/@${username}/${workspaceName}/apps/${port}`
+      ? `${location.protocol}//${port}--${agentName}--${workspaceName}--${username}.${location.host}`
+      : `${location.protocol}//${location.host}/@${username}/${workspaceName}.${agentName}/apps/${port}`
 
   const onClose = () => {
     setIsOpen(false)
