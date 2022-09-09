@@ -6,10 +6,11 @@ import { XServiceContext } from "../../xServices/StateContext"
 import { templatesMachine } from "../../xServices/templates/templatesXService"
 import { TemplatesPageView } from "./TemplatesPageView"
 
-const TemplatesPage: React.FC = () => {
+export const TemplatesPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const [templatesState] = useMachine(templatesMachine)
+  const { templates, getOrganizationsError, getTemplatesError } = templatesState.context
 
   return (
     <>
@@ -17,12 +18,11 @@ const TemplatesPage: React.FC = () => {
         <title>{pageTitle("Templates")}</title>
       </Helmet>
       <TemplatesPageView
-        templates={templatesState.context.templates}
+        templates={templates}
         canCreateTemplate={authState.context.permissions?.createTemplates}
         loading={templatesState.hasTag("loading")}
+        error={getOrganizationsError ?? getTemplatesError}
       />
     </>
   )
 }
-
-export default TemplatesPage

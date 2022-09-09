@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplate } from "../../testHelpers/entities"
+import { makeMockApiError, MockTemplate } from "../../testHelpers/entities"
 import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView"
 
 export default {
@@ -48,3 +48,6 @@ EmptyCanCreate.args = {
 
 export const EmptyCannotCreate = Template.bind({})
 EmptyCannotCreate.args = {}
+
+export const Error = Template.bind({})
+Error.args = { error: makeMockApiError({ message: "Something went wrong fetching templates." }) }
