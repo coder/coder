@@ -775,7 +775,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   diff: {},
   status_code: 200,
   additional_fields: "",
-  description: "Colin Adler updated the workspace bruno-dev",
+  description: "{user} updated workspace {target}",
   user: MockUser,
 }
 
@@ -797,6 +797,11 @@ export const MockAuditLog2: TypesGen.AuditLog = {
     template_version_id: {
       old: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
       new: "53bded77-7b9d-4e82-8771-991a34d759f9",
+      secret: false,
+    },
+    roles: {
+      old: null,
+      new: ["admin", "auditor"],
       secret: false,
     },
   },
