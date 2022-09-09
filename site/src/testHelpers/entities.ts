@@ -799,5 +799,10 @@ export const MockAuditLog2: TypesGen.AuditLog = {
       new: "53bded77-7b9d-4e82-8771-991a34d759f9",
       secret: false,
     },
+    roles: {
+      old: null,
+      new: ["admin", "auditor"],
+      secret: false,
+    },
   },
 }
