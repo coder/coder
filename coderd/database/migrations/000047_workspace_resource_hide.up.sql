@@ -1,2 +1,2 @@
 ALTER TABLE workspace_resources
-    ADD COLUMN hide boolean NOT NULL;
+    ADD COLUMN hide boolean DEFAULT false NOT NULL;

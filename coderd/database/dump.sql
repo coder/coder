@@ -367,7 +367,7 @@ CREATE TABLE workspace_resources (
     transition workspace_transition NOT NULL,
     type character varying(192) NOT NULL,
     name character varying(64) NOT NULL,
-    hide boolean NOT NULL
+    hide boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspaces (

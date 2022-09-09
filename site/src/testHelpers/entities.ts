@@ -414,6 +414,21 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   ],
 }
 
+export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  created_at: "",
+  id: "test-workspace-resource-3",
+  job_id: "",
+  name: "another-workspace-resource",
+  type: "google_compute_disk",
+  workspace_transition: "start",
+  hide: true,
+  metadata: [
+    { key: "type", value: "google_compute_disk", sensitive: false },
+    { key: "size", value: "32GB", sensitive: false },
+  ],
+}
+
 export const MockUserAgent: Types.UserAgent = {
   browser: "Chrome 99.0.4844",
   device: "Other",
