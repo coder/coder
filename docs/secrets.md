@@ -24,6 +24,19 @@ Often, this workflow is simply:
 We show parameters in cleartext around the product. Assume anyone with view
 access to a workspace can also see its parameters.
 
+## SSH Keys
+
+Coder generates SSH key pairs for each user. This can be used as an authentication mechanism for
+git providers or other tools. Within workspaces, git will attempt to use this key within workspaces
+via the `$GIT_SSH_COMMAND` environment variable.
+
+Users can view their public key in their account settings:
+
+![SSH keys in account settings](./images/ssh-keys.png)
+
+> There is a [known issue](https://github.com/coder/coder/issues/3126) that prevents users from
+> using their own SSH keys within Coder workspaces.
+
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and automatically
