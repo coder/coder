@@ -47,7 +47,7 @@ used to define the workspace lifecycle and establish a connection from resources
 to Coder.
 
 Below is an overview of some key concepts in templates (and workspaces). For all
-template options, reference [Coder Terraform provider docs](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs/resources/container).
+template options, reference [Coder Terraform provider docs](https://registry.terraform.io/providers/coder/coder/latest/docs).
 
 ### Resource
 
