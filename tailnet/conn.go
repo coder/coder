@@ -260,29 +260,38 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 			DERPLatency:   c.lastDERPLatency,
 		}
 	}
+	// A send queue must be used so nodes are sent in order.
+	queue := make(chan *Node, 16)
+	go func() {
+		for {
+			select {
+			case <-c.closed:
+				return
+			case node := <-queue:
+				callback(node)
+			}
+		}
+	}()
 	c.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
 		node := makeNode()
+		queue <- node
 		c.lastMutex.Unlock()
-		callback(node)
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		if err != nil {
 			return
 		}
-		endpoints := make([]string, 0, len(s.LocalAddrs))
+		c.lastMutex.Lock()
+		c.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
 		for _, addr := range s.LocalAddrs {
-			endpoints = append(endpoints, addr.Addr.String())
+			c.lastEndpoints = append(c.lastEndpoints, addr.Addr.String())
 		}
-		go func() {
-			c.lastMutex.Lock()
-			c.lastEndpoints = endpoints
-			node := makeNode()
-			c.lastMutex.Unlock()
-			callback(node)
-		}()
+		node := makeNode()
+		queue <- node
+		c.lastMutex.Unlock()
 	})
 }
 
@@ -303,7 +312,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	for _, peer := range c.netMap.Peers {
 		if peerStatus, ok := status.Peer[peer.Key]; ok {
 			// Clear out inactive connections!
-			if !peerStatus.Active {
+			// If a connection hasn't been active for a minute post creation, we assume it's dead.
+			if !peerStatus.Active && peer.Created.Before(time.Now().Add(-time.Minute)) {
+				c.logger.Debug(context.Background(), "clearing peer", slog.F("peerStatus", peerStatus))
 				continue
 			}
 		}
@@ -311,8 +322,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	}
 	for _, node := range nodes {
 		peerStatus, ok := status.Peer[node.Key]
-		peerMap[node.ID] = &tailcfg.Node{
+		peerNode := &tailcfg.Node{
 			ID:         node.ID,
+			Created:    time.Now(),
 			Key:        node.Key,
 			DiscoKey:   node.DiscoKey,
 			Addresses:  node.Addresses,
@@ -325,6 +337,11 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
+		existingNode, ok := peerMap[node.ID]
+		if ok {
+			peerNode.Created = existingNode.Created
+		}
+		peerMap[node.ID] = peerNode
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
 	for _, peer := range peerMap {

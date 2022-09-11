@@ -52,7 +52,7 @@ You can modify the installation process by including flags. Run the help command
 curl -L https://coder.com/install.sh | sh -s -- --help
 ```
 
-> See [install](docs/install.md) for additional methods.
+> See [install](docs/install) for additional methods.
 
 Once installed, you can start a production deployment<sup>1</sup> with a single command:
 
@@ -89,7 +89,7 @@ _Last updated: 5/27/22_
 
 ## Community and Support
 
-Join our community on [Discord](https://discord.gg/coder) and [Twitter](https://twitter.com/coderhq)!
+Join our community on [Discord](https://coder.com/chat?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md) and [Twitter](https://twitter.com/coderhq)!
 
 [Suggest improvements and report problems](https://github.com/coder/coder/issues/new/choose)
 

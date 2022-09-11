@@ -45,5 +45,5 @@ export type AnnotatedEventListener<E extends Event> = (event: E) => void
 export const isCustomEvent = <D = unknown>(
   event: CustomEvent<D> | Event,
 ): event is CustomEvent<D> => {
-  return !!(event as CustomEvent).detail
+  return Boolean((event as CustomEvent).detail)
 }

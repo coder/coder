@@ -207,65 +207,6 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	})
 }
 
-func TestWorkspaceAgentTURN(t *testing.T) {
-	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
-
-	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
-	require.NoError(t, err)
-	defer func() {
-		_ = conn.Close()
-	}()
-	require.Eventually(t, func() bool {
-		_, err := conn.Ping()
-		return err == nil
-	}, testutil.WaitMedium, testutil.IntervalFast)
-}
-
 func TestWorkspaceAgentTailnet(t *testing.T) {
 	t.Parallel()
 	client, daemonCloser := coderdtest.NewWithProvisionerCloser(t, nil)

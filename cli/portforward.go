@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"

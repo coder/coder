@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -42,6 +43,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -72,10 +74,13 @@ type Options struct {
 	AutoImportTemplates  []coderd.AutoImportTemplate
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
+	Auditor              audit.Auditor
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon bool
-	APIBuilder               func(*coderd.Options) *coderd.API
+	IncludeProvisionerDaemon    bool
+	APIBuilder                  func(*coderd.Options) *coderd.API
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -187,6 +192,11 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
+	features := coderd.DisabledImplementations
+	if options.Auditor != nil {
+		features.Auditor = options.Auditor
+	}
+
 	// We set the handler after server creation for the access URL.
 	coderAPI := options.APIBuilder(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
@@ -227,8 +237,9 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 			},
 		},
 		AutoImportTemplates:         options.AutoImportTemplates,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
+		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+		FeaturesService:             coderd.NewMockFeaturesService(features),
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()
@@ -744,3 +755,10 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 type nopcloser struct{}
 
 func (nopcloser) Close() error { return nil }
+
+// SDKError coerces err into an SDK error.
+func SDKError(t *testing.T, err error) *codersdk.Error {
+	var cerr *codersdk.Error
+	require.True(t, errors.As(err, &cerr))
+	return cerr
+}

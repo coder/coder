@@ -7,21 +7,25 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd"
+	agplCoderd "github.com/coder/coder/coderd"
+	agplAudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/testutil"
 )
 
@@ -162,9 +166,9 @@ func TestFeaturesService_EntitlementsAPI(t *testing.T) {
 		assert.Nil(t, al.Actual)
 		assert.Len(t, result.Warnings, 2)
 		assert.Contains(t, result.Warnings,
-			"Your deployment has 5 active users but is only licensed for 4")
+			"Your deployment has 5 active users but is only licensed for 4.")
 		assert.Contains(t, result.Warnings,
-			"Audit logging is enabled but your license for this feature is expired")
+			"Audit logging is enabled but your license for this feature is expired.")
 	})
 }
 
@@ -282,7 +286,7 @@ func TestFeaturesServiceSyncEntitlements(t *testing.T) {
 	})
 }
 
-func requestEntitlements(t *testing.T, uut coderd.FeaturesService) codersdk.Entitlements {
+func requestEntitlements(t *testing.T, uut features.Service) codersdk.Entitlements {
 	t.Helper()
 	r := httptest.NewRequest("GET", "https://example.com/api/v2/entitlements", nil)
 	rw := httptest.NewRecorder()
@@ -334,4 +338,208 @@ func userLimitIs(fs *featuresService, limit int64) func(context.Context) bool {
 		defer fs.mu.RUnlock()
 		return fs.entitlements.activeUsers.limit == limit
 	}
+}
+
+func TestFeaturesServiceGet(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, nil)
+
+	// Note that these are not actually used because we don't run the syncEntitlements
+	// routine in this test.
+	pubsub := database.NewPubsubInMemory()
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	keyID := "testing"
+	db := databasefake.New()
+
+	t.Run("AuditorOff", func(t *testing.T) {
+		t.Parallel()
+		uut := &featuresService{
+			logger:      logger,
+			database:    db,
+			pubsub:      pubsub,
+			keys:        map[string]ed25519.PublicKey{keyID: pub},
+			enablements: Enablements{AuditLogs: true},
+			enabledImplementations: agplCoderd.FeatureInterfaces{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
+			entitlements: entitlements{
+				hasLicense: false,
+				activeUsers: numericalEntitlement{
+					entitlement{notEntitled},
+					entitlementLimit{
+						unlimited: true,
+					},
+				},
+				auditLogs: entitlement{notEntitled},
+			},
+		}
+		target := struct {
+			Auditor agplAudit.Auditor
+		}{}
+		err := uut.Get(&target)
+		require.NoError(t, err)
+		assert.NotNil(t, target.Auditor)
+		nop := agplAudit.NewNop()
+		assert.Equal(t, reflect.ValueOf(nop).Type(), reflect.ValueOf(target.Auditor).Type())
+	})
+
+	t.Run("AuditorOn", func(t *testing.T) {
+		t.Parallel()
+		uut := &featuresService{
+			logger:      logger,
+			database:    db,
+			pubsub:      pubsub,
+			keys:        map[string]ed25519.PublicKey{keyID: pub},
+			enablements: Enablements{AuditLogs: true},
+			enabledImplementations: agplCoderd.FeatureInterfaces{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
+			entitlements: entitlements{
+				hasLicense: false,
+				activeUsers: numericalEntitlement{
+					entitlement{notEntitled},
+					entitlementLimit{
+						unlimited: true,
+					},
+				},
+				auditLogs: entitlement{entitled},
+			},
+		}
+		target := struct {
+			Auditor agplAudit.Auditor
+		}{}
+		err := uut.Get(&target)
+		require.NoError(t, err)
+		assert.NotNil(t, target.Auditor)
+		ea := audit.NewAuditor(
+			audit.DefaultFilter,
+			backends.NewPostgres(db, true),
+			backends.NewSlog(logger),
+		)
+		assert.Equal(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(target.Auditor).Type())
+	})
+
+	t.Run("NotPointer", func(t *testing.T) {
+		t.Parallel()
+		uut := &featuresService{
+			logger:      logger,
+			database:    db,
+			pubsub:      pubsub,
+			keys:        map[string]ed25519.PublicKey{keyID: pub},
+			enablements: Enablements{AuditLogs: true},
+			enabledImplementations: agplCoderd.FeatureInterfaces{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
+			entitlements: entitlements{
+				hasLicense: false,
+				activeUsers: numericalEntitlement{
+					entitlement{notEntitled},
+					entitlementLimit{
+						unlimited: true,
+					},
+				},
+				auditLogs: entitlement{notEntitled},
+			},
+		}
+		target := struct {
+			Auditor agplAudit.Auditor
+		}{}
+		err := uut.Get(target)
+		require.Error(t, err)
+		assert.Nil(t, target.Auditor)
+	})
+
+	t.Run("UnknownInterface", func(t *testing.T) {
+		t.Parallel()
+		uut := &featuresService{
+			logger:      logger,
+			database:    db,
+			pubsub:      pubsub,
+			keys:        map[string]ed25519.PublicKey{keyID: pub},
+			enablements: Enablements{AuditLogs: true},
+			enabledImplementations: agplCoderd.FeatureInterfaces{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
+			entitlements: entitlements{
+				hasLicense: false,
+				activeUsers: numericalEntitlement{
+					entitlement{notEntitled},
+					entitlementLimit{
+						unlimited: true,
+					},
+				},
+				auditLogs: entitlement{notEntitled},
+			},
+		}
+		target := struct {
+			test testInterface
+		}{}
+		err := uut.Get(&target)
+		require.Error(t, err)
+		assert.Nil(t, target.test)
+	})
+
+	t.Run("PointerToNonStruct", func(t *testing.T) {
+		t.Parallel()
+		uut := &featuresService{
+			logger:      logger,
+			database:    db,
+			pubsub:      pubsub,
+			keys:        map[string]ed25519.PublicKey{keyID: pub},
+			enablements: Enablements{AuditLogs: true},
+			enabledImplementations: agplCoderd.FeatureInterfaces{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
+			entitlements: entitlements{
+				hasLicense: false,
+				activeUsers: numericalEntitlement{
+					entitlement{notEntitled},
+					entitlementLimit{
+						unlimited: true,
+					},
+				},
+				auditLogs: entitlement{notEntitled},
+			},
+		}
+		var target agplAudit.Auditor
+		err := uut.Get(&target)
+		require.Error(t, err)
+		assert.Nil(t, target)
+	})
+
+	t.Run("StructWithNonInterfaces", func(t *testing.T) {
+		t.Parallel()
+		uut := &featuresService{
+			logger:      logger,
+			database:    db,
+			pubsub:      pubsub,
+			keys:        map[string]ed25519.PublicKey{keyID: pub},
+			enablements: Enablements{AuditLogs: true},
+			enabledImplementations: agplCoderd.FeatureInterfaces{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
+			entitlements: entitlements{
+				hasLicense: false,
+				activeUsers: numericalEntitlement{
+					entitlement{notEntitled},
+					entitlementLimit{
+						unlimited: true,
+					},
+				},
+				auditLogs: entitlement{notEntitled},
+			},
+		}
+		target := struct {
+			N       int64
+			Auditor agplAudit.Auditor
+		}{}
+		err := uut.Get(&target)
+		require.Error(t, err)
+		assert.Nil(t, target.Auditor)
+	})
+}
+
+type testInterface interface {
+	Test() error
 }

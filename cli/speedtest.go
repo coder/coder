@@ -18,21 +18,18 @@ import (
 
 func speedtest() *cobra.Command {
 	var (
-		reverse bool
-		timeStr string
+		direct   bool
+		duration time.Duration
+		reverse  bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
+		Args:        cobra.ExactArgs(1),
 		Short:       "Run a speed test from your machine to the workspace.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
-
-			dur, err := time.ParseDuration(timeStr)
-			if err != nil {
-				return err
-			}
 
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -58,13 +55,37 @@ func speedtest() *cobra.Command {
 				return err
 			}
 			defer conn.Close()
-			_, _ = conn.Ping()
+			if direct {
+				ticker := time.NewTicker(time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-ticker.C:
+					}
+					dur, err := conn.Ping()
+					if err != nil {
+						continue
+					}
+					status := conn.Status()
+					if len(status.Peers()) != 1 {
+						continue
+					}
+					peer := status.Peer[status.Peers()[0]]
+					if peer.CurAddr == "" {
+						cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
+						continue
+					}
+					break
+				}
+			}
 			dir := tsspeedtest.Download
 			if reverse {
 				dir = tsspeedtest.Upload
 			}
-			cmd.Printf("Starting a %ds %s test...\n", int(dur.Seconds()), dir)
-			results, err := conn.Speedtest(dir, dur)
+			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), dir)
+			results, err := conn.Speedtest(dir, duration)
 			if err != nil {
 				return err
 			}
@@ -84,9 +105,11 @@ func speedtest() *cobra.Command {
 			return err
 		},
 	}
+	cliflag.BoolVarP(cmd.Flags(), &direct, "direct", "d", "", false,
+		"Specifies whether to wait for a direct connection before testing speed.")
 	cliflag.BoolVarP(cmd.Flags(), &reverse, "reverse", "r", "", false,
 		"Specifies whether to run in reverse mode where the client receives and the server sends.")
-	cliflag.StringVarP(cmd.Flags(), &timeStr, "time", "t", "", "5s",
+	cmd.Flags().DurationVarP(&duration, "time", "t", tsspeedtest.DefaultDuration,
 		"Specifies the duration to monitor traffic.")
 	return cmd
 }

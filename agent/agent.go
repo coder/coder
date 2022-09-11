@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -264,7 +263,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			a.connCloseWait.Add(1)
 			a.closeMutex.Unlock()
 			go func() {
-				a.connCloseWait.Done()
+				defer a.connCloseWait.Done()
 				_ = speedtest.ServeConn(conn)
 			}()
 		}
@@ -788,70 +787,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 		}
 	}
-}
-
-// dialResponse is written to datachannels with protocol "dial" by the agent as
-// the first packet to signify whether the dial succeeded or failed.
-type dialResponse struct {
-	Error string `json:"error,omitempty"`
-}
-
-func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
-	defer conn.Close()
-
-	writeError := func(responseError error) error {
-		msg := ""
-		if responseError != nil {
-			msg = responseError.Error()
-			if !xerrors.Is(responseError, io.EOF) {
-				a.logger.Warn(ctx, "handle dial", slog.F("label", label), slog.Error(responseError))
-			}
-		}
-		b, err := json.Marshal(dialResponse{
-			Error: msg,
-		})
-		if err != nil {
-			a.logger.Warn(ctx, "write dial response", slog.F("label", label), slog.Error(err))
-			return xerrors.Errorf("marshal agent webrtc dial response: %w", err)
-		}
-
-		_, err = conn.Write(b)
-		return err
-	}
-
-	u, err := url.Parse(label)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("parse URL %q: %w", label, err))
-		return
-	}
-
-	network := u.Scheme
-	addr := u.Host + u.Path
-	if strings.HasPrefix(network, "unix") {
-		if runtime.GOOS == "windows" {
-			_ = writeError(xerrors.New("Unix forwarding is not supported from Windows workspaces"))
-			return
-		}
-		addr, err = ExpandRelativeHomePath(addr)
-		if err != nil {
-			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
-			return
-		}
-	}
-
-	d := net.Dialer{Timeout: 3 * time.Second}
-	nconn, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
-		return
-	}
-
-	err = writeError(nil)
-	if err != nil {
-		return
-	}
-
-	Bicopy(ctx, conn, nconn)
 }
 
 // isClosed returns whether the API is closed or not.

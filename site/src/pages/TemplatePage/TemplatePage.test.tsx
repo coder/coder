@@ -13,6 +13,8 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { TemplatePage } from "./TemplatePage"
 
+jest.mock("remark-gfm", () => jest.fn())
+
 Object.defineProperty(window, "ResizeObserver", {
   value: ResizeObserver,
 })

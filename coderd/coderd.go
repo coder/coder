@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -68,7 +69,7 @@ type Options struct {
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
-	FeaturesService      FeaturesService
+	FeaturesService      features.Service
 
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
@@ -85,6 +86,12 @@ func New(options *Options) *API {
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
+	}
+	if options.AgentStatsRefreshInterval == 0 {
+		options.AgentStatsRefreshInterval = 10 * time.Minute
+	}
+	if options.MetricsCacheRefreshInterval == 0 {
+		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
@@ -108,7 +115,7 @@ func New(options *Options) *API {
 		options.LicenseHandler = licenses()
 	}
 	if options.FeaturesService == nil {
-		options.FeaturesService = featuresService{}
+		options.FeaturesService = &featuresService{}
 	}
 
 	siteCacheDir := options.CacheDir
@@ -210,6 +217,15 @@ func New(options *Options) *API {
 					Version:     buildinfo.Version(),
 				})
 			})
+		})
+		r.Route("/audit", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+
+			r.Get("/", api.auditLogs)
+			r.Get("/count", api.auditLogCount)
+			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
@@ -406,7 +422,6 @@ func New(options *Options) *API {
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)
-					r.Get("/{workspacebuildname}", api.workspaceBuildByName)
 				})
 				r.Route("/autostart", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceAutostart)

@@ -13,7 +13,9 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
@@ -78,7 +80,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
@@ -92,6 +95,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
+
+		require.Len(t, auditor.AuditLogs, 3)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[2].Action)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -291,7 +299,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 	t.Run("Modified", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
@@ -332,6 +341,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
 	})
 
 	t.Run("NoMaxTTL", func(t *testing.T) {
@@ -514,7 +526,8 @@ func TestDeleteTemplate(t *testing.T) {
 
 	t.Run("NoWorkspaces", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -524,6 +537,9 @@ func TestDeleteTemplate(t *testing.T) {
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[3].Action)
 	})
 
 	t.Run("Workspaces", func(t *testing.T) {
@@ -549,7 +565,9 @@ func TestTemplateDAUs(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+		IncludeProvisionerDaemon:    true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -575,6 +593,8 @@ func TestTemplateDAUs(t *testing.T) {
 		}},
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	require.Equal(t, -1, template.ActiveUserCount)
+
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -616,7 +636,7 @@ func TestTemplateDAUs(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	want := &codersdk.TemplateDAUsResponse{
+	wantDAUs := &codersdk.TemplateDAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 
@@ -628,12 +648,18 @@ func TestTemplateDAUs(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		daus, err = client.TemplateDAUs(ctx, template.ID)
 		require.NoError(t, err)
-
-		return assert.ObjectsAreEqual(want, daus)
+		return len(daus.Entries) > 0
 	},
 		testutil.WaitShort, testutil.IntervalFast,
-		"got %+v != %+v", daus, want,
+		"template daus never loaded",
 	)
+	gotDAUs, err := client.TemplateDAUs(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, gotDAUs, wantDAUs)
+
+	template, err = client.Template(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, template.ActiveUserCount)
 
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)

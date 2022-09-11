@@ -30,6 +30,7 @@ site/**/*.typegen.ts
 site/build-storybook.log
 
 # Build
+build/
 dist/
 site/out/
 
@@ -40,6 +41,7 @@ site/out/
 .terraform/
 
 .vscode/*.log
+.vscode/launch.json
 **/*.swp
 .coderv2/*
 **/__debug_bin

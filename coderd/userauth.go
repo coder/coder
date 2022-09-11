@@ -204,12 +204,10 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var claims struct {
-		Email    string `json:"email"`
-		Verified bool   `json:"email_verified"`
-		Username string `json:"preferred_username"`
-		Picture  string `json:"picture"`
-	}
+	// "email_verified" is an optional claim that changes the behavior
+	// of our OIDC handler, so each property must be pulled manually out
+	// of the claim mapping.
+	claims := map[string]interface{}{}
 	err = idToken.Claims(&claims)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -218,37 +216,59 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if claims.Email == "" {
+	emailRaw, ok := claims["email"]
+	if !ok {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "No email found in OIDC payload!",
 		})
 		return
 	}
-	if !claims.Verified {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", claims.Email),
+	email, ok := emailRaw.(string)
+	if !ok {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Email in OIDC payload isn't a string. Got: %t", emailRaw),
 		})
 		return
+	}
+	verifiedRaw, ok := claims["email_verified"]
+	if ok {
+		verified, ok := verifiedRaw.(bool)
+		if ok && !verified {
+			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
+			})
+			return
+		}
+	}
+	usernameRaw, ok := claims["preferred_username"]
+	var username string
+	if ok {
+		username, _ = usernameRaw.(string)
 	}
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
-	if !httpapi.UsernameValid(claims.Username) {
+	if !httpapi.UsernameValid(username) {
 		// If no username is provided, we can default to use the email address.
 		// This will be converted in the from function below, so it's safe
 		// to keep the domain.
-		if claims.Username == "" {
-			claims.Username = claims.Email
+		if username == "" {
+			username = email
 		}
-		claims.Username = httpapi.UsernameFrom(claims.Username)
+		username = httpapi.UsernameFrom(username)
 	}
 	if api.OIDCConfig.EmailDomain != "" {
-		if !strings.HasSuffix(claims.Email, api.OIDCConfig.EmailDomain) {
+		if !strings.HasSuffix(email, api.OIDCConfig.EmailDomain) {
 			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", claims.Email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", email, api.OIDCConfig.EmailDomain),
 			})
 			return
 		}
+	}
+	var picture string
+	pictureRaw, ok := claims["picture"]
+	if ok {
+		picture, _ = pictureRaw.(string)
 	}
 
 	cookie, err := api.oauthLogin(r, oauthLoginParams{
@@ -256,9 +276,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		LinkedID:     oidcLinkedID(idToken),
 		LoginType:    database.LoginTypeOIDC,
 		AllowSignups: api.OIDCConfig.AllowSignups,
-		Email:        claims.Email,
-		Username:     claims.Username,
-		AvatarURL:    claims.Picture,
+		Email:        email,
+		Username:     username,
+		AvatarURL:    picture,
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -364,7 +384,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					Username:       params.Username,
 					OrganizationID: organizationID,
 				},
-				LoginType: database.LoginTypeOIDC,
+				LoginType: params.LoginType,
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)

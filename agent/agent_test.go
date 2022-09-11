@@ -629,7 +629,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   metadata.DERPMap,
-		Logger:    slogtest.Make(t, nil).Named("tailnet"),
+		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
