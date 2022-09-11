@@ -157,6 +157,11 @@
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
   "go.coverOnSave": true,
+  "go.coverageDecorator": {
+    "type": "gutter",
+    "coveredGutterStyle": "blockgreen",
+    "uncoveredGutterStyle": "blockred"
+  },
   // The codersdk is used by coderd another other packages extensively.
   // To reduce redundancy in tests, it's covered by other packages.
   // Since package coverage pairing can't be defined, all packages cover
