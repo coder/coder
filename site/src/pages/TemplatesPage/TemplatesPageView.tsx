@@ -34,10 +34,13 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 export const Language = {
+  buildTime: (buildTime: number): string =>
+    buildTime === -1 ? "Unknown" : `${buildTime / 60}:${buildTime % 60}`,
   developerCount: (activeCount: number): string => {
     return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""}`
   },
   nameLabel: "Name",
+  buildTimeLabel: "Build time",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
   emptyViewNoPerms:
@@ -118,10 +121,11 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="50%">{Language.nameLabel}</TableCell>
-              <TableCell width="16%">{Language.usedByLabel}</TableCell>
-              <TableCell width="16%">{Language.lastUpdatedLabel}</TableCell>
-              <TableCell width="16%">{Language.createdByLabel}</TableCell>
+              <TableCell width="39%">{Language.nameLabel}</TableCell>
+              <TableCell width="15%">{Language.buildTimeLabel}</TableCell>
+              <TableCell width="15%">{Language.usedByLabel}</TableCell>
+              <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+              <TableCell width="15%">{Language.createdByLabel}</TableCell>
               <TableCell width="1%"></TableCell>
             </TableRow>
           </TableHead>
@@ -173,6 +177,12 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                         ) : undefined
                       }
                     />
+                  </TableCellLink>
+
+                  <TableCellLink to={templatePageLink}>
+                    <span style={{ color: theme.palette.text.secondary }}>
+                      {Language.buildTime(template.average_build_time_sec)}
+                    </span>
                   </TableCellLink>
 
                   <TableCellLink to={templatePageLink}>

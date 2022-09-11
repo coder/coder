@@ -107,37 +107,51 @@ RETURNING
 	*;
 
 -- name: GetTemplatesAverageBuildTime :many
-SELECT
-    t.id,
-	AVG(pj.exec_time_sec) AS avg_build_time_sec,
-	COUNT(pj.id) AS job_count
+WITH query_with_all_job_count AS (SELECT
+    DISTINCT t.id,
+	AVG(pj.exec_time_sec)
+	    OVER(PARTITION BY t.id ORDER BY pj.completed_at ROWS BETWEEN @moving_average_size::integer PRECEDING AND CURRENT ROW)
+		AS avg_build_time_sec,
+	COUNT(*) OVER(PARTITION BY t.id) as job_count
 FROM
 	(SELECT
-		id
+		id,
+		active_version_id
 	FROM
 		templates) AS t
 LEFT JOIN
 	(SELECT
-	     workspace_id,
-	     template_version_id,
-	     job_id
-	 FROM
-	     workspace_builds) AS wb
+	    workspace_id,
+	    template_version_id,
+	    job_id
+	FROM
+	    workspace_builds)
+	AS
+	    wb
 ON
     t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
 LEFT JOIN
 	(SELECT
 	    id,
-		TIMESTAMPDIFF(second, started_at, completed_at) AS exec_time_sec
+		completed_at,
+		EXTRACT(EPOCH FROM (completed_at - started_at)) AS exec_time_sec
 	FROM
-	    provisioner_jobs pj
+	    provisioner_jobs
 	WHERE
-	    (pj.completed_at IS NOT NULL) AND
-		(pj.completed_at >= @start_ts AND pj.completed_at <= @end_ts) AND
-	    (pj.cancelled_at IS NULL) AND
-	    ((pj.error IS NULL) OR (pj.error = ''))) AS pj
+	    (completed_at IS NOT NULL) AND (started_at IS NOT NULL) AND
+		(completed_at >= @start_ts AND completed_at <= @end_ts) AND
+	    (canceled_at IS NULL) AND
+	    ((error IS NULL) OR (error = '')))
+	AS
+	    pj
 ON
-	wb.job_id = pj.id
-GROUP BY
-    t.id
+	wb.job_id = pj.id)
+SELECT
+    id,
+	avg_build_time_sec
+FROM
+	query_with_all_job_count
+WHERE
+	avg_build_time_sec IS NOT NULL AND
+	job_count >= GREATEST(@min_completed_job_count::integer, 1)
 ;

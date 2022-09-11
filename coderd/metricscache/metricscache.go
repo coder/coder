@@ -120,19 +120,25 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 }
 
 func (c *Cache) computeAverageBuildTime(ctx context.Context, now time.Time) (map[uuid.UUID]float64, error) {
-	records, err := c.database.GetTemplatesAverageBuildTime(ctx, database.GetTemplatesAverageBuildTimeParams{StartTs: sql.NullTime{Time: now.Add(-time.Hour * 24)}, EndTs: sql.NullTime{Time: now}})
+	records, err := c.database.GetTemplatesAverageBuildTime(
+		ctx,
+		database.GetTemplatesAverageBuildTimeParams{
+			StartTs:              sql.NullTime{Time: now.Add(-time.Hour * 24)},
+			EndTs:                sql.NullTime{Time: now},
+			MinCompletedJobCount: 1,
+			MovingAverageSize:    10,
+		})
 	if err != nil {
 		return nil, err
 	}
 
 	var ret = make(map[uuid.UUID]float64)
 	for _, record := range records {
-		if record.JobCount >= 10 {
-			val, err := strconv.ParseFloat(record.AvgBuildTimeSec, 64)
-			if err != nil {
-				ret[record.ID] = val
-			}
+		val, err := strconv.ParseFloat(record.AvgBuildTimeSec, 64)
+		if err == nil {
+			return nil, err
 		}
+		ret[record.ID] = val
 	}
 	return ret, nil
 }
