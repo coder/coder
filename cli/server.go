@@ -81,6 +81,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		derpServerRegionName  string
 		derpServerSTUNAddrs   []string
 		derpConfigURL         string
+		derpConfigPath        string
 		promEnabled           bool
 		promAddress           string
 		pprofEnabled          bool
@@ -345,7 +346,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			if !derpServerEnabled {
 				defaultRegion = nil
 			}
-			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL)
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL, derpConfigPath)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
@@ -753,6 +754,8 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
 		"Specifies a URL to periodically fetch a DERP map. See: https://tailscale.com/kb/1118/custom-derp-servers/")
+	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",
+		"Specifies a path to read a DERP map from. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.BoolVarP(root.Flags(), &derpServerEnabled, "derp-server-enable", "", "CODER_DERP_SERVER_ENABLE", true, "Specifies whether to enable or disable the embedded DERP server.")
 	cliflag.IntVarP(root.Flags(), &derpServerRegionID, "derp-server-region-id", "", "CODER_DERP_SERVER_REGION_ID", 999, "Specifies the region ID to use for the embedded DERP server.")
 	cliflag.StringVarP(root.Flags(), &derpServerRegionCode, "derp-server-region-code", "", "CODER_DERP_SERVER_REGION_CODE", "coder", "Specifies the region code that is displayed in the Coder UI for the embedded DERP server.")
@@ -763,6 +766,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 	// Mark hidden while this feature is in testing!
 	_ = root.Flags().MarkHidden("derp-config-url")
+	_ = root.Flags().MarkHidden("derp-config-path")
 	_ = root.Flags().MarkHidden("derp-server-enable")
 	_ = root.Flags().MarkHidden("derp-server-region-id")
 	_ = root.Flags().MarkHidden("derp-server-region-code")
