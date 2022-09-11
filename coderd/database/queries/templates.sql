@@ -105,3 +105,39 @@ WHERE
 	id = $1
 RETURNING
 	*;
+
+-- name: GetTemplatesAverageBuildTime :many
+SELECT
+    t.id,
+	AVG(pj.exec_time_sec) AS avg_build_time_sec,
+	COUNT(pj.id) AS job_count
+FROM
+	(SELECT
+		id
+	FROM
+		templates) AS t
+LEFT JOIN
+	(SELECT
+	     workspace_id,
+	     template_version_id,
+	     job_id
+	 FROM
+	     workspace_builds) AS wb
+ON
+    t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
+LEFT JOIN
+	(SELECT
+	    id,
+		TIMESTAMPDIFF(second, started_at, completed_at) AS exec_time_sec
+	FROM
+	    provisioner_jobs pj
+	WHERE
+	    (pj.completed_at IS NOT NULL) AND
+		(pj.completed_at >= @start_ts AND pj.completed_at <= @end_ts) AND
+	    (pj.cancelled_at IS NULL) AND
+	    ((pj.error IS NULL) OR (pj.error = ''))) AS pj
+ON
+	wb.job_id = pj.id
+GROUP BY
+    t.id
+;

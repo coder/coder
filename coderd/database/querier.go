@@ -66,6 +66,7 @@ type querier interface {
 	GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error)
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
+	GetTemplatesAverageBuildTime(ctx context.Context, arg GetTemplatesAverageBuildTimeParams) ([]GetTemplatesAverageBuildTimeRow, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)

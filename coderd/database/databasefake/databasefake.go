@@ -1102,6 +1102,14 @@ func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UU
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetTemplatesAverageBuildTime(_ context.Context, _ database.GetTemplatesAverageBuildTimeParams) ([]database.GetTemplatesAverageBuildTimeRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// TODO
+	return nil, nil
+}
+
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

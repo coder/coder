@@ -2,6 +2,8 @@ package metricscache
 
 import (
 	"context"
+	"database/sql"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -17,7 +19,7 @@ import (
 	"github.com/coder/retry"
 )
 
-// Cache holds the template DAU cache.
+// Cache holds the template metrics.
 // The aggregation queries responsible for these values can take up to a minute
 // on large deployments. Even in small deployments, aggregation queries can
 // take a few hundred milliseconds, which would ruin page load times and
@@ -26,8 +28,9 @@ type Cache struct {
 	database database.Store
 	log      slog.Logger
 
-	templateDAUResponses atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
-	templateUniqueUsers  atomic.Pointer[map[uuid.UUID]int]
+	templateDAUResponses        atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
+	templateUniqueUsers         atomic.Pointer[map[uuid.UUID]int]
+	templateAverageBuildTimeSec atomic.Pointer[map[uuid.UUID]float64]
 
 	done   chan struct{}
 	cancel func()
@@ -116,6 +119,24 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 	return len(seen)
 }
 
+func (c *Cache) computeAverageBuildTime(ctx context.Context, now time.Time) (map[uuid.UUID]float64, error) {
+	records, err := c.database.GetTemplatesAverageBuildTime(ctx, database.GetTemplatesAverageBuildTimeParams{StartTs: sql.NullTime{Time: now.Add(-time.Hour * 24)}, EndTs: sql.NullTime{Time: now}})
+	if err != nil {
+		return nil, err
+	}
+
+	var ret = make(map[uuid.UUID]float64)
+	for _, record := range records {
+		if record.JobCount >= 10 {
+			val, err := strconv.ParseFloat(record.AvgBuildTimeSec, 64)
+			if err != nil {
+				ret[record.ID] = val
+			}
+		}
+	}
+	return ret, nil
+}
+
 func (c *Cache) refresh(ctx context.Context) error {
 	err := c.database.DeleteOldAgentStats(ctx)
 	if err != nil {
@@ -141,6 +162,12 @@ func (c *Cache) refresh(ctx context.Context) error {
 	}
 	c.templateDAUResponses.Store(&templateDAUs)
 	c.templateUniqueUsers.Store(&templateUniqueUsers)
+
+	templateAverageBuildTime, err := c.computeAverageBuildTime(ctx, time.Now())
+	if err != nil {
+		return err
+	}
+	c.templateAverageBuildTimeSec.Store(&templateAverageBuildTime)
 
 	return nil
 }
@@ -216,6 +243,21 @@ func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
 	resp, ok := (*m)[id]
 	if !ok {
 		// Probably no data.
+		return -1, false
+	}
+	return resp, true
+}
+
+func (c *Cache) TemplateAverageBuildTimeSec(id uuid.UUID) (float64, bool) {
+	m := c.templateAverageBuildTimeSec.Load()
+	if m == nil {
+		// Data loading.
+		return -1, false
+	}
+
+	resp, ok := (*m)[id]
+	if !ok {
+		// No data or not enough builds.
 		return -1, false
 	}
 	return resp, true

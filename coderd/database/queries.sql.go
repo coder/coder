@@ -2172,6 +2172,76 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 	return items, nil
 }
 
+const getTemplatesAverageBuildTime = `-- name: GetTemplatesAverageBuildTime :many
+SELECT
+    t.id,
+	AVG(pj.exec_time_sec) AS avg_build_time_sec,
+	COUNT(pj.id) AS job_count
+FROM
+	(SELECT
+		id
+	FROM
+		templates) AS t
+LEFT JOIN
+	(SELECT
+	     workspace_id,
+	     template_version_id,
+	     job_id
+	 FROM
+	     workspace_builds) AS wb
+ON
+    t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
+LEFT JOIN
+	(SELECT
+	    id,
+		TIMESTAMPDIFF(second, started_at, completed_at) AS exec_time_sec
+	FROM
+	    provisioner_jobs pj
+	WHERE
+	    (pj.completed_at IS NOT NULL) AND
+		(pj.completed_at >= $1 AND pj.completed_at <= $2) AND
+	    (pj.cancelled_at IS NULL) AND
+	    ((pj.error IS NULL) OR (pj.error = ''))) AS pj
+ON
+	wb.job_id = pj.id
+GROUP BY
+    t.id
+`
+
+type GetTemplatesAverageBuildTimeParams struct {
+	StartTs sql.NullTime `db:"start_ts" json:"start_ts"`
+	EndTs   sql.NullTime `db:"end_ts" json:"end_ts"`
+}
+
+type GetTemplatesAverageBuildTimeRow struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	AvgBuildTimeSec string    `db:"avg_build_time_sec" json:"avg_build_time_sec"`
+	JobCount        int64     `db:"job_count" json:"job_count"`
+}
+
+func (q *sqlQuerier) GetTemplatesAverageBuildTime(ctx context.Context, arg GetTemplatesAverageBuildTimeParams) ([]GetTemplatesAverageBuildTimeRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplatesAverageBuildTime, arg.StartTs, arg.EndTs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplatesAverageBuildTimeRow
+	for rows.Next() {
+		var i GetTemplatesAverageBuildTimeRow
+		if err := rows.Scan(&i.ID, &i.AvgBuildTimeSec, &i.JobCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon

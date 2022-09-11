@@ -24,6 +24,8 @@ type Template struct {
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount            int       `json:"active_user_count"`
+	// AverageBuildTimeSec is set to -1 when there aren't enough recent builds.
+	AverageBuildTimeSec        float64   `json:"average_build_time_sec"`
 	Description                string    `json:"description"`
 	Icon                       string    `json:"icon"`
 	MaxTTLMillis               int64     `json:"max_ttl_ms"`
