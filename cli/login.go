@@ -66,7 +66,10 @@ func login() *cobra.Command {
 				serverURL.Scheme = "https"
 			}
 
-			client := codersdk.New(serverURL)
+			client, err := createUnauthenticatedClient(cmd, serverURL)
+			if err != nil {
+				return err
+			}
 
 			// Try to check the version of the server prior to logging in.
 			// It may be useful to warn the user if they are trying to login
