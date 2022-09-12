@@ -186,13 +186,11 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                         title={template.name}
                         subtitle={template.description}
                         highlightTitle
-                        avatar={
-                          hasIcon ? (
-                            <div className={styles.templateIconWrapper}>
-                              <img alt="" src={template.icon} />
-                            </div>
-                          ) : undefined
-                        }
+                        avatar={hasIcon && (
+                          <div className={styles.templateIconWrapper}>
+                            <img alt="" src={template.icon} />
+                          </div>
+                        )}
                       />
                     </TableCellLink>
 
