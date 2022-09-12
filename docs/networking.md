@@ -8,16 +8,15 @@ but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connects are relayed through the coder server. [Tailscale](https://tailscale.com)
-backs out networking logic.
+When NAT traversal fails, connections are relayed through the coder server.All user <-> workspace connections are end-to-end encrypted.
 
-All user <-> workspace connections are end-to-end encrypted.
+[Tailscale](https://tailscale.com) backs our networking logic.
 
 ## coder server
 
 Workspaces connect to the coder server via the server's external address,
 set via [`ACCESS_URL`](./admin/configure#access-url). There must not be a
-NAT between the workspace and coder server.
+NAT between workspaces and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
 as well. There must not be a NAT between users and the coder server.
@@ -36,7 +35,7 @@ faster than connecting to them through the dashboard.
 
 Direct connections are a straight line between the user and workspace, so there
 is no special geo-distribution configuration. To speed up direct connections,
-move the user or workspace closer together.
+move the user and workspace closer together.
 
 ### Relayed connections
 
@@ -88,7 +87,7 @@ The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
 our Enterprise Edition. [Reach out to sales](mailto:sales@coder.com) to learn more.
 
-### Troubleshooting
+## Troubleshooting
 
 The `coder speedtest <workspace>` command measures user <-> workspace throughput.
 E.g:
