@@ -27,6 +27,7 @@ func TestWorkspaceResource(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "beta",
 							Type: "example",
+							Icon: "/icon/server.svg",
 							Agents: []*proto.Agent{{
 								Id:   "something",
 								Name: "b",
@@ -63,6 +64,8 @@ func TestWorkspaceResource(t *testing.T) {
 		// Ensure agents are sorted alphabetically!
 		require.Equal(t, "a", resource.Agents[0].Name)
 		require.Equal(t, "b", resource.Agents[1].Name)
+		// Ensure Icon is present
+		require.Equal(t, "/icon/server.svg", resources[1].Icon)
 	})
 
 	t.Run("Apps", func(t *testing.T) {
