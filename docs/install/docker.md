@@ -59,8 +59,7 @@ an PostgreSQL container and volume.
    ```console
    cd coder
 
-   CODER_ACCESS_URL=https://coder.example.com
-   docker-compose up
+   CODER_ACCESS_URL=https://coder.example.com docker-compose up
    ```
 
    > Without `CODER_ACCESS_URL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
