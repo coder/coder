@@ -8,7 +8,8 @@ but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connections are relayed through the coder server.All user <-> workspace connections are end-to-end encrypted.
+When NAT traversal fails, connections are relayed through the coder server.
+All user <-> workspace connections are end-to-end encrypted.
 
 [Tailscale](https://tailscale.com) backs our networking logic.
 
@@ -26,8 +27,8 @@ as well. There must not be a NAT between users and the coder server.
 The coder servers relays dashboard-initiated connections between the user and
 the workspace. Web terminal <-> workspace connections are an exception and may be direct.
 
-In general, [port forwarding](./networking/port-forwarding.md) web apps is
-faster than connecting to them through the dashboard.
+In general, [port forwarded](./networking/port-forwarding.md) web apps are
+faster than dashboard-accessed web apps.
 
 ## 🌎 Geo-distribution
 
@@ -90,7 +91,7 @@ our Enterprise Edition. [Reach out to sales](mailto:sales@coder.com) to learn mo
 ## Troubleshooting
 
 The `coder speedtest <workspace>` command measures user <-> workspace throughput.
-E.g:
+E.g.:
 
 ```
 $ coder speedtest dev
