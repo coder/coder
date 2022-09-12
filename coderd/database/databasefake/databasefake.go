@@ -445,7 +445,7 @@ func (q *fakeQuerier) GetUsersByIDs(_ context.Context, params database.GetUsersB
 
 	users := make([]database.User, 0)
 	for _, user := range q.users {
-		for _, id := range params.Ids {
+		for _, id := range params.IDs {
 			if user.ID.String() != id.String() {
 				continue
 			}
@@ -912,8 +912,8 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 			}
 		}
 
-		if len(arg.Ids) > 0 {
-			if !slice.Contains(arg.Ids, parameterValue.ID) {
+		if len(arg.IDs) > 0 {
+			if !slice.Contains(arg.IDs, parameterValue.ID) {
 				continue
 			}
 		}
@@ -994,9 +994,9 @@ func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.Get
 			continue
 		}
 
-		if len(arg.Ids) > 0 {
+		if len(arg.IDs) > 0 {
 			match := false
-			for _, id := range arg.Ids {
+			for _, id := range arg.IDs {
 				if template.ID == id {
 					match = true
 					break

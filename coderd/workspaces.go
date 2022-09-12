@@ -98,7 +98,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	group.Go(func() (err error) {
-		users, err = api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, build.InitiatorID})
+		users, err = api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+			IDs: []uuid.UUID{workspace.OwnerID, build.InitiatorID},
+		})
 		return err
 	})
 	err = group.Wait()
@@ -470,7 +472,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{apiKey.UserID, workspaceBuild.InitiatorID})
+	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+		IDs: []uuid.UUID{apiKey.UserID, workspaceBuild.InitiatorID},
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -856,7 +860,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				return err
 			})
 			group.Go(func() (err error) {
-				users, err = api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, build.InitiatorID})
+				users, err = api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+					IDs: []uuid.UUID{workspace.OwnerID, build.InitiatorID},
+				})
 				return err
 			})
 			err = group.Wait()
@@ -897,7 +903,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		return nil, xerrors.Errorf("get workspace builds: %w", err)
 	}
 	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-		Ids: templateIDs,
+		IDs: templateIDs,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -905,7 +911,9 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	if err != nil {
 		return nil, xerrors.Errorf("get templates: %w", err)
 	}
-	users, err := db.GetUsersByIDs(ctx, userIDs)
+	users, err := db.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
+		IDs: userIDs,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("get users: %w", err)
 	}

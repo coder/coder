@@ -1450,7 +1450,7 @@ WHERE
 type ParameterValuesParams struct {
 	Scopes   []ParameterScope `db:"scopes" json:"scopes"`
 	ScopeIds []uuid.UUID      `db:"scope_ids" json:"scope_ids"`
-	Ids      []uuid.UUID      `db:"ids" json:"ids"`
+	IDs      []uuid.UUID      `db:"ids" json:"ids"`
 	Names    []string         `db:"names" json:"names"`
 }
 
@@ -1458,7 +1458,7 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 	rows, err := q.db.QueryContext(ctx, parameterValues,
 		pq.Array(arg.Scopes),
 		pq.Array(arg.ScopeIds),
-		pq.Array(arg.Ids),
+		pq.Array(arg.IDs),
 		pq.Array(arg.Names),
 	)
 	if err != nil {
@@ -2205,7 +2205,7 @@ type GetTemplatesWithFilterParams struct {
 	Deleted        bool        `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	ExactName      string      `db:"exact_name" json:"exact_name"`
-	Ids            []uuid.UUID `db:"ids" json:"ids"`
+	IDs            []uuid.UUID `db:"ids" json:"ids"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -2213,7 +2213,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
-		pq.Array(arg.Ids),
+		pq.Array(arg.IDs),
 	)
 	if err != nil {
 		return nil, err
@@ -3135,12 +3135,12 @@ SELECT id, email, username, hashed_password, created_at, updated_at, status, rba
 `
 
 type GetUsersByIDsParams struct {
-	Ids     []uuid.UUID `db:"ids" json:"ids"`
+	IDs     []uuid.UUID `db:"ids" json:"ids"`
 	Deleted bool        `db:"deleted" json:"deleted"`
 }
 
 func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, arg GetUsersByIDsParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getUsersByIDs, pq.Array(arg.Ids), arg.Deleted)
+	rows, err := q.db.QueryContext(ctx, getUsersByIDs, pq.Array(arg.IDs), arg.Deleted)
 	if err != nil {
 		return nil, err
 	}

@@ -257,6 +257,42 @@ func TestPostLogin(t *testing.T) {
 	})
 }
 
+func TestDeleteUser(t *testing.T) {
+	t.Parallel()
+	t.Run("Works", func(t *testing.T) {
+		t.Parallel()
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api)
+		_, another := coderdtest.CreateAnotherUserWithUser(t, api, user.OrganizationID)
+		err := api.DeleteUser(context.Background(), another.ID)
+		require.NoError(t, err)
+	})
+	t.Run("NoPermission", func(t *testing.T) {
+		t.Parallel()
+		api := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, api)
+		client, _ := coderdtest.CreateAnotherUserWithUser(t, api, firstUser.OrganizationID)
+		err := client.DeleteUser(context.Background(), firstUser.UserID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+	t.Run("HasWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdtest.NewWithProvisionerCloser(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherClient, another := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
+		err := client.DeleteUser(context.Background(), another.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
+	})
+}
+
 func TestPostLogout(t *testing.T) {
 	t.Parallel()
 
