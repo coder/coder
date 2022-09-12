@@ -4,29 +4,28 @@ Coder's network topology has three types of nodes:
 workspaces, coder servers, and users.
 
 The coder server must have an inbound address reachable by users and workspaces,
-but otherwise all topologies _just work_ with Coder.
+but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
-Direct connections are just as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connects are relayed through the coder server. Our
-networking logic is backed by [Tailscale](https://tailscale.com).
+Direct connections are as fast as connecting to the workspace outside of Coder.
+When NAT traversal fails, connects are relayed through the coder server. [Tailscale](https://tailscale.com)
+backs out networking logic.
 
 All user <-> workspace connections are end-to-end encrypted.
 
 ## coder server
 
-Workspaces connect back to the coder server via the server's external address,
+Workspaces connect to the coder server via the server's external address,
 set via [`ACCESS_URL`](./admin/configure#access-url). There must not be a
 NAT between the workspace and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
-as well, so there must not be a NAT between users and the coder server.
+as well. There must not be a NAT between users and the coder server.
 
 ## Web Apps
 
-Connections between the user and the workspace initiated through the dashboard
-are relayed through the coder server. Web terminal <-> workspace connections are
-an exception and may be direct.
+The coder servers relays dashboard-initiated connections between the user and
+the workspace. Web terminal <-> workspace connections are an exception and may be direct.
 
 In general, [port forwarding](./networking/port-forwarding.md) web apps is
 faster than connecting to them through the dashboard.
