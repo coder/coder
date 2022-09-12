@@ -61,8 +61,7 @@ an PostgreSQL container and volume.
    ```sh
    cd coder
 
-   CODER_TUNNEL=true
-   docker-compose up
+   CODER_TUNNEL=true docker-compose up
    ```
 
    For production deployments, we recommend setting an [access URL](../admin/configure.md#access-url):
