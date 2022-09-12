@@ -941,12 +941,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenKey,
 		Path:   "/",
 	}
-	http.SetCookie(rw, cookie)
-
-	devurlCookie := api.applicationCookie(cookie)
-	if devurlCookie != nil {
-		http.SetCookie(rw, devurlCookie)
-	}
+	api.setAuthCookie(rw, cookie)
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
