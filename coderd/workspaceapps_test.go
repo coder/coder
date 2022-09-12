@@ -16,8 +16,8 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -258,7 +258,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		me, err := client.User(context.Background(), codersdk.Me)
 		require.NoError(t, err, "get current user details")
 
-		hostname := coderd.ApplicationURL{
+		hostname := httpapi.ApplicationURL{
 			AppName:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
@@ -390,109 +390,4 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 	})
-}
-
-func TestParseSubdomainAppURL(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		Name          string
-		Host          string
-		Expected      coderd.ApplicationURL
-		ExpectedError string
-	}{
-		{
-			Name:          "Invalid_Empty",
-			Host:          "example.com",
-			Expected:      coderd.ApplicationURL{},
-			ExpectedError: "invalid application url format",
-		},
-		{
-			Name:          "Invalid_Workspace.Agent--App",
-			Host:          "workspace.agent--app.coder.com",
-			Expected:      coderd.ApplicationURL{},
-			ExpectedError: "invalid application url format",
-		},
-		{
-			Name:          "Invalid_Workspace--App",
-			Host:          "workspace--app.coder.com",
-			Expected:      coderd.ApplicationURL{},
-			ExpectedError: "invalid application url format",
-		},
-		{
-			Name:          "Invalid_App--Workspace--User",
-			Host:          "app--workspace--user.coder.com",
-			Expected:      coderd.ApplicationURL{},
-			ExpectedError: "invalid application url format",
-		},
-		{
-			Name:          "Invalid_TooManyComponents",
-			Host:          "1--2--3--4--5.coder.com",
-			Expected:      coderd.ApplicationURL{},
-			ExpectedError: "invalid application url format",
-		},
-		// Correct
-		{
-			Name: "AppName--Agent--Workspace--User",
-			Host: "app--agent--workspace--user.coder.com",
-			Expected: coderd.ApplicationURL{
-				AppName:       "app",
-				Port:          0,
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-				BaseHostname:  "coder.com",
-			},
-		},
-		{
-			Name: "Port--Agent--Workspace--User",
-			Host: "8080--agent--workspace--user.coder.com",
-			Expected: coderd.ApplicationURL{
-				AppName:       "",
-				Port:          8080,
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-				BaseHostname:  "coder.com",
-			},
-		},
-		{
-			Name: "DeepSubdomain",
-			Host: "app--agent--workspace--user.dev.dean-was-here.coder.com",
-			Expected: coderd.ApplicationURL{
-				AppName:       "app",
-				Port:          0,
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-				BaseHostname:  "dev.dean-was-here.coder.com",
-			},
-		},
-		{
-			Name: "HyphenatedNames",
-			Host: "app-name--agent-name--workspace-name--user-name.coder.com",
-			Expected: coderd.ApplicationURL{
-				AppName:       "app-name",
-				Port:          0,
-				AgentName:     "agent-name",
-				WorkspaceName: "workspace-name",
-				Username:      "user-name",
-				BaseHostname:  "coder.com",
-			},
-		},
-	}
-
-	for _, c := range testCases {
-		c := c
-		t.Run(c.Name, func(t *testing.T) {
-			t.Parallel()
-
-			app, err := coderd.ParseSubdomainAppURL(c.Host)
-			if c.ExpectedError == "" {
-				require.NoError(t, err)
-				require.Equal(t, c.Expected, app, "expected app")
-			} else {
-				require.ErrorContains(t, err, c.ExpectedError, "expected error")
-			}
-		})
-	}
 }

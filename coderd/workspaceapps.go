@@ -6,12 +6,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -41,7 +38,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	appName, port := AppNameOrPort(chi.URLParam(r, "workspaceapp"))
+	appName, port := httpapi.AppNameOrPort(chi.URLParam(r, "workspaceapp"))
 	api.proxyWorkspaceApplication(proxyApplication{
 		Workspace:        workspace,
 		Agent:            agent,
@@ -65,7 +62,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			app, err := ParseSubdomainAppURL(host)
+			app, err := httpapi.ParseSubdomainAppURL(host)
 			if err != nil {
 				// Subdomain is not a valid application url. Pass through to the
 				// rest of the app.
@@ -225,96 +222,6 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	tracing.EndHTTPSpan(r, 200)
 
 	proxy.ServeHTTP(rw, r)
-}
-
-var (
-	// Remove the "starts with" and "ends with" regex components.
-	nameRegex = strings.Trim(httpapi.UsernameValidRegex.String(), "^$")
-	appURL    = regexp.MustCompile(fmt.Sprintf(
-		// {PORT/APP_NAME}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-		`^(?P<AppName>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
-		nameRegex))
-)
-
-// ApplicationURL is a parsed application URL hostname.
-type ApplicationURL struct {
-	// Only one of AppName or Port will be set.
-	AppName       string
-	Port          uint16
-	AgentName     string
-	WorkspaceName string
-	Username      string
-	// BaseHostname is the rest of the hostname minus the application URL part
-	// and the first dot.
-	BaseHostname string
-}
-
-// String returns the application URL hostname without scheme.
-func (a ApplicationURL) String() string {
-	appNameOrPort := a.AppName
-	if a.Port != 0 {
-		appNameOrPort = strconv.Itoa(int(a.Port))
-	}
-
-	return fmt.Sprintf("%s--%s--%s--%s.%s", appNameOrPort, a.AgentName, a.WorkspaceName, a.Username, a.BaseHostname)
-}
-
-// ParseSubdomainAppURL parses an application from the subdomain of r's Host
-// header. If the subdomain is not a valid application URL hostname, returns a
-// non-nil error.
-//
-// Subdomains should be in the form:
-//
-//	{PORT/APP_NAME}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-//	(eg. http://8080--main--dev--dean.hi.c8s.io)
-func ParseSubdomainAppURL(hostname string) (ApplicationURL, error) {
-	subdomain, rest, err := SplitSubdomain(hostname)
-	if err != nil {
-		return ApplicationURL{}, xerrors.Errorf("split host domain %q: %w", hostname, err)
-	}
-
-	matches := appURL.FindAllStringSubmatch(subdomain, -1)
-	if len(matches) == 0 {
-		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
-	}
-	matchGroup := matches[0]
-
-	appName, port := AppNameOrPort(matchGroup[appURL.SubexpIndex("AppName")])
-	return ApplicationURL{
-		AppName:       appName,
-		Port:          port,
-		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
-		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
-		Username:      matchGroup[appURL.SubexpIndex("Username")],
-		BaseHostname:  rest,
-	}, nil
-}
-
-// SplitSubdomain splits a subdomain from the rest of the hostname. E.g.:
-//   - "foo.bar.com" becomes "foo", "bar.com"
-//   - "foo.bar.baz.com" becomes "foo", "bar.baz.com"
-//
-// An error is returned if the string doesn't contain a period.
-func SplitSubdomain(hostname string) (subdomain string, rest string, err error) {
-	toks := strings.SplitN(hostname, ".", 2)
-	if len(toks) < 2 {
-		return "", "", xerrors.New("no subdomain")
-	}
-
-	return toks[0], toks[1], nil
-}
-
-// AppNameOrPort takes a string and returns either the input string or a port
-// number.
-func AppNameOrPort(val string) (string, uint16) {
-	port, err := strconv.ParseUint(val, 10, 16)
-	if err != nil || port == 0 {
-		port = 0
-	} else {
-		val = ""
-	}
-
-	return val, uint16(port)
 }
 
 // applicationCookie is a helper function to copy the auth cookie to also
