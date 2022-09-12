@@ -4,19 +4,14 @@ Coder's network topology has three types of nodes:
 workspaces, coder servers, and users.
 
 The coder server must have an inbound address reachable by users and workspaces,
-but otherwise all topologies _just work_ with Coder. When possible, we
-establish direct connections between users and workspaces.
-When NAT traversal fails, the coder server acts as a relay proxy between the user
-and the workspace.
+but otherwise all topologies _just work_ with Coder.
 
-Tailscale handles most of our networking logic, including NAT traversal and
-relay proxying.
+When possible, we establish direct connections between users and workspaces.
+Direct connections are just as fast as connecting to the workspace outside of Coder.
+When NAT traversal fails, connects are relayed through the coder server. Our
+networking logic is backed by [Tailscale](https://tailscale.com).
 
-Direct connections offer best-in-class throughput and latency and are just as
-fast as connecting to the workspace outside of Coder.
-
-All user <-> workspace connections are end-to-end encrypted, whether direct or
-relayed.
+All user <-> workspace connections are end-to-end encrypted.
 
 ## coder server
 
@@ -33,8 +28,8 @@ Connections between the user and the workspace initiated through the dashboard
 are relayed through the coder server. Web terminal <-> workspace connections are
 an exception and may be direct.
 
-In general, [port forwarding](./networking/port-forwarding.md) web apps will
-be faster.
+In general, [port forwarding](./networking/port-forwarding.md) web apps is
+faster than connecting to them through the dashboard.
 
 ## 🌎 Geo-distribution
 
@@ -62,7 +57,7 @@ you may run custom DERP servers. Refer to
 [Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server)
 to learn how to set them up.
 
-After you have custom DERP servers, you can launch Coder with it like so:
+After you have custom DERP servers, you can launch Coder with them like so:
 
 ```json
 # derpmap.json
@@ -91,9 +86,8 @@ $ coder server --derp-config-path derpmap.json
 ### Dashboard connections
 
 The dashboard (and web apps opened through the dashboard) are served from the
-coder server, so they can only be geo-distributed with High Availability in
-our Enterprise Edition. [Reach out to sales](mailto:sales@coder.com) to learn more about our Enterprise
-Edition.
+coder server, so they can only be geo-distributed with High Availability mode in
+our Enterprise Edition. [Reach out to sales](mailto:sales@coder.com) to learn more.
 
 ### Troubleshooting
 
