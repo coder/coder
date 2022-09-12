@@ -10,6 +10,7 @@ import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
+import dayjs from "dayjs"
 import { createDayString } from "util/createDayString"
 import { formatTemplateActiveDevelopers } from "util/templates"
 import * as TypesGen from "../../api/typesGenerated"
@@ -34,8 +35,8 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 export const Language = {
-  buildTime: (buildTime: number): string =>
-    buildTime === -1 ? "Unknown" : `${buildTime / 60}:${buildTime % 60}`,
+  buildTime: (buildTimeSec: number): string =>
+    buildTimeSec === -1 ? "Unknown" : dayjs.duration(buildTimeSec, "seconds").humanize(),
   developerCount: (activeCount: number): string => {
     return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""}`
   },
