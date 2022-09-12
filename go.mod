@@ -71,7 +71,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.2.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/charmbracelet/charm v0.12.1
-	github.com/charmbracelet/lipgloss v0.5.0
+	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-oidc/v3 v3.2.0
@@ -138,11 +138,11 @@ require (
 	github.com/u-root/u-root v0.9.0
 	github.com/unrolled/secure v1.12.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
-	go.opentelemetry.io/otel v1.8.0
+	go.opentelemetry.io/otel v1.9.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.8.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0
 	go.opentelemetry.io/otel/sdk v1.8.0
-	go.opentelemetry.io/otel/trace v1.8.0
+	go.opentelemetry.io/otel/trace v1.9.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220517005047-85d78b3ac167
