@@ -56,7 +56,9 @@
       "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -82,7 +84,9 @@
       "name": "first",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -101,7 +105,9 @@
       "name": "second",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -151,7 +157,9 @@
           "name": "first",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.main"]
+          "depends_on": [
+            "coder_agent.main"
+          ]
         },
         {
           "address": "null_resource.second",
@@ -160,7 +168,9 @@
           "name": "second",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.main"]
+          "depends_on": [
+            "coder_agent.main"
+          ]
         }
       ]
     }

@@ -76,7 +76,9 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -102,7 +104,9 @@
       "name": "app1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -126,7 +130,9 @@
       "name": "app2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -150,7 +156,9 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -201,7 +209,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             }
           },
           "schema_version": 0
@@ -214,7 +225,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             }
           },
           "schema_version": 0
@@ -226,7 +240,9 @@
           "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         }
       ]
     }
@@ -234,7 +250,9 @@
   "relevant_attributes": [
     {
       "resource": "coder_agent.dev1",
-      "attribute": ["id"]
+      "attribute": [
+        "id"
+      ]
     }
   ]
 }

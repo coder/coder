@@ -78,7 +78,9 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -104,7 +106,9 @@
       "name": "dev2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -130,7 +134,9 @@
       "name": "dev3",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "arm64",
@@ -156,7 +162,9 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null

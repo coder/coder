@@ -17,6 +17,7 @@ resource "null_resource" "about" {}
 resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id
   hide        = true
+  icon        = "/icon/server.svg"
   item {
     key   = "hello"
     value = "world"

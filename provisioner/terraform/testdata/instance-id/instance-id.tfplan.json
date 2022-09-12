@@ -56,7 +56,9 @@
       "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -82,7 +84,9 @@
       "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "instance_id": "example"
@@ -102,7 +106,9 @@
       "name": "main",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -156,7 +162,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.main.id", "coder_agent.main"]
+              "references": [
+                "coder_agent.main.id",
+                "coder_agent.main"
+              ]
             },
             "instance_id": {
               "constant_value": "example"
@@ -171,7 +180,9 @@
           "name": "main",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.main"]
+          "depends_on": [
+            "coder_agent.main"
+          ]
         }
       ]
     }
@@ -179,7 +190,9 @@
   "relevant_attributes": [
     {
       "resource": "coder_agent.main",
-      "attribute": ["id"]
+      "attribute": [
+        "id"
+      ]
     }
   ]
 }
