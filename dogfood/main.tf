@@ -40,7 +40,7 @@ resource "coder_agent" "dev" {
 resource "coder_app" "code-server" {
   agent_id = coder_agent.dev.id
   name     = "code-server"
-  url      = "http://localhost:13337/?folder=/home/coder"
+  url      = "http://localhost:13337/"
   icon     = "/icon/code.svg"
 }
 

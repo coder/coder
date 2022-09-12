@@ -1,10 +1,27 @@
-# Configure
-
-This article documents the Coder server's primary configuration variables. For a full list
+Coder server's primary configuration is done via environment variables. For a full list
 of the options, run `coder server --help` on the host.
 
-Once you've [installed](../install.md) Coder, you can configure the server by setting the following
-variables in `/etc/coder.d/coder.env`:
+## Tunnel
+
+For proof-of-concept deployments, you can set `CODER_TUNNEL=true` to run Coder on a unique `*.try.coder.app` URL.
+This is a quick way to allow users and workspaces outside your LAN to connect to Coder.
+
+## Access URL
+
+`CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the external URL
+that users and workspaces use to connect to Coder (e.g. https://coder.example.com). This
+should not be localhost.
+
+## PostgreSQL Database
+
+Coder uses a PostgreSQL database to store users, workspace metadata, and other deployment information.
+Use `CODER_PG_CONNECTION_URL` to set the database that Coder connects to. If unset, PostgreSQL binaries will be
+downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root.
+
+## System packages
+
+If you've installed Coder via a [system package](../install/packages.md) Coder, you can
+configure the server by setting the following variables in `/etc/coder.d/coder.env`:
 
 ```sh
 # String. Specifies the external URL (HTTP/S) to access Coder.
@@ -32,15 +49,20 @@ CODER_TLS_CERT_FILE=
 CODER_TLS_KEY_FILE=
 ```
 
-## Run Coder
-
-Now, run Coder as a system service on the host:
+To run Coder as a system service on the host:
 
 ```sh
 # Use systemd to start Coder now and on reboot
 sudo systemctl enable --now coder
+
 # View the logs to ensure a successful start
 journalctl -u coder.service -b
+```
+
+To restart Coder after applying system changes:
+
+```sh
+sudo systemctl restart Coder
 ```
 
 ## Up Next

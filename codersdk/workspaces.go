@@ -183,7 +183,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 		return xerrors.Errorf("update workspace autostart: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return readBodyAsError(res)
 	}
 	return nil
@@ -203,7 +203,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 		return xerrors.Errorf("update workspace time until shutdown: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return readBodyAsError(res)
 	}
 	return nil

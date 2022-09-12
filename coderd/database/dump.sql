@@ -73,7 +73,9 @@ CREATE TYPE resource_type AS ENUM (
     'template',
     'template_version',
     'user',
-    'workspace'
+    'workspace',
+    'git_ssh_key',
+    'api_key'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -365,7 +367,8 @@ CREATE TABLE workspace_resources (
     job_id uuid NOT NULL,
     transition workspace_transition NOT NULL,
     type character varying(192) NOT NULL,
-    name character varying(64) NOT NULL
+    name character varying(64) NOT NULL,
+    hide boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspaces (

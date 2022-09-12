@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
@@ -167,7 +168,14 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		Diff:             diff,
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
-		Description:      "",
+		Description:      auditLogDescription(dblog),
 		User:             user,
 	}
+}
+
+func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
+	return fmt.Sprintf("{user} %s %s {target}",
+		codersdk.AuditAction(alog.Action).FriendlyString(),
+		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
+	)
 }

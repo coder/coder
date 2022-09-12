@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -247,8 +249,18 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 // Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
-	organization := httpmw.OrganizationParam(r)
-	apiKey := httpmw.APIKey(r)
+	var (
+		organization      = httpmw.OrganizationParam(r)
+		apiKey            = httpmw.APIKey(r)
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+
 	if !api.Authorize(r, rbac.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
 		httpapi.ResourceNotFound(rw)
@@ -324,7 +336,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
@@ -456,6 +468,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+	aReq.New = workspace
+
 	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{apiKey.UserID, workspaceBuild.InitiatorID})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -475,7 +489,18 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
+	var (
+		workspace         = httpmw.WorkspaceParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = workspace
+
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -487,10 +512,12 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name == "" || req.Name == workspace.Name {
+		aReq.New = workspace
 		// Nothing changed, optionally this could be an error.
 		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
+
 	// The reason we double check here is in case more fields can be
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
@@ -498,7 +525,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		name = req.Name
 	}
 
-	_, err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
+	newWorkspace, err := api.Database.UpdateWorkspace(r.Context(), database.UpdateWorkspaceParams{
 		ID:   workspace.ID,
 		Name: name,
 	})
@@ -533,11 +560,23 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = newWorkspace
 	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
+	var (
+		workspace         = httpmw.WorkspaceParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = workspace
+
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -577,10 +616,26 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	newWorkspace := workspace
+	newWorkspace.AutostartSchedule = dbSched
+	aReq.New = newWorkspace
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
+	var (
+		workspace         = httpmw.WorkspaceParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -591,6 +646,8 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var dbTTL sql.NullInt64
+
 	err := api.Database.InTx(func(s database.Store) error {
 		template, err := s.GetTemplateByID(r.Context(), workspace.TemplateID)
 		if err != nil {
@@ -600,7 +657,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("fetch workspace template: %w", err)
 		}
 
-		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
+		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
 		if err != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
@@ -629,7 +686,11 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, nil)
+	newWorkspace := workspace
+	newWorkspace.Ttl = dbTTL
+	aReq.New = newWorkspace
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
@@ -913,6 +974,15 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		}
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace, build, job, template, &owner, &initiator))
 	}
+	sort.Slice(apiWorkspaces, func(i, j int) bool {
+		iw := apiWorkspaces[i]
+		jw := apiWorkspaces[j]
+		if jw.LastUsedAt.IsZero() && iw.LastUsedAt.IsZero() {
+			return iw.Name < jw.Name
+		}
+		return iw.LastUsedAt.After(jw.LastUsedAt)
+	})
+
 	return apiWorkspaces, nil
 }
 

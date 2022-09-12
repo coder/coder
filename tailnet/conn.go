@@ -260,29 +260,39 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 			DERPLatency:   c.lastDERPLatency,
 		}
 	}
+	// A send queue must be used so nodes are sent in order.
+	queue := make(chan *Node, 16)
+	go func() {
+		for {
+			select {
+			case <-c.closed:
+				return
+			case node := <-queue:
+				c.logger.Debug(context.Background(), "send node callback", slog.F("node", node))
+				callback(node)
+			}
+		}
+	}()
 	c.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
 		node := makeNode()
+		queue <- node
 		c.lastMutex.Unlock()
-		callback(node)
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		if err != nil {
 			return
 		}
-		endpoints := make([]string, 0, len(s.LocalAddrs))
+		c.lastMutex.Lock()
+		c.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
 		for _, addr := range s.LocalAddrs {
-			endpoints = append(endpoints, addr.Addr.String())
+			c.lastEndpoints = append(c.lastEndpoints, addr.Addr.String())
 		}
-		go func() {
-			c.lastMutex.Lock()
-			c.lastEndpoints = endpoints
-			node := makeNode()
-			c.lastMutex.Unlock()
-			callback(node)
-		}()
+		node := makeNode()
+		queue <- node
+		c.lastMutex.Unlock()
 	})
 }
 
@@ -290,6 +300,8 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	c.netMap.DERPMap = derpMap
+	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
 	c.wireguardEngine.SetDERPMap(derpMap)
 }
 
@@ -331,6 +343,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		existingNode, ok := peerMap[node.ID]
 		if ok {
 			peerNode.Created = existingNode.Created
+			c.logger.Debug(context.Background(), "updating peer", slog.F("peer", peerNode))
+		} else {
+			c.logger.Debug(context.Background(), "adding peer", slog.F("peer", peerNode))
 		}
 		peerMap[node.ID] = peerNode
 	}
@@ -372,16 +387,17 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	select {
 	case <-c.closed:
+		c.mutex.Unlock()
 		return nil
 	default:
 	}
+	close(c.closed)
 	for _, l := range c.listeners {
 		_ = l.closeNoLock()
 	}
-	close(c.closed)
+	c.mutex.Unlock()
 	_ = c.dialer.Close()
 	_ = c.magicConn.Close()
 	_ = c.netStack.Close()
@@ -389,6 +405,15 @@ func (c *Conn) Close() error {
 	_ = c.tunDevice.Close()
 	c.wireguardEngine.Close()
 	return nil
+}
+
+func (c *Conn) isClosed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 // This and below is taken _mostly_ verbatim from Tailscale:
@@ -407,9 +432,14 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 		key:  lk,
 		addr: addr,
 
-		conn: make(chan net.Conn),
+		closed: make(chan struct{}),
+		conn:   make(chan net.Conn),
 	}
 	c.mutex.Lock()
+	if c.isClosed() {
+		c.mutex.Unlock()
+		return nil, xerrors.New("closed")
+	}
 	if c.listeners == nil {
 		c.listeners = map[listenKey]*listener{}
 	}
@@ -445,9 +475,12 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	defer t.Stop()
 	select {
 	case ln.conn <- conn:
+		return
+	case <-ln.closed:
+	case <-c.closed:
 	case <-t.C:
-		_ = conn.Close()
 	}
+	_ = conn.Close()
 }
 
 func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
@@ -491,15 +524,18 @@ type listenKey struct {
 }
 
 type listener struct {
-	s    *Conn
-	key  listenKey
-	addr string
-	conn chan net.Conn
+	s      *Conn
+	key    listenKey
+	addr   string
+	conn   chan net.Conn
+	closed chan struct{}
 }
 
 func (ln *listener) Accept() (net.Conn, error) {
-	c, ok := <-ln.conn
-	if !ok {
+	var c net.Conn
+	select {
+	case c = <-ln.conn:
+	case <-ln.closed:
 		return nil, xerrors.Errorf("wgnet: %w", net.ErrClosed)
 	}
 	return c, nil
@@ -515,7 +551,7 @@ func (ln *listener) Close() error {
 func (ln *listener) closeNoLock() error {
 	if v, ok := ln.s.listeners[ln.key]; ok && v == ln {
 		delete(ln.s.listeners, ln.key)
-		close(ln.conn)
+		close(ln.closed)
 	}
 	return nil
 }
