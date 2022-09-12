@@ -43,7 +43,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("SSH_TTY", func(t *testing.T) {
 		t.Parallel()
-		opts := pty.WithPTYOptions(pty.WithSSHRequest(ssh.Pty{
+		opts := pty.WithPTYOption(pty.WithSSHRequest(ssh.Pty{
 			Window: ssh.Window{
 				Width:  80,
 				Height: 24,

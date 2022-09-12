@@ -11,10 +11,10 @@ type startOptions struct {
 	ptyOpts []Option
 }
 
-// WithPTYOptions applies the given options to the underlying PTY.
-func WithPTYOptions(opts ...Option) StartOption {
+// WithPTYOption applies the given options to the underlying PTY.
+func WithPTYOption(opts ...Option) StartOption {
 	return func(o *startOptions) {
-		o.ptyOpts = opts
+		o.ptyOpts = append(o.ptyOpts, opts...)
 	}
 }
 

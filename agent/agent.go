@@ -688,7 +688,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
 		// The pty package sets `SSH_TTY` on supported platforms.
-		ptty, process, err := pty.Start(cmd, pty.WithPTYOptions(
+		ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
 			pty.WithSSHRequest(sshPty),
 			pty.WithLogger(slog.Stdlib(ctx, a.logger, slog.LevelInfo)),
 		))
