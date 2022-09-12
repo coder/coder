@@ -15,7 +15,7 @@ export const Language = {
   emptyMessage: "No users found",
   suspendMenuItem: "Suspend",
   deleteMenuItem: "Delete",
-  listWorkspacesMenuItem: "View Workspaces",
+  listWorkspacesMenuItem: "View workspaces",
   activateMenuItem: "Activate",
   resetPasswordMenuItem: "Reset password",
 }
