@@ -128,7 +128,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Parallel()
 	client, orgID, workspace, port := setupProxyTest(t)
 
-	t.Run("RedirectsWithoutAuth", func(t *testing.T) {
+	t.Run("LoginWithoutAuth", func(t *testing.T) {
 		t.Parallel()
 		client := codersdk.New(client.URL)
 		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -141,13 +141,14 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		location, err := resp.Location()
+
+		loc, err := resp.Location()
 		require.NoError(t, err)
-		require.Equal(t, "/login", location.Path)
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		require.True(t, loc.Query().Has("message"))
+		require.True(t, loc.Query().Has("redirect"))
 	})
 
-	t.Run("NoAccessShould401", func(t *testing.T) {
+	t.Run("NoAccessShould404", func(t *testing.T) {
 		t.Parallel()
 
 		userClient := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleMember())
@@ -284,7 +285,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		}).String()
 	}
 
-	t.Run("NoAuthShould401", func(t *testing.T) {
+	t.Run("LoginWithoutAuth", func(t *testing.T) {
 		t.Parallel()
 		unauthedClient := codersdk.New(client.URL)
 		unauthedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
@@ -296,7 +297,17 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		resp, err := unauthedClient.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppName), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		loc, err := resp.Location()
+		require.NoError(t, err)
+		require.True(t, loc.Query().Has("message"))
+		require.False(t, loc.Query().Has("redirect"))
+
+		expectedURL := *client.URL
+		expectedURL.Path = "/login"
+		loc.RawQuery = ""
+		require.Equal(t, &expectedURL, loc)
 	})
 
 	t.Run("NoAccessShould401", func(t *testing.T) {

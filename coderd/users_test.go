@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"testing"
@@ -265,12 +264,7 @@ func TestPostLogout(t *testing.T) {
 	t.Run("Logout", func(t *testing.T) {
 		t.Parallel()
 
-		accessURL, err := url.Parse("http://somedomain.com")
-		require.NoError(t, err)
-
-		client := coderdtest.New(t, &coderdtest.Options{
-			AccessURL: accessURL,
-		})
+		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

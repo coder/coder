@@ -165,9 +165,18 @@ func New(options *Options) *API {
 		api.handleSubdomainApplications(
 			// Middleware to impose on the served application.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.UseLoginURL(func() *url.URL {
+				if options.AccessURL == nil {
+					return nil
+				}
+
+				u := *options.AccessURL
+				u.Path = "/login"
+				return &u
+			}()),
 			// This should extract the application specific API key when we
 			// implement a scoped token.
-			httpmw.ExtractAPIKey(options.Database, oauthConfigs, false),
+			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		),
