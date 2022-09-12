@@ -16,6 +16,7 @@ export interface AppLinkProps {
   agentName: TypesGen.WorkspaceAgent["name"]
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
+  appCommand?: TypesGen.WorkspaceApp["command"]
 }
 
 export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
@@ -24,12 +25,18 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   agentName,
   appName,
   appIcon,
+  appCommand,
 }) => {
   const styles = useStyles()
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  const href = `/@${userName}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}/`
+  let href = `/@${userName}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}/`
+  if (appCommand) {
+    href = `/@${userName}/${workspaceName}.${agentName}/terminal?command=${encodeURIComponent(
+      appCommand,
+    )}`
+  }
 
   return (
     <Link

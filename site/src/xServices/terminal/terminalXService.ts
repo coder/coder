@@ -18,6 +18,7 @@ export interface TerminalContext {
   username?: string
   workspaceName?: string
   reconnection?: string
+  command?: string
 }
 
 export type TerminalEvent =
@@ -170,9 +171,11 @@ export const terminalMachine =
               return reject("workspace agent is not set")
             }
             const proto = location.protocol === "https:" ? "wss:" : "ws:"
-            const socket = new WebSocket(
-              `${proto}//${location.host}/api/v2/workspaceagents/${context.workspaceAgent.id}/pty?reconnect=${context.reconnection}`,
-            )
+            const commandQuery = context.command
+              ? `&command=${encodeURIComponent(context.command)}`
+              : ""
+            const url = `${proto}//${location.host}/api/v2/workspaceagents/${context.workspaceAgent.id}/pty?reconnect=${context.reconnection}${commandQuery}`
+            const socket = new WebSocket(url)
             socket.binaryType = "arraybuffer"
             socket.addEventListener("open", () => {
               resolve(socket)
