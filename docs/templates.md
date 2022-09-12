@@ -223,6 +223,21 @@ resource "kubernetes_pod" "podName" {
 }
 ```
 
+### Delete templates
+
+You can delete a template using both the coder CLI and UI.
+
+Using the CLI, login to Coder and run the following command to delete a template:
+
+```console
+coder templates delete <template-name>
+```
+
+In the UI, navigate to the template you want to delete, and select the dropdown in
+the right-hand corner of the page to delete the template.
+
+![delete-template](./images/delete-template.png)
+
 #### Delete workspaces
 
 When a workspace is deleted, the Coder server essentially runs a
