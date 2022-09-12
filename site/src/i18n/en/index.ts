@@ -9,5 +9,5 @@ export const en = {
   workspacePage,
   auditLog,
   templatePage,
-  templatesPage
+  templatesPage,
 }

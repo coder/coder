@@ -87,7 +87,11 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
   const navigate = useNavigate()
   const { t } = useTranslation("templatesPage")
   const theme: Theme = useTheme()
-  const empty = !props.loading && !props.getOrganizationsError && !props.getTemplatesError && !props.templates?.length
+  const empty =
+    !props.loading &&
+    !props.getOrganizationsError &&
+    !props.getTemplatesError &&
+    !props.templates?.length
 
   return (
     <Margins>
@@ -120,11 +124,16 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
       </PageHeader>
 
       {props.getOrganizationsError ? (
-        <ErrorSummary error={props.getOrganizationsError} defaultMessage={t("errors.getOrganizationsError")} />
+        <ErrorSummary
+          error={props.getOrganizationsError}
+          defaultMessage={t("errors.getOrganizationsError")}
+        />
+      ) : props.getTemplatesError ? (
+        <ErrorSummary
+          error={props.getTemplatesError}
+          defaultMessage={t("errors.getTemplatesError")}
+        />
       ) : (
-      props.getTemplatesError ? (
-        <ErrorSummary error={props.getTemplatesError} defaultMessage={t("errors.getTemplatesError")} />
-      ) :
         <TableContainer>
           <Table>
             <TableHead>
