@@ -432,7 +432,8 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 		key:  lk,
 		addr: addr,
 
-		conn: make(chan net.Conn),
+		closed: make(chan struct{}),
+		conn:   make(chan net.Conn),
 	}
 	c.mutex.Lock()
 	if c.isClosed() {
@@ -474,11 +475,12 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	defer t.Stop()
 	select {
 	case ln.conn <- conn:
+		return
+	case <-ln.closed:
 	case <-c.closed:
-		_ = conn.Close()
 	case <-t.C:
-		_ = conn.Close()
 	}
+	_ = conn.Close()
 }
 
 func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
@@ -522,15 +524,18 @@ type listenKey struct {
 }
 
 type listener struct {
-	s    *Conn
-	key  listenKey
-	addr string
-	conn chan net.Conn
+	s      *Conn
+	key    listenKey
+	addr   string
+	conn   chan net.Conn
+	closed chan struct{}
 }
 
 func (ln *listener) Accept() (net.Conn, error) {
-	c, ok := <-ln.conn
-	if !ok {
+	var c net.Conn
+	select {
+	case c = <-ln.conn:
+	case <-ln.closed:
 		return nil, xerrors.Errorf("wgnet: %w", net.ErrClosed)
 	}
 	return c, nil
@@ -546,7 +551,7 @@ func (ln *listener) Close() error {
 func (ln *listener) closeNoLock() error {
 	if v, ok := ln.s.listeners[ln.key]; ok && v == ln {
 		delete(ln.s.listeners, ln.key)
-		close(ln.conn)
+		close(ln.closed)
 	}
 	return nil
 }
