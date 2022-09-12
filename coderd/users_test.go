@@ -266,6 +266,16 @@ func TestDeleteUser(t *testing.T) {
 		_, another := coderdtest.CreateAnotherUserWithUser(t, api, user.OrganizationID)
 		err := api.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
+		// Attempt to create a user with the same email and username, and delete them again.
+		another, err = api.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          another.Email,
+			Username:       another.Username,
+			Password:       "testing",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		err = api.DeleteUser(context.Background(), another.ID)
+		require.NoError(t, err)
 	})
 	t.Run("NoPermission", func(t *testing.T) {
 		t.Parallel()

@@ -19,6 +19,8 @@ export const Language = {
   createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
   suspendUserError: "Error suspending user.",
+  deleteUserSuccess: "Successfully deleted the user.",
+  deleteUserError: "Error deleting user.",
   activateUserSuccess: "Successfully activated the user.",
   activateUserError: "Error activating user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
@@ -37,6 +39,9 @@ export interface UsersContext {
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
   suspendUserError?: Error | unknown
+  // Delete user
+  userIdToDelete?: TypesGen.User["id"]
+  deleteUserError?: Error | unknown
   // Activate user
   userIdToActivate?: TypesGen.User["id"]
   activateUserError?: Error | unknown
@@ -57,6 +62,10 @@ export type UsersEvent =
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }
   | { type: "CANCEL_USER_SUSPENSION" }
+  // Delete events
+  | { type: "DELETE_USER"; userId: TypesGen.User["id"] }
+  | { type: "CONFIRM_USER_DELETE" }
+  | { type: "CANCEL_USER_DELETE" }
   // Activate events
   | { type: "ACTIVATE_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_ACTIVATION" }
@@ -84,6 +93,9 @@ export const usersMachine = createMachine(
         suspendUser: {
           data: TypesGen.User
         }
+        deleteUser: {
+          data: undefined
+        }
         activateUser: {
           data: TypesGen.User
         }
@@ -109,6 +121,10 @@ export const usersMachine = createMachine(
           SUSPEND_USER: {
             target: "confirmUserSuspension",
             actions: ["assignUserIdToSuspend"],
+          },
+          DELETE_USER: {
+            target: "confirmUserDeletion",
+            actions: ["assignUserIdToDelete"],
           },
           ACTIVATE_USER: {
             target: "confirmUserActivation",
@@ -173,6 +189,12 @@ export const usersMachine = createMachine(
           CANCEL_USER_SUSPENSION: "idle",
         },
       },
+      confirmUserDeletion: {
+        on: {
+          CONFIRM_USER_DELETE: "deletingUser",
+          CANCEL_USER_DELETE: "idle",
+        },
+      },
       confirmUserActivation: {
         on: {
           CONFIRM_USER_ACTIVATION: "activatingUser",
@@ -192,6 +214,21 @@ export const usersMachine = createMachine(
           onError: {
             target: "idle",
             actions: ["assignSuspendUserError", "displaySuspendedErrorMessage"],
+          },
+        },
+      },
+      deletingUser: {
+        entry: "clearDeleteUserError",
+        invoke: {
+          src: "deleteUser",
+          id: "deleteUser",
+          onDone: {
+            target: "gettingUsers",
+            actions: ["displayDeleteSuccess"],
+          },
+          onError: {
+            target: "idle",
+            actions: ["assignDeleteUserError", "displayDeleteErrorMessage"],
           },
         },
       },
@@ -271,6 +308,12 @@ export const usersMachine = createMachine(
 
         return API.suspendUser(context.userIdToSuspend)
       },
+      deleteUser: (context) => {
+        if (!context.userIdToDelete) {
+          throw new Error("userIdToDelete is undefined")
+        }
+        return API.deleteUser(context.userIdToDelete)
+      },
       activateUser: (context) => {
         if (!context.userIdToActivate) {
           throw new Error("userIdToActivate is undefined")
@@ -316,6 +359,9 @@ export const usersMachine = createMachine(
       assignUserIdToSuspend: assign({
         userIdToSuspend: (_, event) => event.userId,
       }),
+      assignUserIdToDelete: assign({
+        userIdToDelete: (_, event) => event.userId,
+      }),
       assignUserIdToActivate: assign({
         userIdToActivate: (_, event) => event.userId,
       }),
@@ -340,6 +386,9 @@ export const usersMachine = createMachine(
       assignSuspendUserError: assign({
         suspendUserError: (_, event) => event.data,
       }),
+      assignDeleteUserError: assign({
+        deleteUserError: (_, event) => event.data,
+      }),
       assignActivateUserError: assign({
         activateUserError: (_, event) => event.data,
       }),
@@ -360,6 +409,9 @@ export const usersMachine = createMachine(
       })),
       clearSuspendUserError: assign({
         suspendUserError: (_) => undefined,
+      }),
+      clearDeleteUserError: assign({
+        deleteUserError: (_) => undefined,
       }),
       clearActivateUserError: assign({
         activateUserError: (_) => undefined,
@@ -382,6 +434,13 @@ export const usersMachine = createMachine(
       },
       displaySuspendedErrorMessage: (context) => {
         const message = getErrorMessage(context.suspendUserError, Language.suspendUserError)
+        displayError(message)
+      },
+      displayDeleteSuccess: () => {
+        displaySuccess(Language.deleteUserSuccess)
+      },
+      displayDeleteErrorMessage: (context) => {
+        const message = getErrorMessage(context.deleteUserError, Language.deleteUserError)
         displayError(message)
       },
       displayActivateSuccess: () => {
