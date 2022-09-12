@@ -30,6 +30,7 @@
           "schema_version": 0,
           "values": {
             "hide": true,
+            "icon": "/icon/server.svg",
             "item": [
               {
                 "key": "hello",
@@ -110,6 +111,7 @@
         "before": null,
         "after": {
           "hide": true,
+          "icon": "/icon/server.svg",
           "item": [
             {
               "key": "hello",

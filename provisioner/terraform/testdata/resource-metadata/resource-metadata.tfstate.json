@@ -33,6 +33,7 @@
           "schema_version": 0,
           "values": {
             "hide": true,
+            "icon": "/icon/server.svg",
             "id": "6f981e35-73a3-4478-8227-fed4643afd71",
             "item": [
               {
@@ -63,16 +64,9 @@
             "resource_id": "3184975245680216434"
           },
           "sensitive_values": {
-            "item": [
-              {},
-              {},
-              {},
-              {}
-            ]
+            "item": [{}, {}, {}, {}]
           },
-          "depends_on": [
-            "null_resource.about"
-          ]
+          "depends_on": ["null_resource.about"]
         },
         {
           "address": "null_resource.about",
