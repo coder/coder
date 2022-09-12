@@ -387,16 +387,17 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	select {
 	case <-c.closed:
+		c.mutex.Unlock()
 		return nil
 	default:
 	}
+	close(c.closed)
 	for _, l := range c.listeners {
 		_ = l.closeNoLock()
 	}
-	close(c.closed)
+	c.mutex.Unlock()
 	_ = c.dialer.Close()
 	_ = c.magicConn.Close()
 	_ = c.netStack.Close()
@@ -404,6 +405,15 @@ func (c *Conn) Close() error {
 	_ = c.tunDevice.Close()
 	c.wireguardEngine.Close()
 	return nil
+}
+
+func (c *Conn) isClosed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 // This and below is taken _mostly_ verbatim from Tailscale:
@@ -425,6 +435,10 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 		conn: make(chan net.Conn),
 	}
 	c.mutex.Lock()
+	if c.isClosed() {
+		c.mutex.Unlock()
+		return nil, xerrors.New("closed")
+	}
 	if c.listeners == nil {
 		c.listeners = map[listenKey]*listener{}
 	}
@@ -460,6 +474,8 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	defer t.Stop()
 	select {
 	case ln.conn <- conn:
+	case <-c.closed:
+		_ = conn.Close()
 	case <-t.C:
 		_ = conn.Close()
 	}
