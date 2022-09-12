@@ -163,7 +163,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	counts := make(map[time.Time]map[string]struct{})
+	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
 	for _, as := range q.agentStats {
 		if as.TemplateID != templateID {
@@ -171,26 +171,29 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 		}
 
 		date := as.CreatedAt.Truncate(time.Hour * 24)
-		dateEntry := counts[date]
-		if dateEntry == nil {
-			dateEntry = make(map[string]struct{})
-		}
-		counts[date] = dateEntry
 
-		dateEntry[as.UserID.String()] = struct{}{}
+		dateEntry := seens[date]
+		if dateEntry == nil {
+			dateEntry = make(map[uuid.UUID]struct{})
+		}
+		dateEntry[as.UserID] = struct{}{}
+		seens[date] = dateEntry
 	}
 
-	countKeys := maps.Keys(counts)
-	sort.Slice(countKeys, func(i, j int) bool {
-		return countKeys[i].Before(countKeys[j])
+	seenKeys := maps.Keys(seens)
+	sort.Slice(seenKeys, func(i, j int) bool {
+		return seenKeys[i].Before(seenKeys[j])
 	})
 
 	var rs []database.GetTemplateDAUsRow
-	for _, key := range countKeys {
-		rs = append(rs, database.GetTemplateDAUsRow{
-			Date:   key,
-			Amount: int64(len(counts[key])),
-		})
+	for _, key := range seenKeys {
+		ids := seens[key]
+		for id := range ids {
+			rs = append(rs, database.GetTemplateDAUsRow{
+				Date:   key,
+				UserID: id,
+			})
+		}
 	}
 
 	return rs, nil
@@ -920,7 +923,7 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -935,10 +938,10 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.MaxTtl = arg.MaxTtl
 		tpl.MinAutostartInterval = arg.MinAutostartInterval
 		q.templates[idx] = tpl
-		return nil
+		return tpl, nil
 	}
 
-	return sql.ErrNoRows
+	return database.Template{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
@@ -1764,6 +1767,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Transition: arg.Transition,
 		Type:       arg.Type,
 		Name:       arg.Name,
+		Hide:       arg.Hide,
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil
@@ -2308,7 +2312,7 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			OrganizationID:   alog.OrganizationID,
 			Ip:               alog.Ip,
 			UserAgent:        alog.UserAgent,
-			ResourceType:     database.ResourceType(alog.UserAgent),
+			ResourceType:     alog.ResourceType,
 			ResourceID:       alog.ResourceID,
 			ResourceTarget:   alog.ResourceTarget,
 			ResourceIcon:     alog.ResourceIcon,

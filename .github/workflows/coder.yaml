@@ -344,15 +344,6 @@ jobs:
           fi
           gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=$test_timeout -short -failfast $COVERAGE_FLAGS
 
-      - name: Upload DataDog Trace
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: fake
-          DD_CATEGORY: unit
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go gotests.xml
-
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
@@ -413,14 +404,6 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: make test-postgres
-
-      - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: postgresql
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -548,11 +531,6 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      # Go is required for uploading the test results to datadog
-      - uses: actions/setup-go@v3
-        with:
-          go-version: "~1.19"
-
       - uses: actions/setup-node@v3
         with:
           node-version: "14"
@@ -574,14 +552,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-
-      - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_CATEGORY: unit
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
@@ -606,7 +576,6 @@ jobs:
             .eslintcache
           key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
-      # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"
@@ -662,13 +631,6 @@ jobs:
           path: ./site/test-results/**/*.webm
           retention:days: 7
 
-      - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_CATEGORY: e2e
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest

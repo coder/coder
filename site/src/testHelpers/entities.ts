@@ -175,7 +175,8 @@ export const MockTemplate: TypesGen.Template = {
   name: "test-template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
-  workspace_owner_count: 1,
+  workspace_owner_count: 2,
+  active_user_count: 1,
   description: "This is a test description.",
   max_ttl_ms: 24 * 60 * 60 * 1000,
   min_autostart_interval_ms: 60 * 60 * 1000,
@@ -392,6 +393,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   name: "a-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  hide: false,
   metadata: [
     { key: "type", value: "a-workspace-resource", sensitive: false },
     { key: "api_key", value: "12345678", sensitive: true },
@@ -406,6 +408,22 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   name: "another-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+  hide: false,
+  metadata: [
+    { key: "type", value: "google_compute_disk", sensitive: false },
+    { key: "size", value: "32GB", sensitive: false },
+  ],
+}
+
+export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  created_at: "",
+  id: "test-workspace-resource-3",
+  job_id: "",
+  name: "another-workspace-resource",
+  type: "google_compute_disk",
+  workspace_transition: "start",
+  hide: true,
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
@@ -775,7 +793,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   diff: {},
   status_code: 200,
   additional_fields: "",
-  description: "Colin Adler updated the workspace bruno-dev",
+  description: "{user} updated workspace {target}",
   user: MockUser,
 }
 
@@ -797,6 +815,11 @@ export const MockAuditLog2: TypesGen.AuditLog = {
     template_version_id: {
       old: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
       new: "53bded77-7b9d-4e82-8771-991a34d759f9",
+      secret: false,
+    },
+    roles: {
+      old: null,
+      new: ["admin", "auditor"],
       secret: false,
     },
   },

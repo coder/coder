@@ -43,6 +43,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -75,6 +76,7 @@ type Options struct {
 	AutoImportTemplates  []coderd.AutoImportTemplate
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
+	Auditor              audit.Auditor
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
@@ -198,6 +200,11 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		_ = turnServer.Close()
 	})
 
+	features := coderd.DisabledImplementations
+	if options.Auditor != nil {
+		features.Auditor = options.Auditor
+	}
+
 	accessURL := options.AccessURL
 	if accessURL == nil {
 		accessURL, err = url.Parse(srv.URL)
@@ -247,6 +254,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+		FeaturesService:             coderd.NewMockFeaturesService(features),
 	})
 	t.Cleanup(func() {
 		_ = coderAPI.Close()

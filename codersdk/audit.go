@@ -18,7 +18,30 @@ const (
 	ResourceTypeTemplateVersion ResourceType = "template_version"
 	ResourceTypeUser            ResourceType = "user"
 	ResourceTypeWorkspace       ResourceType = "workspace"
+	ResourceTypeGitSSHKey       ResourceType = "git_ssh_key"
+	ResourceTypeAPIKey          ResourceType = "api_key"
 )
+
+func (r ResourceType) FriendlyString() string {
+	switch r {
+	case ResourceTypeOrganization:
+		return "organization"
+	case ResourceTypeTemplate:
+		return "template"
+	case ResourceTypeTemplateVersion:
+		return "template version"
+	case ResourceTypeUser:
+		return "user"
+	case ResourceTypeWorkspace:
+		return "workspace"
+	case ResourceTypeGitSSHKey:
+		return "git ssh key"
+	case ResourceTypeAPIKey:
+		return "api key"
+	default:
+		return "unknown"
+	}
+}
 
 type AuditAction string
 
@@ -27,6 +50,19 @@ const (
 	AuditActionWrite  AuditAction = "write"
 	AuditActionDelete AuditAction = "delete"
 )
+
+func (a AuditAction) FriendlyString() string {
+	switch a {
+	case AuditActionCreate:
+		return "created"
+	case AuditActionWrite:
+		return "updated"
+	case AuditActionDelete:
+		return "deleted"
+	default:
+		return "unknown"
+	}
+}
 
 type AuditDiff map[string]AuditDiffField
 

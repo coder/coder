@@ -7,32 +7,31 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 )
 
-// FeaturesService is the interface for interacting with enterprise features.
-type FeaturesService interface {
-	EntitlementsAPI(w http.ResponseWriter, r *http.Request)
-
-	// Get returns the implementations for feature interfaces. Parameter `s` must be a pointer to a
-	// struct type containing feature interfaces as fields.  The FeatureService sets all fields to
-	// the correct implementations depending on whether the features are turned on.
-	Get(s any) error
+func NewMockFeaturesService(feats FeatureInterfaces) features.Service {
+	return &featuresService{
+		feats: &feats,
+	}
 }
 
-type featuresService struct{}
+type featuresService struct {
+	feats *FeatureInterfaces
+}
 
-func (featuresService) EntitlementsAPI(rw http.ResponseWriter, _ *http.Request) {
-	features := make(map[string]codersdk.Feature)
+func (*featuresService) EntitlementsAPI(rw http.ResponseWriter, _ *http.Request) {
+	feats := make(map[string]codersdk.Feature)
 	for _, f := range codersdk.FeatureNames {
-		features[f] = codersdk.Feature{
+		feats[f] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementNotEntitled,
 			Enabled:     false,
 		}
 	}
 	httpapi.Write(rw, http.StatusOK, codersdk.Entitlements{
-		Features:   features,
+		Features:   feats,
 		Warnings:   []string{},
 		HasLicense: false,
 	})
@@ -42,7 +41,7 @@ func (featuresService) EntitlementsAPI(rw http.ResponseWriter, _ *http.Request) 
 // struct type containing feature interfaces as fields.  The AGPL featureService always returns the
 // "disabled" version of the feature interface because it doesn't include any enterprise features
 // by definition.
-func (featuresService) Get(ps any) error {
+func (f *featuresService) Get(ps any) error {
 	if reflect.TypeOf(ps).Kind() != reflect.Pointer {
 		return xerrors.New("input must be pointer to struct")
 	}
@@ -56,7 +55,7 @@ func (featuresService) Get(ps any) error {
 		if tf.Kind() != reflect.Interface {
 			return xerrors.Errorf("fields of input struct must be interfaces: %s", tf.String())
 		}
-		err := setImplementation(vf, tf)
+		err := f.setImplementation(vf, tf)
 		if err != nil {
 			return err
 		}
@@ -66,11 +65,16 @@ func (featuresService) Get(ps any) error {
 
 // setImplementation finds the correct implementation for the field's type, and sets it on the
 // struct.  It returns an error if unsuccessful
-func setImplementation(vf reflect.Value, tf reflect.Type) error {
+func (f *featuresService) setImplementation(vf reflect.Value, tf reflect.Type) error {
+	feats := f.feats
+	if feats == nil {
+		feats = &DisabledImplementations
+	}
+
 	// when we get more than a few features it might make sense to have a data structure for finding
 	// the correct implementation that's faster than just a linear search, but for now just spin
 	// through the implementations we have.
-	vd := reflect.ValueOf(DisabledImplementations)
+	vd := reflect.ValueOf(*feats)
 	for j := 0; j < vd.NumField(); j++ {
 		vdf := vd.Field(j)
 		if vdf.Type() == tf {

@@ -7,7 +7,6 @@ import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownA
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { t } from "i18next"
 import { ComponentProps, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import userAgentParser from "ua-parser-js"
@@ -26,24 +25,10 @@ const pillTypeByHttpStatus = (httpStatus: number): ComponentProps<typeof Pill>["
   return "success"
 }
 
-const actionLabelByAction: Record<AuditLog["action"], string> = {
-  create: t("actions.create", { ns: "auditLog" }),
-  write: t("actions.write", { ns: "auditLog" }),
-  delete: t("actions.delete", { ns: "auditLog" }),
-}
-
-const resourceLabelByResourceType: Record<AuditLog["resource_type"], string> = {
-  organization: "organization",
-  template: "template",
-  template_version: "template version",
-  user: "user",
-  workspace: "workspace",
-}
-
 const readableActionMessage = (auditLog: AuditLog) => {
-  return `${actionLabelByAction[auditLog.action]} ${
-    resourceLabelByResourceType[auditLog.resource_type]
-  }`
+  return auditLog.description
+    .replace("{user}", `<strong>${auditLog.user?.username}</strong>`)
+    .replace("{target}", `<strong>${auditLog.resource_target}</strong>`)
 }
 
 export interface AuditLogRowProps {
@@ -96,10 +81,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 avatarURL={auditLog.user?.avatar_url}
               />
               <div>
-                <span className={styles.auditLogResume}>
-                  <strong>{auditLog.user?.username}</strong> {readableActionMessage(auditLog)}{" "}
-                  <strong>{auditLog.resource_target}</strong>
-                </span>
+                <span
+                  className={styles.auditLogResume}
+                  dangerouslySetInnerHTML={{ __html: readableActionMessage(auditLog) }}
+                />
                 <span className={styles.auditLogTime}>{createDayString(auditLog.time)}</span>
               </div>
             </Stack>
