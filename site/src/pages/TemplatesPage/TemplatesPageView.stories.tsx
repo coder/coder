@@ -50,4 +50,4 @@ export const EmptyCannotCreate = Template.bind({})
 EmptyCannotCreate.args = {}
 
 export const Error = Template.bind({})
-Error.args = { error: makeMockApiError({ message: "Something went wrong fetching templates." }) }
+Error.args = { getTemplatesError: makeMockApiError({ message: "Something went wrong fetching templates." }) }
