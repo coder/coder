@@ -14,7 +14,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func newPty(opt ...PTYOption) (retPTY *otherPty, err error) {
+func newPty(opt ...Option) (retPTY *otherPty, err error) {
 	var opts ptyOptions
 	for _, o := range opt {
 		o(&opts)

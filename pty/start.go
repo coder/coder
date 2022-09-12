@@ -8,11 +8,11 @@ import (
 type StartOption func(*startOptions)
 
 type startOptions struct {
-	ptyOpts []PTYOption
+	ptyOpts []Option
 }
 
 // WithPTYOptions applies the given options to the underlying PTY.
-func WithPTYOptions(opts ...PTYOption) StartOption {
+func WithPTYOptions(opts ...Option) StartOption {
 	return func(o *startOptions) {
 		o.ptyOpts = opts
 	}

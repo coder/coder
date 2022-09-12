@@ -57,8 +57,8 @@ type WithFlags interface {
 	EchoEnabled() (bool, error)
 }
 
-// PTYOptions represents a an option for a PTY.
-type PTYOption func(*ptyOptions)
+// Options represents a an option for a PTY.
+type Option func(*ptyOptions)
 
 type ptyOptions struct {
 	logger *log.Logger
@@ -68,21 +68,21 @@ type ptyOptions struct {
 // WithSSHRequest applies the ssh.Pty request to the PTY.
 //
 // Only partially supported on Windows (e.g. window size).
-func WithSSHRequest(req ssh.Pty) PTYOption {
+func WithSSHRequest(req ssh.Pty) Option {
 	return func(opts *ptyOptions) {
 		opts.sshReq = &req
 	}
 }
 
 // WithLogger sets a logger for logging errors.
-func WithLogger(logger *log.Logger) PTYOption {
+func WithLogger(logger *log.Logger) Option {
 	return func(opts *ptyOptions) {
 		opts.logger = logger
 	}
 }
 
 // New constructs a new Pty.
-func New(opts ...PTYOption) (PTY, error) {
+func New(opts ...Option) (PTY, error) {
 	return newPty(opts...)
 }
 

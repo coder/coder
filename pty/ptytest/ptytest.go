@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func New(t *testing.T, opts ...pty.PTYOption) *PTY {
+func New(t *testing.T, opts ...pty.Option) *PTY {
 	t.Helper()
 
 	ptty, err := pty.New(opts...)
