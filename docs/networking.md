@@ -11,7 +11,7 @@ Direct connections are as fast as connecting to the workspace outside of Coder.
 When NAT traversal fails, connections are relayed through the coder server.
 All user <-> workspace connections are end-to-end encrypted.
 
-[Tailscale](https://tailscale.com) backs our networking logic.
+[Tailscale's open source](https://tailscale.com) backs our networking logic.
 
 ## coder server
 
