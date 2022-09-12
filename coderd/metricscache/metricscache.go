@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
@@ -24,9 +26,10 @@ type Cache struct {
 	database database.Store
 	log      slog.Logger
 
-	templateDAUResponses atomic.Pointer[map[string]codersdk.TemplateDAUsResponse]
+	templateDAUResponses atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
+	templateUniqueUsers  atomic.Pointer[map[uuid.UUID]int]
 
-	doneCh chan struct{}
+	done   chan struct{}
 	cancel func()
 
 	interval time.Duration
@@ -41,7 +44,7 @@ func New(db database.Store, log slog.Logger, interval time.Duration) *Cache {
 	c := &Cache{
 		database: db,
 		log:      log,
-		doneCh:   make(chan struct{}),
+		done:     make(chan struct{}),
 		cancel:   cancel,
 		interval: interval,
 	}
@@ -49,34 +52,68 @@ func New(db database.Store, log slog.Logger, interval time.Duration) *Cache {
 	return c
 }
 
-func fillEmptyDays(rows []database.GetTemplateDAUsRow) []database.GetTemplateDAUsRow {
-	var newRows []database.GetTemplateDAUsRow
+func fillEmptyDays(sortedDates []time.Time) []time.Time {
+	var newDates []time.Time
 
-	for i, row := range rows {
+	for i, ti := range sortedDates {
 		if i == 0 {
-			newRows = append(newRows, row)
+			newDates = append(newDates, ti)
 			continue
 		}
 
-		last := rows[i-1]
+		last := sortedDates[i-1]
 
 		const day = time.Hour * 24
-		diff := row.Date.Sub(last.Date)
+		diff := ti.Sub(last)
 		for diff > day {
 			if diff <= day {
 				break
 			}
-			last.Date = last.Date.Add(day)
-			last.Amount = 0
-			newRows = append(newRows, last)
+			last = last.Add(day)
+			newDates = append(newDates, last)
 			diff -= day
 		}
 
-		newRows = append(newRows, row)
+		newDates = append(newDates, ti)
 		continue
 	}
 
-	return newRows
+	return newDates
+}
+
+func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAUsResponse {
+	respMap := make(map[time.Time][]uuid.UUID)
+	for _, row := range rows {
+		uuids := respMap[row.Date]
+		if uuids == nil {
+			uuids = make([]uuid.UUID, 0, 8)
+		}
+		uuids = append(uuids, row.UserID)
+		respMap[row.Date] = uuids
+	}
+
+	dates := maps.Keys(respMap)
+	slices.SortFunc(dates, func(a, b time.Time) bool {
+		return a.Before(b)
+	})
+
+	var resp codersdk.TemplateDAUsResponse
+	for _, date := range fillEmptyDays(dates) {
+		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
+			Date:   date,
+			Amount: len(respMap[date]),
+		})
+	}
+
+	return resp
+}
+
+func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
+	seen := make(map[uuid.UUID]struct{}, len(rows))
+	for _, row := range rows {
+		seen[row.UserID] = struct{}{}
+	}
+	return len(seen)
 }
 
 func (c *Cache) refresh(ctx context.Context) error {
@@ -90,30 +127,26 @@ func (c *Cache) refresh(ctx context.Context) error {
 		return err
 	}
 
-	templateDAUs := make(map[string]codersdk.TemplateDAUsResponse, len(templates))
-
+	var (
+		templateDAUs        = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
+		templateUniqueUsers = make(map[uuid.UUID]int)
+	)
 	for _, template := range templates {
-		daus, err := c.database.GetTemplateDAUs(ctx, template.ID)
+		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
 		if err != nil {
 			return err
 		}
-
-		var resp codersdk.TemplateDAUsResponse
-		for _, ent := range fillEmptyDays(daus) {
-			resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-				Date:   ent.Date,
-				Amount: int(ent.Amount),
-			})
-		}
-		templateDAUs[template.ID.String()] = resp
+		templateDAUs[template.ID] = convertDAUResponse(rows)
+		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 	}
-
 	c.templateDAUResponses.Store(&templateDAUs)
+	c.templateUniqueUsers.Store(&templateUniqueUsers)
+
 	return nil
 }
 
 func (c *Cache) run(ctx context.Context) {
-	defer close(c.doneCh)
+	defer close(c.done)
 
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
@@ -140,7 +173,7 @@ func (c *Cache) run(ctx context.Context) {
 
 		select {
 		case <-ticker.C:
-		case <-c.doneCh:
+		case <-c.done:
 			return
 		case <-ctx.Done():
 			return
@@ -150,23 +183,40 @@ func (c *Cache) run(ctx context.Context) {
 
 func (c *Cache) Close() error {
 	c.cancel()
-	<-c.doneCh
+	<-c.done
 	return nil
 }
 
 // TemplateDAUs returns an empty response if the template doesn't have users
 // or is loading for the first time.
-func (c *Cache) TemplateDAUs(id uuid.UUID) codersdk.TemplateDAUsResponse {
+func (c *Cache) TemplateDAUs(id uuid.UUID) (*codersdk.TemplateDAUsResponse, bool) {
 	m := c.templateDAUResponses.Load()
 	if m == nil {
 		// Data loading.
-		return codersdk.TemplateDAUsResponse{}
+		return nil, false
 	}
 
-	resp, ok := (*m)[id.String()]
+	resp, ok := (*m)[id]
 	if !ok {
 		// Probably no data.
-		return codersdk.TemplateDAUsResponse{}
+		return nil, false
 	}
-	return resp
+	return &resp, true
+}
+
+// TemplateUniqueUsers returns the number of unique Template users
+// from all Cache data.
+func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
+	m := c.templateUniqueUsers.Load()
+	if m == nil {
+		// Data loading.
+		return -1, false
+	}
+
+	resp, ok := (*m)[id]
+	if !ok {
+		// Probably no data.
+		return -1, false
+	}
+	return resp, true
 }

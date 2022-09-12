@@ -391,7 +391,8 @@ func TestPostUsers(t *testing.T) {
 			Password:       "testing",
 		})
 		require.NoError(t, err)
-		assert.Len(t, auditor.AuditLogs, 1)
+
+		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
 }

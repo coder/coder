@@ -72,7 +72,7 @@ func create() *cobra.Command {
 				}
 
 				slices.SortFunc(templates, func(a, b codersdk.Template) bool {
-					return a.WorkspaceOwnerCount > b.WorkspaceOwnerCount
+					return a.ActiveUserCount > b.ActiveUserCount
 				})
 
 				templateNames := make([]string, 0, len(templates))
@@ -81,13 +81,13 @@ func create() *cobra.Command {
 				for _, template := range templates {
 					templateName := template.Name
 
-					if template.WorkspaceOwnerCount > 0 {
-						developerText := "developer"
-						if template.WorkspaceOwnerCount != 1 {
-							developerText = "developers"
-						}
-
-						templateName += cliui.Styles.Placeholder.Render(fmt.Sprintf(" (used by %d %s)", template.WorkspaceOwnerCount, developerText))
+					if template.ActiveUserCount > 0 {
+						templateName += cliui.Styles.Placeholder.Render(
+							fmt.Sprintf(
+								" (used by %s)",
+								formatActiveDevelopers(template.ActiveUserCount),
+							),
+						)
 					}
 
 					templateNames = append(templateNames, templateName)

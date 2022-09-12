@@ -16,12 +16,13 @@ AllStates.args = {
     MockTemplate,
     {
       ...MockTemplate,
-      description: "🚀 Some magical template that does some magical things!",
+      active_user_count: -1,
+      description: "🚀 Some new template that has no activity data",
       icon: "/icon/goland.svg",
     },
     {
       ...MockTemplate,
-      workspace_owner_count: 150,
+      active_user_count: 150,
       description: "😮 Wow, this one has a bunch of usage!",
       icon: "",
     },
