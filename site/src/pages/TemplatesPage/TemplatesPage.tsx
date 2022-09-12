@@ -21,7 +21,8 @@ export const TemplatesPage: React.FC = () => {
         templates={templates}
         canCreateTemplate={authState.context.permissions?.createTemplates}
         loading={templatesState.hasTag("loading")}
-        error={getOrganizationsError ?? getTemplatesError}
+        getOrganizationsError={getOrganizationsError}
+        getTemplatesError={getTemplatesError}
       />
     </>
   )

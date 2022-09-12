@@ -1,6 +1,7 @@
 import auditLog from "./auditLog.json"
 import common from "./common.json"
 import templatePage from "./templatePage.json"
+import templatesPage from "./templatesPage.json"
 import workspacePage from "./workspacePage.json"
 
 export const en = {
@@ -8,4 +9,5 @@ export const en = {
   workspacePage,
   auditLog,
   templatePage,
+  templatesPage
 }

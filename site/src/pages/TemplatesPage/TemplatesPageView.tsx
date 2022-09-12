@@ -10,6 +10,7 @@ import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { createDayString } from "util/createDayString"
 import * as TypesGen from "../../api/typesGenerated"
@@ -77,14 +78,16 @@ export interface TemplatesPageViewProps {
   loading?: boolean
   canCreateTemplate?: boolean
   templates?: TypesGen.Template[]
-  error?: Error | unknown
+  getOrganizationsError?: Error | unknown
+  getTemplatesError?: Error | unknown
 }
 
 export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProps>> = (props) => {
   const styles = useStyles()
   const navigate = useNavigate()
+  const { t } = useTranslation("templatesPage")
   const theme: Theme = useTheme()
-  const empty = !props.loading && !props.error && !props.templates?.length
+  const empty = !props.loading && !props.getOrganizationsError && !props.getTemplatesError && !props.templates?.length
 
   return (
     <Margins>
@@ -116,9 +119,12 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
         )}
       </PageHeader>
 
-      {props.error ? (
-        <ErrorSummary error={props.error} />
+      {props.getOrganizationsError ? (
+        <ErrorSummary error={props.getOrganizationsError} defaultMessage={t("errors.getOrganizationsError")} />
       ) : (
+      props.getTemplatesError ? (
+        <ErrorSummary error={props.getTemplatesError} defaultMessage={t("errors.getTemplatesError")} />
+      ) :
         <TableContainer>
           <Table>
             <TableHead>
