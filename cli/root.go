@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -41,6 +42,7 @@ const (
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
 	varGlobalConfig     = "global-config"
+	varHeader           = "header"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
@@ -174,6 +176,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
 	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
+	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
@@ -237,8 +240,32 @@ func CreateClient(cmd *cobra.Command) (*codersdk.Client, error) {
 			return nil, err
 		}
 	}
+	client, err := createUnauthenticatedClient(cmd, serverURL)
+	if err != nil {
+		return nil, err
+	}
+	client.SessionToken = token
+	return client, nil
+}
+
+func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*codersdk.Client, error) {
 	client := codersdk.New(serverURL)
-	client.SessionToken = strings.TrimSpace(token)
+	headers, err := cmd.Flags().GetStringArray(varHeader)
+	if err != nil {
+		return nil, err
+	}
+	transport := &headerTransport{
+		transport: http.DefaultTransport,
+		headers:   map[string]string{},
+	}
+	for _, header := range headers {
+		parts := strings.SplitN(header, "=", 2)
+		if len(parts) < 2 {
+			return nil, xerrors.Errorf("split header %q had less than two parts", header)
+		}
+		transport.headers[parts[0]] = parts[1]
+	}
+	client.HTTPClient.Transport = transport
 	return client, nil
 }
 
@@ -529,4 +556,16 @@ func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
 	}
 
 	return nil
+}
+
+type headerTransport struct {
+	transport http.RoundTripper
+	headers   map[string]string
+}
+
+func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	for k, v := range h.headers {
+		req.Header.Add(k, v)
+	}
+	return h.transport.RoundTrip(req)
 }
