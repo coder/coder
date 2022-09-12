@@ -1,31 +1,31 @@
-Coder publishes the following system packages [in GitHub releases](https://github.com/coder/coder/releases):
+1. Download and install one of the following system packages from [GitHub releases](https://github.com/coder/coder/releases):
 
-- .deb (Debian, Ubuntu)
-- .rpm (Fedora, CentOS, RHEL, SUSE)
-- .apk (Alpine)
+   - .deb (Debian, Ubuntu)
+   - .rpm (Fedora, CentOS, RHEL, SUSE)
+   - .apk (Alpine)
 
-Once installed, you can run Coder as a system service.
+1. Run Coder as a system service.
 
-```sh
-# Set up an access URL or enable CODER_TUNNEL
-sudo vim /etc/coder.d/coder.env
+   ```sh
+   # Set up an access URL or enable CODER_TUNNEL
+   sudo vim /etc/coder.d/coder.env
 
-# To systemd to start Coder now and on reboot
-sudo systemctl enable --now coder
+   # To systemd to start Coder now and on reboot
+   sudo systemctl enable --now coder
 
-# View the logs to see Coder's URL and ensure a successful start
-journalctl -u coder.service -b
-```
+   # View the logs to see Coder's URL and ensure a successful start
+   journalctl -u coder.service -b
+   ```
 
-> Set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to
-> connect to Coder. This is not required if you are using the tunnel. Learn more
-> about Coder's [configuration options](../admin/configure.md).
+   > Set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to
+   > connect to Coder. This is not required if you are using the tunnel. Learn more
+   > about Coder's [configuration options](../admin/configure.md).
 
-Visit the Coder URL in the logs to set up your first account, or use the CLI:
+1. Visit the Coder URL in the logs to set up your first account, or use the CLI:
 
-```sh
-coder login <access-url>
-```
+   ```sh
+   coder login <access-url>
+   ```
 
 ## Restarting Coder
 

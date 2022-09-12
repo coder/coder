@@ -120,6 +120,7 @@ func TestConvertResources(t *testing.T) {
 		"resource-metadata": {{
 			Name: "about",
 			Type: "null_resource",
+			Hide: true,
 			Metadata: []*proto.Resource_Metadata{{
 				Key:   "hello",
 				Value: "world",
@@ -155,11 +156,13 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 				sortResources(resources)
 
-				// plan does not contain metadata, so clone expected and remove it
 				var expectedNoMetadata []*proto.Resource
 				for _, resource := range expected {
 					resourceCopy, _ := protobuf.Clone(resource).(*proto.Resource)
-					resourceCopy.Metadata = nil
+					// plan cannot know whether values are null or not
+					for _, metadata := range resourceCopy.Metadata {
+						metadata.IsNull = false
+					}
 					expectedNoMetadata = append(expectedNoMetadata, resourceCopy)
 				}
 

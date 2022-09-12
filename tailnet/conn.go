@@ -268,6 +268,7 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 			case <-c.closed:
 				return
 			case node := <-queue:
+				c.logger.Debug(context.Background(), "send node callback", slog.F("node", node))
 				callback(node)
 			}
 		}
@@ -299,6 +300,8 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	c.netMap.DERPMap = derpMap
+	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
 	c.wireguardEngine.SetDERPMap(derpMap)
 }
 
@@ -340,6 +343,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		existingNode, ok := peerMap[node.ID]
 		if ok {
 			peerNode.Created = existingNode.Created
+			c.logger.Debug(context.Background(), "updating peer", slog.F("peer", peerNode))
+		} else {
+			c.logger.Debug(context.Background(), "adding peer", slog.F("peer", peerNode))
 		}
 		peerMap[node.ID] = peerNode
 	}

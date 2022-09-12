@@ -40,7 +40,11 @@ Started.args = {
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),
   handleStop: action("stop"),
-  resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  resources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+    Mocks.MockWorkspaceResource3,
+  ],
   builds: [Mocks.MockWorkspaceBuild],
   canUpdateWorkspace: true,
   workspaceErrors: {},

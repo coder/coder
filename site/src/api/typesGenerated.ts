@@ -378,6 +378,7 @@ export interface Template {
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
   readonly workspace_owner_count: number
+  readonly active_user_count: number
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
@@ -635,6 +636,7 @@ export interface WorkspaceResource {
   readonly workspace_transition: WorkspaceTransition
   readonly type: string
   readonly name: string
+  readonly hide: boolean
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
 }

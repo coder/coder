@@ -94,6 +94,9 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
+        startWorkspaceWithLatestTemplate: {
+          data: TypesGen.WorkspaceBuild
+        }
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
@@ -232,21 +235,11 @@ export const workspaceMachine = createMachine(
             states: {
               idle: {
                 on: {
-                  START: {
-                    target: "requestingStart",
-                  },
-                  STOP: {
-                    target: "requestingStop",
-                  },
-                  ASK_DELETE: {
-                    target: "askingDelete",
-                  },
-                  UPDATE: {
-                    target: "refreshingTemplate",
-                  },
-                  CANCEL: {
-                    target: "requestingCancel",
-                  },
+                  START: "requestingStart",
+                  STOP: "requestingStop",
+                  ASK_DELETE: "askingDelete",
+                  UPDATE: "requestingStartWithLatestTemplate",
+                  CANCEL: "requestingCancel",
                 },
               },
               askingDelete: {
@@ -256,6 +249,21 @@ export const workspaceMachine = createMachine(
                   },
                   CANCEL_DELETE: {
                     target: "idle",
+                  },
+                },
+              },
+              requestingStartWithLatestTemplate: {
+                entry: "clearBuildError",
+                invoke: {
+                  id: "startWorkspaceWithLatestTemplate",
+                  src: "startWorkspaceWithLatestTemplate",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError"],
                   },
                 },
               },
@@ -604,9 +612,19 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get template without workspace")
         }
       },
+      startWorkspaceWithLatestTemplate: async (context) => {
+        if (context.workspace && context.template) {
+          return await API.startWorkspace(context.workspace.id, context.template.active_version_id)
+        } else {
+          throw Error("Cannot start workspace without workspace id")
+        }
+      },
       startWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.startWorkspace(context.workspace.id, context.template?.active_version_id)
+          return await API.startWorkspace(
+            context.workspace.id,
+            context.workspace.latest_build.template_version_id,
+          )
         } else {
           throw Error("Cannot start workspace without workspace id")
         }

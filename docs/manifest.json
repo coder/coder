@@ -33,18 +33,23 @@
         },
         {
           "title": "Kubernetes",
-          "description": "Install Coder with Kubernetes via Helm",
+          "description": "Install Coder with Kubernetes via Helm.",
           "path": "./install/kubernetes.md"
         },
         {
           "title": "Docker",
-          "description": "Install Coder with Docker / docker-compose",
+          "description": "Install Coder with Docker / docker-compose/",
           "path": "./install/docker.md"
         },
         {
           "title": "Standalone binaries",
           "description": "Download binaries for macOS, Windows, and Linux.",
           "path": "./install/binary.md"
+        },
+        {
+          "title": "Uninstall",
+          "description": "Learn how to uninstall Coder.",
+          "path": "./install/uninstall.md"
         }
       ]
     },
@@ -160,6 +165,16 @@
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder.",
           "path": "./admin/upgrade.md"
+        },
+        {
+          "title": "Audit Logs",
+          "description": "Learn how to use Audit Logs in your Coder deployment.",
+          "path": "./admin/audit-logs.md"
+        },
+        {
+          "title": "Enterprise",
+          "description": "Learn how to enable Enterprise features.",
+          "path": "./admin/enterprise.md"
         }
       ]
     },

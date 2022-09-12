@@ -163,8 +163,20 @@ export const templateMachine =
               target: "confirmingDelete",
             },
           },
-          onDone: {
-            target: "loaded",
+          initial: "refreshingTemplate",
+          states: {
+            refreshingTemplate: {
+              invoke: {
+                id: "refreshTemplate",
+                src: "getTemplate",
+                onDone: { target: "waiting", actions: "assignTemplate" },
+              },
+            },
+            waiting: {
+              after: {
+                5000: "refreshingTemplate",
+              },
+            },
           },
         },
         confirmingDelete: {
