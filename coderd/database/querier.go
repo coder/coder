@@ -27,9 +27,10 @@ type querier interface {
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
-	// GetAuditLogsBefore retrieves `limit` number of audit logs before the provided
+	GetAuditLogCount(ctx context.Context) (int64, error)
+	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
-	GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBeforeParams) ([]AuditLog, error)
+	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
@@ -87,7 +88,6 @@ type querier interface {
 	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
-	GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
@@ -134,7 +134,7 @@ type querier interface {
 	UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error
 	UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
-	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error
+	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error)
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error

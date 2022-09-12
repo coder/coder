@@ -3,9 +3,9 @@ import { FC } from "react"
 import { firstLetter } from "../../util/firstLetter"
 
 export interface UserAvatarProps {
-  className?: string
   username: string
-  avatarURL: string
+  className?: string
+  avatarURL?: string
 }
 
 export const UserAvatar: FC<UserAvatarProps> = ({ username, className, avatarURL }) => {

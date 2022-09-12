@@ -15,12 +15,12 @@ VALUES
 -- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
-	count(distinct(user_id)) as amount
+	user_id
 from
 	agent_stats
 where template_id = $1
 group by
-	date
+	date, user_id
 order by
 	date asc;
 

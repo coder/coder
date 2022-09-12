@@ -302,9 +302,18 @@ func TestUserOIDC(t *testing.T) {
 		AvatarURL    string
 		StatusCode   int
 	}{{
-		Name: "EmailNotVerified",
+		Name: "EmailOnly",
 		Claims: jwt.MapClaims{
 			"email": "kyle@kwc.io",
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+		Username:     "kyle",
+	}, {
+		Name: "EmailNotVerified",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": false,
 		},
 		AllowSignups: true,
 		StatusCode:   http.StatusForbidden,

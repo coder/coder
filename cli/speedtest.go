@@ -5,33 +5,33 @@ import (
 	"fmt"
 	"time"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/cli/cliflag"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func speedtest() *cobra.Command {
 	var (
-		reverse bool
-		timeStr string
+		direct   bool
+		duration time.Duration
+		reverse  bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
+		Args:        cobra.ExactArgs(1),
 		Short:       "Run a speed test from your machine to the workspace.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
-
-			dur, err := time.ParseDuration(timeStr)
-			if err != nil {
-				return err
-			}
 
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -52,18 +52,50 @@ func speedtest() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
 			}
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			if cliflag.IsSetBool(cmd, varVerbose) {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+			conn, err := client.DialWorkspaceAgentTailnet(ctx, logger, workspaceAgent.ID)
 			if err != nil {
 				return err
 			}
 			defer conn.Close()
-			_, _ = conn.Ping()
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-ticker.C:
+				}
+				dur, err := conn.Ping()
+				if err != nil {
+					continue
+				}
+				tc, _ := conn.(*agent.TailnetConn)
+				status := tc.Status()
+				if len(status.Peers()) != 1 {
+					continue
+				}
+				peer := status.Peer[status.Peers()[0]]
+				if peer.CurAddr == "" && direct {
+					cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
+					continue
+				}
+				via := peer.Relay
+				if via == "" {
+					via = "direct"
+				}
+				cmd.Printf("%dms via %s\n", dur.Milliseconds(), via)
+				break
+			}
 			dir := tsspeedtest.Download
 			if reverse {
 				dir = tsspeedtest.Upload
 			}
-			cmd.Printf("Starting a %ds %s test...\n", int(dur.Seconds()), dir)
-			results, err := conn.Speedtest(dir, dur)
+			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), dir)
+			results, err := conn.Speedtest(dir, duration)
 			if err != nil {
 				return err
 			}
@@ -83,9 +115,11 @@ func speedtest() *cobra.Command {
 			return err
 		},
 	}
+	cliflag.BoolVarP(cmd.Flags(), &direct, "direct", "d", "", false,
+		"Specifies whether to wait for a direct connection before testing speed.")
 	cliflag.BoolVarP(cmd.Flags(), &reverse, "reverse", "r", "", false,
 		"Specifies whether to run in reverse mode where the client receives and the server sends.")
-	cliflag.StringVarP(cmd.Flags(), &timeStr, "time", "t", "", "5s",
+	cmd.Flags().DurationVarP(&duration, "time", "t", tsspeedtest.DefaultDuration,
 		"Specifies the duration to monitor traffic.")
 	return cmd
 }

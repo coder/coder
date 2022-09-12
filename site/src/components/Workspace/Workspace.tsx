@@ -1,3 +1,4 @@
+import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
@@ -67,6 +68,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
+  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
   const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
     <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
@@ -104,8 +106,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         }
       >
         <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
-        <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-        <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+        <Box display="flex">
+          {hasTemplateIcon && (
+            <img alt="" src={workspace.template_icon} className={styles.templateIcon} />
+          )}
+          <div>
+            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+            <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+          </div>
+        </Box>
       </PageHeader>
 
       <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
@@ -122,7 +131,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
-        {!!resources && !!resources.length && (
+        {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
             getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
@@ -172,6 +181,13 @@ export const useStyles = makeStyles((theme) => {
 
     main: {
       width: "100%",
+    },
+
+    templateIcon: {
+      width: 40,
+      height: 40,
+      marginRight: theme.spacing(2),
+      marginTop: theme.spacing(0.5),
     },
 
     timelineContents: {

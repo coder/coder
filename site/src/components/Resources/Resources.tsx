@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
@@ -7,10 +8,11 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
+import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
-import { FC } from "react"
+import { FC, useState } from "react"
 import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
 import { BuildInfoResponse, Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
@@ -35,7 +37,7 @@ const Language = {
 }
 
 interface ResourcesProps {
-  resources?: WorkspaceResource[]
+  resources: WorkspaceResource[]
   getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
@@ -52,134 +54,164 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   const styles = useStyles()
   const theme: Theme = useTheme()
   const serverVersion = buildInfo?.version || ""
+  const [shouldDisplayHideResources, setShouldDisplayHideResources] = useState(false)
+  const displayResources = shouldDisplayHideResources
+    ? resources
+    : resources.filter((resource) => !resource.hide)
+  const hasHideResources = resources.some((r) => r.hide)
 
   return (
-    <div aria-label={Language.resources} className={styles.wrapper}>
-      {getResourcesError ? (
-        <ErrorSummary error={getResourcesError} />
-      ) : (
-        <TableContainer className={styles.tableContainer}>
-          <Table>
-            <TableHead>
-              <TableHeaderRow>
-                <TableCell>
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    {Language.resourceLabel}
-                    <ResourcesHelpTooltip />
-                  </Stack>
-                </TableCell>
-                <TableCell className={styles.agentColumn}>
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    {Language.agentLabel}
-                    <AgentHelpTooltip />
-                  </Stack>
-                </TableCell>
-                {canUpdateWorkspace && <TableCell></TableCell>}
-              </TableHeaderRow>
-            </TableHead>
-            <TableBody>
-              {resources?.map((resource) => {
-                {
-                  /* We need to initialize the agents to display the resource */
-                }
-                const agents = resource.agents ?? [null]
-                const resourceName = <ResourceAvatarData resource={resource} />
-
-                return agents.map((agent, agentIndex) => {
+    <Stack direction="column" spacing={1}>
+      <div aria-label={Language.resources} className={styles.wrapper}>
+        {getResourcesError ? (
+          <ErrorSummary error={getResourcesError} />
+        ) : (
+          <TableContainer className={styles.tableContainer}>
+            <Table>
+              <TableHead>
+                <TableHeaderRow>
+                  <TableCell>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      {Language.resourceLabel}
+                      <ResourcesHelpTooltip />
+                    </Stack>
+                  </TableCell>
+                  <TableCell className={styles.agentColumn}>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      {Language.agentLabel}
+                      <AgentHelpTooltip />
+                    </Stack>
+                  </TableCell>
+                  {canUpdateWorkspace && <TableCell></TableCell>}
+                </TableHeaderRow>
+              </TableHead>
+              <TableBody>
+                {displayResources.map((resource) => {
                   {
-                    /* If there is no agent, just display the resource name */
+                    /* We need to initialize the agents to display the resource */
                   }
-                  if (!agent) {
-                    return (
-                      <TableRow key={`${resource.id}-${agentIndex}`}>
-                        <TableCell>{resourceName}</TableCell>
-                        <TableCell colSpan={3}></TableCell>
-                      </TableRow>
+                  const agents = resource.agents ?? [null]
+                  const resourceName = <ResourceAvatarData resource={resource} />
+
+                  return agents.map((agent, agentIndex) => {
+                    {
+                      /* If there is no agent, just display the resource name */
+                    }
+                    if (!agent) {
+                      return (
+                        <TableRow key={`${resource.id}-${agentIndex}`}>
+                          <TableCell>{resourceName}</TableCell>
+                          <TableCell colSpan={3}></TableCell>
+                        </TableRow>
+                      )
+                    }
+
+                    const { displayVersion, outdated } = getDisplayVersionStatus(
+                      agent.version,
+                      serverVersion,
                     )
-                  }
+                    const agentStatus = getDisplayAgentStatus(theme, agent)
+                    return (
+                      <TableRow key={`${resource.id}-${agent.id}`}>
+                        {/* We only want to display the name in the first row because we are using rowSpan */}
+                        {/* The rowspan should be the same than the number of agents */}
+                        {agentIndex === 0 && (
+                          <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
+                            {resourceName}
+                          </TableCell>
+                        )}
 
-                  const { displayVersion, outdated } = getDisplayVersionStatus(
-                    agent.version,
-                    serverVersion,
-                  )
-                  const agentStatus = getDisplayAgentStatus(theme, agent)
-                  return (
-                    <TableRow key={`${resource.id}-${agent.id}`}>
-                      {/* We only want to display the name in the first row because we are using rowSpan */}
-                      {/* The rowspan should be the same than the number of agents */}
-                      {agentIndex === 0 && (
-                        <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
-                          {resourceName}
+                        <TableCell className={styles.agentColumn}>
+                          <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
+                          <div className={styles.data}>
+                            <div className={styles.dataRow}>
+                              <strong>{Language.statusLabel}</strong>
+                              <span style={{ color: agentStatus.color }} className={styles.status}>
+                                {agentStatus.status}
+                              </span>
+                            </div>
+                            <div className={styles.dataRow}>
+                              <strong>{Language.osLabel}</strong>
+                              <span className={styles.operatingSystem}>
+                                {agent.operating_system}
+                              </span>
+                            </div>
+                            <div className={styles.dataRow}>
+                              <strong>{Language.versionLabel}</strong>
+                              <span className={styles.agentVersion}>{displayVersion}</span>
+                              <AgentOutdatedTooltip outdated={outdated} />
+                            </div>
+                            <div className={styles.dataRow}>
+                              <ResourceAgentLatency latency={agent.latency} />
+                            </div>
+                          </div>
                         </TableCell>
-                      )}
-
-                      <TableCell className={styles.agentColumn}>
-                        <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
-                        <div className={styles.data}>
-                          <div className={styles.dataRow}>
-                            <strong>{Language.statusLabel}</strong>
-                            <span style={{ color: agentStatus.color }} className={styles.status}>
-                              {agentStatus.status}
-                            </span>
-                          </div>
-                          <div className={styles.dataRow}>
-                            <strong>{Language.osLabel}</strong>
-                            <span className={styles.operatingSystem}>{agent.operating_system}</span>
-                          </div>
-                          <div className={styles.dataRow}>
-                            <strong>{Language.versionLabel}</strong>
-                            <span className={styles.agentVersion}>{displayVersion}</span>
-                            <AgentOutdatedTooltip outdated={outdated} />
-                          </div>
-                          <div className={styles.dataRow}>
-                            <ResourceAgentLatency latency={agent.latency} />
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className={styles.accessLinks}>
-                          {canUpdateWorkspace && agent.status === "connected" && (
-                            <>
-                              <SSHButton workspaceName={workspace.name} agentName={agent.name} />
-                              <PortForwardButton
-                                username={workspace.owner_name}
-                                workspaceName={workspace.name}
-                                agentName={agent.name}
-                              />
-                              <TerminalLink
-                                workspaceName={workspace.name}
-                                agentName={agent.name}
-                                userName={workspace.owner_name}
-                              />
-                              {agent.apps.map((app) => (
-                                <AppLink
-                                  key={app.name}
-                                  appIcon={app.icon}
-                                  appName={app.name}
-                                  userName={workspace.owner_name}
+                        <TableCell>
+                          <div className={styles.accessLinks}>
+                            {canUpdateWorkspace && agent.status === "connected" && (
+                              <>
+                                <SSHButton workspaceName={workspace.name} agentName={agent.name} />
+                                <PortForwardButton
+                                  username={workspace.owner_name}
                                   workspaceName={workspace.name}
                                   agentName={agent.name}
                                 />
-                              ))}
-                            </>
-                          )}
-                          {canUpdateWorkspace && agent.status === "connecting" && (
-                            <>
-                              <Skeleton width={80} height={60} />
-                              <Skeleton width={120} height={60} />
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                                <TerminalLink
+                                  workspaceName={workspace.name}
+                                  agentName={agent.name}
+                                  userName={workspace.owner_name}
+                                />
+                                {agent.apps.map((app) => (
+                                  <AppLink
+                                    key={app.name}
+                                    appIcon={app.icon}
+                                    appName={app.name}
+                                    userName={workspace.owner_name}
+                                    workspaceName={workspace.name}
+                                    agentName={agent.name}
+                                  />
+                                ))}
+                              </>
+                            )}
+                            {canUpdateWorkspace && agent.status === "connecting" && (
+                              <>
+                                <Skeleton width={80} height={60} />
+                                <Skeleton width={120} height={60} />
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </div>
+
+      {hasHideResources && (
+        <div className={styles.buttonWrapper}>
+          <Button
+            className={styles.showMoreButton}
+            variant="outlined"
+            size="small"
+            onClick={() => setShouldDisplayHideResources((v) => !v)}
+          >
+            {shouldDisplayHideResources ? (
+              <>
+                Hide resources <CloseDropdown />
+              </>
+            ) : (
+              <>
+                Show hidden resources <OpenDropdown />
+              </>
+            )}
+          </Button>
+        </div>
       )}
-    </div>
+    </Stack>
   )
 }
 
@@ -252,5 +284,17 @@ const useStyles = makeStyles((theme) => ({
     "& strong": {
       marginRight: theme.spacing(1),
     },
+  },
+
+  buttonWrapper: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  showMoreButton: {
+    borderRadius: 9999,
+    width: "100%",
+    maxWidth: 260,
   },
 }))

@@ -193,16 +193,6 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - name: Install Protoc
-        run: |
-          # protoc must be in lockstep with our dogfood Dockerfile
-          # or the version in the comments will differ.
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_dir=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_dir
-          chmod +x $protoc_dir
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"
@@ -234,6 +224,18 @@ jobs:
         run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Install Protoc
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile
+          # or the version in the comments will differ.
+          set -x
+          cd dogfood
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          protoc_path=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
+          chmod +x $protoc_path
+          protoc --version
 
       - name: make gen
         run: "make --output-sync -j -B gen"
@@ -342,15 +344,6 @@ jobs:
           fi
           gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=$test_timeout -short -failfast $COVERAGE_FLAGS
 
-      - name: Upload DataDog Trace
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: fake
-          DD_CATEGORY: unit
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go gotests.xml
-
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
@@ -411,14 +404,6 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: make test-postgres
-
-      - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: postgresql
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -498,35 +483,21 @@ jobs:
       - name: Install zstd
         run: sudo apt-get install -y zstd
 
-      - name: Build site
-        run: make -B site/out/index.html
-
       - name: Build Release
         run: |
           set -euo pipefail
           go mod download
 
-          mkdir -p ./dist
-          # build slim binaries
-          ./scripts/build_go_slim.sh \
-            --output ./dist/ \
-            --compress 22 \
-            linux:amd64,armv7,arm64 \
-            windows:amd64,arm64 \
-            darwin:amd64,arm64
-
-          # build linux amd64 packages
-          ./scripts/build_go_matrix.sh \
-            --output ./dist/ \
-            --package-linux \
-            linux:amd64 \
-            windows:amd64
+          version="$(./scripts/version.sh)"
+          make -j \
+            build/coder_"$version"_windows_amd64.zip \
+            build/coder_"$version"_linux_amd64.{tar.gz,deb}
 
       - name: Install Release
         run: |
           gcloud config set project coder-dogfood
           gcloud config set compute/zone us-central1-a
-          gcloud compute scp ./dist/coder_*_linux_amd64.deb coder:/tmp/coder.deb
+          gcloud compute scp ./build/coder_*_linux_amd64.deb coder:/tmp/coder.deb
           gcloud compute ssh coder -- sudo dpkg -i --force-confdef /tmp/coder.deb
           gcloud compute ssh coder -- sudo systemctl daemon-reload
 
@@ -537,12 +508,9 @@ jobs:
         with:
           name: coder
           path: |
-            ./dist/*.zip
-            ./dist/*.exe
-            ./dist/*.tar.gz
-            ./dist/*.apk
-            ./dist/*.deb
-            ./dist/*.rpm
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.deb
           retention-days: 7
 
   test-js:
@@ -562,11 +530,6 @@ jobs:
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             js-${{ runner.os }}-
-
-      # Go is required for uploading the test results to datadog
-      - uses: actions/setup-go@v3
-        with:
-          go-version: "~1.19"
 
       - uses: actions/setup-node@v3
         with:
@@ -589,14 +552,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
           flags: unittest-js
-
-      - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_CATEGORY: unit
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
@@ -621,7 +576,6 @@ jobs:
             .eslintcache
           key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
-      # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.19"
@@ -677,13 +631,6 @@ jobs:
           path: ./site/test-results/**/*.webm
           retention:days: 7
 
-      - name: Upload DataDog Trace
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_CATEGORY: e2e
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest

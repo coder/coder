@@ -9,10 +9,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
@@ -214,12 +217,16 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[3].Action)
 	})
 
 	t.Run("TemplateNoTTL", func(t *testing.T) {
@@ -876,45 +883,6 @@ func TestPostWorkspaceBuild(t *testing.T) {
 	})
 }
 
-func TestWorkspaceBuildByName(t *testing.T) {
-	t.Parallel()
-	t.Run("NotFound", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.WorkspaceBuildByName(ctx, workspace.ID, "something")
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-	})
-
-	t.Run("Found", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		build, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-		require.NoError(t, err)
-		_, err = client.WorkspaceBuildByName(ctx, workspace.ID, build.Name)
-		require.NoError(t, err)
-	})
-}
-
 func TestWorkspaceUpdateAutostart(t *testing.T) {
 	t.Parallel()
 	dublinLoc := mustLocation(t, "Europe/Dublin")
@@ -988,7 +956,8 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				auditor   = audit.NewMock()
+				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1033,6 +1002,9 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			require.Equal(t, testCase.expectedNext, next, "unexpected next scheduled autostart time")
 			interval := next.Sub(testCase.at)
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
+
+			require.Len(t, auditor.AuditLogs, 5)
+			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
 		})
 	}
 
@@ -1125,7 +1097,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				mutators = append(mutators, testCase.modifyTemplate)
 			}
 			var (
-				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				auditor   = audit.NewMock()
+				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -1155,6 +1128,9 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			require.NoError(t, err, "fetch updated workspace")
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
+
+			require.Len(t, auditor.AuditLogs, 5)
+			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
 		})
 	}
 

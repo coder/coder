@@ -163,7 +163,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	counts := make(map[time.Time]map[string]struct{})
+	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
 	for _, as := range q.agentStats {
 		if as.TemplateID != templateID {
@@ -171,26 +171,29 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 		}
 
 		date := as.CreatedAt.Truncate(time.Hour * 24)
-		dateEntry := counts[date]
-		if dateEntry == nil {
-			dateEntry = make(map[string]struct{})
-		}
-		counts[date] = dateEntry
 
-		dateEntry[as.UserID.String()] = struct{}{}
+		dateEntry := seens[date]
+		if dateEntry == nil {
+			dateEntry = make(map[uuid.UUID]struct{})
+		}
+		dateEntry[as.UserID] = struct{}{}
+		seens[date] = dateEntry
 	}
 
-	countKeys := maps.Keys(counts)
-	sort.Slice(countKeys, func(i, j int) bool {
-		return countKeys[i].Before(countKeys[j])
+	seenKeys := maps.Keys(seens)
+	sort.Slice(seenKeys, func(i, j int) bool {
+		return seenKeys[i].Before(seenKeys[j])
 	})
 
 	var rs []database.GetTemplateDAUsRow
-	for _, key := range countKeys {
-		rs = append(rs, database.GetTemplateDAUsRow{
-			Date:   key,
-			Amount: int64(len(counts[key])),
-		})
+	for _, key := range seenKeys {
+		ids := seens[key]
+		for id := range ids {
+			rs = append(rs, database.GetTemplateDAUsRow{
+				Date:   key,
+				UserID: id,
+			})
+		}
 	}
 
 	return rs, nil
@@ -774,22 +777,6 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuild, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() != arg.WorkspaceID.String() {
-			continue
-		}
-		if !strings.EqualFold(workspaceBuild.Name, arg.Name) {
-			continue
-		}
-		return workspaceBuild, nil
-	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -936,7 +923,7 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -951,10 +938,10 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.MaxTtl = arg.MaxTtl
 		tpl.MinAutostartInterval = arg.MinAutostartInterval
 		q.templates[idx] = tpl
-		return nil
+		return tpl, nil
 	}
 
-	return sql.ErrNoRows
+	return database.Template{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
@@ -1780,6 +1767,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Transition: arg.Transition,
 		Type:       arg.Type,
 		Name:       arg.Name,
+		Hide:       arg.Hide,
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil
@@ -1926,7 +1914,6 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
 		WorkspaceID:       arg.WorkspaceID,
-		Name:              arg.Name,
 		TemplateVersionID: arg.TemplateVersionID,
 		BuildNumber:       arg.BuildNumber,
 		Transition:        arg.Transition,
@@ -2303,41 +2290,57 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuditLogsBefore(_ context.Context, arg database.GetAuditLogsBeforeParams) ([]database.AuditLog, error) {
+func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	logs := make([]database.AuditLog, 0)
-	start := database.AuditLog{}
-
-	if arg.ID != uuid.Nil {
-		for _, alog := range q.auditLogs {
-			if alog.ID == arg.ID {
-				start = alog
-				break
-			}
-		}
-	} else {
-		start.ID = uuid.New()
-		start.Time = arg.StartTime
-	}
-
-	if start.ID == uuid.Nil {
-		return nil, sql.ErrNoRows
-	}
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.Limit)
 
 	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
 	for _, alog := range q.auditLogs {
-		if alog.Time.Before(start.Time) {
-			logs = append(logs, alog)
+		if arg.Offset > 0 {
+			arg.Offset--
+			continue
 		}
 
-		if len(logs) >= int(arg.RowLimit) {
+		user, err := q.GetUserByID(ctx, alog.UserID)
+		userValid := err == nil
+
+		logs = append(logs, database.GetAuditLogsOffsetRow{
+			ID:               alog.ID,
+			RequestID:        alog.RequestID,
+			OrganizationID:   alog.OrganizationID,
+			Ip:               alog.Ip,
+			UserAgent:        alog.UserAgent,
+			ResourceType:     alog.ResourceType,
+			ResourceID:       alog.ResourceID,
+			ResourceTarget:   alog.ResourceTarget,
+			ResourceIcon:     alog.ResourceIcon,
+			Action:           alog.Action,
+			Diff:             alog.Diff,
+			StatusCode:       alog.StatusCode,
+			AdditionalFields: alog.AdditionalFields,
+			UserID:           alog.UserID,
+			UserUsername:     sql.NullString{String: user.Username, Valid: userValid},
+			UserEmail:        sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:    sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserStatus:       user.Status,
+			UserRoles:        user.RBACRoles,
+		})
+
+		if len(logs) >= int(arg.Limit) {
 			break
 		}
 	}
 
 	return logs, nil
+}
+
+func (q *fakeQuerier) GetAuditLogCount(_ context.Context) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return int64(len(q.auditLogs)), nil
 }
 
 func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
