@@ -74,7 +74,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
-	github.com/coreos/go-oidc/v3 v3.2.0
+	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
 	github.com/elastic/go-sysinfo v1.8.1
@@ -114,7 +114,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/moby/moby v20.10.17+incompatible
+	github.com/moby/moby v20.10.18+incompatible
 	github.com/nhatthm/otelsql v0.4.0
 	github.com/open-policy-agent/opa v0.41.0
 	github.com/ory/dockertest/v3 v3.9.1
@@ -136,7 +136,7 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/tabbed/pqtype v0.1.1
 	github.com/u-root/u-root v0.9.0
-	github.com/unrolled/secure v1.12.0
+	github.com/unrolled/secure v1.13.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.opentelemetry.io/otel v1.9.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.8.0
@@ -144,14 +144,14 @@ require (
 	go.opentelemetry.io/otel/sdk v1.8.0
 	go.opentelemetry.io/otel/trace v1.9.0
 	go.uber.org/atomic v1.9.0
-	go.uber.org/goleak v1.1.12
+	go.uber.org/goleak v1.2.0
 	golang.org/x/crypto v0.0.0-20220517005047-85d78b3ac167
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
-	golang.org/x/net v0.0.0-20220630215102-69896b714898
+	golang.org/x/net v0.0.0-20220826154423-83b083e8dc8b
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.11
