@@ -38,7 +38,7 @@
         },
         {
           "title": "Docker",
-          "description": "Install Coder with Docker / docker-compose/",
+          "description": "Install Coder with Docker / docker-compose",
           "path": "./install/docker.md"
         },
         {
@@ -122,10 +122,17 @@
       ]
     },
     {
-      "title": "Port Forwarding",
-      "description": "Learn how to forward ports in Coder",
-      "path": "./port-forwarding.md",
-      "icon_path": "./images/icons/port-forward.svg"
+      "title": "Networking",
+      "description": "Learn about networking in Coder",
+      "path": "./networking.md",
+      "icon_path": "./images/icons/networking.svg",
+      "children": [
+        {
+          "title": "Port Forwarding",
+          "description": "Learn how to forward ports in Coder",
+          "path": "./networking/port-forwarding.md"
+        }
+      ]
     },
     {
       "title": "Dotfiles",
