@@ -699,6 +699,7 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Type:       resource.Type,
 		Name:       resource.Name,
 		Hide:       resource.Hide,
+		Icon:       resource.Icon,
 		Agents:     agents,
 		Metadata:   convertedMetadata,
 	}

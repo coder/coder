@@ -753,6 +753,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Type:       protoResource.Type,
 		Name:       protoResource.Name,
 		Hide:       protoResource.Hide,
+		Icon:       protoResource.Icon,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)

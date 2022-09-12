@@ -935,6 +935,7 @@ type Resource struct {
 	Agents   []*Agent             `protobuf:"bytes,3,rep,name=agents,proto3" json:"agents,omitempty"`
 	Metadata []*Resource_Metadata `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty"`
 	Hide     bool                 `protobuf:"varint,5,opt,name=hide,proto3" json:"hide,omitempty"`
+	Icon     string               `protobuf:"bytes,6,opt,name=icon,proto3" json:"icon,omitempty"`
 }
 
 func (x *Resource) Reset() {
