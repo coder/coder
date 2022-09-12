@@ -167,6 +167,11 @@
           "path": "./admin/upgrade.md"
         },
         {
+          "title": "Audit Logs",
+          "description": "Learn how to use Audit Logs in your Coder deployment.",
+          "path": "./admin/audit-logs.md"
+        },
+        {
           "title": "Enterprise",
           "description": "Learn how to enable Enterprise features.",
           "path": "./admin/enterprise.md"
