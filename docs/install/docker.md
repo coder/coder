@@ -54,16 +54,27 @@ an PostgreSQL container and volume.
 
 3. Start Coder with `docker-compose up`:
 
-   In order to use cloud-based templates (e.g. Kubernetes, AWS), you must set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to connect to Coder.
+   In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
+   
+   For proof-of-concept deployments, you can use [Coder's tunnel](../admin/configure.md#tunnel):
 
-   ```console
+   ```sh
    cd coder
 
-   CODER_ACCESS_URL=https://coder.example.com
+   CODER_TUNNEL=true
    docker-compose up
    ```
 
-   > Without `CODER_ACCESS_URL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
+   For production deployments, we recommend setting an [access URL](../admin/configure.md#access-url):
+
+   ```sh
+   cd coder
+
+   CODER_ACCESS_URL=https://coder.example.com # URL that 
+   docker-compose up
+   ```
+
+   > Without `CODER_ACCESS_URL` or `CODER_TUNNEL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
 
 4. Follow the on-screen instructions log in and create your first template and workspace
 
