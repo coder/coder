@@ -22,6 +22,7 @@ import (
 	agplAudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -285,7 +286,7 @@ func TestFeaturesServiceSyncEntitlements(t *testing.T) {
 	})
 }
 
-func requestEntitlements(t *testing.T, uut agplCoderd.FeaturesService) codersdk.Entitlements {
+func requestEntitlements(t *testing.T, uut features.Service) codersdk.Entitlements {
 	t.Helper()
 	r := httptest.NewRequest("GET", "https://example.com/api/v2/entitlements", nil)
 	rw := httptest.NewRecorder()

@@ -68,7 +68,7 @@ func TestProvision_Cancel(t *testing.T) {
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	fakeBin := filepath.Join(cwd, "testdata", "bin", "terraform_fake_cancel.sh")
+	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel.sh")
 
 	tests := []struct {
 		name          string

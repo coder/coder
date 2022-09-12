@@ -13,6 +13,7 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { createDayString } from "util/createDayString"
+import { formatTemplateActiveDevelopers } from "util/templates"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -35,8 +36,8 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 export const Language = {
-  developerCount: (ownerCount: number): string => {
-    return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
+  developerCount: (activeCount: number): string => {
+    return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""}`
   },
   nameLabel: "Name",
   usedByLabel: "Used by",
@@ -197,7 +198,7 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
 
                     <TableCellLink to={templatePageLink}>
                       <span style={{ color: theme.palette.text.secondary }}>
-                        {Language.developerCount(template.workspace_owner_count)}
+                        {Language.developerCount(template.active_user_count)}
                       </span>
                     </TableCellLink>
 

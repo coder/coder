@@ -25,6 +25,7 @@ type WorkspaceResource struct {
 	Transition WorkspaceTransition         `json:"workspace_transition"`
 	Type       string                      `json:"type"`
 	Name       string                      `json:"name"`
+	Hide       bool                        `json:"hide"`
 	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
 	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
 }

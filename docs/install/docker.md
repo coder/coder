@@ -41,7 +41,7 @@ Learn more about Coder's [configuration options](../admin/configure.md).
 
 ## Run Coder with docker-compose
 
-Coder's publishes a [docker-compose example](../../docker-compose.yaml) which includes
+Coder's publishes a [docker-compose example](https://github.com/coder/coder/blob/main/docker-compose.yaml) which includes
 an PostgreSQL container and volume.
 
 1. Install [Docker Compose](https://docs.docker.com/compose/install/)

@@ -22,3 +22,18 @@ func (nop) Export(context.Context, database.AuditLog) error {
 }
 
 func (nop) diff(any, any) Map { return Map{} }
+
+func NewMock() *MockAuditor {
+	return &MockAuditor{}
+}
+
+type MockAuditor struct {
+	AuditLogs []database.AuditLog
+}
+
+func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
+	a.AuditLogs = append(a.AuditLogs, alog)
+	return nil
+}
+
+func (*MockAuditor) diff(any, any) Map { return Map{} }
