@@ -11,6 +11,9 @@ import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 
 export const Language = {
+  deleteDialogTitle: "Delete user",
+  deleteDialogAction: "Delete",
+  deleteDialogMessagePrefix: "Do you want to delete the user",
   suspendDialogTitle: "Suspend user",
   suspendDialogAction: "Suspend",
   suspendDialogMessagePrefix: "Do you want to suspend the user",
@@ -25,6 +28,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const {
     users,
     getUsersError,
+    userIdToDelete,
     userIdToSuspend,
     userIdToActivate,
     userIdToResetPassword,
@@ -33,6 +37,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
+  const userToBeDeleted = users?.find((u) => u.id === userIdToDelete)
   const userToBeActivated = users?.find((u) => u.id === userIdToActivate)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
 
@@ -84,6 +89,12 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         openUserCreationDialog={() => {
           navigate("/users/create")
         }}
+        onListWorkspaces={(user) => {
+          navigate("/workspaces?filter=" + encodeURIComponent(`owner:${user.username}`))
+        }}
+        onDeleteUser={(user) => {
+          usersSend({ type: "DELETE_USER", userId: user.id })
+        }}
         onSuspendUser={(user) => {
           usersSend({ type: "SUSPEND_USER", userId: user.id })
         }}
@@ -110,6 +121,26 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           searchParams.set("filter", query)
           setSearchParams(searchParams)
         }}
+      />
+
+      <ConfirmDialog
+        type="delete"
+        hideCancel={false}
+        open={usersState.matches("confirmUserDeletion")}
+        confirmLoading={usersState.matches("deletingUser")}
+        title={Language.deleteDialogTitle}
+        confirmText={Language.deleteDialogAction}
+        onConfirm={() => {
+          usersSend("CONFIRM_USER_DELETE")
+        }}
+        onClose={() => {
+          usersSend("CANCEL_USER_DELETE")
+        }}
+        description={
+          <>
+            {Language.deleteDialogMessagePrefix} <strong>{userToBeDeleted?.username}</strong>?
+          </>
+        }
       />
 
       <ConfirmDialog
