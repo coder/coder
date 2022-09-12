@@ -4,7 +4,7 @@ import * as CreateDayString from "util/createDayString"
 import { MockTemplate } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import TemplatesPage from "./TemplatesPage"
+import { TemplatesPage } from "./TemplatesPage"
 import { Language } from "./TemplatesPageView"
 
 describe("TemplatesPage", () => {
