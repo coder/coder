@@ -374,7 +374,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0600)
+	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
@@ -537,6 +537,8 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				session.DisablePTYEmulation()
+
 				server, err := sftp.NewServer(session)
 				if err != nil {
 					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
@@ -661,7 +663,8 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 }
 
 func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
-	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
+	ctx := session.Context()
+	cmd, err := a.createCommand(ctx, session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
 	}
@@ -678,32 +681,34 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
+		// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
+		// See https://github.com/coder/coder/issues/3371.
+		session.DisablePTYEmulation()
+
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
 		// The pty package sets `SSH_TTY` on supported platforms.
-		ptty, process, err := pty.Start(cmd)
+		ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
+			pty.WithSSHRequest(sshPty),
+			pty.WithLogger(slog.Stdlib(ctx, a.logger, slog.LevelInfo)),
+		))
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
 		defer func() {
 			closeErr := ptty.Close()
 			if closeErr != nil {
-				a.logger.Warn(context.Background(), "failed to close tty",
-					slog.Error(closeErr))
+				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
 				if retErr == nil {
 					retErr = closeErr
 				}
 			}
 		}()
-		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
-		if err != nil {
-			return xerrors.Errorf("resize ptty: %w", err)
-		}
 		go func() {
 			for win := range windowSize {
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
 				if resizeErr != nil {
-					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(resizeErr))
+					a.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()
@@ -718,8 +723,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 		// and not something to be concerned about.  But, if it's something else, we should log it.
 		if err != nil && !xerrors.As(err, &exitErr) {
-			a.logger.Warn(context.Background(), "wait error",
-				slog.Error(err))
+			a.logger.Warn(ctx, "wait error", slog.Error(err))
 		}
 		return err
 	}

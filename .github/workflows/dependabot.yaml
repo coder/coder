@@ -1,0 +1,13 @@
+# Dependabot is annoying, but this makes it a bit less so.
+name: Auto Approve Dependabot
+
+on: pull_request_target
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: hmarr/auto-approve-action@v2
+        if: github.actor == 'dependabot[bot]'
