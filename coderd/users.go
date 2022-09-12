@@ -809,8 +809,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
-	http.SetCookie(rw, api.applicationCookie(cookie))
+	api.setAuthCookie(rw, cookie)
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
@@ -887,9 +886,12 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenKey,
 		Path:   "/",
 	}
-
 	http.SetCookie(rw, cookie)
-	http.SetCookie(rw, api.applicationCookie(cookie))
+
+	devurlCookie := api.applicationCookie(cookie)
+	if devurlCookie != nil {
+		http.SetCookie(rw, devurlCookie)
+	}
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
@@ -1067,6 +1069,15 @@ func (api *API) createUser(ctx context.Context, store database.Store, req create
 		}
 		return nil
 	})
+}
+
+func (api *API) setAuthCookie(rw http.ResponseWriter, cookie *http.Cookie) {
+	http.SetCookie(rw, cookie)
+
+	devurlCookie := api.applicationCookie(cookie)
+	if devurlCookie != nil {
+		http.SetCookie(rw, devurlCookie)
+	}
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {

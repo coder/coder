@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -42,11 +43,12 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 
 	appName, port := AppNameOrPort(chi.URLParam(r, "workspaceapp"))
 	api.proxyWorkspaceApplication(proxyApplication{
-		Workspace: workspace,
-		Agent:     agent,
-		AppName:   appName,
-		Port:      port,
-		Path:      chiPath,
+		Workspace:        workspace,
+		Agent:            agent,
+		AppName:          appName,
+		Port:             port,
+		Path:             chiPath,
+		DashboardOnError: true,
 	}, rw, r)
 }
 
@@ -87,11 +89,12 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				agent := httpmw.WorkspaceAgentParam(r)
 
 				api.proxyWorkspaceApplication(proxyApplication{
-					Workspace: workspace,
-					Agent:     agent,
-					AppName:   app.AppName,
-					Port:      app.Port,
-					Path:      r.URL.Path,
+					Workspace:        workspace,
+					Agent:            agent,
+					AppName:          app.AppName,
+					Port:             app.Port,
+					Path:             r.URL.Path,
+					DashboardOnError: false,
 				}, rw, r)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -108,6 +111,11 @@ type proxyApplication struct {
 	Port    uint16
 	// Path must either be empty or have a leading slash.
 	Path string
+
+	// DashboardOnError determines whether or not the dashboard should be
+	// rendered on error. This should be set for proxy path URLs but not
+	// hostname based URLs.
+	DashboardOnError bool
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
@@ -178,14 +186,21 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		// This is a browser-facing route so JSON responses are not viable here.
-		// To pass friendly errors to the frontend, special meta tags are overridden
-		// in the index.html with the content passed here.
-		r = r.WithContext(site.WithAPIResponse(r.Context(), site.APIResponse{
-			StatusCode: http.StatusBadGateway,
-			Message:    err.Error(),
-		}))
-		api.siteHandler.ServeHTTP(w, r)
+		if proxyApp.DashboardOnError {
+			// To pass friendly errors to the frontend, special meta tags are
+			// overridden in the index.html with the content passed here.
+			r = r.WithContext(site.WithAPIResponse(r.Context(), site.APIResponse{
+				StatusCode: http.StatusBadGateway,
+				Message:    err.Error(),
+			}))
+			api.siteHandler.ServeHTTP(w, r)
+			return
+		}
+
+		httpapi.Write(w, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to proxy request to application.",
+			Detail:  err.Error(),
+		})
 	}
 
 	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
@@ -232,6 +247,16 @@ type ApplicationURL struct {
 	// BaseHostname is the rest of the hostname minus the application URL part
 	// and the first dot.
 	BaseHostname string
+}
+
+// String returns the application URL hostname without scheme.
+func (a ApplicationURL) String() string {
+	appNameOrPort := a.AppName
+	if a.Port != 0 {
+		appNameOrPort = strconv.Itoa(int(a.Port))
+	}
+
+	return fmt.Sprintf("%s--%s--%s--%s.%s", appNameOrPort, a.AgentName, a.WorkspaceName, a.Username, a.BaseHostname)
 }
 
 // ParseSubdomainAppURL parses an application from the subdomain of r's Host
@@ -297,11 +322,17 @@ func AppNameOrPort(val string) (string, uint16) {
 // only do application authentication, we will just reuse the original token.
 // This code should be temporary and be replaced with something that creates
 // a unique session_token.
+//
+// Returns nil if the access URL isn't a hostname.
 func (api *API) applicationCookie(authCookie *http.Cookie) *http.Cookie {
+	if net.ParseIP(api.AccessURL.Hostname()) != nil {
+		return nil
+	}
+
 	appCookie := *authCookie
-	// We only support setting this cookie on the access url subdomains.
-	// This is to ensure we don't accidentally leak the auth cookie to subdomains
-	// on another hostname.
+	// We only support setting this cookie on the access URL subdomains. This is
+	// to ensure we don't accidentally leak the auth cookie to subdomains on
+	// another hostname.
 	appCookie.Domain = "." + api.AccessURL.Hostname()
 	return &appCookie
 }

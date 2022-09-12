@@ -162,8 +162,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
-	http.SetCookie(rw, api.applicationCookie(cookie))
+	api.setAuthCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -297,8 +296,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
-	http.SetCookie(rw, api.applicationCookie(cookie))
+	api.setAuthCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {

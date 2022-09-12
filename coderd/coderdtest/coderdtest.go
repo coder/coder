@@ -63,6 +63,7 @@ import (
 )
 
 type Options struct {
+	AccessURL            *url.URL
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
@@ -197,13 +198,19 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		_ = turnServer.Close()
 	})
 
+	accessURL := options.AccessURL
+	if accessURL == nil {
+		accessURL, err = url.Parse(srv.URL)
+		require.NoError(t, err)
+	}
+
 	// We set the handler after server creation for the access URL.
 	coderAPI := options.APIBuilder(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
 		AgentInactiveDisconnectTimeout: testutil.WaitShort,
-		AccessURL:                      serverURL,
+		AccessURL:                      accessURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
 		Database:                       db,
