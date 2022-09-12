@@ -66,6 +66,9 @@ type querier interface {
 	GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error)
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
+	// Computes average build time for every template.
+	// Only considers last moving_average_size successful builds between start_ts and end_ts.
+	// If a template does not have at least min_completed_job_count such builds, it gets skipped.
 	GetTemplatesAverageBuildTime(ctx context.Context, arg GetTemplatesAverageBuildTimeParams) ([]GetTemplatesAverageBuildTimeRow, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)

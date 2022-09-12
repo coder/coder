@@ -107,6 +107,9 @@ RETURNING
 	*;
 
 -- name: GetTemplatesAverageBuildTime :many
+-- Computes average build time for every template.
+-- Only considers last moving_average_size successful builds between start_ts and end_ts.
+-- If a template does not have at least min_completed_job_count such builds, it gets skipped.
 WITH query_with_all_job_count AS (SELECT
 	DISTINCT t.id,
 	AVG(pj.exec_time_sec)
@@ -122,7 +125,7 @@ FROM
 		active_version_id
 	FROM
 		templates) AS t
-LEFT JOIN
+INNER JOIN
 	(SELECT
 		workspace_id,
 		template_version_id,
@@ -133,7 +136,7 @@ LEFT JOIN
 		wb
 ON
 	t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
-LEFT JOIN
+INNER JOIN
 	(SELECT
 		id,
 		completed_at,
@@ -155,6 +158,5 @@ SELECT
 FROM
 	query_with_all_job_count
 WHERE
-	avg_build_time_sec IS NOT NULL AND
-	job_count >= GREATEST(@min_completed_job_count::integer, 1)
+	job_count >= @min_completed_job_count::integer
 ;

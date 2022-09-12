@@ -2174,9 +2174,12 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesAverageBuildTime = `-- name: GetTemplatesAverageBuildTime :many
 WITH query_with_all_job_count AS (SELECT
-    DISTINCT t.id,
+	DISTINCT t.id,
 	AVG(pj.exec_time_sec)
-	    OVER(PARTITION BY t.id ORDER BY pj.completed_at ROWS BETWEEN $2::integer PRECEDING AND CURRENT ROW)
+		OVER(
+			PARTITION BY t.id
+			ORDER BY pj.completed_at
+			ROWS BETWEEN $2::integer PRECEDING AND CURRENT ROW)
 		AS avg_build_time_sec,
 	COUNT(*) OVER(PARTITION BY t.id) as job_count
 FROM
@@ -2185,41 +2188,40 @@ FROM
 		active_version_id
 	FROM
 		templates) AS t
-LEFT JOIN
+INNER JOIN
 	(SELECT
-	    workspace_id,
-	    template_version_id,
-	    job_id
+		workspace_id,
+		template_version_id,
+		job_id
 	FROM
-	    workspace_builds)
+		workspace_builds)
 	AS
-	    wb
+		wb
 ON
-    t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
-LEFT JOIN
+	t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
+INNER JOIN
 	(SELECT
-	    id,
+		id,
 		completed_at,
 		EXTRACT(EPOCH FROM (completed_at - started_at)) AS exec_time_sec
 	FROM
-	    provisioner_jobs
+		provisioner_jobs
 	WHERE
-	    (completed_at IS NOT NULL) AND (started_at IS NOT NULL) AND
+		(completed_at IS NOT NULL) AND (started_at IS NOT NULL) AND
 		(completed_at >= $3 AND completed_at <= $4) AND
-	    (canceled_at IS NULL) AND
-	    ((error IS NULL) OR (error = '')))
+		(canceled_at IS NULL) AND
+		((error IS NULL) OR (error = '')))
 	AS
-	    pj
+		pj
 ON
 	wb.job_id = pj.id)
 SELECT
-    id,
+	id,
 	avg_build_time_sec
 FROM
 	query_with_all_job_count
 WHERE
-	avg_build_time_sec IS NOT NULL AND
-	job_count >= GREATEST($1::integer, 1)
+	job_count >= $1::integer
 `
 
 type GetTemplatesAverageBuildTimeParams struct {
@@ -2234,6 +2236,9 @@ type GetTemplatesAverageBuildTimeRow struct {
 	AvgBuildTimeSec string    `db:"avg_build_time_sec" json:"avg_build_time_sec"`
 }
 
+// Computes average build time for every template.
+// Only considers last moving_average_size successful builds between start_ts and end_ts.
+// If a template does not have at least min_completed_job_count such builds, it gets skipped.
 func (q *sqlQuerier) GetTemplatesAverageBuildTime(ctx context.Context, arg GetTemplatesAverageBuildTimeParams) ([]GetTemplatesAverageBuildTimeRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplatesAverageBuildTime,
 		arg.MinCompletedJobCount,
