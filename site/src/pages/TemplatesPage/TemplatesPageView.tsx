@@ -207,11 +207,13 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                         {createDayString(template.updated_at)}
                       </span>
                     </TableCellLink>
+
                     <TableCellLink to={templatePageLink}>
                       <span style={{ color: theme.palette.text.secondary }}>
                         {template.created_by_name}
                       </span>
                     </TableCellLink>
+
                     <TableCellLink to={templatePageLink}>
                       <div className={styles.arrowCell}>
                         <KeyboardArrowRight className={styles.arrowRight} />
