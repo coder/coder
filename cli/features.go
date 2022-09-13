@@ -13,8 +13,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
-
 func features() *cobra.Command {
 	cmd := &cobra.Command{
 		Short:   "List features",
@@ -29,8 +27,9 @@ func features() *cobra.Command {
 
 func featuresList() *cobra.Command {
 	var (
-		columns      []string
-		outputFormat string
+		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
+		columns        []string
+		outputFormat   string
 	)
 
 	cmd := &cobra.Command{

@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

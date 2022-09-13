@@ -50,6 +50,7 @@ type User struct {
 	Status          UserStatus  `json:"status" table:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 	Roles           []Role      `json:"roles"`
+	AvatarURL       string      `json:"avatar_url"`
 }
 
 type APIKey struct {
@@ -221,6 +222,19 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	}
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// DeleteUser deletes a user.
+func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
 }
 
 // UpdateUserProfile enables callers to update profile information

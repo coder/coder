@@ -5,7 +5,7 @@ possible way to use Coder.
 
 ## Generic Quickstart
 
-Please [install Coder](../install.md) before proceeding with the steps below.
+Please [install Coder](../install) before proceeding with the steps below.
 
 ## First time owner user setup
 

@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { fade } from "@material-ui/core/styles/colorManipulator"
 import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
@@ -59,7 +58,7 @@ Section.Action = SectionAction
 const useStyles = makeStyles((theme) => ({
   root: {
     backgroundColor: theme.palette.background.paper,
-    boxShadow: `0px 18px 12px 6px ${fade(theme.palette.common.black, 0.02)}`,
+    boxShadow: theme.shadows[6],
     marginBottom: theme.spacing(1),
     padding: theme.spacing(6),
     borderRadius: theme.shape.borderRadius,

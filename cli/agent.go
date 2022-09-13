@@ -182,16 +182,17 @@ func workspaceAgent() *cobra.Command {
 				logger.Error(cmd.Context(), "post agent version: %w", slog.Error(err), slog.F("version", version))
 			}
 
-			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
-				Logger: logger,
+			closer := agent.New(agent.Options{
+				FetchMetadata: client.WorkspaceAgentMetadata,
+				WebRTCDialer:  client.ListenWorkspaceAgent,
+				Logger:        logger,
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
 					// shells so "gitssh" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
-				EnableWireguard:      wireguard,
-				UploadWireguardKeys:  client.UploadWorkspaceAgentKeys,
-				ListenWireguardPeers: client.WireguardPeerListener,
+				CoordinatorDialer: client.ListenWorkspaceAgentTailnet,
+				StatsReporter:     client.AgentReportStats,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

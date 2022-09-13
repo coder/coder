@@ -51,6 +51,7 @@ describe("NavbarView", () => {
     const mockUser = {
       ...MockUser,
       username: "bryan",
+      avatar_url: "",
     }
 
     // When
@@ -66,17 +67,6 @@ describe("NavbarView", () => {
     render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
     const auditLink = await screen.findByText(navLanguage.audit)
     expect((auditLink as HTMLAnchorElement).href).toContain("/audit")
-  })
-
-  it("audit nav link is only visible in development", async () => {
-    process.env = {
-      ...env,
-      NODE_ENV: "production",
-    }
-
-    render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
-    const auditLink = screen.queryByText(navLanguage.audit)
-    expect(auditLink).not.toBeInTheDocument()
   })
 
   it("audit nav link is hidden for members", async () => {

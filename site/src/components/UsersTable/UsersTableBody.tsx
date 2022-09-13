@@ -14,6 +14,8 @@ import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 export const Language = {
   emptyMessage: "No users found",
   suspendMenuItem: "Suspend",
+  deleteMenuItem: "Delete",
+  listWorkspacesMenuItem: "View workspaces",
   activateMenuItem: "Activate",
   resetPasswordMenuItem: "Reset password",
 }
@@ -25,6 +27,8 @@ interface UsersTableBodyProps {
   canEditUsers?: boolean
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
+  onDeleteUser: (user: TypesGen.User) => void
+  onListWorkspaces: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
@@ -34,6 +38,8 @@ export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = 
   users,
   roles,
   onSuspendUser,
+  onDeleteUser,
+  onListWorkspaces,
   onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
@@ -72,7 +78,20 @@ export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = 
         return (
           <TableRow key={user.id}>
             <TableCell>
-              <AvatarData title={user.username} subtitle={user.email} highlightTitle />
+              <AvatarData
+                title={user.username}
+                subtitle={user.email}
+                highlightTitle
+                avatar={
+                  user.avatar_url ? (
+                    <img
+                      className={styles.avatar}
+                      alt={`${user.username}'s Avatar`}
+                      src={user.avatar_url}
+                    />
+                  ) : null
+                }
+              />
             </TableCell>
             <TableCell
               className={combineClasses([
@@ -117,10 +136,20 @@ export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = 
                             onClick: onActivateUser,
                           },
                         ]
-                    ).concat({
-                      label: Language.resetPasswordMenuItem,
-                      onClick: onResetUserPassword,
-                    })
+                    ).concat(
+                      {
+                        label: Language.deleteMenuItem,
+                        onClick: onDeleteUser,
+                      },
+                      {
+                        label: Language.listWorkspacesMenuItem,
+                        onClick: onListWorkspaces,
+                      },
+                      {
+                        label: Language.resetPasswordMenuItem,
+                        onClick: onResetUserPassword,
+                      },
+                    )
                   }
                 />
               </TableCell>
@@ -138,5 +167,10 @@ const useStyles = makeStyles((theme) => ({
   },
   suspended: {
     color: theme.palette.text.secondary,
+  },
+  avatar: {
+    width: theme.spacing(4.5),
+    height: theme.spacing(4.5),
+    borderRadius: "100%",
   },
 }))

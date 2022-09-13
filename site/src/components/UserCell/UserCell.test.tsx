@@ -7,6 +7,7 @@ namespace Helpers {
   export const Props: UserCellProps = {
     Avatar: {
       username: MockUser.username,
+      avatarURL: "",
     },
     caption: MockUserAgent.ip_address,
     primaryText: MockUser.username,

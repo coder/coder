@@ -39,6 +39,8 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			Pubsub:   fPubsub,
 		}
 		api := New(&opts)
+		defer api.Close()
+
 		server := httptest.NewServer(api.Handler)
 		defer server.Close()
 		userID := uuid.New()

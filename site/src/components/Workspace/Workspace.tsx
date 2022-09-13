@@ -1,3 +1,4 @@
+import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
@@ -67,21 +68,21 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
+  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
+
+  const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
+    <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+  ) : (
+    <></>
+  )
+  const cancellationError = workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
+    <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
+  ) : (
+    <></>
+  )
 
   return (
     <Margins>
-      <Stack spacing={1}>
-        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-        ) : (
-          <></>
-        )}
-        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-        ) : (
-          <></>
-        )}
-      </Stack>
       <PageHeader
         actions={
           <Stack direction="row" spacing={1} className={styles.actions}>
@@ -105,43 +106,48 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         }
       >
         <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
-        <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-        <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+        <Box display="flex">
+          {hasTemplateIcon && (
+            <img alt="" src={workspace.template_icon} className={styles.templateIcon} />
+          )}
+          <div>
+            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+            <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+          </div>
+        </Box>
       </PageHeader>
 
-      <Stack direction="row" spacing={3}>
-        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
-          <WorkspaceScheduleBanner
-            isLoading={bannerProps.isLoading}
-            onExtend={bannerProps.onExtend}
+      <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
+        {buildError}
+        {cancellationError}
+
+        <WorkspaceScheduleBanner
+          isLoading={bannerProps.isLoading}
+          onExtend={bannerProps.onExtend}
+          workspace={workspace}
+        />
+
+        <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
+
+        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {typeof resources !== "undefined" && resources.length > 0 && (
+          <Resources
+            resources={resources}
+            getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
             workspace={workspace}
+            canUpdateWorkspace={canUpdateWorkspace}
+            buildInfo={buildInfo}
           />
+        )}
 
-          <WorkspaceDeletedBanner
-            workspace={workspace}
-            handleClick={() => navigate(`/templates`)}
-          />
-
-          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
-
-          {!!resources && !!resources.length && (
-            <Resources
-              resources={resources}
-              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
-              workspace={workspace}
-              canUpdateWorkspace={canUpdateWorkspace}
-              buildInfo={buildInfo}
-            />
+        <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
+          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+            <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+          ) : (
+            <BuildsTable builds={builds} className={styles.timelineTable} />
           )}
-
-          <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
-            {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-              <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
-            ) : (
-              <BuildsTable builds={builds} className={styles.timelineTable} />
-            )}
-          </WorkspaceSection>
-        </Stack>
+        </WorkspaceSection>
       </Stack>
     </Margins>
   )
@@ -175,6 +181,13 @@ export const useStyles = makeStyles((theme) => {
 
     main: {
       width: "100%",
+    },
+
+    templateIcon: {
+      width: 40,
+      height: 40,
+      marginRight: theme.spacing(2),
+      marginTop: theme.spacing(0.5),
     },
 
     timelineContents: {

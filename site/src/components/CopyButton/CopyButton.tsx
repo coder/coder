@@ -86,7 +86,6 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
 const useStyles = makeStyles((theme) => ({
   copyButtonWrapper: {
     display: "flex",
-    marginLeft: theme.spacing(1),
   },
   copyButton: {
     borderRadius: theme.shape.borderRadius,

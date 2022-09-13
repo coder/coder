@@ -29,7 +29,7 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
   const styles = useStyles()
 
   return (
-    <TableContainer className={styles.tableContainer}>
+    <TableContainer>
       <Table>
         <TableHead>
           <TableHeaderRow>
@@ -101,10 +101,6 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
 const useStyles = makeStyles((theme) => ({
   sectionContents: {
     margin: 0,
-  },
-
-  tableContainer: {
-    border: 0,
   },
 
   resourceNameCell: {

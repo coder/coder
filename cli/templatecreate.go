@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
@@ -47,6 +48,10 @@ func templateCreate() *cobra.Command {
 				templateName = filepath.Base(directory)
 			} else {
 				templateName = args[0]
+			}
+
+			if utf8.RuneCountInString(templateName) > 31 {
+				return xerrors.Errorf("Template name must be less than 32 characters")
 			}
 
 			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)

@@ -23,7 +23,7 @@ export const LoadingButton: FC<React.PropsWithChildren<LoadingButtonProps>> = ({
   children,
   ...rest
 }) => {
-  const styles = useStyles({ hasLoadingLabel: !!loadingLabel })
+  const styles = useStyles({ hasLoadingLabel: Boolean(loadingLabel) })
   const hidden = loading ? { opacity: 0 } : undefined
 
   return (
@@ -34,7 +34,7 @@ export const LoadingButton: FC<React.PropsWithChildren<LoadingButtonProps>> = ({
           <CircularProgress size={18} className={styles.spinner} />
         </div>
       )}
-      {!!loadingLabel && loadingLabel}
+      {Boolean(loadingLabel) && loadingLabel}
     </Button>
   )
 }

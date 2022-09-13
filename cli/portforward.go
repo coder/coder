@@ -16,7 +16,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	coderagent "github.com/coder/coder/agent"
+	"cdr.dev/slog"
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -26,6 +27,7 @@ func portForward() *cobra.Command {
 		tcpForwards  []string // <port>:<port>
 		udpForwards  []string // <port>:<port>
 		unixForwards []string // <path>:<path> OR <port>:<path>
+		wireguard    bool
 	)
 	cmd := &cobra.Command{
 		Use:     "port-forward <workspace>",
@@ -75,7 +77,7 @@ func portForward() *cobra.Command {
 				return err
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
 			if err != nil {
 				return err
 			}
@@ -92,16 +94,21 @@ func portForward() *cobra.Command {
 			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
-					return client.WorkspaceAgent(ctx, agent.ID)
+					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil)
+			var conn agent.Conn
+			if !wireguard {
+				conn, err = client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
+			} else {
+				conn, err = client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			}
 			if err != nil {
-				return xerrors.Errorf("dial workspace agent: %w", err)
+				return err
 			}
 			defer conn.Close()
 
@@ -159,11 +166,12 @@ func portForward() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&tcpForwards, "tcp", "p", []string{}, "Forward a TCP port from the workspace to the local machine")
 	cmd.Flags().StringArrayVar(&udpForwards, "udp", []string{}, "Forward a UDP port from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols")
 	cmd.Flags().StringArrayVar(&unixForwards, "unix", []string{}, "Forward a Unix socket in the workspace to a local Unix socket or TCP port")
-
+	cmd.Flags().BoolVarP(&wireguard, "wireguard", "", false, "Specifies whether to use wireguard networking or not.")
+	_ = cmd.Flags().MarkHidden("wireguard")
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *coderagent.Conn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn agent.Conn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
 	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (
@@ -219,7 +227,7 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *coderag
 				}
 				defer remoteConn.Close()
 
-				coderagent.Bicopy(ctx, netConn, remoteConn)
+				agent.Bicopy(ctx, netConn, remoteConn)
 			}(netConn)
 		}
 	}(spec)
@@ -315,7 +323,7 @@ func parsePort(in string) (uint16, error) {
 }
 
 func parseUnixPath(in string) (string, error) {
-	path, err := coderagent.ExpandRelativeHomePath(strings.TrimSpace(in))
+	path, err := agent.ExpandRelativeHomePath(strings.TrimSpace(in))
 	if err != nil {
 		return "", xerrors.Errorf("tidy path %q: %w", in, err)
 	}

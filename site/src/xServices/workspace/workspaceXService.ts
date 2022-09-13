@@ -92,6 +92,9 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
+        startWorkspaceWithLatestTemplate: {
+          data: TypesGen.WorkspaceBuild
+        }
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
@@ -212,7 +215,7 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "refreshingTemplate",
+                  UPDATE: "requestingStartWithLatestTemplate",
                   CANCEL: "requestingCancel",
                 },
               },
@@ -220,6 +223,21 @@ export const workspaceMachine = createMachine(
                 on: {
                   DELETE: "requestingDelete",
                   CANCEL_DELETE: "idle",
+                },
+              },
+              requestingStartWithLatestTemplate: {
+                entry: "clearBuildError",
+                invoke: {
+                  id: "startWorkspaceWithLatestTemplate",
+                  src: "startWorkspaceWithLatestTemplate",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError"],
+                  },
                 },
               },
               requestingStart: {
@@ -524,9 +542,19 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get template without workspace")
         }
       },
+      startWorkspaceWithLatestTemplate: async (context) => {
+        if (context.workspace && context.template) {
+          return await API.startWorkspace(context.workspace.id, context.template.active_version_id)
+        } else {
+          throw Error("Cannot start workspace without workspace id")
+        }
+      },
       startWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.startWorkspace(context.workspace.id, context.template?.active_version_id)
+          return await API.startWorkspace(
+            context.workspace.id,
+            context.workspace.latest_build.template_version_id,
+          )
         } else {
           throw Error("Cannot start workspace without workspace id")
         }

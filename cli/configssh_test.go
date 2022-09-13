@@ -61,7 +61,7 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -104,8 +104,11 @@ func TestConfigSSH(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
+		CoordinatorDialer: client.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
 	defer func() {
 		_ = agentCloser.Close()
@@ -517,7 +520,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			t.Parallel()
 
 			var (
-				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -639,7 +642,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				},
 			}}
 
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			// authToken := uuid.NewString()
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{

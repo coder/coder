@@ -182,6 +182,11 @@ export const updateTemplateMeta = async (
   return response.data
 }
 
+export const deleteTemplate = async (templateId: string): Promise<TypesGen.Template> => {
+  const response = await axios.delete<TypesGen.Template>(`/api/v2/templates/${templateId}`)
+  return response.data
+}
+
 export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,
@@ -319,6 +324,10 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
+export const deleteUser = async (userId: TypesGen.User["id"]): Promise<undefined> => {
+  return await axios.delete(`/api/v2/users/${userId}`)
+}
+
 // API definition:
 // https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53
 export const hasFirstUser = async (): Promise<boolean> => {
@@ -410,5 +419,29 @@ export const putWorkspaceExtension = async (
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   const response = await axios.get("/api/v2/entitlements")
+  return response.data
+}
+
+interface GetAuditLogsOptions {
+  limit: number
+  offset: number
+}
+
+export const getAuditLogs = async (
+  options: GetAuditLogsOptions,
+): Promise<TypesGen.AuditLogResponse> => {
+  const response = await axios.get(`/api/v2/audit?limit=${options.limit}&offset=${options.offset}`)
+  return response.data
+}
+
+export const getAuditLogsCount = async (): Promise<TypesGen.AuditLogCountResponse> => {
+  const response = await axios.get(`/api/v2/audit/count`)
+  return response.data
+}
+
+export const getTemplateDAUs = async (
+  templateId: string,
+): Promise<TypesGen.TemplateDAUsResponse> => {
+  const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }

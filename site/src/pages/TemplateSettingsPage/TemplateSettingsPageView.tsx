@@ -33,7 +33,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 
   return (
     <FullPageForm title={Language.title} onCancel={onCancel}>
-      {!!errors.getTemplateError && <ErrorSummary error={errors.getTemplateError} />}
+      {Boolean(errors.getTemplateError) && <ErrorSummary error={errors.getTemplateError} />}
       {isLoading && <Loader />}
       {template && (
         <TemplateSettingsForm

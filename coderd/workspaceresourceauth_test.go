@@ -19,8 +19,8 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 	instanceID := "instanceidentifier"
 	certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
 	client := coderdtest.New(t, &coderdtest.Options{
-		AzureCertificates:   certificates,
-		IncludeProvisionerD: true,
+		AzureCertificates:        certificates,
+		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -61,8 +61,8 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
-			AWSCertificates:     certificates,
-			IncludeProvisionerD: true,
+			AWSCertificates:          certificates,
+			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -138,8 +138,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		instanceID := "instanceidentifier"
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
 		client := coderdtest.New(t, &coderdtest.Options{
-			GoogleTokenValidator: validator,
-			IncludeProvisionerD:  true,
+			GoogleTokenValidator:     validator,
+			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{

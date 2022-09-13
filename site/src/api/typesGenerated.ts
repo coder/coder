@@ -29,9 +29,61 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
+// From codersdk/templates.go
+export interface AgentStatsReportResponse {
+  readonly num_comms: number
+  readonly rx_bytes: number
+  readonly tx_bytes: number
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean
+}
+
+// From codersdk/audit.go
+export type AuditDiff = Record<string, AuditDiffField>
+
+// From codersdk/audit.go
+export interface AuditDiffField {
+  // eslint-disable-next-line
+  readonly old?: any
+  // eslint-disable-next-line
+  readonly new?: any
+  readonly secret: boolean
+}
+
+// From codersdk/audit.go
+export interface AuditLog {
+  readonly id: string
+  readonly request_id: string
+  readonly time: string
+  readonly organization_id: string
+  // Named type "net/netip.Addr" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly ip: any
+  readonly user_agent: string
+  readonly resource_type: ResourceType
+  readonly resource_id: string
+  readonly resource_target: string
+  readonly resource_icon: string
+  readonly action: AuditAction
+  readonly diff: AuditDiff
+  readonly status_code: number
+  // This is likely an enum in an external package ("encoding/json.RawMessage")
+  readonly additional_fields: string
+  readonly description: string
+  readonly user?: User
+}
+
+// From codersdk/audit.go
+export interface AuditLogCountResponse {
+  readonly count: number
+}
+
+// From codersdk/audit.go
+export interface AuditLogResponse {
+  readonly audit_logs: AuditLog[]
 }
 
 // From codersdk/users.go
@@ -128,6 +180,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
+  readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -138,6 +191,18 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/templates.go
+export interface DAUEntry {
+  readonly date: string
+  readonly amount: number
+}
+
+// From codersdk/workspaceresources.go
+export interface DERPRegion {
+  readonly preferred: boolean
+  readonly latency_ms: number
 }
 
 // From codersdk/features.go
@@ -313,12 +378,18 @@ export interface Template {
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
   readonly workspace_owner_count: number
+  readonly active_user_count: number
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+}
+
+// From codersdk/templates.go
+export interface TemplateDAUsResponse {
+  readonly entries: DAUEntry[]
 }
 
 // From codersdk/templateversions.go
@@ -399,6 +470,7 @@ export interface User {
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
+  readonly avatar_url: string
 }
 
 // From codersdk/users.go
@@ -455,6 +527,7 @@ export interface Workspace {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
+  readonly last_used_at: string
 }
 
 // From codersdk/workspaceresources.go
@@ -474,22 +547,21 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
-  readonly apps: WorkspaceApp[]
-  // Named type "tailscale.com/types/key.NodePublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly wireguard_public_key: any
-  // Named type "tailscale.com/types/key.DiscoPublic" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly disco_public_key: any
-  // Named type "inet.af/netaddr.IPPrefix" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ipv6: any
   readonly version: string
+  readonly apps: WorkspaceApp[]
+  readonly latency?: Record<string, DERPRegion>
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentConnectionInfo {
+  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly derp_map?: any
 }
 
 // From codersdk/workspaceresources.go
@@ -533,7 +605,6 @@ export interface WorkspaceBuild {
   readonly workspace_owner_name: string
   readonly template_version_id: string
   readonly build_number: number
-  readonly name: string
   readonly transition: WorkspaceTransition
   readonly initiator_id: string
   readonly initiator_name: string
@@ -565,6 +636,7 @@ export interface WorkspaceResource {
   readonly workspace_transition: WorkspaceTransition
   readonly type: string
   readonly name: string
+  readonly hide: boolean
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
 }
@@ -575,6 +647,9 @@ export interface WorkspaceResourceMetadata {
   readonly value: string
   readonly sensitive: boolean
 }
+
+// From codersdk/audit.go
+export type AuditAction = "create" | "delete" | "write"
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
@@ -617,6 +692,16 @@ export type ProvisionerStorageMethod = "file"
 
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
+
+// From codersdk/audit.go
+export type ResourceType =
+  | "api_key"
+  | "git_ssh_key"
+  | "organization"
+  | "template"
+  | "template_version"
+  | "user"
+  | "workspace"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

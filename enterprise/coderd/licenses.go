@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
