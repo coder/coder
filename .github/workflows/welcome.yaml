@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: wow-actions/welcome@v1
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN_CDRCOMMUNITY }}
           FIRST_PR_REACTIONS: '+1, hooray, rocket, heart'
           FIRST_PR_COMMENT: |
             👋 Welcome @{{ author }} to Coder! Yo @coder/docs this is @{{ author }}'s first pull-request here! [ƛ](https://github.com/coder/coder-meta/issues/14) 👀👀👀
