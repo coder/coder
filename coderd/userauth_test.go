@@ -405,7 +405,7 @@ func TestUserOIDC(t *testing.T) {
 			}
 
 			if tc.AvatarURL != "" {
-				client.SessionToken = resp.Cookies()[0].Value
+				client.SessionToken = authCookieValue(resp.Cookies())
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
