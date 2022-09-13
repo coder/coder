@@ -15,7 +15,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"tailscale.com/derp"
@@ -70,7 +70,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
-	TracerProvider       *sdktrace.TracerProvider
+	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 	FeaturesService      features.Service
