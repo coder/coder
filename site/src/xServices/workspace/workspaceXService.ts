@@ -81,6 +81,8 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
 
 export const workspaceMachine = createMachine(
   {
+    id: "workspaceState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./workspaceXService.typegen").Typegen0,
     schema: {
       context: {} as WorkspaceContext,
@@ -124,10 +126,12 @@ export const workspaceMachine = createMachine(
         }
       },
     },
-    id: "workspaceState",
     initial: "idle",
     on: {
-      GET_WORKSPACE: "gettingWorkspace",
+      GET_WORKSPACE: {
+        target: ".gettingWorkspace",
+        internal: false,
+      },
     },
     states: {
       idle: {
@@ -138,30 +142,38 @@ export const workspaceMachine = createMachine(
         invoke: {
           src: "getWorkspace",
           id: "getWorkspace",
-          onDone: {
-            target: "refreshingTemplate",
-            actions: ["assignWorkspace"],
-          },
-          onError: {
-            target: "error",
-            actions: "assignGetWorkspaceError",
-          },
+          onDone: [
+            {
+              actions: "assignWorkspace",
+              target: "refreshingTemplate",
+            },
+          ],
+          onError: [
+            {
+              actions: "assignGetWorkspaceError",
+              target: "error",
+            },
+          ],
         },
         tags: "loading",
       },
       refreshingTemplate: {
-        entry: ["clearRefreshTemplateError"],
+        entry: "clearRefreshTemplateError",
         invoke: {
-          id: "refreshTemplate",
           src: "getTemplate",
-          onDone: {
-            target: "gettingPermissions",
-            actions: ["assignTemplate"],
-          },
-          onError: {
-            target: "error",
-            actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
-          },
+          id: "refreshTemplate",
+          onDone: [
+            {
+              actions: "assignTemplate",
+              target: "gettingPermissions",
+            },
+          ],
+          onError: [
+            {
+              actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
+              target: "error",
+            },
+          ],
         },
         tags: "loading",
       },
@@ -172,7 +184,7 @@ export const workspaceMachine = createMachine(
           id: "checkPermissions",
           onDone: [
             {
-              actions: ["assignPermissions"],
+              actions: "assignPermissions",
               target: "ready",
             },
           ],
@@ -187,22 +199,33 @@ export const workspaceMachine = createMachine(
       ready: {
         type: "parallel",
         states: {
-          // We poll the workspace consistently to know if it becomes outdated and to update build status
           pollingWorkspace: {
             initial: "refreshingWorkspace",
             states: {
               refreshingWorkspace: {
                 entry: "clearRefreshWorkspaceError",
                 invoke: {
-                  id: "refreshWorkspace",
                   src: "refreshWorkspace",
-                  onDone: { target: "waiting", actions: ["refreshTimeline", "assignWorkspace"] },
-                  onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
+                  id: "refreshWorkspace",
+                  onDone: [
+                    {
+                      actions: ["refreshTimeline", "assignWorkspace"],
+                      target: "waiting",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignRefreshWorkspaceError",
+                      target: "waiting",
+                    },
+                  ],
                 },
               },
               waiting: {
                 after: {
-                  1000: "refreshingWorkspace",
+                  "1000": {
+                    target: "refreshingWorkspace",
+                  },
                 },
               },
             },
@@ -221,8 +244,12 @@ export const workspaceMachine = createMachine(
               },
               askingDelete: {
                 on: {
-                  DELETE: "requestingDelete",
-                  CANCEL_DELETE: "idle",
+                  DELETE: {
+                    target: "requestingDelete",
+                  },
+                  CANCEL_DELETE: {
+                    target: "idle",
+                  },
                 },
               },
               requestingStartWithLatestTemplate: {
@@ -243,80 +270,100 @@ export const workspaceMachine = createMachine(
               requestingStart: {
                 entry: "clearBuildError",
                 invoke: {
-                  id: "startWorkspace",
                   src: "startWorkspace",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild", "refreshTimeline"],
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignBuildError"],
-                  },
+                  id: "startWorkspace",
+                  onDone: [
+                    {
+                      actions: ["assignBuild", "refreshTimeline"],
+                      target: "idle",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignBuildError",
+                      target: "idle",
+                    },
+                  ],
                 },
               },
               requestingStop: {
                 entry: "clearBuildError",
                 invoke: {
-                  id: "stopWorkspace",
                   src: "stopWorkspace",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild", "refreshTimeline"],
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignBuildError"],
-                  },
+                  id: "stopWorkspace",
+                  onDone: [
+                    {
+                      actions: ["assignBuild", "refreshTimeline"],
+                      target: "idle",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignBuildError",
+                      target: "idle",
+                    },
+                  ],
                 },
               },
               requestingDelete: {
                 entry: "clearBuildError",
                 invoke: {
-                  id: "deleteWorkspace",
                   src: "deleteWorkspace",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild", "refreshTimeline"],
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignBuildError"],
-                  },
+                  id: "deleteWorkspace",
+                  onDone: [
+                    {
+                      actions: ["assignBuild", "refreshTimeline"],
+                      target: "idle",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignBuildError",
+                      target: "idle",
+                    },
+                  ],
                 },
               },
               requestingCancel: {
                 entry: ["clearCancellationMessage", "clearCancellationError"],
                 invoke: {
-                  id: "cancelWorkspace",
                   src: "cancelWorkspace",
-                  onDone: {
-                    target: "idle",
-                    actions: [
-                      "assignCancellationMessage",
-                      "displayCancellationMessage",
-                      "refreshTimeline",
-                    ],
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignCancellationError"],
-                  },
+                  id: "cancelWorkspace",
+                  onDone: [
+                    {
+                      actions: [
+                        "assignCancellationMessage",
+                        "displayCancellationMessage",
+                        "refreshTimeline",
+                      ],
+                      target: "idle",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignCancellationError",
+                      target: "idle",
+                    },
+                  ],
                 },
               },
               refreshingTemplate: {
                 entry: "clearRefreshTemplateError",
                 invoke: {
-                  id: "refreshTemplate",
                   src: "getTemplate",
-                  onDone: {
-                    target: "requestingStart",
-                    actions: "assignTemplate",
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
-                  },
+                  id: "refreshTemplate",
+                  onDone: [
+                    {
+                      actions: "assignTemplate",
+                      target: "requestingStart",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
+                      target: "idle",
+                    },
+                  ],
                 },
               },
             },
@@ -327,20 +374,31 @@ export const workspaceMachine = createMachine(
               gettingResources: {
                 entry: "clearGetResourcesError",
                 invoke: {
-                  id: "getResources",
                   src: "getResources",
-                  onDone: { target: "waiting", actions: "assignResources" },
-                  onError: { target: "waiting", actions: "assignGetResourcesError" },
+                  id: "getResources",
+                  onDone: [
+                    {
+                      actions: "assignResources",
+                      target: "waiting",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignGetResourcesError",
+                      target: "waiting",
+                    },
+                  ],
                 },
               },
               waiting: {
                 after: {
-                  5000: "gettingResources",
+                  "5000": {
+                    target: "gettingResources",
+                  },
                 },
               },
             },
           },
-
           timeline: {
             initial: "gettingBuilds",
             states: {
@@ -349,14 +407,18 @@ export const workspaceMachine = createMachine(
                 entry: "clearGetBuildsError",
                 invoke: {
                   src: "getBuilds",
-                  onDone: {
-                    actions: ["assignBuilds"],
-                    target: "loadedBuilds",
-                  },
-                  onError: {
-                    actions: ["assignGetBuildsError"],
-                    target: "idle",
-                  },
+                  onDone: [
+                    {
+                      actions: "assignBuilds",
+                      target: "loadedBuilds",
+                    },
+                  ],
+                  onError: [
+                    {
+                      actions: "assignGetBuildsError",
+                      target: "idle",
+                    },
+                  ],
                 },
               },
               loadedBuilds: {
@@ -365,24 +427,30 @@ export const workspaceMachine = createMachine(
                   idle: {
                     on: {
                       LOAD_MORE_BUILDS: {
-                        target: "loadingMoreBuilds",
                         cond: "hasMoreBuilds",
+                        target: "loadingMoreBuilds",
                       },
-                      REFRESH_TIMELINE: "#workspaceState.ready.timeline.gettingBuilds",
+                      REFRESH_TIMELINE: {
+                        target: "#workspaceState.ready.timeline.gettingBuilds",
+                      },
                     },
                   },
                   loadingMoreBuilds: {
                     entry: "clearLoadMoreBuildsError",
                     invoke: {
                       src: "loadMoreBuilds",
-                      onDone: {
-                        actions: ["assignNewBuilds"],
-                        target: "idle",
-                      },
-                      onError: {
-                        actions: ["assignLoadMoreBuildsError"],
-                        target: "idle",
-                      },
+                      onDone: [
+                        {
+                          actions: "assignNewBuilds",
+                          target: "idle",
+                        },
+                      ],
+                      onError: [
+                        {
+                          actions: "assignLoadMoreBuildsError",
+                          target: "idle",
+                        },
+                      ],
                     },
                   },
                 },
@@ -393,7 +461,9 @@ export const workspaceMachine = createMachine(
       },
       error: {
         on: {
-          GET_WORKSPACE: "gettingWorkspace",
+          GET_WORKSPACE: {
+            target: "gettingWorkspace",
+          },
         },
       },
     },

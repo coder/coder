@@ -24,6 +24,8 @@ type LogsEvent = {
 export const workspaceBuildMachine = createMachine(
   {
     id: "workspaceBuildState",
+    predictableActionArguments: true,
+    tsTypes: {} as import("./workspaceBuildXService.typegen").Typegen0,
     schema: {
       context: {} as LogsContext,
       events: {} as LogsEvent,
@@ -36,7 +38,6 @@ export const workspaceBuildMachine = createMachine(
         }
       },
     },
-    tsTypes: {} as import("./workspaceBuildXService.typegen").Typegen0,
     initial: "gettingBuild",
     states: {
       gettingBuild: {
