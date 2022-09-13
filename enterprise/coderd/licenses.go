@@ -119,6 +119,14 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	err = api.updateEntitlements(r.Context())
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update entitlements",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	err = api.Pubsub.Publish(pubSubEventLicenses, []byte("add"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
@@ -190,7 +198,14 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	err = api.updateEntitlements(r.Context())
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update entitlements",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	err = api.Pubsub.Publish(pubSubEventLicenses, []byte("delete"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))

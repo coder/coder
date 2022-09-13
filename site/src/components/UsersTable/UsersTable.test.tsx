@@ -10,6 +10,8 @@ describe("AuditPage", () => {
     render(
       <UsersTable
         onSuspendUser={() => jest.fn()}
+        onDeleteUser={() => jest.fn()}
+        onListWorkspaces={() => jest.fn()}
         onActivateUser={() => jest.fn()}
         onResetUserPassword={() => jest.fn()}
         onUpdateUserRoles={() => jest.fn()}

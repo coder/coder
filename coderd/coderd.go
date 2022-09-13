@@ -351,6 +351,7 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
