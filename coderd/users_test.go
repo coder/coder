@@ -330,7 +330,6 @@ func TestPostLogout(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		cookies := res.Cookies()
-		require.Len(t, cookies, 2, "Exactly two cookies should be returned")
 
 		var found bool
 		for _, cookie := range cookies {
