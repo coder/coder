@@ -16,8 +16,13 @@ export const hardCodedCSRFCookie = (): string => {
   return csrfToken
 }
 
-// Always attach CSRF token to all requests
-const token = document.head.querySelector('meta[property="csrf-token"]')
+// Always attach CSRF token to all requests.
+// In puppeteer the document is undefined. In those cases, just
+// do nothing.
+const token = typeof document !== 'undefined' ?
+  document.head.querySelector('meta[property="csrf-token"]') :
+  null
+
 if (token !== null && token.getAttribute("content") !== null) {
   if (process.env.NODE_ENV === "development") {
     // Development mode uses a hard-coded CSRF token
