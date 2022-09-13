@@ -36,8 +36,6 @@ replace github.com/golang/glog => github.com/coder/glog v1.0.1-0.20220322161911-
 // https://github.com/coder/kcp-go/commit/83c0904cec69dcf21ec10c54ea666bda18ada831
 replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.20220409183554-83c0904cec69+incompatible
 
-replace golang.zx2c4.com/wireguard/tun/netstack => github.com/coder/wireguard-go/tun/netstack v0.0.0-20220823170024-a78136eb0cab
-
 // https://github.com/pion/udp/pull/73
 replace github.com/pion/udp => github.com/mafredri/udp v0.1.2-0.20220805105907-b2872e92e98d
 
@@ -49,7 +47,7 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220912172152-aa5fb7fc6cac
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220912224234-e80caec6c05f
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -59,6 +57,9 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220912172152-aa5f
 // subpath and it includes changes to golang.org/x/crypto/ssh as well which
 // makes importing it directly a bit messy.
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
+
+// Fixes a deadlock on close in devtunnel.
+replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20220913030355-902de6e9b175
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
@@ -153,17 +154,16 @@ require (
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
-	golang.org/x/text v0.3.7
+	golang.org/x/text v0.3.8-0.20211105212822-18b340fc7af2
 	golang.org/x/tools v0.1.11
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
-	golang.zx2c4.com/wireguard v0.0.0-20220703234212-c31a7b1ab478
-	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-00010101000000-000000000000
+	golang.zx2c4.com/wireguard v0.0.0-20220904105730-b51010ba13f0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
 	google.golang.org/api v0.95.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20220801230058-850e42eb4444
+	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7
@@ -306,7 +306,7 @@ require (
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
-	golang.zx2c4.com/wireguard/windows v0.4.10 // indirect
+	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220804142021-4e6b2dfa6612 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
