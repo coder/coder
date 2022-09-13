@@ -56,6 +56,15 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 
 			host := httpapi.RequestHost(r)
 			if host == "" {
+				if r.URL.Path == "/derp" {
+					// The /derp endpoint is used by wireguard clients to tunnel
+					// through coderd. For some reason these requests don't set
+					// a Host header properly sometimes (no idea how), which
+					// causes this path to get hit.
+					next.ServeHTTP(rw, r)
+					return
+				}
+
 				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Could not determine request Host.",
 				})
