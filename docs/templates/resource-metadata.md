@@ -73,7 +73,7 @@ resource "coder_metadata" "hide_serviceaccount" {
 
 ## Using custom resource icon
 
-You can use custom icons for your resources using the `icon` attribute. The `icon` attribute needs to be a valid path or URL.
+To use custom icons on your resources, use the `icon` attribute (must be a valid path or URL):
 
 ```hcl
 resource "coder_metadata" "resource_with_icon" {
