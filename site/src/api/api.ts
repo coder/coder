@@ -295,6 +295,10 @@ export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen
   return response.data
 }
 
+export const deleteUser = async (userId: TypesGen.User["id"]): Promise<undefined> => {
+  return await axios.delete(`/api/v2/users/${userId}`)
+}
+
 // API definition:
 // https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53
 export const hasFirstUser = async (): Promise<boolean> => {

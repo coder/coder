@@ -707,7 +707,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 
 			inheritedParams, err := db.ParameterValues(r.Context(), database.ParameterValuesParams{
-				Ids: inherits,
+				IDs: inherits,
 			})
 			if err != nil {
 				return xerrors.Errorf("fetch inherited params: %w", err)

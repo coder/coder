@@ -65,7 +65,9 @@ an PostgreSQL container and volume.
 
    > Without `CODER_ACCESS_URL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
 
-4. Follow the on-screen instructions log in and create your first template and workspace
+4. Visit the web ui via the configured url. You can add `/login` to the base url to create the first user via the ui. 
+
+5. Follow the on-screen instructions log in and create your first template and workspace
 
 ## Troubleshooting
 

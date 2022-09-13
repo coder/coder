@@ -301,7 +301,8 @@ CREATE TABLE users (
     status user_status DEFAULT 'active'::public.user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::public.login_type NOT NULL,
-    avatar_url text
+    avatar_url text,
+    deleted boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -504,13 +505,13 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
+CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
-CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
+CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
-CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
+CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
