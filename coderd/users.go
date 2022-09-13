@@ -338,6 +338,57 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
 }
 
+func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Features: api.FeaturesService,
+		Log:      api.Logger,
+		Request:  r,
+		Action:   database.AuditActionDelete,
+	})
+	aReq.Old = user
+	defer commitAudit()
+
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	workspaces, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
+		OwnerID: user.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaces) > 0 {
+		httpapi.Write(rw, http.StatusExpectationFailed, codersdk.Response{
+			Message: "You cannot delete a user that has workspaces. Delete their workspaces and try again!",
+		})
+		return
+	}
+
+	err = api.Database.UpdateUserDeletedByID(r.Context(), database.UpdateUserDeletedByIDParams{
+		ID:      user.ID,
+		Deleted: true,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	user.Deleted = true
+	aReq.New = user
+	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+		Message: "User has been deleted!",
+	})
+}
+
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {

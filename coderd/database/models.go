@@ -506,6 +506,7 @@ type User struct {
 	RBACRoles      []string       `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
 	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted        bool           `db:"deleted" json:"deleted"`
 }
 
 type UserLink struct {
@@ -587,6 +588,7 @@ type WorkspaceResource struct {
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
 	Hide       bool                `db:"hide" json:"hide"`
+	Icon       string              `db:"icon" json:"icon"`
 }
 
 type WorkspaceResourceMetadatum struct {

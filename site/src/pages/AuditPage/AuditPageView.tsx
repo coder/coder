@@ -6,7 +6,6 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
 import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
-import { CodeExample } from "components/CodeExample/CodeExample"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
@@ -19,7 +18,6 @@ import { FC } from "react"
 export const Language = {
   title: "Audit",
   subtitle: "View events in your audit log.",
-  tooltipTitle: "Copy to clipboard and try the Coder CLI",
 }
 
 export interface AuditPageViewProps {
@@ -47,11 +45,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
   return (
     <Margins>
-      <PageHeader
-        actions={
-          <CodeExample tooltipTitle={Language.tooltipTitle} code="coder audit [organization_ID]" />
-        }
-      >
+      <PageHeader>
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.title}</span>

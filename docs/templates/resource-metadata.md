@@ -55,6 +55,22 @@ resource "coder_metadata" "deployment" {
 }
 ```
 
+## Hiding resources in the UI
+
+Some resources don't need to be exposed in the UI; this helps keep the workspace view clean for developers. To hide a resource, use the `hide` attribute:
+
+```hcl
+resource "coder_metadata" "hide_serviceaccount" {
+  count = data.coder_workspace.me.start_count
+  resource_id = kubernetes_service_account.user_data.id
+  hide = true
+  item {
+    key = "name"
+    value = kubernetes_deployment.coder[0].metadata[0].name
+  }
+}
+```
+
 ## Up next
 
 - Learn about [secrets](../secrets.md)

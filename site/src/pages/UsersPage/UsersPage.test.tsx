@@ -52,6 +52,38 @@ const suspendUser = async (setupActionSpies: () => void) => {
   fireEvent.click(confirmButton)
 }
 
+const deleteUser = async (setupActionSpies: () => void) => {
+  // Get the first user in the table
+  const users = await screen.findAllByText(/.*@coder.com/)
+  const firstUserRow = users[0].closest("tr")
+  if (!firstUserRow) {
+    throw new Error("Error on get the first user row")
+  }
+
+  // Click on the "more" button to display the "Suspend" option
+  const moreButton = within(firstUserRow).getByLabelText("more")
+
+  fireEvent.click(moreButton)
+
+  const menu = await screen.findByRole("menu")
+  const suspendButton = within(menu).getByText(UsersTableBodyLanguage.deleteMenuItem)
+
+  fireEvent.click(suspendButton)
+
+  // Check if the confirm message is displayed
+  const confirmDialog = await screen.findByRole("dialog")
+  expect(confirmDialog).toHaveTextContent(
+    `${UsersPageLanguage.deleteDialogMessagePrefix} ${MockUser.username}?`,
+  )
+
+  // Setup spies to check the actions after
+  setupActionSpies()
+
+  // Click on the "Confirm" button
+  const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.deleteDialogAction)
+  fireEvent.click(confirmButton)
+}
+
 const activateUser = async (setupActionSpies: () => void) => {
   // Get the first user in the table
   const users = await screen.findAllByText(/.*@coder.com/)
@@ -225,6 +257,57 @@ describe("UsersPage", () => {
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1)
         expect(API.suspendUser).toBeCalledWith(MockUser.id)
+      })
+    })
+  })
+
+  describe("delete user", () => {
+    describe("when it is success", () => {
+      it("shows a success message and refresh the page", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await deleteUser(() => {
+          jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
+          jest
+            .spyOn(API, "getUsers")
+            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
+        })
+
+        // Check if the success message is displayed
+        screen.findByText(usersXServiceLanguage.deleteUserSuccess)
+
+        // Check if the API was called correctly
+        expect(API.deleteUser).toBeCalledTimes(1)
+        expect(API.deleteUser).toBeCalledWith(MockUser.id)
+
+        // Check if the users list was reload
+        await waitFor(() => expect(API.getUsers).toBeCalledTimes(1))
+      })
+    })
+    describe("when it fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await deleteUser(() => {
+          jest.spyOn(API, "deleteUser").mockRejectedValueOnce({})
+        })
+
+        // Check if the error message is displayed
+        screen.findByText(usersXServiceLanguage.deleteUserError)
+
+        // Check if the API was called correctly
+        expect(API.deleteUser).toBeCalledTimes(1)
+        expect(API.deleteUser).toBeCalledWith(MockUser.id)
       })
     })
   })

@@ -81,4 +81,4 @@ Web IDEs (code-server, JetBrains Projector, VNC, etc.) are defined in the templa
 
 ## Up next
 
-- Learn about [Port Forwarding](./port-forwarding.md)
+- Learn about [Port Forwarding](./networking/port-forwarding.md)

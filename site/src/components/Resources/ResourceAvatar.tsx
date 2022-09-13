@@ -1,51 +1,47 @@
 import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
-import FolderIcon from "@material-ui/icons/FolderOutlined"
-import ImageIcon from "@material-ui/icons/ImageOutlined"
-import MemoryIcon from "@material-ui/icons/MemoryOutlined"
-import WidgetsIcon from "@material-ui/icons/WidgetsOutlined"
 import React from "react"
 import { WorkspaceResource } from "../../api/typesGenerated"
 
-// For this special case, we need to apply a different style because how this
-// particular icon has been designed
-const AdjustedMemoryIcon: typeof MemoryIcon = ({ style, ...props }) => {
-  return <MemoryIcon style={{ ...style, fontSize: 24 }} {...props} />
-}
-
-// NOTE@jsjoeio, @BrunoQuaresma
+// NOTE @jsjoeio, @BrunoQuaresma
 // These resources (i.e. docker_image, kubernetes_deployment) map to Terraform
 // resource types. These are the most used ones and are based on user usage.
 // We may want to update from time-to-time.
-const iconByResource: Record<WorkspaceResource["type"], typeof MemoryIcon | undefined> = {
-  docker_volume: FolderIcon,
-  docker_container: AdjustedMemoryIcon,
-  docker_image: ImageIcon,
-  kubernetes_persistent_volume_claim: FolderIcon,
-  kubernetes_pod: AdjustedMemoryIcon,
-  google_compute_disk: FolderIcon,
-  google_compute_instance: AdjustedMemoryIcon,
-  aws_instance: AdjustedMemoryIcon,
-  kubernetes_deployment: AdjustedMemoryIcon,
-  null_resource: WidgetsIcon,
+const iconPathByResource: Record<WorkspaceResource["type"], string> = {
+  docker_volume: "/icon/folder.svg",
+  docker_container: "/icon/memory.svg",
+  docker_image: "/icon/image.svg",
+  kubernetes_persistent_volume_claim: "/icon/folder.svg",
+  kubernetes_pod: "/icon/memory.svg",
+  google_compute_disk: "/icon/folder.svg",
+  google_compute_instance: "/icon/memory.svg",
+  aws_instance: "/icon/memory.svg",
+  kubernetes_deployment: "/icon/memory.svg",
+  null_resource: "/icon/widgets.svg",
 }
 
-export type ResourceAvatarProps = { type: WorkspaceResource["type"] }
+export type ResourceAvatarProps = { resource: WorkspaceResource }
 
-export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ type }) => {
-  const IconComponent = iconByResource[type] ?? WidgetsIcon
+export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ resource }) => {
+  const hasIcon = resource.icon && resource.icon !== ""
+  const avatarSrc = hasIcon
+    ? resource.icon
+    : // resource.type is dynamic so iconPathByResource[resource.type] can be null
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      iconPathByResource[resource.type] ?? iconPathByResource["null_resource"]
   const styles = useStyles()
 
-  return (
-    <Avatar className={styles.resourceAvatar}>
-      <IconComponent style={{ fontSize: 20 }} />
-    </Avatar>
-  )
+  return <Avatar className={styles.resourceAvatar} src={avatarSrc} />
 }
 
 const useStyles = makeStyles((theme) => ({
   resourceAvatar: {
     color: theme.palette.info.contrastText,
     backgroundColor: theme.palette.info.main,
+
+    "& img": {
+      width: 20,
+      height: 20,
+    },
   },
 }))

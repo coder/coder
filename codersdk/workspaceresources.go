@@ -26,6 +26,7 @@ type WorkspaceResource struct {
 	Type       string                      `json:"type"`
 	Name       string                      `json:"name"`
 	Hide       bool                        `json:"hide"`
+	Icon       string                      `json:"icon"`
 	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
 	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
 }
