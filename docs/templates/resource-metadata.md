@@ -71,7 +71,7 @@ resource "coder_metadata" "hide_serviceaccount" {
 }
 ```
 
-## Hiding custom resource icon
+## Using custom resource icon
 
 You can use custom icons for your resources using the `icon` attribute. The `icon` attribute needs to be a valid path or URL.
 
