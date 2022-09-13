@@ -812,7 +812,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		"Specifies an issuer URL to use for OIDC.")
 	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
 		"Specifies scopes to grant when authenticating with OIDC.")
-	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", false,
+	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", true,
 		"Specifies whether Tailscale networking is used for web applications and terminals.")
 	_ = root.Flags().MarkHidden("tailscale")
 	enableTelemetryByDefault := !isTest()

@@ -95,6 +95,12 @@ func New(options *Options) *API {
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
 	}
+	if options.AgentStatsRefreshInterval == 0 {
+		options.AgentStatsRefreshInterval = 10 * time.Minute
+	}
+	if options.MetricsCacheRefreshInterval == 0 {
+		options.MetricsCacheRefreshInterval = time.Hour
+	}
 	if options.Authorizer == nil {
 		var err error
 		options.Authorizer, err = rbac.NewAuthorizer()
