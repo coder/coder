@@ -187,6 +187,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
 	apps := func(r chi.Router) {

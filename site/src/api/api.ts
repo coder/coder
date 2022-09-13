@@ -4,6 +4,41 @@ import * as Types from "./types"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
+export const hardCodedCSRFCookie = (): string => {
+  // This is a hard coded CSRF token/cookie pair for local development.
+  // In prod, the GoLang webserver generates a random cookie with a new token for
+  // each document request. For local development, we don't use the Go webserver for static files,
+  // so this is the 'hack' to make local development work with remote apis.
+  // The CSRF cookie for this token is "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
+  const csrfToken =
+    "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A=="
+  axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken
+  return csrfToken
+}
+
+// Always attach CSRF token to all requests.
+// In puppeteer the document is undefined. In those cases, just
+// do nothing.
+const token =
+  typeof document !== "undefined"
+    ? document.head.querySelector('meta[property="csrf-token"]')
+    : null
+
+if (token !== null && token.getAttribute("content") !== null) {
+  if (process.env.NODE_ENV === "development") {
+    // Development mode uses a hard-coded CSRF token
+    axios.defaults.headers.common["X-CSRF-TOKEN"] = hardCodedCSRFCookie()
+    token.setAttribute("content", hardCodedCSRFCookie())
+  } else {
+    axios.defaults.headers.common["X-CSRF-TOKEN"] = token.getAttribute("content") ?? ""
+  }
+} else {
+  // Do not write error logs if we are in a FE unit test.
+  if (process.env.JEST_WORKER_ID === undefined) {
+    console.error("CSRF token not found")
+  }
+}
+
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
 }

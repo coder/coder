@@ -29,10 +29,7 @@ func TestUserParam(t *testing.T) {
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
 		)
-		r.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenKey,
-			Value: fmt.Sprintf("%s-%s", id, secret),
-		})
+		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
 			ID:       uuid.New(),

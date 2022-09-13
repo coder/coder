@@ -20,9 +20,11 @@ import (
 // Be sure to strip additional cookies in httpapi.StripCoder Cookies!
 const (
 	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
-	SessionTokenKey   = "session_token"
-	OAuth2StateKey    = "oauth_state"
-	OAuth2RedirectKey = "oauth_redirect"
+	SessionTokenKey = "coder_session_token"
+	// SessionCustomHeader is the custom header to use for authentication.
+	SessionCustomHeader = "Coder-Session-Token"
+	OAuth2StateKey      = "oauth_state"
+	OAuth2RedirectKey   = "oauth_redirect"
 )
 
 // New creates a Coder client for the provided URL.
@@ -70,10 +72,15 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
+	req.Header.Set(SessionCustomHeader, c.SessionToken)
+
+	// Delete this custom cookie set in November 2022. This is just to remain
+	// backwards compatible with older versions of Coder.
 	req.AddCookie(&http.Cookie{
-		Name:  SessionTokenKey,
+		Name:  "session_token",
 		Value: c.SessionToken,
 	})
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

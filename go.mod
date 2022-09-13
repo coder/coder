@@ -59,7 +59,7 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220912224234-e80c
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
 
 // Fixes a deadlock on close in devtunnel.
-replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20220913030355-902de6e9b175
+replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20220913030931-b1b3bb45caf9
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
