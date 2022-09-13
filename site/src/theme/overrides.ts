@@ -80,11 +80,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
     },
-    MuiTableHead: {
-      root: {
-        display: "table-header-group",
-      },
-    },
     MuiTableContainer: {
       root: {
         borderRadius,
@@ -118,6 +113,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         fontSize: 14,
         color: palette.text.secondary,
         fontWeight: 600,
+        background: palette.background.paperLight,
       },
       root: {
         fontSize: 16,
