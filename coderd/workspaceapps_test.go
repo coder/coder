@@ -77,13 +77,16 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
-							Apps: []*proto.App{{
-								Name: proxyTestAppName,
-								Url:  fmt.Sprintf("http://127.0.0.1:%d?%s", tcpAddr.Port, proxyTestAppQuery),
-							}, {
-								Name: proxyTestFakeAppName,
-								Url:  "http://127.0.0.2",
-							}},
+							Apps: []*proto.App{
+								{
+									Name: proxyTestAppName,
+									Url:  fmt.Sprintf("http://127.0.0.1:%d?%s", tcpAddr.Port, proxyTestAppQuery),
+								}, {
+									Name: proxyTestFakeAppName,
+									// Hopefully this IP and port doesn't exist.
+									Url: "http://127.1.0.1:65535",
+								},
+							},
 						}},
 					}},
 				},
