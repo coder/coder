@@ -191,6 +191,19 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 	}
 
+	testAuthorize(t, "ACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACL(map[Action][]string{
+				ActionRead:   {user.UserID},
+				ActionDelete: {user.UserID},
+				ActionCreate: {user.UserID},
+				ActionUpdate: {user.UserID},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+	})
+
 	testAuthorize(t, "Member", user, []authTestCase{
 		// Org + me
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: true},

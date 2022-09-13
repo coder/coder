@@ -138,7 +138,9 @@ type Object struct {
 
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
-	// TODO: SharedUsers?
+
+	// map[action][]user_id
+	ACLList map[Action][]string ` json:"acl_list"`
 }
 
 func (z Object) RBACObject() Object {
@@ -169,5 +171,15 @@ func (z Object) WithOwner(ownerID string) Object {
 		Owner: ownerID,
 		OrgID: z.OrgID,
 		Type:  z.Type,
+	}
+}
+
+// WithACL adds an ACL list to a given object
+func (z Object) WithACL(acl map[Action][]string) Object {
+	return Object{
+		Owner:   z.Owner,
+		OrgID:   z.OrgID,
+		Type:    z.Type,
+		ACLList: acl,
 	}
 }
