@@ -1,4 +1,3 @@
-import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
@@ -106,15 +105,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         }
       >
         <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
-        <Box display="flex">
+        <Stack direction="row" spacing={3} alignItems="center">
           {hasTemplateIcon && (
             <img alt="" src={workspace.template_icon} className={styles.templateIcon} />
           )}
           <div>
             <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-            <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
+            <PageHeaderSubtitle condensed>{workspace.owner_name}</PageHeaderSubtitle>
           </div>
-        </Box>
+        </Stack>
       </PageHeader>
 
       <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
@@ -184,10 +183,8 @@ export const useStyles = makeStyles((theme) => {
     },
 
     templateIcon: {
-      width: 40,
-      height: 40,
-      marginRight: theme.spacing(2),
-      marginTop: theme.spacing(0.5),
+      width: theme.spacing(6),
+      height: theme.spacing(6),
     },
 
     timelineContents: {
