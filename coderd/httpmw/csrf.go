@@ -16,7 +16,7 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		mw := nosurf.New(next)
 		mw.SetBaseCookie(http.Cookie{Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie})
-		mw.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mw.SetFailureHandler(http.HandlerFunc(func(wg http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Something is wrong with your CSRF token. Please refresh the page. If this error persists, try clearing your cookies.", http.StatusBadRequest)
 		}))
 
@@ -28,6 +28,8 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/[^/]*$"))
 		// Agent authenticated routes
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
+		// Derp routes
+		mw.ExemptRegexp(regexp.MustCompile("derp/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
 			// CSRF only affects requests that automatically attach credentials via a cookie.

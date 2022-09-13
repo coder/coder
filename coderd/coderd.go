@@ -406,7 +406,6 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Post("/peer", api.postWorkspaceAgentWireguardPeer)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.userWorkspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
