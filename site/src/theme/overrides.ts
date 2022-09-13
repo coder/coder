@@ -11,7 +11,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
           backgroundImage: `linear-gradient(to right bottom, ${palette.background.default}, ${colors.gray[17]})`,
           backgroundRepeat: "no-repeat",
           backgroundAttachment: "fixed",
-          letterSpacing: "-0.015em",
         },
         ":root": {
           colorScheme: palette.type,

@@ -22,7 +22,7 @@ export const darkPalette: PaletteOptions = {
     paper: colors.gray[16],
   },
   text: {
-    primary: colors.gray[4],
+    primary: colors.gray[1],
     secondary: colors.gray[5],
   },
   divider: colors.gray[13],
