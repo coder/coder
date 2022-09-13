@@ -161,21 +161,6 @@ func NewConn(options *Options) (*Conn, error) {
 		return nil, xerrors.Errorf("start netstack: %w", err)
 	}
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
-
-	// Update the wireguard configuration to allow traffic to flow.
-	wireguardConfig, err := nmcfg.WGCfg(netMap, Logger(options.Logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
-	if err != nil {
-		return nil, xerrors.Errorf("create wgcfg: %w", err)
-	}
-
-	wireguardRouter := &router.Config{
-		LocalAddrs: wireguardConfig.Addresses,
-	}
-	err = wireguardEngine.Reconfig(wireguardConfig, wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
-	if err != nil {
-		return nil, xerrors.Errorf("reconfig: %w", err)
-	}
-
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
 	wireguardEngine.SetNetworkMap(&netMapCopy)
@@ -198,8 +183,10 @@ func NewConn(options *Options) (*Conn, error) {
 		netMap:           netMap,
 		netStack:         netStack,
 		wireguardMonitor: wireguardMonitor,
-		wireguardRouter:  wireguardRouter,
-		wireguardEngine:  wireguardEngine,
+		wireguardRouter: &router.Config{
+			LocalAddrs: netMap.Addresses,
+		},
+		wireguardEngine: wireguardEngine,
 	}
 	netStack.ForwardTCPIn = server.forwardTCP
 	return server, nil
@@ -227,15 +214,16 @@ type Conn struct {
 	closed chan struct{}
 	logger slog.Logger
 
-	dialer           *tsdial.Dialer
-	tunDevice        *tstun.Wrapper
-	netMap           *netmap.NetworkMap
-	netStack         *netstack.Impl
-	magicConn        *magicsock.Conn
-	wireguardMonitor *monitor.Mon
-	wireguardRouter  *router.Config
-	wireguardEngine  wgengine.Engine
-	listeners        map[listenKey]*listener
+	dialer             *tsdial.Dialer
+	tunDevice          *tstun.Wrapper
+	netMap             *netmap.NetworkMap
+	netStack           *netstack.Impl
+	magicConn          *magicsock.Conn
+	wireguardMonitor   *monitor.Mon
+	wireguardRouter    *router.Config
+	wireguardEngine    wgengine.Engine
+	listeners          map[listenKey]*listener
+	forwardTCPCallback func(conn net.Conn, listenerExists bool) net.Conn
 
 	lastMutex sync.Mutex
 	// It's only possible to store these values via status functions,
@@ -243,6 +231,17 @@ type Conn struct {
 	lastEndpoints     []string
 	lastPreferredDERP int
 	lastDERPLatency   map[string]float64
+}
+
+// SetForwardTCPCallback is called every time a TCP connection is initiated inbound.
+// listenerExists is true if a listener is registered for the target port. If there
+// isn't one, traffic is forwarded to the local listening port.
+//
+// This allows wrapping a Conn to track reads and writes.
+func (c *Conn) SetForwardTCPCallback(callback func(conn net.Conn, listenerExists bool) net.Conn) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.forwardTCPCallback = callback
 }
 
 // SetNodeCallback is triggered when a network change occurs and peer
@@ -261,27 +260,39 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 			DERPLatency:   c.lastDERPLatency,
 		}
 	}
-	c.magicConn.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+	// A send queue must be used so nodes are sent in order.
+	queue := make(chan *Node, 16)
+	go func() {
+		for {
+			select {
+			case <-c.closed:
+				return
+			case node := <-queue:
+				c.logger.Debug(context.Background(), "send node callback", slog.F("node", node))
+				callback(node)
+			}
+		}
+	}()
+	c.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		c.lastMutex.Lock()
 		c.lastPreferredDERP = ni.PreferredDERP
 		c.lastDERPLatency = ni.DERPLatency
 		node := makeNode()
+		queue <- node
 		c.lastMutex.Unlock()
-		callback(node)
 	})
 	c.wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		if err != nil {
 			return
 		}
-		endpoints := make([]string, 0, len(s.LocalAddrs))
-		for _, addr := range s.LocalAddrs {
-			endpoints = append(endpoints, addr.Addr.String())
-		}
 		c.lastMutex.Lock()
-		c.lastEndpoints = endpoints
+		c.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
+		for _, addr := range s.LocalAddrs {
+			c.lastEndpoints = append(c.lastEndpoints, addr.Addr.String())
+		}
 		node := makeNode()
+		queue <- node
 		c.lastMutex.Unlock()
-		callback(node)
 	})
 }
 
@@ -289,6 +300,8 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	c.netMap.DERPMap = derpMap
+	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
 	c.wireguardEngine.SetDERPMap(derpMap)
 }
 
@@ -302,15 +315,19 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	for _, peer := range c.netMap.Peers {
 		if peerStatus, ok := status.Peer[peer.Key]; ok {
 			// Clear out inactive connections!
-			if !peerStatus.Active {
+			// If a connection hasn't been active for a minute post creation, we assume it's dead.
+			if !peerStatus.Active && peer.Created.Before(time.Now().Add(-time.Minute)) {
+				c.logger.Debug(context.Background(), "clearing peer", slog.F("peerStatus", peerStatus))
 				continue
 			}
 		}
 		peerMap[peer.ID] = peer
 	}
 	for _, node := range nodes {
-		peerMap[node.ID] = &tailcfg.Node{
+		peerStatus, ok := status.Peer[node.Key]
+		peerNode := &tailcfg.Node{
 			ID:         node.ID,
+			Created:    time.Now(),
 			Key:        node.Key,
 			DiscoKey:   node.DiscoKey,
 			Addresses:  node.Addresses,
@@ -318,12 +335,26 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
+			// Starting KeepAlive messages at the initialization
+			// of a connection cause it to hang for an unknown
+			// reason. TODO: @kylecarbs debug this!
+			KeepAlive: ok && peerStatus.Active,
 		}
+		existingNode, ok := peerMap[node.ID]
+		if ok {
+			peerNode.Created = existingNode.Created
+			c.logger.Debug(context.Background(), "updating peer", slog.F("peer", peerNode))
+		} else {
+			c.logger.Debug(context.Background(), "adding peer", slog.F("peer", peerNode))
+		}
+		peerMap[node.ID] = peerNode
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
 	for _, peer := range peerMap {
 		c.netMap.Peers = append(c.netMap.Peers, peer)
 	}
+	netMapCopy := *c.netMap
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)
@@ -332,15 +363,13 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	if err != nil {
 		return xerrors.Errorf("reconfig: %w", err)
 	}
-	netMapCopy := *c.netMap
-	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	return nil
 }
 
 // Status returns the current ipnstate of a connection.
 func (c *Conn) Status() *ipnstate.Status {
 	sb := &ipnstate.StatusBuilder{}
-	c.magicConn.UpdateStatus(sb)
+	c.wireguardEngine.UpdateStatus(sb)
 	return sb.Status()
 }
 
@@ -358,16 +387,17 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	select {
 	case <-c.closed:
+		c.mutex.Unlock()
 		return nil
 	default:
 	}
+	close(c.closed)
 	for _, l := range c.listeners {
 		_ = l.closeNoLock()
 	}
-	close(c.closed)
+	c.mutex.Unlock()
 	_ = c.dialer.Close()
 	_ = c.magicConn.Close()
 	_ = c.netStack.Close()
@@ -375,6 +405,15 @@ func (c *Conn) Close() error {
 	_ = c.tunDevice.Close()
 	c.wireguardEngine.Close()
 	return nil
+}
+
+func (c *Conn) isClosed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 // This and below is taken _mostly_ verbatim from Tailscale:
@@ -393,9 +432,14 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 		key:  lk,
 		addr: addr,
 
-		conn: make(chan net.Conn),
+		closed: make(chan struct{}),
+		conn:   make(chan net.Conn),
 	}
 	c.mutex.Lock()
+	if c.isClosed() {
+		c.mutex.Unlock()
+		return nil, xerrors.New("closed")
+	}
 	if c.listeners == nil {
 		c.listeners = map[listenKey]*listener{}
 	}
@@ -419,6 +463,9 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	c.mutex.Lock()
 	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	if c.forwardTCPCallback != nil {
+		conn = c.forwardTCPCallback(conn, ok)
+	}
 	c.mutex.Unlock()
 	if !ok {
 		c.forwardTCPToLocal(conn, port)
@@ -428,9 +475,12 @@ func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
 	defer t.Stop()
 	select {
 	case ln.conn <- conn:
+		return
+	case <-ln.closed:
+	case <-c.closed:
 	case <-t.C:
-		_ = conn.Close()
 	}
+	_ = conn.Close()
 }
 
 func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
@@ -474,15 +524,18 @@ type listenKey struct {
 }
 
 type listener struct {
-	s    *Conn
-	key  listenKey
-	addr string
-	conn chan net.Conn
+	s      *Conn
+	key    listenKey
+	addr   string
+	conn   chan net.Conn
+	closed chan struct{}
 }
 
 func (ln *listener) Accept() (net.Conn, error) {
-	c, ok := <-ln.conn
-	if !ok {
+	var c net.Conn
+	select {
+	case c = <-ln.conn:
+	case <-ln.closed:
 		return nil, xerrors.Errorf("wgnet: %w", net.ErrClosed)
 	}
 	return c, nil
@@ -498,7 +551,7 @@ func (ln *listener) Close() error {
 func (ln *listener) closeNoLock() error {
 	if v, ok := ln.s.listeners[ln.key]; ok && v == ln {
 		delete(ln.s.listeners, ln.key)
-		close(ln.conn)
+		close(ln.closed)
 	}
 	return nil
 }

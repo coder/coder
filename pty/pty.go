@@ -2,12 +2,18 @@ package pty
 
 import (
 	"io"
+	"log"
 	"os"
+
+	"github.com/gliderlabs/ssh"
 )
 
 // PTY is a minimal interface for interacting with a TTY.
 type PTY interface {
 	io.Closer
+
+	// Name of the TTY. Example on Linux would be "/dev/pts/1".
+	Name() string
 
 	// Output handles TTY output.
 	//
@@ -35,7 +41,6 @@ type PTY interface {
 // to Wait() on a process, this abstraction provides a goroutine-safe interface for interacting with
 // the process.
 type Process interface {
-
 	// Wait for the command to complete.  Returned error is as for exec.Cmd.Wait()
 	Wait() error
 
@@ -52,9 +57,33 @@ type WithFlags interface {
 	EchoEnabled() (bool, error)
 }
 
+// Options represents a an option for a PTY.
+type Option func(*ptyOptions)
+
+type ptyOptions struct {
+	logger *log.Logger
+	sshReq *ssh.Pty
+}
+
+// WithSSHRequest applies the ssh.Pty request to the PTY.
+//
+// Only partially supported on Windows (e.g. window size).
+func WithSSHRequest(req ssh.Pty) Option {
+	return func(opts *ptyOptions) {
+		opts.sshReq = &req
+	}
+}
+
+// WithLogger sets a logger for logging errors.
+func WithLogger(logger *log.Logger) Option {
+	return func(opts *ptyOptions) {
+		opts.logger = logger
+	}
+}
+
 // New constructs a new Pty.
-func New() (PTY, error) {
-	return newPty()
+func New(opts ...Option) (PTY, error) {
+	return newPty(opts...)
 }
 
 // ReadWriter is an implementation of io.ReadWriter that wraps two separate

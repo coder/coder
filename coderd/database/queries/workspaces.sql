@@ -50,20 +50,6 @@ WHERE
 	END
 ;
 
--- name: GetWorkspacesAutostart :many
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	deleted = false
-AND
-(
-	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
-	OR
-	(ttl IS NOT NULL AND ttl > 0)
-);
-
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
 	*
@@ -135,5 +121,13 @@ UPDATE
 	workspaces
 SET
 	ttl = $2
+WHERE
+	id = $1;
+
+-- name: UpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = $2
 WHERE
 	id = $1;

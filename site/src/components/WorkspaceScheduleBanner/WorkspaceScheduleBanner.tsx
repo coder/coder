@@ -42,7 +42,13 @@ export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceSchedu
     return (
       <Alert
         action={
-          <Button color="inherit" disabled={isLoading} onClick={onExtend} size="small">
+          <Button
+            variant="outlined"
+            color="inherit"
+            disabled={isLoading}
+            onClick={onExtend}
+            size="small"
+          >
             {Language.bannerAction}
           </Button>
         }

@@ -13,7 +13,7 @@ Coder with Docker has the following advantages:
 
 ## Instructions
 
-1.  [Install and launch Coder](../install.md)
+1.  [Install and launch Coder](../install)
 
     You will specify `CODER_ACCESS_URL=http://localhost:7080` since we're using
     local Docker workspaces exclusively. `CODER_ACCESS_URL` is the external URL

@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { createDayString } from "util/createDayString"
+import { formatTemplateActiveDevelopers } from "util/templates"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
@@ -27,10 +28,8 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
         <span className={styles.statsLabel}>{Language.usedByLabel}</span>
 
         <span className={styles.statsValue}>
-          {template.workspace_owner_count}{" "}
-          {template.workspace_owner_count === 1
-            ? Language.developerSingular
-            : Language.developerPlural}
+          {formatTemplateActiveDevelopers(template.active_user_count)}{" "}
+          {template.active_user_count === 1 ? Language.developerSingular : Language.developerPlural}
         </span>
       </div>
       <div className={styles.statsDivider} />

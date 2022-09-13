@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -174,4 +175,20 @@ func parseTime(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, errInvalidTimeFormat
+}
+
+func formatActiveDevelopers(n int) string {
+	developerText := "developer"
+	if n != 1 {
+		developerText = "developers"
+	}
+
+	var nStr string
+	if n < 0 {
+		nStr = "-"
+	} else {
+		nStr = strconv.Itoa(n)
+	}
+
+	return fmt.Sprintf("%s active %s", nStr, developerText)
 }

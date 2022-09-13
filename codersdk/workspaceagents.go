@@ -19,6 +19,7 @@ import (
 	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -527,4 +528,88 @@ func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, p
 		}
 		return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 	})
+}
+
+// AgentReportStats begins a stat streaming connection with the Coder server.
+// It is resilient to network failures and intermittent coderd issues.
+func (c *Client) AgentReportStats(
+	ctx context.Context,
+	log slog.Logger,
+	stats func() *agent.Stats,
+) (io.Closer, error) {
+	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/report-stats")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  SessionTokenKey,
+		Value: c.SessionToken,
+	}})
+
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+
+	doneCh := make(chan struct{})
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		defer close(doneCh)
+
+		// If the agent connection succeeds for a while, then fails, then succeeds
+		// for a while (etc.) the retry may hit the maximum. This is a normal
+		// case for long-running agents that experience coderd upgrades, so
+		// we use a short maximum retry limit.
+		for r := retry.New(time.Second, time.Minute); r.Wait(ctx); {
+			err = func() error {
+				conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+					HTTPClient: httpClient,
+					// Need to disable compression to avoid a data-race.
+					CompressionMode: websocket.CompressionDisabled,
+				})
+				if err != nil {
+					if res == nil {
+						return err
+					}
+					return readBodyAsError(res)
+				}
+
+				for {
+					var req AgentStatsReportRequest
+					err := wsjson.Read(ctx, conn, &req)
+					if err != nil {
+						return err
+					}
+
+					s := stats()
+
+					resp := AgentStatsReportResponse{
+						NumConns: s.NumConns,
+						RxBytes:  s.RxBytes,
+						TxBytes:  s.TxBytes,
+					}
+
+					err = wsjson.Write(ctx, conn, resp)
+					if err != nil {
+						return err
+					}
+				}
+			}()
+			if err != nil && ctx.Err() == nil {
+				log.Error(ctx, "report stats", slog.Error(err))
+			}
+		}
+	}()
+
+	return closeFunc(func() error {
+		cancel()
+		<-doneCh
+		return nil
+	}), nil
 }

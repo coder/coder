@@ -135,7 +135,7 @@ func TestPortForward(t *testing.T) {
 	// Setup agent once to be shared between test-cases (avoid expensive
 	// non-parallel setup).
 	var (
-		client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user         = coderdtest.CreateFirstUser(t, client)
 		_, workspace = runAgent(t, client, user.UserID)
 	)

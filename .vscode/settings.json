@@ -31,6 +31,7 @@
     "gonet",
     "gossh",
     "gsyslog",
+    "GTTY",
     "hashicorp",
     "hclsyntax",
     "httpapi",
@@ -67,6 +68,7 @@
     "ntqry",
     "OIDC",
     "oneof",
+    "opty",
     "paralleltest",
     "parameterscopeid",
     "pqtype",
@@ -76,6 +78,7 @@
     "provisionerd",
     "provisionersdk",
     "ptty",
+    "ptys",
     "ptytest",
     "reconfig",
     "retrier",
@@ -87,6 +90,7 @@
     "sourcemapped",
     "Srcs",
     "stretchr",
+    "STTY",
     "stuntest",
     "tailbroker",
     "tailcfg",
@@ -105,6 +109,7 @@
     "tfjson",
     "tfplan",
     "tfstate",
+    "tios",
     "tparallel",
     "trimprefix",
     "tsdial",
@@ -157,20 +162,19 @@
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
   "go.coverOnSave": true,
+  "go.coverageDecorator": {
+    "type": "gutter",
+    "coveredGutterStyle": "blockgreen",
+    "uncoveredGutterStyle": "blockred"
+  },
   // The codersdk is used by coderd another other packages extensively.
   // To reduce redundancy in tests, it's covered by other packages.
   // Since package coverage pairing can't be defined, all packages cover
   // all other packages.
-  "go.testFlags": ["-short", "-coverpkg=./..."],
-  "go.coverageDecorator": {
-    "type": "gutter",
-    "coveredHighlightColor": "rgba(64,128,128,0.5)",
-    "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
-    "coveredBorderColor": "rgba(64,128,128,0.5)",
-    "uncoveredBorderColor": "rgba(128,64,64,0.25)",
-    "coveredGutterStyle": "blockgreen",
-    "uncoveredGutterStyle": "blockred"
-  },
+  "go.testFlags": [
+    "-short",
+    "-coverpkg=./..."
+  ],
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
   "typescript.tsdk": "./site/node_modules/typescript/lib"

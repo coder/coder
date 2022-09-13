@@ -73,7 +73,9 @@ CREATE TYPE resource_type AS ENUM (
     'template',
     'template_version',
     'user',
-    'workspace'
+    'workspace',
+    'git_ssh_key',
+    'api_key'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -85,6 +87,16 @@ CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
     'delete'
+);
+
+CREATE TABLE agent_stats (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    user_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    payload jsonb NOT NULL
 );
 
 CREATE TABLE api_keys (
@@ -288,7 +300,9 @@ CREATE TABLE users (
     updated_at timestamp with time zone NOT NULL,
     status user_status DEFAULT 'active'::public.user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::public.login_type NOT NULL
+    login_type login_type DEFAULT 'password'::public.login_type NOT NULL,
+    avatar_url text,
+    deleted boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -331,7 +345,6 @@ CREATE TABLE workspace_builds (
     updated_at timestamp with time zone NOT NULL,
     workspace_id uuid NOT NULL,
     template_version_id uuid NOT NULL,
-    name character varying(64) NOT NULL,
     build_number integer NOT NULL,
     transition workspace_transition NOT NULL,
     initiator_id uuid NOT NULL,
@@ -354,7 +367,8 @@ CREATE TABLE workspace_resources (
     job_id uuid NOT NULL,
     transition workspace_transition NOT NULL,
     type character varying(192) NOT NULL,
-    name character varying(64) NOT NULL
+    name character varying(64) NOT NULL,
+    hide boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspaces (
@@ -367,10 +381,14 @@ CREATE TABLE workspaces (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     autostart_schedule text,
-    ttl bigint
+    ttl bigint,
+    last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
+
+ALTER TABLE ONLY agent_stats
+    ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
@@ -456,9 +474,6 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
-ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
-
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
 
@@ -467,6 +482,10 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX idx_agent_stats_created_at ON agent_stats USING btree (created_at);
+
+CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
@@ -486,13 +505,13 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
+CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
-CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
+CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
-CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
+CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 

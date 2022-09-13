@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -254,6 +257,52 @@ func TestPostLogin(t *testing.T) {
 	})
 }
 
+func TestDeleteUser(t *testing.T) {
+	t.Parallel()
+	t.Run("Works", func(t *testing.T) {
+		t.Parallel()
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api)
+		_, another := coderdtest.CreateAnotherUserWithUser(t, api, user.OrganizationID)
+		err := api.DeleteUser(context.Background(), another.ID)
+		require.NoError(t, err)
+		// Attempt to create a user with the same email and username, and delete them again.
+		another, err = api.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          another.Email,
+			Username:       another.Username,
+			Password:       "testing",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		err = api.DeleteUser(context.Background(), another.ID)
+		require.NoError(t, err)
+	})
+	t.Run("NoPermission", func(t *testing.T) {
+		t.Parallel()
+		api := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, api)
+		client, _ := coderdtest.CreateAnotherUserWithUser(t, api, firstUser.OrganizationID)
+		err := client.DeleteUser(context.Background(), firstUser.UserID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+	t.Run("HasWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdtest.NewWithProvisionerCloser(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherClient, another := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
+		err := client.DeleteUser(context.Background(), another.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
+	})
+}
+
 func TestPostLogout(t *testing.T) {
 	t.Parallel()
 
@@ -374,7 +423,8 @@ func TestPostUsers(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -387,6 +437,9 @@ func TestPostUsers(t *testing.T) {
 			Password:       "testing",
 		})
 		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -435,7 +488,8 @@ func TestUpdateUserProfile(t *testing.T) {
 
 	t.Run("UpdateUsername", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -447,6 +501,8 @@ func TestUpdateUserProfile(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, "newusername")
+		assert.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -496,7 +552,8 @@ func TestUpdateUserPassword(t *testing.T) {
 	})
 	t.Run("MemberCanUpdateOwnPassword", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		admin := coderdtest.CreateFirstUser(t, client)
 		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
@@ -508,6 +565,8 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password:    "newpassword",
 		})
 		require.NoError(t, err, "member should be able to update own password")
+		assert.Len(t, auditor.AuditLogs, 2)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
 	})
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
@@ -525,7 +584,8 @@ func TestUpdateUserPassword(t *testing.T) {
 	})
 	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -535,6 +595,8 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "newpassword",
 		})
 		require.NoError(t, err, "admin should be able to update own password without providing old password")
+		assert.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -752,7 +814,8 @@ func TestPutUserSuspend(t *testing.T) {
 
 	t.Run("SuspendAnotherUser", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		me := coderdtest.CreateFirstUser(t, client)
 		_, user := coderdtest.CreateAnotherUserWithUser(t, client, me.OrganizationID)
 
@@ -762,6 +825,8 @@ func TestPutUserSuspend(t *testing.T) {
 		user, err := client.UpdateUserStatus(ctx, user.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
+		assert.Len(t, auditor.AuditLogs, 2)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
 	})
 
 	t.Run("SuspendItSelf", func(t *testing.T) {
@@ -834,7 +899,7 @@ func TestGetUser(t *testing.T) {
 func TestUsersFilter(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1133,7 +1198,7 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

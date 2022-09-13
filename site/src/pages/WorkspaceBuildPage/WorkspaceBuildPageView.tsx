@@ -6,6 +6,7 @@ import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHea
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { WorkspaceBuildStats } from "../../components/WorkspaceBuildStats/WorkspaceBuildStats"
+import { WorkspaceBuildStateError } from "./WorkspaceBuildStateError"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -26,6 +27,9 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({ logs, 
       </PageHeader>
 
       <Stack>
+        {build && build.transition === "delete" && build.job.status === "failed" && (
+          <WorkspaceBuildStateError build={build} />
+        )}
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
         {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} />}

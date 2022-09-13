@@ -1,4 +1,8 @@
 {
+  "deleteDialog": {
+    "title": "Delete workspace",
+    "description": "Deleting a workspace is irreversible. Are you sure you want to proceed?"
+  },
   "workspaceScheduleButton": {
     "schedule": "Schedule",
     "editDeadlineMinus": "Subtract one hour",

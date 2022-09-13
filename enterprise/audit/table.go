@@ -83,6 +83,8 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"status":          ActionTrack,
 		"rbac_roles":      ActionTrack,
 		"login_type":      ActionIgnore,
+		"avatar_url":      ActionIgnore,
+		"deleted":         ActionTrack,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,
@@ -95,6 +97,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":               ActionTrack,
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
+		"last_used_at":       ActionIgnore,
 	},
 })
 

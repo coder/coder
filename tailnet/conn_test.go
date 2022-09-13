@@ -55,10 +55,12 @@ func TestTailnet(t *testing.T) {
 			_ = w2.Close()
 		})
 		w1.SetNodeCallback(func(node *tailnet.Node) {
-			w2.UpdateNodes([]*tailnet.Node{node})
+			err := w2.UpdateNodes([]*tailnet.Node{node})
+			require.NoError(t, err)
 		})
 		w2.SetNodeCallback(func(node *tailnet.Node) {
-			w1.UpdateNodes([]*tailnet.Node{node})
+			err := w1.UpdateNodes([]*tailnet.Node{node})
+			require.NoError(t, err)
 		})
 
 		conn := make(chan struct{})

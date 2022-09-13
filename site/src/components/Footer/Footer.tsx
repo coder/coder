@@ -25,7 +25,7 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildIn
   const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
 
 <!--- Ask a question or leave feedback! -->`)}`
-  const discordUrl = `https://discord.gg/coder`
+  const discordUrl = `https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer`
 
   return (
     <div className={styles.root}>

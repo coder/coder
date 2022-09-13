@@ -25,6 +25,7 @@ type WorkspaceResource struct {
 	Transition WorkspaceTransition         `json:"workspace_transition"`
 	Type       string                      `json:"type"`
 	Name       string                      `json:"name"`
+	Hide       bool                        `json:"hide"`
 	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
 	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
 }
@@ -59,7 +60,7 @@ type WorkspaceAgent struct {
 	Version              string               `json:"version"`
 	Apps                 []WorkspaceApp       `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency map[string]DERPRegion `json:"latency"`
+	DERPLatency map[string]DERPRegion `json:"latency,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

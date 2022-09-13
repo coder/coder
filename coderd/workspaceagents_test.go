@@ -29,7 +29,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerD: true,
+			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
@@ -78,7 +78,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerD: true,
+			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
@@ -136,7 +136,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerD: true,
+			IncludeProvisionerDaemon: true,
 		})
 
 		user := coderdtest.CreateFirstUser(t, client)
@@ -211,7 +211,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 func TestWorkspaceAgentTURN(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -339,7 +339,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()

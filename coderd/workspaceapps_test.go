@@ -43,7 +43,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	tcpAddr, _ := ln.Addr().(*net.TCPAddr)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()

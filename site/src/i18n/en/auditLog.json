@@ -1,0 +1,7 @@
+{
+  "actions": {
+    "create": "created a new",
+    "write": "updated",
+    "delete": "deleted"
+  }
+}

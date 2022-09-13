@@ -122,7 +122,6 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
-			Name:        "moo",
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", workspaceBuild.ID.String())

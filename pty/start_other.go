@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package pty
 
@@ -10,45 +9,49 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/creack/pty"
 	"golang.org/x/xerrors"
 )
 
-func startPty(cmd *exec.Cmd) (PTY, Process, error) {
-	ptty, tty, err := pty.Open()
-	if err != nil {
-		return nil, nil, xerrors.Errorf("open: %w", err)
+func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, err error) {
+	var opts startOptions
+	for _, o := range opt {
+		o(&opts)
 	}
 
-	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_PTY=%s", tty.Name()))
+	opty, err := newPty(opts.ptyOpts...)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("newPty failed: %w", err)
+	}
+
+	origEnv := cmd.Env
+	if opty.opts.sshReq != nil {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", opty.Name()))
+	}
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,
 		Setctty: true,
 	}
-	cmd.Stdout = tty
-	cmd.Stderr = tty
-	cmd.Stdin = tty
+	cmd.Stdout = opty.tty
+	cmd.Stderr = opty.tty
+	cmd.Stdin = opty.tty
 	err = cmd.Start()
 	if err != nil {
-		_ = ptty.Close()
-		_ = tty.Close()
+		_ = opty.Close()
 		if runtime.GOOS == "darwin" && strings.Contains(err.Error(), "bad file descriptor") {
 			// macOS has an obscure issue where the PTY occasionally closes
 			// before it's used. It's unknown why this is, but creating a new
 			// TTY resolves it.
-			return startPty(cmd)
+			cmd.Env = origEnv
+			return startPty(cmd, opt...)
 		}
 		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
-	oPty := &otherPty{
-		pty: ptty,
-		tty: tty,
-	}
 	oProcess := &otherProcess{
-		pty:     ptty,
+		pty:     opty.pty,
 		cmd:     cmd,
 		cmdDone: make(chan any),
 	}
 	go oProcess.waitInternal()
-	return oPty, oProcess, nil
+	return opty, oProcess, nil
 }

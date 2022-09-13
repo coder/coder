@@ -192,6 +192,7 @@ func workspaceAgent() *cobra.Command {
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
 				CoordinatorDialer: client.ListenWorkspaceAgentTailnet,
+				StatsReporter:     client.AgentReportStats,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

@@ -27,9 +27,11 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -71,11 +73,14 @@ type Options struct {
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
-	FeaturesService      FeaturesService
+	FeaturesService      features.Service
 
 	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
+
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
 }
 
 // New constructs a Coder API handler.
@@ -109,7 +114,7 @@ func New(options *Options) *API {
 		options.LicenseHandler = licenses()
 	}
 	if options.FeaturesService == nil {
-		options.FeaturesService = featuresService{}
+		options.FeaturesService = &featuresService{}
 	}
 
 	siteCacheDir := options.CacheDir
@@ -121,6 +126,12 @@ func New(options *Options) *API {
 		panic(xerrors.Errorf("read site bin failed: %w", err))
 	}
 
+	metricsCache := metricscache.New(
+		options.Database,
+		options.Logger.Named("metrics_cache"),
+		options.MetricsCacheRefreshInterval,
+	)
+
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
@@ -130,6 +141,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
+		metricsCache: metricsCache,
 	}
 	if options.TailscaleEnable {
 		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -144,9 +156,17 @@ func New(options *Options) *API {
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
 	r.Use(
+		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
+		// Build-Version is helpful for debugging.
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Build-Version", buildinfo.Version())
+				next.ServeHTTP(w, r)
+			})
+		},
 	)
 
 	apps := func(r chi.Router) {
@@ -165,7 +185,13 @@ func New(options *Options) *API {
 	// other applications might not as well.
 	r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
-	r.Get("/derp", derphttp.Handler(api.derpServer).ServeHTTP)
+	r.Route("/derp", func(r chi.Router) {
+		r.Get("/", derphttp.Handler(api.derpServer).ServeHTTP)
+		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+	})
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
@@ -194,6 +220,15 @@ func New(options *Options) *API {
 					Version:     buildinfo.Version(),
 				})
 			})
+		})
+		r.Route("/audit", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+
+			r.Get("/", api.auditLogs)
+			r.Get("/count", api.auditLogCount)
+			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
@@ -253,7 +288,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 			)
-
+			r.Get("/daus", api.templateDAUs)
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
 			r.Patch("/", api.patchTemplateMeta)
@@ -311,6 +346,7 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
@@ -353,11 +389,14 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Get("/listen", api.workspaceAgentListen)
+
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
+
+				r.Get("/report-stats", api.workspaceAgentReportStats)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -397,7 +436,6 @@ func New(options *Options) *API {
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)
-					r.Get("/{workspacebuildname}", api.workspaceBuildByName)
 				})
 				r.Route("/autostart", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceAutostart)
@@ -446,6 +484,8 @@ type API struct {
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
 	httpAuth            *HTTPAuthorizer
+
+	metricsCache *metricscache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -453,6 +493,8 @@ func (api *API) Close() error {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Wait()
 	api.websocketWaitMutex.Unlock()
+
+	api.metricsCache.Close()
 
 	return api.workspaceAgentCache.Close()
 }

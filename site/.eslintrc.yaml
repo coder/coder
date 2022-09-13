@@ -78,6 +78,7 @@ rules:
         - info
         - debug
   no-dupe-class-members: "off"
+  no-implicit-coercion: "error"
   no-restricted-imports:
     - error
     - paths:

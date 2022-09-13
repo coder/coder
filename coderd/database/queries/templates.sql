@@ -91,7 +91,7 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateTemplateMetaByID :exec
+-- name: UpdateTemplateMetaByID :one
 UPDATE
 	templates
 SET

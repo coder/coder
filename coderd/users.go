@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -254,6 +255,14 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Features: api.FeaturesService,
+		Log:      api.Logger,
+		Request:  r,
+		Action:   database.AuditActionCreate,
+	})
+	defer commitAudit()
+
 	// Create the user on the site.
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceUser) {
 		httpapi.Forbidden(rw)
@@ -319,12 +328,65 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = user
+
 	// Report when users are added!
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
 	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
+}
+
+func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Features: api.FeaturesService,
+		Log:      api.Logger,
+		Request:  r,
+		Action:   database.AuditActionDelete,
+	})
+	aReq.Old = user
+	defer commitAudit()
+
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	workspaces, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
+		OwnerID: user.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaces) > 0 {
+		httpapi.Write(rw, http.StatusExpectationFailed, codersdk.Response{
+			Message: "You cannot delete a user that has workspaces. Delete their workspaces and try again!",
+		})
+		return
+	}
+
+	err = api.Database.UpdateUserDeletedByID(r.Context(), database.UpdateUserDeletedByIDParams{
+		ID:      user.ID,
+		Deleted: true,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	user.Deleted = true
+	aReq.New = user
+	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+		Message: "User has been deleted!",
+	})
 }
 
 // Returns the parameterized user requested. All validation
@@ -350,7 +412,17 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
+	var (
+		user              = httpmw.UserParam(r)
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = user
 
 	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
@@ -391,9 +463,11 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
+		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
 		UpdatedAt: database.Now(),
 	})
+	aReq.New = updatedUserProfile
 
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -417,8 +491,18 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		user := httpmw.UserParam(r)
-		apiKey := httpmw.APIKey(r)
+		var (
+			user              = httpmw.UserParam(r)
+			apiKey            = httpmw.APIKey(r)
+			aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+				Features: api.FeaturesService,
+				Log:      api.Logger,
+				Request:  r,
+				Action:   database.AuditActionWrite,
+			})
+		)
+		defer commitAudit()
+		aReq.Old = user
 
 		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
 			httpapi.ResourceNotFound(rw)
@@ -450,7 +534,6 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			Status:    status,
 			UpdatedAt: database.Now(),
 		})
-
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Internal error updating user's status to %q.", status),
@@ -458,6 +541,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
+		aReq.New = suspendedUser
 
 		organizations, err := userOrganizationIDs(r.Context(), api, user)
 		if err != nil {
@@ -474,9 +558,17 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
-		user   = httpmw.UserParam(r)
-		params codersdk.UpdateUserPasswordRequest
+		user              = httpmw.UserParam(r)
+		params            codersdk.UpdateUserPasswordRequest
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
 	)
+	defer commitAudit()
+	aReq.Old = user
 
 	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
 		httpapi.ResourceNotFound(rw)
@@ -551,6 +643,10 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newUser := user
+	newUser.HashedPassword = []byte(hashedPassword)
+	aReq.New = newUser
+
 	httpapi.Write(rw, http.StatusNoContent, nil)
 }
 
@@ -597,10 +693,20 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
-	// User is the user to modify.
-	user := httpmw.UserParam(r)
-	actorRoles := httpmw.AuthorizationUserRoles(r)
-	apiKey := httpmw.APIKey(r)
+	var (
+		// User is the user to modify.
+		user              = httpmw.UserParam(r)
+		actorRoles        = httpmw.AuthorizationUserRoles(r)
+		apiKey            = httpmw.APIKey(r)
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Features: api.FeaturesService,
+			Log:      api.Logger,
+			Request:  r,
+			Action:   database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = user
 
 	if apiKey.UserID == user.ID {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
@@ -653,6 +759,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = updatedUser
 
 	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 	if err != nil {
@@ -1075,6 +1182,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
+		AvatarURL:       user.AvatarURL.String,
 	}
 
 	for _, roleName := range user.RBACRoles {

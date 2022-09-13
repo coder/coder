@@ -18,6 +18,7 @@ packages:
 
 rename:
   api_key: APIKey
+  avatar_url: AvatarURL
   login_type_oidc: LoginTypeOIDC
   oauth_access_token: OAuthAccessToken
   oauth_expiry: OAuthExpiry
@@ -29,4 +30,5 @@ rename:
   rbac_roles: RBACRoles
   ip_address: IPAddress
   ip_addresses: IPAddresses
+  ids: IDs
   jwt: JWT

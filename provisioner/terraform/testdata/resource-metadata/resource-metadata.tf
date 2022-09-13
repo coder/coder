@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.4"
+      version = "0.4.10"
     }
   }
 }
@@ -16,6 +16,7 @@ resource "null_resource" "about" {}
 
 resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id
+  hide = true
   item {
     key = "hello"
     value = "world"

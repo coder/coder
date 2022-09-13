@@ -24,6 +24,8 @@ export interface UsersTableProps {
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
+  onDeleteUser: (user: TypesGen.User) => void
+  onListWorkspaces: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
@@ -32,6 +34,8 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   users,
   roles,
   onSuspendUser,
+  onDeleteUser,
+  onListWorkspaces,
   onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
@@ -44,9 +48,9 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>{Language.usernameLabel}</TableCell>
-            <TableCell>{Language.statusLabel}</TableCell>
-            <TableCell>
+            <TableCell width="50%">{Language.usernameLabel}</TableCell>
+            <TableCell width="25%">{Language.statusLabel}</TableCell>
+            <TableCell width="25%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>
                 <UserRoleHelpTooltip />
@@ -64,6 +68,8 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             canEditUsers={canEditUsers}
             isUpdatingUserRoles={isUpdatingUserRoles}
             onActivateUser={onActivateUser}
+            onDeleteUser={onDeleteUser}
+            onListWorkspaces={onListWorkspaces}
             onResetUserPassword={onResetUserPassword}
             onSuspendUser={onSuspendUser}
             onUpdateUserRoles={onUpdateUserRoles}

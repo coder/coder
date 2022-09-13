@@ -1,9 +1,9 @@
 -- It's not possible to drop enum values from enum types, so the UP has "IF NOT
 -- EXISTS".
 
--- Delete all jobs that use the new enum value.
+-- Delete all audit logs that use the new enum values.
 DELETE FROM
-    provisioner_jobs
+    audit_logs
 WHERE
-    type = 'template_version_dry_run'
-;
+    resource_type = 'git_ssh_key' OR
+    resource_type = 'api_key';
