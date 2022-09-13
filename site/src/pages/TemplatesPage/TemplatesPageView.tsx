@@ -148,7 +148,8 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
             </TableHead>
             <TableBody>
               {props.loading && <TableLoader />}
-              {empty && (
+
+              {empty ? (
                 <TableRow>
                   <TableCell colSpan={999}>
                     <EmptyState
@@ -163,63 +164,66 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                     />
                   </TableCell>
                 </TableRow>
+              ) : (
+                props.templates?.map((template) => {
+                  const templatePageLink = `/templates/${template.name}`
+                  const hasIcon = template.icon && template.icon !== ""
+
+                  return (
+                    <TableRow
+                      key={template.id}
+                      hover
+                      data-testid={`template-${template.id}`}
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          navigate(templatePageLink)
+                        }
+                      }}
+                      className={styles.clickableTableRow}
+                    >
+                      <TableCellLink to={templatePageLink}>
+                        <AvatarData
+                          title={template.name}
+                          subtitle={template.description}
+                          highlightTitle
+                          avatar={
+                            hasIcon && (
+                              <div className={styles.templateIconWrapper}>
+                                <img alt="" src={template.icon} />
+                              </div>
+                            )
+                          }
+                        />
+                      </TableCellLink>
+
+                      <TableCellLink to={templatePageLink}>
+                        <span style={{ color: theme.palette.text.secondary }}>
+                          {Language.developerCount(template.active_user_count)}
+                        </span>
+                      </TableCellLink>
+
+                      <TableCellLink data-chromatic="ignore" to={templatePageLink}>
+                        <span style={{ color: theme.palette.text.secondary }}>
+                          {createDayString(template.updated_at)}
+                        </span>
+                      </TableCellLink>
+
+                      <TableCellLink to={templatePageLink}>
+                        <span style={{ color: theme.palette.text.secondary }}>
+                          {template.created_by_name}
+                        </span>
+                      </TableCellLink>
+
+                      <TableCellLink to={templatePageLink}>
+                        <div className={styles.arrowCell}>
+                          <KeyboardArrowRight className={styles.arrowRight} />
+                        </div>
+                      </TableCellLink>
+                    </TableRow>
+                  )
+                })
               )}
-              {props.templates?.map((template) => {
-                const templatePageLink = `/templates/${template.name}`
-                const hasIcon = template.icon && template.icon !== ""
-
-                return (
-                  <TableRow
-                    key={template.id}
-                    hover
-                    data-testid={`template-${template.id}`}
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        navigate(templatePageLink)
-                      }
-                    }}
-                    className={styles.clickableTableRow}
-                  >
-                    <TableCellLink to={templatePageLink}>
-                      <AvatarData
-                        title={template.name}
-                        subtitle={template.description}
-                        highlightTitle
-                        avatar={hasIcon && (
-                          <div className={styles.templateIconWrapper}>
-                            <img alt="" src={template.icon} />
-                          </div>
-                        )}
-                      />
-                    </TableCellLink>
-
-                    <TableCellLink to={templatePageLink}>
-                      <span style={{ color: theme.palette.text.secondary }}>
-                        {Language.developerCount(template.active_user_count)}
-                      </span>
-                    </TableCellLink>
-
-                    <TableCellLink data-chromatic="ignore" to={templatePageLink}>
-                      <span style={{ color: theme.palette.text.secondary }}>
-                        {createDayString(template.updated_at)}
-                      </span>
-                    </TableCellLink>
-
-                    <TableCellLink to={templatePageLink}>
-                      <span style={{ color: theme.palette.text.secondary }}>
-                        {template.created_by_name}
-                      </span>
-                    </TableCellLink>
-
-                    <TableCellLink to={templatePageLink}>
-                      <div className={styles.arrowCell}>
-                        <KeyboardArrowRight className={styles.arrowRight} />
-                      </div>
-                    </TableCellLink>
-                  </TableRow>
-                )
-              })}
             </TableBody>
           </Table>
         </TableContainer>
