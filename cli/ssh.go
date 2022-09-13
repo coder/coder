@@ -195,6 +195,13 @@ func ssh() *cobra.Command {
 			// shutdown of services.
 			defer cancel()
 
+			if validOut {
+				// Set initial window size.
+				width, height, err := term.GetSize(int(stdoutFile.Fd()))
+				if err == nil {
+					_ = sshSession.WindowChange(height, width)
+				}
+			}
 			err = sshSession.Wait()
 			if err != nil {
 				// If the connection drops unexpectedly, we get an ExitMissingError but no other

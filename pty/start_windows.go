@@ -4,6 +4,7 @@
 package pty
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,7 +17,12 @@ import (
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd) (PTY, Process, error) {
+func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
+	var opts startOptions
+	for _, o := range opt {
+		o(&opts)
+	}
+
 	fullPath, err := exec.LookPath(cmd.Path)
 	if err != nil {
 		return nil, nil, err
@@ -39,11 +45,14 @@ func startPty(cmd *exec.Cmd) (PTY, Process, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	pty, err := newPty()
+	pty, err := newPty(opts.ptyOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
 	winPty := pty.(*ptyWindows)
+	if winPty.opts.sshReq != nil {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", winPty.Name()))
+	}
 
 	attrs, err := windows.NewProcThreadAttributeList(1)
 	if err != nil {

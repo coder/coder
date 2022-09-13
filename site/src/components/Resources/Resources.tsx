@@ -160,6 +160,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                     key={app.name}
                                     appIcon={app.icon}
                                     appName={app.name}
+                                    appCommand={app.command}
                                     userName={workspace.owner_name}
                                     workspaceName={workspace.name}
                                     agentName={agent.name}

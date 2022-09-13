@@ -848,7 +848,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 			_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
 				ID:          uuid.New(),
-				CreatedAt:   time.Now(),
+				CreatedAt:   database.Now(),
 				AgentID:     workspaceAgent.ID,
 				WorkspaceID: build.WorkspaceID,
 				UserID:      workspace.OwnerID,
@@ -865,7 +865,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 			err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 				ID:         build.WorkspaceID,
-				LastUsedAt: time.Now(),
+				LastUsedAt: database.Now(),
 			})
 			if err != nil {
 				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{

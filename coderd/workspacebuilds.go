@@ -38,7 +38,9 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID})
+	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+		IDs: []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID},
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -135,7 +137,9 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	for _, build := range builds {
 		userIDs = append(userIDs, build.InitiatorID)
 	}
-	users, err := api.Database.GetUsersByIDs(r.Context(), userIDs)
+	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+		IDs: userIDs,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -221,7 +225,9 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID})
+	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+		IDs: []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID},
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -476,9 +482,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(r.Context(), []uuid.UUID{
-		workspace.OwnerID,
-		workspaceBuild.InitiatorID,
+	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
+		IDs: []uuid.UUID{
+			workspace.OwnerID,
+			workspaceBuild.InitiatorID,
+		},
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{

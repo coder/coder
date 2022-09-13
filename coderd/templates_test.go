@@ -665,6 +665,6 @@ func TestTemplateDAUs(t *testing.T) {
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		time.Now(), workspaces[0].LastUsedAt, time.Minute,
+		database.Now(), workspaces[0].LastUsedAt, time.Minute,
 	)
 }
