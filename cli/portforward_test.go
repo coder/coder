@@ -212,7 +212,7 @@ func TestPortForward(t *testing.T) {
 		})
 	}
 
-	// Test doing TCP and UDP  at the same time.
+	// Test doing TCP and UDP at the same time.
 	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
 		var (
