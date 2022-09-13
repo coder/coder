@@ -140,7 +140,7 @@ type Object struct {
 	Type string `json:"type"`
 
 	// map[action][]user_id
-	ACLList map[Action][]string ` json:"acl_list"`
+	ACLUserList map[Action][]string ` json:"acl_user_list"`
 }
 
 func (z Object) RBACObject() Object {
@@ -174,12 +174,12 @@ func (z Object) WithOwner(ownerID string) Object {
 	}
 }
 
-// WithACL adds an ACL list to a given object
-func (z Object) WithACL(acl map[Action][]string) Object {
+// WithACLUserList adds an ACL list to a given object
+func (z Object) WithACLUserList(acl map[Action][]string) Object {
 	return Object{
-		Owner:   z.Owner,
-		OrgID:   z.OrgID,
-		Type:    z.Type,
-		ACLList: acl,
+		Owner:       z.Owner,
+		OrgID:       z.OrgID,
+		Type:        z.Type,
+		ACLUserList: acl,
 	}
 }

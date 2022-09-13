@@ -3,7 +3,7 @@ import future.keywords
 # A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
 # opa eval --format=pretty 'data.authz.allow = true' -d policy.rego  -i input.json
-# opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_list -i input.json
+# opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list -i input.json
 
 #
 # This policy is specifically constructed to compress to a set of queries if the
@@ -160,6 +160,7 @@ allow {
 # ACL Allow
 allow {
 	# Should you have to be a member of the org too?
-	input.subject.id in input.object.acl_list[input.action]
+	input.subject.id in input.object.acl_user_list[input.action]
 }
+
 

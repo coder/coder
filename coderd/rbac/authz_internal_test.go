@@ -193,7 +193,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "ACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACL(map[Action][]string{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[Action][]string{
 				ActionRead:   {user.UserID},
 				ActionDelete: {user.UserID},
 				ActionCreate: {user.UserID},
@@ -203,7 +203,7 @@ func TestAuthorizeDomain(t *testing.T) {
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACL(map[Action][]string{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[Action][]string{
 				ActionRead:   {user.UserID},
 				ActionUpdate: {user.UserID},
 			}),
@@ -212,7 +212,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 		{
 			// By default users cannot update templates
-			resource: ResourceTemplate.InOrg(defOrg).WithACL(map[Action][]string{
+			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[Action][]string{
 				ActionUpdate: {user.UserID},
 			}),
 			actions: []Action{ActionRead, ActionUpdate},

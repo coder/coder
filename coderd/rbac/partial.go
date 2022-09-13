@@ -43,7 +43,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		rego.Unknowns([]string{
 			"input.object.owner",
 			"input.object.org_owner",
-			"input.object.acl_list",
+			"input.object.acl_user_list",
 		}),
 		rego.Input(input),
 	).Partial(ctx)
