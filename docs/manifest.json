@@ -1,5 +1,9 @@
 {
-  "versions": ["main", "v0.8.1", "v0.7.12"],
+  "versions": [
+    "main",
+    "v0.8.1",
+    "v0.7.12"
+  ],
   "routes": [
     {
       "title": "About",
@@ -84,6 +88,18 @@
           "description": "Learn how to expose resource data to users",
           "path": "./templates/resource-metadata.md",
           "icon_path": "./images/icons/table-rows.svg"
+        },
+        {
+          "title": "Docker in Docker",
+          "description": "Use docker inside containerized templates",
+          "path": "./templates/docker-in-docker.md",
+          "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Systemd in Docker",
+          "description": "Use systemd inside containerized templates",
+          "path": "./templates/systemd-in-docker.md",
+          "icon_path": "./images/icons/system.svg"
         }
       ]
     },
