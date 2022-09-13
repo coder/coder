@@ -10,6 +10,7 @@ import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC, useState } from "react"
 import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
@@ -150,6 +151,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                             {canUpdateWorkspace && agent.status === "connected" && (
                               <>
                                 <SSHButton workspaceName={workspace.name} agentName={agent.name} />
+                                <PortForwardButton
+                                  username={workspace.owner_name}
+                                  workspaceName={workspace.name}
+                                  agentName={agent.name}
+                                />
                                 <TerminalLink
                                   workspaceName={workspace.name}
                                   agentName={agent.name}
