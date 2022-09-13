@@ -35,10 +35,12 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 			// Enable CSRF in November 2022 by deleting this "return true" line.
 			// CSRF is not enforced to ensure backwards compatibility with older
 			// cli versions.
+			//nolint:revive
 			return true
 
 			// CSRF only affects requests that automatically attach credentials via a cookie.
 			// If no cookie is present, then there is no risk of CSRF.
+			//nolint:govet
 			sessCookie, err := r.Cookie(codersdk.SessionTokenKey)
 			if xerrors.Is(err, http.ErrNoCookie) {
 				return true
