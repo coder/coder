@@ -144,7 +144,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, workspaces)
+	workspaces, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -253,10 +253,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		organization      = httpmw.OrganizationParam(r)
 		apiKey            = httpmw.APIKey(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionCreate,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
 		})
 	)
 	defer commitAudit()
@@ -492,10 +492,10 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		workspace         = httpmw.WorkspaceParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -568,10 +568,10 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
 		workspace         = httpmw.WorkspaceParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -628,10 +628,10 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		workspace         = httpmw.WorkspaceParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()

@@ -86,10 +86,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionDelete,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
 		})
 	)
 	defer commitAudit()
@@ -140,16 +140,16 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		organization                       = httpmw.OrganizationParam(r)
 		apiKey                             = httpmw.APIKey(r)
 		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionCreate,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
 		})
 		templateVersionAudit, commitTemplateVersionAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitTemplateAudit()
@@ -340,7 +340,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Filter templates based on rbac permissions
-	templates, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, templates)
+	templates, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, templates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching templates.",
@@ -436,10 +436,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   *api.Auditor.Load(),
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()

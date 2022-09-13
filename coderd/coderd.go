@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -25,9 +26,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -52,6 +53,7 @@ type Options struct {
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
 
+	Auditor                        audit.Auditor
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -72,8 +74,6 @@ type Options struct {
 	TURNServer           *turnconn.Server
 	TracerProvider       *sdktrace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
-	LicenseHandler       http.Handler
-	FeaturesService      features.Service
 
 	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
@@ -85,6 +85,9 @@ type Options struct {
 
 // New constructs a Coder API handler.
 func New(options *Options) *API {
+	if options == nil {
+		options = &Options{}
+	}
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
@@ -110,11 +113,8 @@ func New(options *Options) *API {
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
-	if options.LicenseHandler == nil {
-		options.LicenseHandler = licenses()
-	}
-	if options.FeaturesService == nil {
-		options.FeaturesService = &featuresService{}
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -135,14 +135,17 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
-		Handler:     r,
+		RootHandler: r,
 		siteHandler: site.Handler(site.FS(), binFS),
-		httpAuth: &HTTPAuthorizer{
+		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
 		metricsCache: metricsCache,
+		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
+	api.Auditor.Store(&options.Auditor)
+
 	if options.TailscaleEnable {
 		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	} else {
@@ -194,6 +197,8 @@ func New(options *Options) *API {
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
+		api.APIHandler = r
+
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
@@ -460,12 +465,9 @@ func New(options *Options) *API {
 		})
 		r.Route("/entitlements", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/", api.FeaturesService.EntitlementsAPI)
+			r.Get("/", entitlements)
 		})
-		r.Route("/licenses", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Mount("/", options.LicenseHandler)
-		})
+		r.HandleFunc("/licenses", unsupported)
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -477,12 +479,14 @@ type API struct {
 
 	derpServer *derp.Server
 
-	Handler             chi.Router
+	Auditor             atomic.Pointer[audit.Auditor]
+	RootHandler         chi.Router
+	APIHandler          chi.Router
 	siteHandler         http.Handler
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
-	httpAuth            *HTTPAuthorizer
+	HTTPAuth            *HTTPAuthorizer
 
 	metricsCache *metricscache.Cache
 }
@@ -516,4 +520,27 @@ func compressHandler(h http.Handler) http.Handler {
 	})
 
 	return cmp.Handler(h)
+}
+
+func entitlements(rw http.ResponseWriter, _ *http.Request) {
+	feats := make(map[string]codersdk.Feature)
+	for _, f := range codersdk.FeatureNames {
+		feats[f] = codersdk.Feature{
+			Entitlement: codersdk.EntitlementNotEntitled,
+			Enabled:     false,
+		}
+	}
+	httpapi.Write(rw, http.StatusOK, codersdk.Entitlements{
+		Features:   feats,
+		Warnings:   []string{},
+		HasLicense: false,
+	})
+}
+
+func unsupported(rw http.ResponseWriter, _ *http.Request) {
+	httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		Message:     "Unsupported",
+		Detail:      "These endpoints are not supported in AGPL-licensed Coder",
+		Validations: nil,
+	})
 }

@@ -96,7 +96,9 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(coderd.New))
+	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+		return coderd.New(o), nil
+	}))
 	return all
 }
 

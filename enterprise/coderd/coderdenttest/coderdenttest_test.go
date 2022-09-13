@@ -1,4 +1,4 @@
-package coderdtest
+package coderdenttest_test
 
 import (
 	"context"
@@ -14,152 +14,25 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
-type RouteCheck struct {
-	NoAuthorize  bool
-	AssertAction rbac.Action
-	AssertObject rbac.Object
-	StatusCode   int
+func TestNew(t *testing.T) {
+	t.Parallel()
+	_ = coderdenttest.New(t, nil)
 }
 
-type AuthTester struct {
-	t          *testing.T
-	api        *coderd.API
-	authorizer *recordingAuthorizer
+func TestAuthorizeAllEndpoints(t *testing.T) {
+	t.Parallel()
+	a := newAuthTester(context.Background(), t)
 
-	Client                *codersdk.Client
-	Workspace             codersdk.Workspace
-	Organization          codersdk.Organization
-	Admin                 codersdk.CreateFirstUserResponse
-	Template              codersdk.Template
-	Version               codersdk.TemplateVersion
-	WorkspaceResource     codersdk.WorkspaceResource
-	File                  codersdk.UploadResponse
-	TemplateVersionDryRun codersdk.ProvisionerJob
-	TemplateParam         codersdk.Parameter
-	URLParams             map[string]string
-}
-
-func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTester {
-	authorizer := &recordingAuthorizer{}
-	if options == nil {
-		options = &Options{}
-	}
-	if options.Authorizer != nil {
-		t.Error("NewAuthTester cannot be called with custom Authorizer")
-	}
-	options.Authorizer = authorizer
-	options.IncludeProvisionerDaemon = true
-
-	client, _, api := newWithAPI(t, options)
-	admin := CreateFirstUser(t, client)
-	// The provisioner will call to coderd and register itself. This is async,
-	// so we wait for it to occur.
-	require.Eventually(t, func() bool {
-		provisionerds, err := client.ProvisionerDaemons(ctx)
-		return assert.NoError(t, err) && len(provisionerds) > 0
-	}, testutil.WaitLong, testutil.IntervalSlow)
-
-	provisionerds, err := client.ProvisionerDaemons(ctx)
-	require.NoError(t, err, "fetch provisioners")
-	require.Len(t, provisionerds, 1)
-
-	organization, err := client.Organization(ctx, admin.OrganizationID)
-	require.NoError(t, err, "fetch org")
-
-	// Setup some data in the database.
-	version := CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
-		Provision: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					// Return a workspace resource
-					Resources: []*proto.Resource{{
-						Name: "some",
-						Type: "example",
-						Agents: []*proto.Agent{{
-							Name: "agent",
-							Id:   "something",
-							Auth: &proto.Agent_Token{},
-							Apps: []*proto.App{{
-								Name: "testapp",
-								Url:  "http://localhost:3000",
-							}},
-						}},
-					}},
-				},
-			},
-		}},
-	})
-	AwaitTemplateVersionJob(t, client, version.ID)
-	template := CreateTemplate(t, client, admin.OrganizationID, version.ID)
-	workspace := CreateWorkspace(t, client, admin.OrganizationID, template.ID)
-	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
-	require.NoError(t, err, "upload file")
-	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	require.NoError(t, err, "workspace resources")
-	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		ParameterValues: []codersdk.CreateParameterRequest{},
-	})
-	require.NoError(t, err, "template version dry-run")
-
-	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
-		Name:              "test-param",
-		SourceValue:       "hello world",
-		SourceScheme:      codersdk.ParameterSourceSchemeData,
-		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
-	})
-	require.NoError(t, err, "create template param")
-
-	urlParameters := map[string]string{
-		"{organization}":        admin.OrganizationID.String(),
-		"{user}":                admin.UserID.String(),
-		"{organizationname}":    organization.Name,
-		"{workspace}":           workspace.ID.String(),
-		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
-		"{workspacename}":       workspace.Name,
-		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
-		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
-		"{template}":            template.ID.String(),
-		"{hash}":                file.Hash,
-		"{workspaceresource}":   workspaceResources[0].ID.String(),
-		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
-		"{templateversion}":     version.ID.String(),
-		"{jobID}":               templateVersionDryRun.ID.String(),
-		"{templatename}":        template.Name,
-		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
-		// Only checking template scoped params here
-		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
-			string(templateParam.Scope), templateParam.ScopeID.String()),
-	}
-
-	return &AuthTester{
-		t:                     t,
-		api:                   api,
-		authorizer:            authorizer,
-		Client:                client,
-		Workspace:             workspace,
-		Organization:          organization,
-		Admin:                 admin,
-		Template:              template,
-		Version:               version,
-		WorkspaceResource:     workspaceResources[0],
-		File:                  file,
-		TemplateVersionDryRun: templateVersionDryRun,
-		TemplateParam:         templateParam,
-		URLParams:             urlParameters,
-	}
-}
-
-func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -170,7 +43,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/derp/latency-check":   "This always returns a 200!",
 	}
 
-	assertRoute := map[string]RouteCheck{
+	assertRoute := map[string]routeCheck{
 		// These endpoints do not require auth
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
@@ -391,11 +264,26 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+
+		// Enterprise only endpoints
+		"POST:/api/v2/licenses": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: rbac.ResourceLicense,
+		},
+		"GET:/api/v2/licenses": {
+			StatusCode:   http.StatusOK,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceLicense,
+		},
+		"DELETE:/api/v2/licenses/{id}": {
+			AssertAction: rbac.ActionDelete,
+			AssertObject: rbac.ResourceLicense,
+		},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
 	// 1 url to all http methods.
-	assertAllHTTPMethods := func(url string, check RouteCheck) {
+	assertAllHTTPMethods := func(url string, check routeCheck) {
 		methods := []string{http.MethodGet, http.MethodHead, http.MethodPost,
 			http.MethodPut, http.MethodPatch, http.MethodDelete,
 			http.MethodConnect, http.MethodOptions, http.MethodTrace}
@@ -406,19 +294,155 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		}
 	}
 
-	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", routeCheck{
 		AssertAction: rbac.ActionCreate,
 		AssertObject: workspaceExecObj,
 	})
-	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
+	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", routeCheck{
 		AssertAction: rbac.ActionCreate,
 		AssertObject: workspaceExecObj,
 	})
 
-	return skipRoutes, assertRoute
+	a.Test(context.Background(), assertRoute, skipRoutes)
 }
 
-func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
+type routeCheck struct {
+	NoAuthorize  bool
+	AssertAction rbac.Action
+	AssertObject rbac.Object
+	StatusCode   int
+}
+
+type authTester struct {
+	t          *testing.T
+	api        *coderd.API
+	authorizer *recordingAuthorizer
+
+	Client                *codersdk.Client
+	Workspace             codersdk.Workspace
+	Organization          codersdk.Organization
+	Admin                 codersdk.CreateFirstUserResponse
+	Template              codersdk.Template
+	Version               codersdk.TemplateVersion
+	WorkspaceResource     codersdk.WorkspaceResource
+	File                  codersdk.UploadResponse
+	TemplateVersionDryRun codersdk.ProvisionerJob
+	TemplateParam         codersdk.Parameter
+	URLParams             map[string]string
+}
+
+func newAuthTester(ctx context.Context, t *testing.T) *authTester {
+	authorizer := &recordingAuthorizer{}
+	options := &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Authorizer:               authorizer,
+			IncludeProvisionerDaemon: true,
+		},
+	}
+
+	client, _, api := coderdenttest.NewWithAPI(t, options)
+	admin := coderdtest.CreateFirstUser(t, client)
+	// The provisioner will call to coderd and register itself. This is async,
+	// so we wait for it to occur.
+	require.Eventually(t, func() bool {
+		provisionerds, err := client.ProvisionerDaemons(ctx)
+		return assert.NoError(t, err) && len(provisionerds) > 0
+	}, testutil.WaitLong, testutil.IntervalSlow)
+
+	provisionerds, err := client.ProvisionerDaemons(ctx)
+	require.NoError(t, err, "fetch provisioners")
+	require.Len(t, provisionerds, 1)
+
+	organization, err := client.Organization(ctx, admin.OrganizationID)
+	require.NoError(t, err, "fetch org")
+
+	// Setup some data in the database.
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					// Return a workspace resource
+					Resources: []*proto.Resource{{
+						Name: "some",
+						Type: "example",
+						Agents: []*proto.Agent{{
+							Name: "agent",
+							Id:   "something",
+							Auth: &proto.Agent_Token{},
+							Apps: []*proto.App{{
+								Name: "testapp",
+								Url:  "http://localhost:3000",
+							}},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+	require.NoError(t, err, "upload file")
+	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err, "workspace resources")
+	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+		ParameterValues: []codersdk.CreateParameterRequest{},
+	})
+	require.NoError(t, err, "template version dry-run")
+
+	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		Name:              "test-param",
+		SourceValue:       "hello world",
+		SourceScheme:      codersdk.ParameterSourceSchemeData,
+		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+	})
+	require.NoError(t, err, "create template param")
+	license := coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{})
+	urlParameters := map[string]string{
+		"{organization}":        admin.OrganizationID.String(),
+		"{user}":                admin.UserID.String(),
+		"{organizationname}":    organization.Name,
+		"{workspace}":           workspace.ID.String(),
+		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
+		"{workspacename}":       workspace.Name,
+		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		"{template}":            template.ID.String(),
+		"{hash}":                file.Hash,
+		"{workspaceresource}":   workspaceResources[0].ID.String(),
+		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{templateversion}":     version.ID.String(),
+		"{jobID}":               templateVersionDryRun.ID.String(),
+		"{templatename}":        template.Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
+		// Only checking template scoped params here
+		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
+			string(templateParam.Scope), templateParam.ScopeID.String()),
+		"licenses/{id}": fmt.Sprintf("licenses/%d", license.ID),
+	}
+
+	return &authTester{
+		t:                     t,
+		api:                   api,
+		authorizer:            authorizer,
+		Client:                client,
+		Workspace:             workspace,
+		Organization:          organization,
+		Admin:                 admin,
+		Template:              template,
+		Version:               version,
+		WorkspaceResource:     workspaceResources[0],
+		File:                  file,
+		TemplateVersionDryRun: templateVersionDryRun,
+		TemplateParam:         templateParam,
+		URLParams:             urlParameters,
+	}
+}
+
+func (a *authTester) Test(ctx context.Context, assertRoute map[string]routeCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
 	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
@@ -443,7 +467,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 	}
 
 	err := chi.Walk(
-		a.api.Handler,
+		a.api.AGPL.RootHandler,
 		func(
 			method string,
 			route string,
@@ -466,7 +490,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 				routeAssertions, ok := assertRoute[routeKey]
 				if !ok {
 					// By default, all omitted routes check for just "authorize" called
-					routeAssertions = RouteCheck{}
+					routeAssertions = routeCheck{}
 				}
 				delete(routeMissing, routeKey)
 
