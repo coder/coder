@@ -152,6 +152,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 	if auditLogs != api.auditLogs {
 		auditor := agplaudit.NewNop()
+		// A flag could be added to the options that would allow disabling
+		// enhanced audit logging here!
 		if api.auditLogs == codersdk.EntitlementEntitled {
 			auditor = audit.NewAuditor(
 				audit.DefaultFilter,

@@ -466,7 +466,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/entitlements", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/", entitlements)
+			r.Get("/", nopEntitlements)
 		})
 		r.HandleFunc("/licenses", unsupported)
 	})
@@ -523,7 +523,7 @@ func compressHandler(h http.Handler) http.Handler {
 	return cmp.Handler(h)
 }
 
-func entitlements(rw http.ResponseWriter, _ *http.Request) {
+func nopEntitlements(rw http.ResponseWriter, _ *http.Request) {
 	feats := make(map[string]codersdk.Feature)
 	for _, f := range codersdk.FeatureNames {
 		feats[f] = codersdk.Feature{
