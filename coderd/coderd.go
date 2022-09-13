@@ -187,9 +187,7 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
-		// Enable CSRF in November 2022 by uncommenting out this line.
-		// This is commented out for backwards compatibility.
-		// httpmw.CSRF(options.SecureAuthCookie),
+		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
 	apps := func(r chi.Router) {
