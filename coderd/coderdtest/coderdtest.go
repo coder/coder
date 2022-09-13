@@ -182,8 +182,12 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	srv.Start()
 	t.Cleanup(srv.Close)
 
+	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
+	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
 
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)

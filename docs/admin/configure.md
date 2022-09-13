@@ -12,6 +12,8 @@ This is a quick way to allow users and workspaces outside your LAN to connect to
 that users and workspaces use to connect to Coder (e.g. https://coder.example.com). This
 should not be localhost.
 
+> Access URL should be a external IP address or domain with DNS records pointing to Coder.
+
 ## PostgreSQL Database
 
 Coder uses a PostgreSQL database to store users, workspace metadata, and other deployment information.

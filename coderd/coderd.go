@@ -160,6 +160,26 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
+		// handleSubdomainApplications checks if the first subdomain is a valid
+		// app URL. If it is, it will serve that application.
+		api.handleSubdomainApplications(
+			// Middleware to impose on the served application.
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.UseLoginURL(func() *url.URL {
+				if options.AccessURL == nil {
+					return nil
+				}
+
+				u := *options.AccessURL
+				u.Path = "/login"
+				return &u
+			}()),
+			// This should extract the application specific API key when we
+			// implement a scoped token.
+			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
+			httpmw.ExtractUserParam(api.Database),
+			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+		),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

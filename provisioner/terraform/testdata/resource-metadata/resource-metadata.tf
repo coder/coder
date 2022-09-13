@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.10"
+      version = "0.4.11"
     }
   }
 }
@@ -16,21 +16,22 @@ resource "null_resource" "about" {}
 
 resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id
-  hide = true
+  hide        = true
+  icon        = "/icon/server.svg"
   item {
-    key = "hello"
+    key   = "hello"
     value = "world"
   }
   item {
     key = "null"
   }
   item {
-    key = "empty"
+    key   = "empty"
     value = ""
   }
   item {
-    key = "secret"
-    value = "squirrel"
+    key       = "secret"
+    value     = "squirrel"
     sensitive = true
   }
 }

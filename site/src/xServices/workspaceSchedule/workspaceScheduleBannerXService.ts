@@ -21,11 +21,12 @@ export type WorkspaceScheduleBannerEvent = {
 
 export const workspaceScheduleBannerMachine = createMachine(
   {
+    id: "workspaceScheduleBannerState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./workspaceScheduleBannerXService.typegen").Typegen0,
     schema: {
       events: {} as WorkspaceScheduleBannerEvent,
     },
-    id: "workspaceScheduleBannerState",
     initial: "idle",
     states: {
       idle: {

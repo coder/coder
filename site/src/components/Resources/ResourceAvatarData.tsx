@@ -49,7 +49,7 @@ export const ResourceAvatarData: FC<ResourceAvatarDataProps> = ({ resource }) =>
   return (
     <div className={styles.root}>
       <div className={styles.avatarWrapper}>
-        <ResourceAvatar type={resource.type} />
+        <ResourceAvatar resource={resource} />
       </div>
 
       <TableCellData>

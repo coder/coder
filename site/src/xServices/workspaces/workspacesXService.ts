@@ -28,6 +28,8 @@ type WorkspaceItemEvent =
 export const workspaceItemMachine = createMachine(
   {
     id: "workspaceItemMachine",
+    predictableActionArguments: true,
+    tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
     schema: {
       context: {} as WorkspaceItemContext,
       events: {} as WorkspaceItemEvent,
@@ -43,7 +45,6 @@ export const workspaceItemMachine = createMachine(
         }
       },
     },
-    tsTypes: {} as import("./workspacesXService.typegen").Typegen0,
     type: "parallel",
 
     states: {
@@ -196,6 +197,7 @@ type WorkspacesEvent =
 
 export const workspacesMachine = createMachine(
   {
+    predictableActionArguments: true,
     tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
     schema: {
       context: {} as WorkspacesContext,
