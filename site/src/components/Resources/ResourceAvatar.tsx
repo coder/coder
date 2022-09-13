@@ -26,7 +26,9 @@ export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ resource }) => {
   const hasIcon = resource.icon && resource.icon !== ""
   const avatarSrc = hasIcon
     ? resource.icon
-    : iconPathByResource[resource.type] ?? iconPathByResource["null_resource"]
+    : // resource.type is dynamic so iconPathByResource[resource.type] can be null
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      iconPathByResource[resource.type] ?? iconPathByResource["null_resource"]
   const styles = useStyles()
 
   return <Avatar className={styles.resourceAvatar} src={avatarSrc} />
