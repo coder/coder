@@ -162,7 +162,7 @@ func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 		panic("http.ResponseWriter is not http.Flusher")
 	}
 
-	pingMsg := fmt.Sprintf("event: %s\n\n", codersdk.EventTypePing)
+	pingMsg := fmt.Sprintf("event: %s\n\n", codersdk.ServerSideEventTypePing)
 	_, err := io.WriteString(rw, pingMsg)
 	if err != nil {
 		return nil, err

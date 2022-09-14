@@ -807,7 +807,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
-					Type: codersdk.EventTypeError,
+					Type: codersdk.ServerSideEventTypeError,
 					Data: codersdk.Response{
 						Message: "Internal error fetching workspace.",
 						Detail:  err.Error(),
@@ -818,7 +818,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
-					Type: codersdk.EventTypeError,
+					Type: codersdk.ServerSideEventTypeError,
 					Data: codersdk.Response{
 						Message: "Internal error fetching workspace.",
 						Detail:  err.Error(),
@@ -924,7 +924,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			err = group.Wait()
 			if err != nil {
 				_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
-					Type: codersdk.EventTypeError,
+					Type: codersdk.ServerSideEventTypeError,
 					Data: codersdk.Response{
 						Message: "Internal error fetching workspace.",
 						Detail:  err.Error(),
@@ -935,7 +935,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			apiWorkspace := convertWorkspace(workspace, build, job, template, findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users))
 			apiWorkspace.LatestBuild.Resources = apiResources
 			_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
-				Type: codersdk.EventTypeData,
+				Type: codersdk.ServerSideEventTypeData,
 				Data: apiWorkspace,
 			})
 		}

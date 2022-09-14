@@ -145,7 +145,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				if sse.Type == EventTypeData {
+				if sse.Type == ServerSideEventTypeData {
 					var ws Workspace
 					b, ok := sse.Data.([]byte)
 					if !ok {

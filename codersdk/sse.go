@@ -10,16 +10,16 @@ import (
 )
 
 type ServerSideEvent struct {
-	Type EventType
+	Type ServerSideEventType
 	Data interface{}
 }
 
-type EventType string
+type ServerSideEventType string
 
 const (
-	EventTypePing  EventType = "ping"
-	EventTypeData  EventType = "data"
-	EventTypeError EventType = "error"
+	ServerSideEventTypePing  ServerSideEventType = "ping"
+	ServerSideEventTypeData  ServerSideEventType = "data"
+	ServerSideEventTypeError ServerSideEventType = "error"
 )
 
 func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
@@ -51,29 +51,29 @@ func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
 				return nil, xerrors.Errorf("reading next line value: %w", err)
 			}
 
-			switch EventType(t) {
-			case EventTypePing:
+			switch ServerSideEventType(t) {
+			case ServerSideEventTypePing:
 				return &ServerSideEvent{
-					Type: EventTypePing,
+					Type: ServerSideEventTypePing,
 				}, nil
-			case EventTypeData:
+			case ServerSideEventTypeData:
 				d, err := nextLineValue("data")
 				if err != nil {
 					return nil, xerrors.Errorf("reading next line value: %w", err)
 				}
 
 				return &ServerSideEvent{
-					Type: EventTypeData,
+					Type: ServerSideEventTypeData,
 					Data: d,
 				}, nil
-			case EventTypeError:
+			case ServerSideEventTypeError:
 				d, err := nextLineValue("data")
 				if err != nil {
 					return nil, xerrors.Errorf("reading next line value: %w", err)
 				}
 
 				return &ServerSideEvent{
-					Type: EventTypeError,
+					Type: ServerSideEventTypeError,
 					Data: d,
 				}, nil
 			default:
