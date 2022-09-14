@@ -129,7 +129,7 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 
 func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Parallel()
-	client, orgID, workspace, port := setupProxyTest(t)
+	client, orgID, workspace, _ := setupProxyTest(t)
 
 	t.Run("LoginWithoutAuth", func(t *testing.T) {
 		t.Parallel()
@@ -201,22 +201,6 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		defer cancel()
 
 		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?"+proxyTestAppQuery, nil)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Equal(t, proxyTestAppBody, string(body))
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	})
-
-	t.Run("ProxiesPort", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		path := fmt.Sprintf("/@me/%s/apps/%d/?%s", workspace.Name, port, proxyTestAppQuery)
-		resp, err := client.Request(ctx, http.MethodGet, path, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)

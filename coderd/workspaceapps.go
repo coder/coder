@@ -38,12 +38,12 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	appName, port := httpapi.AppNameOrPort(chi.URLParam(r, "workspaceapp"))
 	api.proxyWorkspaceApplication(proxyApplication{
-		Workspace:        workspace,
-		Agent:            agent,
-		AppName:          appName,
-		Port:             port,
+		Workspace: workspace,
+		Agent:     agent,
+		// We do not support port proxying for paths.
+		AppName:          chi.URLParam(r, "workspaceapp"),
+		Port:             0,
 		Path:             chiPath,
 		DashboardOnError: true,
 	}, rw, r)
