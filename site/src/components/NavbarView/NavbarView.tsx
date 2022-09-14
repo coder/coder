@@ -48,7 +48,10 @@ const NavItems: React.FC<
         </NavLink>
       </ListItem>
       <ListItem button className={styles.item}>
-        <NavLink className={styles.link} to="/users">
+        <NavLink
+          className={styles.link}
+          to={`/users?filter=${encodeURIComponent("status:active")}`}
+        >
           {Language.users}
         </NavLink>
       </ListItem>

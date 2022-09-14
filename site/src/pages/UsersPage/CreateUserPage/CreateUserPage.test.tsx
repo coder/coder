@@ -6,7 +6,7 @@ import { Language as FormLanguage } from "../../../components/CreateUserForm/Cre
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
 import { history, render } from "../../../testHelpers/renderHelpers"
 import { server } from "../../../testHelpers/server"
-import { Language as UserLanguage } from "../../../xServices/users/usersXService"
+import { Language as CreateUserLanguage } from "../../../xServices/users/createUserXService"
 import { CreateUserPage } from "./CreateUserPage"
 
 const fillForm = async ({
@@ -46,7 +46,7 @@ describe("Create User Page", () => {
     })
     render(<CreateUserPage />)
     await fillForm({})
-    const errorMessage = await screen.findByText(UserLanguage.createUserError)
+    const errorMessage = await screen.findByText(CreateUserLanguage.createUserError)
     expect(errorMessage).toBeDefined()
   })
 
@@ -77,7 +77,7 @@ describe("Create User Page", () => {
   it("shows success notification and redirects to users page", async () => {
     render(<CreateUserPage />)
     await fillForm({})
-    const successMessage = screen.findByText(UserLanguage.createUserSuccess)
+    const successMessage = screen.findByText(CreateUserLanguage.createUserSuccess)
     expect(successMessage).toBeDefined()
   })
 
