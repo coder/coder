@@ -788,7 +788,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendEvent, err := httpapi.SetupSSE(rw, r)
+	sendEvent, err := httpapi.ServerSideEventSender(rw, r)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-side events.",
@@ -806,17 +806,23 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		case <-t.C:
 			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
 			if err != nil {
-				_ = sendEvent(r.Context(), httpapi.EventTypeError, codersdk.Response{
-					Message: "Internal error fetching workspace.",
-					Detail:  err.Error(),
+				_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
+					Type: codersdk.EventTypeError,
+					Data: codersdk.Response{
+						Message: "Internal error fetching workspace.",
+						Detail:  err.Error(),
+					},
 				})
 				return
 			}
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
-				_ = sendEvent(r.Context(), httpapi.EventTypeError, codersdk.Response{
-					Message: "Internal error fetching workspace.",
-					Detail:  err.Error(),
+				_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
+					Type: codersdk.EventTypeError,
+					Data: codersdk.Response{
+						Message: "Internal error fetching workspace.",
+						Detail:  err.Error(),
+					},
 				})
 				return
 			}
@@ -917,15 +923,21 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			err = group.Wait()
 			if err != nil {
-				_ = sendEvent(r.Context(), httpapi.EventTypeError, codersdk.Response{
-					Message: "Internal error fetching resource.",
-					Detail:  err.Error(),
+				_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
+					Type: codersdk.EventTypeError,
+					Data: codersdk.Response{
+						Message: "Internal error fetching workspace.",
+						Detail:  err.Error(),
+					},
 				})
 				return
 			}
 			apiWorkspace := convertWorkspace(workspace, build, job, template, findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users))
 			apiWorkspace.LatestBuild.Resources = apiResources
-			_ = sendEvent(r.Context(), httpapi.EventTypeData, apiWorkspace)
+			_ = sendEvent(r.Context(), codersdk.ServerSideEvent{
+				Type: codersdk.EventTypeData,
+				Data: apiWorkspace,
+			})
 		}
 	}
 }

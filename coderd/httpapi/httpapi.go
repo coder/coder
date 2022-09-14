@@ -150,15 +150,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-type EventType string
-
-const (
-	EventTypePing  EventType = "ping"
-	EventTypeData  EventType = "data"
-	EventTypeError EventType = "error"
-)
-
-func SetupSSE(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context, t EventType, event interface{}) error, error) {
+func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context, sse codersdk.ServerSideEvent) error, error) {
 	var mu sync.Mutex
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -176,7 +168,7 @@ func SetupSSE(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context
 		return nil, xerrors.New("http.ResponseWriter is not http.Flusher")
 	}
 
-	pingMsg := fmt.Sprintf("event: %s\n\n", EventTypePing)
+	pingMsg := fmt.Sprintf("event: %s\n\n", codersdk.EventTypePing)
 	_, err := io.WriteString(rw, pingMsg)
 	if err != nil {
 		return nil, err
@@ -205,7 +197,7 @@ func SetupSSE(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context
 		}
 	}()
 
-	sendEvent := func(ctx context.Context, t EventType, event interface{}) error {
+	sendEvent := func(ctx context.Context, sse codersdk.ServerSideEvent) error {
 		if r.Context().Err() != nil {
 			return err
 		}
@@ -214,12 +206,12 @@ func SetupSSE(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context
 		enc := json.NewEncoder(buf)
 		enc.SetEscapeHTML(true)
 
-		_, err := buf.Write([]byte(fmt.Sprintf("event: %s\ndata: ", t)))
+		_, err := buf.Write([]byte(fmt.Sprintf("event: %s\ndata: ", sse.Type)))
 		if err != nil {
 			return err
 		}
 
-		err = enc.Encode(event)
+		err = enc.Encode(sse.Data)
 		if err != nil {
 			return err
 		}

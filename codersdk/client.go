@@ -130,6 +130,7 @@ func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Con
 // readBodyAsError reads the response as an .Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
+	defer res.Body.Close()
 	contentType := res.Header.Get("Content-Type")
 
 	var method, u string
