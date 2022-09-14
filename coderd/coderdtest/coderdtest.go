@@ -38,7 +38,9 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -192,6 +194,9 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
 
+	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	t.Cleanup(stunCleanup)
+
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
@@ -241,7 +246,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 						RegionID:         1,
 						IPv4:             "127.0.0.1",
 						DERPPort:         derpPort,
-						STUNPort:         -1,
+						STUNPort:         stunAddr.Port,
 						InsecureForTests: true,
 						ForceHTTP:        true,
 					}},
