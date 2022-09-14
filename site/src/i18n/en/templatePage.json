@@ -1,7 +1,8 @@
 {
   "deleteDialog": {
     "title": "Delete template",
-    "description": "Deleting a template is irreversible. Are you sure you want to proceed?"
+    "info_one": "{{count}} active user is using this template.",
+    "info_other": "{{count}} active users are using this template."
   },
   "deleteSuccess": "Template successfully deleted."
 }

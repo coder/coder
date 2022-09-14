@@ -141,7 +141,9 @@ export const WorkspacePage: FC = () => {
         />
         <DeleteDialog
           title={t("deleteDialog.title")}
-          description={t("deleteDialog.description")}
+          entity="workspace"
+          name={workspace.name}
+          info={t("deleteDialog.info", { createdAt: dayjs(workspace.created_at).fromNow() })}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
           onCancel={() => workspaceSend("CANCEL_DELETE")}
           onConfirm={() => {
