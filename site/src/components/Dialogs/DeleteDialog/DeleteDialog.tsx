@@ -4,7 +4,7 @@ import TextField from "@material-ui/core/TextField"
 import Typography from "@material-ui/core/Typography"
 import { Maybe } from "components/Conditionals/Maybe"
 import { Stack } from "components/Stack/Stack"
-import React, { useState, ChangeEvent } from "react"
+import React, { ChangeEvent, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
 
@@ -51,21 +51,23 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
     </>
   )
 
-  return <ConfirmDialog
-    type="delete"
-    hideCancel={false}
-    open={isOpen}
-    title={title}
-    onConfirm={onConfirm}
-    onClose={onCancel}
-    description={content}
-    confirmLoading={confirmLoading}
-    disabled={!confirmed}
-  />
+  return (
+    <ConfirmDialog
+      type="delete"
+      hideCancel={false}
+      open={isOpen}
+      title={title}
+      onConfirm={onConfirm}
+      onClose={onCancel}
+      description={content}
+      confirmLoading={confirmLoading}
+      disabled={!confirmed}
+    />
+  )
 }
 
 const useStyles = makeStyles((theme) => ({
   warning: {
-    color: theme.palette.warning.light
-  }
+    color: theme.palette.warning.light,
+  },
 }))
