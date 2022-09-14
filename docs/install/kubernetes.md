@@ -119,7 +119,7 @@ to log in and manage templates.
        --values values.yaml
    ```
 
-   You can watch Coder start up by running `kubectl get pods`. Once Coder has
+   You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder has
    started, the `coder-*` pods should enter the `Running` state.
 
 1. Log in to Coder
