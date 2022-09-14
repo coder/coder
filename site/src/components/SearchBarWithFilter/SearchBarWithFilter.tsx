@@ -7,7 +7,6 @@ import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
 import { Theme } from "@material-ui/core/styles/createMuiTheme"
 import SearchIcon from "@material-ui/icons/Search"
-import { FormikErrors } from "formik"
 import debounce from "just-debounce-it"
 import { useCallback, useRef, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
@@ -29,12 +28,6 @@ export interface PresetFilter {
   name: string
   query: string
 }
-
-interface FilterFormValues {
-  query: string
-}
-
-export type FilterFormErrors = FormikErrors<FilterFormValues>
 
 export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWithFilterProps>> = ({
   filter,
