@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -160,12 +159,12 @@ func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 
 	sw, ok := rw.(*StatusWriter)
 	if !ok {
-		return nil, xerrors.New("http.ResponseWriter is not StatusWriter")
+		panic("http.ResponseWriter is not StatusWriter")
 	}
 
 	f, ok := sw.ResponseWriter.(http.Flusher)
 	if !ok {
-		return nil, xerrors.New("http.ResponseWriter is not http.Flusher")
+		panic("http.ResponseWriter is not http.Flusher")
 	}
 
 	pingMsg := fmt.Sprintf("event: %s\n\n", codersdk.EventTypePing)
