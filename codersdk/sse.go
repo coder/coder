@@ -44,7 +44,8 @@ func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
 		s = strings.TrimSpace(s)
 		return []byte(s), nil
 	}
-	return func() (*ServerSideEvent, error) {
+
+	nextEvent := func() (*ServerSideEvent, error) {
 		for {
 			t, err := nextLineValue("event")
 			if err != nil {
@@ -81,4 +82,6 @@ func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
 			}
 		}
 	}
+
+	return nextEvent
 }
