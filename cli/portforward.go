@@ -10,13 +10,16 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -95,7 +98,11 @@ func portForward() *cobra.Command {
 			if !wireguard {
 				conn, err = client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 			} else {
-				conn, err = client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+				logger := slog.Logger{}
+				if cliflag.IsSetBool(cmd, varVerbose) {
+					logger = slog.Make(sloghuman.Sink(cmd.ErrOrStderr())).Named("tailnet").Leveled(slog.LevelDebug)
+				}
+				conn, err = client.DialWorkspaceAgentTailnet(ctx, logger, workspaceAgent.ID)
 			}
 			if err != nil {
 				return err
@@ -147,6 +154,22 @@ func portForward() *cobra.Command {
 				closeAllListeners()
 			}()
 
+			ticker := time.NewTicker(250 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-ticker.C:
+				}
+
+				_, err = conn.Ping()
+				if err != nil {
+					continue
+				}
+				break
+			}
+			ticker.Stop()
 			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
 			wg.Wait()
 			return closeErr
