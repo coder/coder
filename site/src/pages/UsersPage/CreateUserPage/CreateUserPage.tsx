@@ -16,14 +16,14 @@ export const Language = {
 export const CreateUserPage: React.FC = () => {
   const myOrgId = useOrganizationId()
   const navigate = useNavigate()
-  const [usersState, usersSend] = useMachine(createUserMachine, {
+  const [createUserState, createUserSend] = useMachine(createUserMachine, {
     actions: {
       redirectToUsersPage: () => {
         navigate("/users")
       },
     },
   })
-  const { createUserErrorMessage, createUserFormErrors } = usersState.context
+  const { createUserErrorMessage, createUserFormErrors } = createUserState.context
   // There is no field for organization id in Community Edition, so handle its field error like a generic error
   const genericError =
     createUserErrorMessage ||
@@ -37,12 +37,12 @@ export const CreateUserPage: React.FC = () => {
       </Helmet>
       <CreateUserForm
         formErrors={createUserFormErrors}
-        onSubmit={(user: TypesGen.CreateUserRequest) => usersSend({ type: "CREATE", user })}
+        onSubmit={(user: TypesGen.CreateUserRequest) => createUserSend({ type: "CREATE", user })}
         onCancel={() => {
-          usersSend("CANCEL_CREATE_USER")
+          createUserSend("CANCEL_CREATE_USER")
           navigate("/users")
         }}
-        isLoading={usersState.hasTag("loading")}
+        isLoading={createUserState.hasTag("loading")}
         error={genericError}
         myOrgId={myOrgId}
       />
