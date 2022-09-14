@@ -6,6 +6,8 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.coder.service.annotations | nindent 4 }}
 spec:
   type: {{ .Values.coder.service.type }}
   ports:
