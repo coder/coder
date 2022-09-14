@@ -190,7 +190,7 @@ const useStyles = makeStyles((theme) => ({
     // NavLink adds this class when the current route matches.
     "&.active": {
       position: "relative",
-      color: theme.palette.primary.contrastText,
+      color: theme.palette.text.primary,
       fontWeight: "bold",
 
       "&::before": {

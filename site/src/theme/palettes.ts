@@ -4,6 +4,12 @@ import { colors } from "./colors"
 // Couldn't find a type for this so I made one. We can extend the palette if needed with module augmentation.
 export type PaletteIndex = "primary" | "secondary" | "info" | "success" | "error" | "warning"
 
+declare module "@material-ui/core/styles/createPalette" {
+  interface TypeBackground {
+    paperLight: string
+  }
+}
+
 export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
@@ -20,9 +26,10 @@ export const darkPalette: PaletteOptions = {
   background: {
     default: colors.gray[17],
     paper: colors.gray[16],
+    paperLight: colors.gray[15],
   },
   text: {
-    primary: colors.gray[4],
+    primary: colors.gray[1],
     secondary: colors.gray[5],
   },
   divider: colors.gray[13],
@@ -46,6 +53,6 @@ export const darkPalette: PaletteOptions = {
     contrastText: colors.gray[4],
   },
   action: {
-    hover: colors.gray[13],
+    hover: colors.gray[14],
   },
 }
