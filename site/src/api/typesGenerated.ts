@@ -368,6 +368,13 @@ export interface Role {
   readonly display_name: string
 }
 
+// From codersdk/sse.go
+export interface ServerSideEvent {
+  readonly Type: ServerSideEventType
+  // eslint-disable-next-line
+  readonly Data: any
+}
+
 // From codersdk/templates.go
 export interface Template {
   readonly id: string
@@ -704,6 +711,9 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+
+// From codersdk/sse.go
+export type ServerSideEventType = "data" | "error" | "ping"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
