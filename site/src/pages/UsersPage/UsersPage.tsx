@@ -120,7 +120,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canCreateUser={canCreateUser}
-        filter={filter}
+        filter={usersState.context.filter}
         onFilter={(query) => {
           searchParams.set("filter", query)
           setSearchParams(searchParams)
