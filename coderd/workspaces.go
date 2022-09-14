@@ -788,7 +788,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := httpapi.SetupSSE(rw, r)
+	sendEvent, err := httpapi.SetupSSE(rw, r)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-side events.",
@@ -801,10 +801,12 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	defer t.Stop()
 	for {
 		select {
+		case <-r.Context().Done():
+			return
 		case <-t.C:
 			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
 			if err != nil {
-				_ = httpapi.Event(rw, codersdk.Response{
+				_ = sendEvent(r.Context(), httpapi.EventTypeError, codersdk.Response{
 					Message: "Internal error fetching workspace.",
 					Detail:  err.Error(),
 				})
@@ -812,7 +814,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			}
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
-				_ = httpapi.Event(rw, codersdk.Response{
+				_ = sendEvent(r.Context(), httpapi.EventTypeError, codersdk.Response{
 					Message: "Internal error fetching workspace.",
 					Detail:  err.Error(),
 				})
@@ -878,7 +880,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 							}
 						}
 
-						apiAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+						apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 						if err != nil {
 							return xerrors.Errorf("converting workspace agent: %w", err)
 						}
@@ -915,7 +917,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			err = group.Wait()
 			if err != nil {
-				_ = httpapi.Event(rw, codersdk.Response{
+				_ = sendEvent(r.Context(), httpapi.EventTypeError, codersdk.Response{
 					Message: "Internal error fetching resource.",
 					Detail:  err.Error(),
 				})
@@ -923,9 +925,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			}
 			apiWorkspace := convertWorkspace(workspace, build, job, template, findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users))
 			apiWorkspace.LatestBuild.Resources = apiResources
-			_ = httpapi.Event(rw, apiWorkspace)
-		case <-r.Context().Done():
-			return
+			_ = sendEvent(r.Context(), httpapi.EventTypeData, apiWorkspace)
 		}
 	}
 }

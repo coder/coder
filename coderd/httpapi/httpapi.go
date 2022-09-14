@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -148,7 +150,16 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-func SetupSSE(rw http.ResponseWriter, r *http.Request) error {
+type EventType string
+
+const (
+	EventTypePing  EventType = "ping"
+	EventTypeData  EventType = "data"
+	EventTypeError EventType = "error"
+)
+
+func SetupSSE(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context, t EventType, event interface{}) error, error) {
+	var mu sync.Mutex
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -157,12 +168,13 @@ func SetupSSE(rw http.ResponseWriter, r *http.Request) error {
 
 	f, ok := rw.(http.Flusher)
 	if !ok {
-		return xerrors.New("http.ResponseWriter is not http.Flusher")
+		return nil, xerrors.New("http.ResponseWriter is not http.Flusher")
 	}
 
-	_, err := io.WriteString(rw, ": ping\n\n")
+	pingMsg := fmt.Sprintf("event: %s\n\n", EventTypePing)
+	_, err := io.WriteString(rw, pingMsg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	f.Flush()
 
@@ -176,52 +188,52 @@ func SetupSSE(rw http.ResponseWriter, r *http.Request) error {
 			case <-r.Context().Done():
 				return
 			case <-ticker.C:
-				_, err := io.WriteString(rw, ": ping\n\n")
+				mu.Lock()
+				_, err := io.WriteString(rw, pingMsg)
 				if err != nil {
+					mu.Unlock()
 					return
 				}
 				f.Flush()
+				mu.Unlock()
 			}
 		}
 	}()
 
-	return nil
-}
+	sendEvent := func(ctx context.Context, t EventType, event interface{}) error {
+		if r.Context().Err() != nil {
+			return err
+		}
 
-func Event(rw http.ResponseWriter, event interface{}) error {
-	buf := &bytes.Buffer{}
-	enc := json.NewEncoder(buf)
-	enc.SetEscapeHTML(true)
+		buf := &bytes.Buffer{}
+		enc := json.NewEncoder(buf)
+		enc.SetEscapeHTML(true)
 
-	_, err := buf.Write([]byte("data: "))
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return err
+		_, err := buf.Write([]byte(fmt.Sprintf("event: %s\ndata: ", t)))
+		if err != nil {
+			return err
+		}
+
+		err = enc.Encode(event)
+		if err != nil {
+			return err
+		}
+
+		err = buf.WriteByte('\n')
+		if err != nil {
+			return err
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		_, err = rw.Write(buf.Bytes())
+		if err != nil {
+			return err
+		}
+		f.Flush()
+
+		return nil
 	}
 
-	err = enc.Encode(event)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return err
-	}
-
-	_, err = buf.Write([]byte{'\n'})
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return err
-	}
-
-	_, err = rw.Write(buf.Bytes())
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return err
-	}
-
-	f, ok := rw.(http.Flusher)
-	if !ok {
-		return xerrors.New("http.ResponseWriter is not http.Flusher")
-	}
-	f.Flush()
-
-	return nil
+	return sendEvent, nil
 }
