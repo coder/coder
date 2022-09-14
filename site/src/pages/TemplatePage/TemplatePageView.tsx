@@ -130,7 +130,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
             </div>
             <div>
               <PageHeaderTitle>{template.name}</PageHeaderTitle>
-              <PageHeaderSubtitle>
+              <PageHeaderSubtitle condensed>
                 {template.description === "" ? Language.noDescription : template.description}
               </PageHeaderSubtitle>
             </div>
