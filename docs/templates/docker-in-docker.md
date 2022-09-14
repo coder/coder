@@ -87,10 +87,84 @@ resource "k8s_core_v1_pod" "dev" {
 }
 ```
 
-## Privileged sidecar container (Docker and Kubernetes)
+> Sysbox CE (Community Edition) supports a maximum of 16 pods (workspaces) per node on Kubernetes. See the [Sysbox documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md#limitations) for more details.
 
-TODO
+## Privileged sidecar container (Kubernetes)
 
-## Shared Docker socket (Docker only)
+While less secure, you can attach a [privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) to your templates. This may come in handy if your nodes cannot run Sysbox.
 
-TODO
+```hcl
+resource "coder_agent" "main" {
+  os             = "linux"
+  arch           = "amd64"
+}
+
+resource "kubernetes_pod" "main" {
+  count = data.coder_workspace.me.start_count
+  metadata {
+    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    namespace = var.namespace
+  }
+  spec {
+    # Run a privileged dind (Docker in Docker) container
+    container {
+      name  = "docker-sidecar"
+      image = "docker:dind"
+      security_context {
+        privileged = true
+      }
+      command = ["dockerd", "-H", "tcp://127.0.0.1:2375"]
+    }
+    container {
+      name    = "dev"
+      image   = "codercom/enterprise-base:ubuntu"
+      command = ["sh", "-c", coder_agent.main.init_script]
+      security_context {
+        run_as_user = "1000"
+      }
+      env {
+        name  = "CODER_AGENT_TOKEN"
+        value = coder_agent.main.token
+      }
+      # Use the Docker daemon in the "docker-sidecar" container
+      env {
+        name  = "DOCKER_HOST"
+        value = "localhost:2375"
+      }
+    }
+  }
+}
+
+```
+
+## Shared Docker socket (Docker)
+
+While less secure, Docker-based templates can share the host's Docker socket.
+
+````hcl
+resource "coder_agent" "main" {
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
+  startup_script = <<EOF
+    #!/bin/sh
+
+    # Give the internal "coder" user permission
+    # to use the Docker socket
+    sudo chmod 666 /var/run/socker.sock
+
+    EOF
+}
+
+resource "docker_container" "workspace" {
+  count   = data.coder_workspace.me.start_count
+  image   = "codercom/enterprise-base:ubuntu"
+  name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  command = ["sh", "-c", coder_agent.main.init_script]
+  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  volumes {
+    container_path = "/var/run/docker.sock"
+    host_path      = "/var/run/docker.sock"
+  }
+}
+```hcl
+````
