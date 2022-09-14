@@ -51,6 +51,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
+			Scope:        database.ApiKeyScopeAny,
 		})
 		require.NoError(t, err)
 

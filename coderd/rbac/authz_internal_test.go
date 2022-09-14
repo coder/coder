@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// subject is required because rego needs
 type subject struct {
 	UserID string `json:"id"`
 	// For the unit test we want to pass in the roles directly, instead of just
@@ -42,7 +41,7 @@ func TestFilterError(t *testing.T) {
 	auth, err := NewAuthorizer()
 	require.NoError(t, err)
 
-	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAny, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -158,7 +157,8 @@ func TestFilter(t *testing.T) {
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, ActionRead, obj.RBACObject())
+				// TODO: scopes
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, ScopeAny, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -167,7 +167,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, ScopeAny, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -666,23 +666,24 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					// TODO: scopes
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, ScopeAny, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					if len(partialAuthz.partialQueries.Support) > 0 {
-						d, _ := json.Marshal(partialAuthz.input)
+					if len(partialAuthz.mainAuthorizer.partialQueries.Support) > 0 {
+						d, _ := json.Marshal(partialAuthz.mainAuthorizer.input)
 						t.Logf("input: %s", string(d))
-						for _, q := range partialAuthz.partialQueries.Queries {
+						for _, q := range partialAuthz.mainAuthorizer.partialQueries.Queries {
 							t.Logf("query: %+v", q.String())
 						}
-						for _, s := range partialAuthz.partialQueries.Support {
+						for _, s := range partialAuthz.mainAuthorizer.partialQueries.Support {
 							t.Logf("support: %+v", s.String())
 						}
 					}
-					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules")
+					require.Equal(t, 0, len(partialAuthz.mainAuthorizer.partialQueries.Support), "expected 0 support rules")
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {

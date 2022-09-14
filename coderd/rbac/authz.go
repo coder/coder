@@ -10,8 +10,8 @@ import (
 )
 
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, objectType string) (PreparedAuthorized, error)
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, object Object) error
+	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -21,7 +21,7 @@ type PreparedAuthorized interface {
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, action Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -29,7 +29,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 	objectType := objects[0].RBACObject().Type
 
 	filtered := make([]O, 0)
-	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, action, objectType)
+	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}
@@ -52,6 +52,8 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 type RegoAuthorizer struct {
 	query rego.PreparedEvalQuery
 }
+
+var _ Authorizer = (*RegoAuthorizer)(nil)
 
 // Load the policy from policy.rego in this directory.
 //
@@ -81,13 +83,27 @@ type authSubject struct {
 // ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, object Object) error {
 	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return err
 	}
 
-	return a.Authorize(ctx, subjectID, roles, action, object)
+	err = a.Authorize(ctx, subjectID, roles, action, object)
+	if err != nil {
+		return err
+	}
+
+	// If the scope isn't "any", we need to check with the scope's role as well.
+	if scope != ScopeAny {
+		scopeRole := builtinScopes[scope]
+		err = a.Authorize(ctx, subjectID, []Role{scopeRole}, action, object)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Authorize allows passing in custom Roles.
@@ -116,8 +132,8 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
-	auth, err := newPartialAuthorizer(ctx, subjectID, roles, action, objectType)
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
@@ -125,11 +141,11 @@ func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Rol
 	return auth, nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error) {
 	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return nil, err
 	}
 
-	return a.Prepare(ctx, subjectID, roles, action, objectType)
+	return a.Prepare(ctx, subjectID, roles, scope, action, objectType)
 }
