@@ -89,18 +89,4 @@ describe("Create User Page", () => {
     const successMessage = screen.findByText(CreateUserLanguage.createUserSuccess)
     expect(successMessage).toBeDefined()
   })
-
-  it("redirects to users page on cancel", async () => {
-    await renderCreateUserPage()
-    const cancelButton = await screen.findByText(FooterLanguage.cancelLabel)
-    cancelButton.click()
-    expect(window.location.pathname).toEqual("/users")
-  })
-
-  it("redirects to users page on close", async () => {
-    await renderCreateUserPage()
-    const closeButton = await screen.findByText("ESC")
-    closeButton.click()
-    expect(window.location.pathname).toEqual("/users")
-  })
 })

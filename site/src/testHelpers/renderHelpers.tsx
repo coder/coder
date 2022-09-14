@@ -10,7 +10,12 @@ import { i18n } from "i18n"
 import { FC, ReactElement } from "react"
 import { HelmetProvider } from "react-helmet-async"
 import { I18nextProvider } from "react-i18next"
-import { BrowserRouter, unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  unstable_HistoryRouter as HistoryRouter,
+} from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { dark } from "../theme"
 import { XServiceProvider } from "../xServices/StateContext"
@@ -44,21 +49,21 @@ type RenderWithAuthResult = RenderResult & { user: typeof MockUser }
  */
 export function renderWithAuth(
   ui: JSX.Element,
-  { route = "/" }: { route?: string; path?: string } = {},
+  { route = "/", path }: { route?: string; path?: string } = {},
 ): RenderWithAuthResult {
-  window.history.pushState({}, "Test page", route)
-
   const renderResult = wrappedRender(
     <HelmetProvider>
-      <BrowserRouter>
+      <MemoryRouter initialEntries={[route]}>
         <XServiceProvider>
           <I18nextProvider i18n={i18n}>
             <ThemeProvider theme={dark}>
-              <RequireAuth>{ui}</RequireAuth>
+              <Routes>
+                <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
+              </Routes>
             </ThemeProvider>
           </I18nextProvider>
         </XServiceProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     </HelmetProvider>,
   )
 
