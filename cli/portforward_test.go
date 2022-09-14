@@ -133,7 +133,7 @@ func TestPortForward(t *testing.T) {
 
 				// Launch port-forward in a goroutine so we can start dialing
 				// the "local" listener.
-				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
+				cmd, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
 				cmd.SetOut(buf)
@@ -179,7 +179,7 @@ func TestPortForward(t *testing.T) {
 
 				// Launch port-forward in a goroutine so we can start dialing
 				// the "local" listeners.
-				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag1, flag2)
+				cmd, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
 				buf := newThreadSafeBuffer()
 				cmd.SetOut(buf)
@@ -234,7 +234,7 @@ func TestPortForward(t *testing.T) {
 
 		// Launch port-forward in a goroutine so we can start dialing
 		// the "local" listeners.
-		cmd, root := clitest.New(t, append([]string{"port-forward", workspace.Name}, flags...)...)
+		cmd, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
 		buf := newThreadSafeBuffer()
 		cmd.SetOut(buf)
