@@ -864,7 +864,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 
 				resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
 				if err != nil {
-					return err
+					return xerrors.Errorf("fetching resource metadata: %w", err)
 				}
 
 				for _, resource := range resources {
