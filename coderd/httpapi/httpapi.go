@@ -157,12 +157,7 @@ func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 
-	sw, ok := rw.(*StatusWriter)
-	if !ok {
-		panic("http.ResponseWriter is not StatusWriter")
-	}
-
-	f, ok := sw.ResponseWriter.(http.Flusher)
+	f, ok := rw.(http.Flusher)
 	if !ok {
 		panic("http.ResponseWriter is not http.Flusher")
 	}
