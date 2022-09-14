@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 )
 
 // These cookies are Coder-specific. If a new one is added or changed, the name
@@ -93,38 +92,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("do: %w", err)
 	}
 	return resp, err
-}
-
-// dialWebsocket opens a dialWebsocket connection on that path provided.
-// The caller is responsible for closing the dialWebsocket.Conn.
-func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Conn, error) {
-	serverURL, err := c.URL.Parse(path)
-	if err != nil {
-		return nil, xerrors.Errorf("parse path: %w", err)
-	}
-
-	apiURL, err := url.Parse(serverURL.String())
-	if err != nil {
-		return nil, xerrors.Errorf("parse server url: %w", err)
-	}
-	apiURL.Scheme = "ws"
-	if serverURL.Scheme == "https" {
-		apiURL.Scheme = "wss"
-	}
-	apiURL.Path = path
-	q := apiURL.Query()
-	q.Add(SessionTokenKey, c.SessionToken)
-	apiURL.RawQuery = q.Encode()
-
-	//nolint:bodyclose
-	conn, _, err := websocket.Dial(ctx, apiURL.String(), &websocket.DialOptions{
-		HTTPClient: c.HTTPClient,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("dial websocket: %w", err)
-	}
-
-	return conn, nil
 }
 
 // readBodyAsError reads the response as an .Message, and
