@@ -25,8 +25,10 @@ const (
 func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
 	reader := bufio.NewReader(rc)
 	nextLineValue := func(prefix string) ([]byte, error) {
-		var line string
-		var err error
+		var (
+			line string
+			err  error
+		)
 		for {
 			line, err = reader.ReadString('\n')
 			if err != nil {
