@@ -121,18 +121,20 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
       />
 
-      {userToBeDeleted && <DeleteDialog
-        isOpen={usersState.matches("confirmUserDeletion")}
-        confirmLoading={usersState.matches("deletingUser")}
-        name={userToBeDeleted.username}
-        entity="user"
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_DELETE")
-        }}
-        onCancel={() => {
-          usersSend("CANCEL_USER_DELETE")
-        }}
-      />}
+      {userToBeDeleted && (
+        <DeleteDialog
+          isOpen={usersState.matches("confirmUserDeletion")}
+          confirmLoading={usersState.matches("deletingUser")}
+          name={userToBeDeleted.username}
+          entity="user"
+          onConfirm={() => {
+            usersSend("CONFIRM_USER_DELETE")
+          }}
+          onCancel={() => {
+            usersSend("CANCEL_USER_DELETE")
+          }}
+        />
+      )}
 
       <ConfirmDialog
         type="delete"
