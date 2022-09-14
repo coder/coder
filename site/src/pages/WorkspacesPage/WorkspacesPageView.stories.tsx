@@ -1,4 +1,4 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import { spawn } from "xstate"
 import { ProvisionerJobStatus, WorkspaceTransition } from "../../api/typesGenerated"
@@ -67,11 +67,11 @@ export default {
   component: WorkspacesPageView,
   argTypes: {
     workspaceRefs: {
-      options: [...Object.keys(workspaces), ...Object.keys(additionalWorkspaces)],
-      mapping: { ...workspaces, ...additionalWorkspaces },
+      options: [],
+      mapping: {},
     },
   },
-} as ComponentMeta<typeof WorkspacesPageView>
+}
 
 const Template: Story<WorkspacesPageViewProps> = (args) => <WorkspacesPageView {...args} />
 
