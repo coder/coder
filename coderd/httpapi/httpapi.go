@@ -166,7 +166,12 @@ func SetupSSE(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 
-	f, ok := rw.(http.Flusher)
+	sw, ok := rw.(*StatusWriter)
+	if !ok {
+		return nil, xerrors.New("http.ResponseWriter is not StatusWriter")
+	}
+
+	f, ok := sw.ResponseWriter.(http.Flusher)
 	if !ok {
 		return nil, xerrors.New("http.ResponseWriter is not http.Flusher")
 	}
