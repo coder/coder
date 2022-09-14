@@ -12,10 +12,9 @@ export interface DeleteDialogProps {
   isOpen: boolean
   onConfirm: () => void
   onCancel: () => void
-  title: string
   entity: string
   name: string
-  info: string
+  info?: string
   confirmLoading?: boolean
 }
 
@@ -23,10 +22,9 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
   isOpen,
   onCancel,
   onConfirm,
-  title,
   entity,
-  name,
   info,
+  name,
   confirmLoading,
 }) => {
   const styles = useStyles()
@@ -40,7 +38,9 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
   const content = (
     <>
       <Typography>{t("deleteDialog.intro", { entity })}</Typography>
-      <Typography className={styles.warning}>{info}</Typography>
+      <Maybe condition={info !== undefined}>
+        <Typography className={styles.warning}>{info}</Typography>
+      </Maybe>
       <Typography>{t("deleteDialog.confirm", { entity })}</Typography>
       <Stack spacing={1}>
         <TextField placeholder={name} value={nameValue} onChange={handleChange} />
@@ -56,7 +56,7 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
       type="delete"
       hideCancel={false}
       open={isOpen}
-      title={title}
+      title={t("deleteDialog.title", { entity })}
       onConfirm={onConfirm}
       onClose={onCancel}
       description={content}

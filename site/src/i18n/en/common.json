@@ -13,7 +13,8 @@
     "queued": "Queued"
   },
   "deleteDialog": {
-    "intro": "Deleting a {{entity}} is irreversible!",
+    "title": "Delete {{entity}}",
+    "intro": "Deleting this {{entity}} is irreversible!",
     "confirm": "Are you sure you want to proceed? Type the name of this {{entity}} below to confirm.",
     "incorrectName": "Incorrect {{entity}} name."
   }

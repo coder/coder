@@ -1,4 +1,5 @@
 import { useActor } from "@xstate/react"
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
@@ -11,9 +12,6 @@ import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 
 export const Language = {
-  deleteDialogTitle: "Delete user",
-  deleteDialogAction: "Delete",
-  deleteDialogMessagePrefix: "Do you want to delete the user",
   suspendDialogTitle: "Suspend user",
   suspendDialogAction: "Suspend",
   suspendDialogMessagePrefix: "Do you want to suspend the user",
@@ -123,25 +121,18 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
       />
 
-      <ConfirmDialog
-        type="delete"
-        hideCancel={false}
-        open={usersState.matches("confirmUserDeletion")}
+      {userToBeDeleted && <DeleteDialog
+        isOpen={usersState.matches("confirmUserDeletion")}
         confirmLoading={usersState.matches("deletingUser")}
-        title={Language.deleteDialogTitle}
-        confirmText={Language.deleteDialogAction}
+        name={userToBeDeleted.username}
+        entity="user"
         onConfirm={() => {
           usersSend("CONFIRM_USER_DELETE")
         }}
-        onClose={() => {
+        onCancel={() => {
           usersSend("CANCEL_USER_DELETE")
         }}
-        description={
-          <>
-            {Language.deleteDialogMessagePrefix} <strong>{userToBeDeleted?.username}</strong>?
-          </>
-        }
-      />
+      />}
 
       <ConfirmDialog
         type="delete"

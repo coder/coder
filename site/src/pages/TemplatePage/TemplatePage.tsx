@@ -1,9 +1,7 @@
 import { useMachine, useSelector } from "@xstate/react"
-import { TemplateDAUsResponse } from "api/typesGenerated"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
 import { Navigate, useParams } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { XServiceContext } from "xServices/StateContext"
@@ -23,14 +21,8 @@ const useTemplateName = () => {
   return template
 }
 
-const getCurrentActiveUsers = (templateDAUs: TemplateDAUsResponse) => {
-  const entries = templateDAUs.entries
-  return entries[entries.length - 1].amount
-}
-
 export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
   const organizationId = useOrganizationId()
-  const { t } = useTranslation("templatePage")
   const templateName = useTemplateName()
   const [templateState, templateSend] = useMachine(templateMachine, {
     context: {
@@ -83,10 +75,8 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
       <DeleteDialog
         isOpen={templateState.matches("confirmingDelete")}
         confirmLoading={templateState.matches("deleting")}
-        title={t("deleteDialog.title")}
         entity="template"
         name={template.name}
-        info={t("deleteDialog.info", { count: getCurrentActiveUsers(templateDAUs) })}
         onConfirm={() => {
           templateSend("CONFIRM_DELETE")
         }}

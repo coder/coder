@@ -1,7 +1,6 @@
 {
   "deleteDialog": {
-    "title": "Delete workspace",
-    "info": "This workspace was created {{createdAt}}."
+    "info": "This workspace was created {{timeAgo}}."
   },
   "workspaceScheduleButton": {
     "schedule": "Schedule",
