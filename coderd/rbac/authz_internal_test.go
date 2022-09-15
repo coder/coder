@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ type subject struct {
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
 	Roles []Role `json:"roles"`
+	Scope Scope  `json:"scope"`
 }
 
 type fakeObject struct {
@@ -74,6 +76,7 @@ func TestFilter(t *testing.T) {
 		SubjectID  string
 		Roles      []string
 		Action     Action
+		Scope      Scope
 		ObjectType string
 	}{
 		{
@@ -138,6 +141,13 @@ func TestFilter(t *testing.T) {
 			ObjectType: ResourceOrganization.Type,
 			Action:     ActionRead,
 		},
+		{
+			Name:       "ScopeApplicationConnect",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+			ObjectType: ResourceWorkspace.Type,
+			Action:     ActionRead,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -153,12 +163,17 @@ func TestFilter(t *testing.T) {
 			auth, err := NewAuthorizer()
 			require.NoError(t, err, "new auth")
 
+			scope := ScopeAny
+			if tc.Scope != "" {
+				scope = tc.Scope
+			}
+
 			// Run auth 1 by 1
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
 				// TODO: scopes
-				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, ScopeAny, ActionRead, obj.RBACObject())
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -167,7 +182,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, ScopeAny, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, scope, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -614,6 +629,49 @@ func TestAuthorizeLevels(t *testing.T) {
 		}))
 }
 
+func TestAuthorizeScope(t *testing.T) {
+	t.Parallel()
+
+	defOrg := uuid.New()
+	unusedID := uuid.New()
+	user := subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleOwner())),
+			must(RoleByName(RoleMember())),
+		},
+	}
+
+	user.Scope = ScopeApplicationConnect
+	testAuthorize(t, "ScopeApplicationConnect", user, []authTestCase{
+		// Org + me
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
+
+		{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
+
+		{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
+
+		// Other org + me
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+
+		// Other org + other user
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
+
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+
+		// Other org + other use
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+
+		// TODO: add allowed cases when scope application_connect actually has
+		// permissions
+	})
+}
+
 // cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {
@@ -636,13 +694,26 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	authorizer, err := NewAuthorizer()
 	require.NoError(t, err)
 	for _, cases := range sets {
-		for _, c := range cases {
-			t.Run(name, func(t *testing.T) {
+		for i, c := range cases {
+			c := c
+			caseName := fmt.Sprintf("%s/%d", name, i)
+			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
+
+					scope := ScopeAny
+					if subject.Scope != "" {
+						scope = subject.Scope
+					}
+
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
+					if authError == nil && scope != ScopeAny {
+						scopeRole := builtinScopes[scope]
+						authError = authorizer.Authorize(ctx, subject.UserID, []Role{scopeRole}, a, c.resource)
+					}
+
 					// Logging only
 					if authError != nil {
 						var uerr *UnauthorizedError
@@ -666,8 +737,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					// TODO: scopes
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, ScopeAny, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, scope, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.
