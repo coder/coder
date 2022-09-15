@@ -48,6 +48,10 @@ func (w Workspace) ExecutionRBAC() rbac.Object {
 	return rbac.ResourceWorkspaceExecution.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
 }
 
+func (w Workspace) ApplicationConnectRBAC() rbac.Object {
+	return rbac.ResourceWorkspaceApplicationConnect.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
+}
+
 func (m OrganizationMember) RBACObject() rbac.Object {
 	return rbac.ResourceOrganizationMember.InOrg(m.OrganizationID)
 }

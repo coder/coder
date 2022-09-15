@@ -26,13 +26,14 @@ var builtinScopes map[Scope]Role = map[Scope]Role{
 		User: []Permission{},
 	},
 
-	// TODO: fill in the site permissions
 	ScopeApplicationConnect: {
 		Name:        fmt.Sprintf("Scope_%s", ScopeApplicationConnect),
 		DisplayName: "Ability to connect to applications",
-		Site:        permissions(map[Object][]Action{}),
-		Org:         map[string][]Permission{},
-		User:        []Permission{},
+		Site: permissions(map[Object][]Action{
+			ResourceWorkspaceApplicationConnect: {ActionCreate},
+		}),
+		Org:  map[string][]Permission{},
+		User: []Permission{},
 	},
 }
 

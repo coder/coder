@@ -25,7 +25,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	workspace := httpmw.WorkspaceParam(r)
 	agent := httpmw.WorkspaceAgentParam(r)
 
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, rbac.ActionCreate, workspace.ApplicationConnectRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -125,7 +125,7 @@ type proxyApplication struct {
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionCreate, proxyApp.Workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, rbac.ActionCreate, proxyApp.Workspace.ApplicationConnectRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

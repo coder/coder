@@ -198,6 +198,16 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name: "MyWorkspaceInOrgAppConnect",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Resource: rbac.ResourceWorkspaceApplicationConnect.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+			},
+		},
+		{
 			Name:     "Templates",
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceTemplate.InOrg(orgID),

@@ -163,6 +163,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
 		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
@@ -408,11 +410,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 
 	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
 		AssertAction: rbac.ActionCreate,
-		AssertObject: workspaceExecObj,
+		AssertObject: applicationConnectObj,
 	})
 	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
 		AssertAction: rbac.ActionCreate,
-		AssertObject: workspaceExecObj,
+		AssertObject: applicationConnectObj,
 	})
 
 	return skipRoutes, assertRoute

@@ -234,7 +234,7 @@ func TestAPIKey(t *testing.T) {
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
-		yeah, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			UserID:       user.ID,
 			HashedSecret: hashed[:],
@@ -244,12 +244,9 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		fmt.Printf("%+v\n", yeah)
-
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
-			fmt.Printf("%+v\n", apiKey)
 			assert.Equal(t, database.ApiKeyScopeApplicationConnect, apiKey.Scope)
 
 			httpapi.Write(rw, http.StatusOK, codersdk.Response{
