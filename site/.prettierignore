@@ -10,6 +10,7 @@ vendor
 .eslintcache
 yarn-error.log
 .idea
+.gitpod.yml
 
 # Front-end ignore
 .next/
@@ -20,3 +21,4 @@ test-results/
 
 **/*.swp
 .coderv2/*
+
