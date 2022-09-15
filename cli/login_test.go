@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,15 @@ func TestLogin(t *testing.T) {
 		root, _ := clitest.New(t, "login", client.URL.String())
 		err := root.Execute()
 		require.Error(t, err)
+	})
+
+	t.Run("InitialUserBadLoginURL", func(t *testing.T) {
+		t.Parallel()
+		badLoginURL := "https://fcca2077f06e68aaf9"
+		root, _ := clitest.New(t, "login", badLoginURL)
+		err := root.Execute()
+		errMsg := fmt.Sprintf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser?", badLoginURL)
+		require.ErrorContains(t, err, errMsg)
 	})
 
 	t.Run("InitialUserTTY", func(t *testing.T) {

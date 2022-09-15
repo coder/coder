@@ -32,8 +32,13 @@ export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({ ch
   return <h1 className={styles.title}>{children}</h1>
 }
 
-export const PageHeaderSubtitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
-  const styles = useStyles()
+export const PageHeaderSubtitle: React.FC<React.PropsWithChildren<{ condensed?: boolean }>> = ({
+  children,
+  condensed,
+}) => {
+  const styles = useStyles({
+    condensed,
+  })
 
   return <h2 className={styles.subtitle}>{children}</h2>
 }
@@ -52,8 +57,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   title: {
-    fontSize: theme.spacing(4),
-    fontWeight: 400,
+    fontSize: theme.spacing(3),
     margin: 0,
     display: "flex",
     alignItems: "center",
@@ -61,12 +65,13 @@ const useStyles = makeStyles((theme) => ({
   },
 
   subtitle: {
-    fontSize: theme.spacing(2.25),
+    fontSize: theme.spacing(2),
     color: theme.palette.text.secondary,
     fontWeight: 400,
     display: "block",
     margin: 0,
-    marginTop: theme.spacing(1),
+    marginTop: ({ condensed }: { condensed?: boolean }) =>
+      condensed ? theme.spacing(0.5) : theme.spacing(1),
   },
 
   actions: {

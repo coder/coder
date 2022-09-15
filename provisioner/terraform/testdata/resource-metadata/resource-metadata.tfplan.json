@@ -30,6 +30,7 @@
           "schema_version": 0,
           "values": {
             "hide": true,
+            "icon": "/icon/server.svg",
             "item": [
               {
                 "key": "hello",
@@ -119,6 +120,7 @@
         "before": null,
         "after": {
           "hide": true,
+          "icon": "/icon/server.svg",
           "item": [
             {
               "key": "hello",
@@ -198,7 +200,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.4.10"
+        "version_constraint": "0.4.11"
       },
       "null": {
         "name": "null",
@@ -232,6 +234,9 @@
           "expressions": {
             "hide": {
               "constant_value": true
+            },
+            "icon": {
+              "constant_value": "/icon/server.svg"
             },
             "item": [
               {

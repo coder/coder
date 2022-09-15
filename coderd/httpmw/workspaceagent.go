@@ -29,14 +29,14 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(codersdk.SessionTokenKey)
-			if err != nil {
+			cookieValue := apiTokenFromRequest(r)
+			if cookieValue == "" {
 				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
-			token, err := uuid.Parse(cookie.Value)
+			token, err := uuid.Parse(cookieValue)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
 					Message: "Agent token is invalid.",

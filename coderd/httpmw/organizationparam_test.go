@@ -29,10 +29,7 @@ func TestOrganizationParam(t *testing.T) {
 			r          = httptest.NewRequest("GET", "/", nil)
 			hashed     = sha256.Sum256([]byte(secret))
 		)
-		r.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenKey,
-			Value: fmt.Sprintf("%s-%s", id, secret),
-		})
+		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		userID := uuid.New()
 		username, err := cryptorand.String(8)

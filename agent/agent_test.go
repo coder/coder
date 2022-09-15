@@ -559,7 +559,7 @@ func TestAgent(t *testing.T) {
 			DERPMap: derpMap,
 		}, 0)
 		defer conn.Close()
-		res, err := conn.Speedtest(speedtest.Upload, speedtest.MinDuration)
+		res, err := conn.Speedtest(speedtest.Upload, 250*time.Millisecond)
 		require.NoError(t, err)
 		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
 	})

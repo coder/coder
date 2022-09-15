@@ -61,7 +61,7 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
                         title={resource.name}
                         subtitle={resource.type}
                         highlightTitle
-                        avatar={<ResourceAvatar type={resource.type} />}
+                        avatar={<ResourceAvatar resource={resource} />}
                       />
                     </TableCell>
                     <TableCell colSpan={3}></TableCell>
@@ -79,7 +79,7 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
                         title={resource.name}
                         subtitle={resource.type}
                         highlightTitle
-                        avatar={<ResourceAvatar type={resource.type} />}
+                        avatar={<ResourceAvatar resource={resource} />}
                       />
                     </TableCell>
                   )}

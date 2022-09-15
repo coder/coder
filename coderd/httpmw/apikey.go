@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -58,6 +59,24 @@ const (
 	internalErrorMessage  string = "An internal error occurred. Please try again or contact the system administrator."
 )
 
+type loginURLKey struct{}
+
+func getLoginURL(r *http.Request) (*url.URL, bool) {
+	val, ok := r.Context().Value(loginURLKey{}).(*url.URL)
+	return val, ok
+}
+
+// UseLoginURL sets the login URL to use for the request for handlers like
+// ExtractAPIKey.
+func UseLoginURL(loginURL *url.URL) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), loginURLKey{}, loginURL)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
 // ExtractAPIKey requires authentication using a valid API key.
 // It handles extending an API key if it comes close to expiry,
 // updating the last used time in the database.
@@ -70,24 +89,41 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			// pages like workspace applications.
 			write := func(code int, response codersdk.Response) {
 				if redirectToLogin {
+					var (
+						u = &url.URL{
+							Path: "/login",
+						}
+						redirectURL = func() string {
+							path := r.URL.Path
+							if r.URL.RawQuery != "" {
+								path += "?" + r.URL.RawQuery
+							}
+							return path
+						}()
+					)
+					if loginURL, ok := getLoginURL(r); ok {
+						u = loginURL
+						// Don't redirect to the current page, as it may be on
+						// a different domain and we have issues determining the
+						// scheme to redirect to.
+						redirectURL = ""
+					}
+
 					q := r.URL.Query()
 					q.Add("message", response.Message)
-					q.Add("redirect", r.URL.Path+"?"+r.URL.RawQuery)
-					r.URL.RawQuery = q.Encode()
-					r.URL.Path = "/login"
-					http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+					if redirectURL != "" {
+						q.Add("redirect", redirectURL)
+					}
+					u.RawQuery = q.Encode()
+
+					http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 					return
 				}
+
 				httpapi.Write(rw, code, response)
 			}
 
-			var cookieValue string
-			cookie, err := r.Cookie(codersdk.SessionTokenKey)
-			if err != nil {
-				cookieValue = r.URL.Query().Get(codersdk.SessionTokenKey)
-			} else {
-				cookieValue = cookie.Value
-			}
+			cookieValue := apiTokenFromRequest(r)
 			if cookieValue == "" {
 				write(http.StatusUnauthorized, codersdk.Response{
 					Message: signedOutErrorMessage,
@@ -292,4 +328,37 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// apiTokenFromRequest returns the api token from the request.
+// Find the session token from:
+// 1: The cookie
+// 2: The old cookie
+// 3. The coder_session_token query parameter
+// 4. The custom auth header
+func apiTokenFromRequest(r *http.Request) string {
+	cookie, err := r.Cookie(codersdk.SessionTokenKey)
+	if err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+
+	// TODO: @emyrk in October 2022, remove this oldCookie check.
+	//	This is just to support the old cli for 1 release. Then everyone
+	//	must update.
+	oldCookie, err := r.Cookie("session_token")
+	if err == nil && oldCookie.Value != "" {
+		return oldCookie.Value
+	}
+
+	urlValue := r.URL.Query().Get(codersdk.SessionTokenKey)
+	if urlValue != "" {
+		return urlValue
+	}
+
+	headerValue := r.Header.Get(codersdk.SessionCustomHeader)
+	if headerValue != "" {
+		return headerValue
+	}
+
+	return ""
 }

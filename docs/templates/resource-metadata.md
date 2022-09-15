@@ -71,6 +71,32 @@ resource "coder_metadata" "hide_serviceaccount" {
 }
 ```
 
+## Using custom resource icon
+
+To use custom icons on your resources, use the `icon` attribute (must be a valid path or URL):
+
+```hcl
+resource "coder_metadata" "resource_with_icon" {
+  count = data.coder_workspace.me.start_count
+  resource_id = kubernetes_service_account.user_data.id
+  icon = "/icon/database.svg"
+  item {
+    key = "name"
+    value = kubernetes_deployment.coder[0].metadata[0].name
+  }
+}
+```
+
+To make easier for you to customize your resource we added some built-in icons:
+
+- Folder `/icon/folder.svg`
+- Memory `/icon/memory.svg`
+- Image `/icon/image.svg`
+- Widgets `/icon/widgets.svg`
+- Database `/icon/database.svg`
+
+We also have other icons related to the IDEs. You can see all the icons [here](https://github.com/coder/coder/tree/main/site/static/icon).
+
 ## Up next
 
 - Learn about [secrets](../secrets.md)

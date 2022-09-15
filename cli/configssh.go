@@ -374,7 +374,7 @@ func configSSH() *cobra.Command {
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
+	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", true, "Whether to use Wireguard for SSH tunneling.")
 	_ = cmd.Flags().MarkHidden("wireguard")
 
 	cliui.AllowSkipPrompt(cmd)

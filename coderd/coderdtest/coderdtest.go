@@ -38,7 +38,9 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -175,11 +177,18 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 	srv.Start()
 	t.Cleanup(srv.Close)
 
+	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
+	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
 
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
+
+	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	t.Cleanup(stunCleanup)
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
@@ -225,7 +234,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 						RegionID:         1,
 						IPv4:             "127.0.0.1",
 						DERPPort:         derpPort,
-						STUNPort:         -1,
+						STUNPort:         stunAddr.Port,
 						InsecureForTests: true,
 						ForceHTTP:        true,
 					}},
