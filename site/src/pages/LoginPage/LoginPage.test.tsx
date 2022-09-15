@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { Route, Routes } from "react-router-dom"
 import { Language } from "../../components/SignInForm/SignInForm"
-import { history, render } from "../../testHelpers/renderHelpers"
+import { history, render, waitForLoaderToBeRemoved } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
 
@@ -37,6 +37,7 @@ describe("LoginPage", () => {
 
     // When
     render(<LoginPage />)
+    await waitForLoaderToBeRemoved()
     const email = screen.getByLabelText(Language.emailLabel)
     const password = screen.getByLabelText(Language.passwordLabel)
     await userEvent.type(email, "test@coder.com")
