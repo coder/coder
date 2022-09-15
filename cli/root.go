@@ -105,7 +105,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: `Coder — A tool for provisioning self-hosted development environments.
+		Long: `Coder — A tool for provisioning self-hosted development environments with Terraform.
 `,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
