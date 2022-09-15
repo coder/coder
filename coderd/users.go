@@ -1181,9 +1181,9 @@ func (api *API) createUser(ctx context.Context, store database.Store, req create
 func (api *API) setAuthCookie(rw http.ResponseWriter, cookie *http.Cookie) {
 	http.SetCookie(rw, cookie)
 
-	devurlCookie := api.applicationCookie(cookie)
-	if devurlCookie != nil {
-		http.SetCookie(rw, devurlCookie)
+	appCookie := api.applicationCookie(cookie)
+	if appCookie != nil {
+		http.SetCookie(rw, appCookie)
 	}
 }
 

@@ -17,7 +17,6 @@ import (
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
@@ -114,23 +113,4 @@ func TestDERPLatencyCheck(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
-}
-
-func TestEntitlements(t *testing.T) {
-	t.Parallel()
-	t.Run("GET", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		result, err := client.Entitlements(context.Background())
-		require.NoError(t, err)
-		assert.False(t, result.HasLicense)
-		assert.Empty(t, result.Warnings)
-		for _, f := range codersdk.FeatureNames {
-			require.Contains(t, result.Features, f)
-			fe := result.Features[f]
-			assert.False(t, fe.Enabled)
-			assert.Equal(t, codersdk.EntitlementNotEntitled, fe.Entitlement)
-		}
-	})
 }
