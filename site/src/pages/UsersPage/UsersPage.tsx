@@ -1,11 +1,11 @@
-import { useActor } from "@xstate/react"
+import { useActor, useMachine } from "@xstate/react"
 import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { useSearchParams } from "react-router-dom"
+import { usersMachine } from "xServices/users/usersXService"
 import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
-import { userFilterQuery } from "../../util/filters"
 import { pageTitle } from "../../util/page"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
@@ -24,7 +24,14 @@ export const Language = {
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const xServices = useContext(XServiceContext)
-  const [usersState, usersSend] = useActor(xServices.usersXService)
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filter = searchParams.get("filter") ?? undefined
+  const [usersState, usersSend] = useMachine(usersMachine, {
+    context: {
+      filter,
+    },
+  })
   const {
     users,
     getUsersError,
@@ -34,8 +41,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     userIdToResetPassword,
     newUserPassword,
   } = usersState.context
-  const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
   const userToBeDeleted = users?.find((u) => u.id === userIdToDelete)
   const userToBeActivated = users?.find((u) => u.id === userIdToActivate)
@@ -60,13 +66,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
 
   // Fetch users on component mount
   useEffect(() => {
-    const filter = searchParams.get("filter")
-    const query = filter ?? userFilterQuery.active
     usersSend({
       type: "GET_USERS",
-      query,
+      query: filter,
     })
-  }, [searchParams, usersSend])
+  }, [filter, usersSend])
 
   // Fetch roles on component mount
   useEffect(() => {
