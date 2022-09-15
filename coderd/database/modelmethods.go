@@ -6,13 +6,9 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-var validAPIKeyScopes map[string]ApiKeyScope
-
-func init() {
-	validAPIKeyScopes = make(map[string]ApiKeyScope)
-	for _, scope := range []ApiKeyScope{ApiKeyScopeAny, ApiKeyScopeDevurls} {
-		validAPIKeyScopes[string(scope)] = scope
-	}
+var validAPIKeyScopes = map[string]ApiKeyScope{
+	string(ApiKeyScopeAny):                ApiKeyScopeAny,
+	string(ApiKeyScopeApplicationConnect): ApiKeyScopeApplicationConnect,
 }
 
 func ToAPIKeyScope(v string) (ApiKeyScope, error) {
@@ -28,8 +24,8 @@ func (s ApiKeyScope) ToRBAC() rbac.Scope {
 	switch {
 	case s == ApiKeyScopeAny:
 		return rbac.ScopeAny
-	case s == ApiKeyScopeDevurls:
-		return rbac.ScopeDevURLs
+	case s == ApiKeyScopeApplicationConnect:
+		return rbac.ScopeApplicationConnect
 	default:
 		panic("developer error: unknown scope type " + string(s))
 	}

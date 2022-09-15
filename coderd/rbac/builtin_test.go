@@ -78,7 +78,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 			// Give some extra roles that an admin might have
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
 			UserID: users[0],
-			Scope:  rbac.ScopeDevURLs,
+			Scope:  rbac.ScopeApplicationConnect,
 		},
 	}
 

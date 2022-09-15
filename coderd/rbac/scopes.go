@@ -9,8 +9,8 @@ import (
 type Scope string
 
 const (
-	ScopeAny     Scope = "any"
-	ScopeDevURLs Scope = "devurls"
+	ScopeAny                Scope = "any"
+	ScopeApplicationConnect Scope = "application_connect"
 )
 
 var builtinScopes map[Scope]Role = map[Scope]Role{
@@ -27,9 +27,9 @@ var builtinScopes map[Scope]Role = map[Scope]Role{
 	},
 
 	// TODO: fill in the site permissions
-	ScopeDevURLs: {
-		Name:        fmt.Sprintf("Scope_%s", ScopeDevURLs),
-		DisplayName: "Ability to connect to devurls",
+	ScopeApplicationConnect: {
+		Name:        fmt.Sprintf("Scope_%s", ScopeApplicationConnect),
+		DisplayName: "Ability to connect to applications",
 		Site:        permissions(map[Object][]Action{}),
 		Org:         map[string][]Permission{},
 		User:        []Permission{},

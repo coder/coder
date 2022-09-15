@@ -2,7 +2,7 @@
 
 CREATE TYPE api_key_scope AS ENUM (
     'any',
-    'devurls'
+    'application_connect'
 );
 
 CREATE TYPE audit_action AS ENUM (

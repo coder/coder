@@ -240,7 +240,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeDevurls,
+			Scope:        database.ApiKeyScopeApplicationConnect,
 		})
 		require.NoError(t, err)
 
@@ -250,7 +250,7 @@ func TestAPIKey(t *testing.T) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
 			fmt.Printf("%+v\n", apiKey)
-			assert.Equal(t, database.ApiKeyScopeDevurls, apiKey.Scope)
+			assert.Equal(t, database.ApiKeyScopeApplicationConnect, apiKey.Scope)
 
 			httpapi.Write(rw, http.StatusOK, codersdk.Response{
 				Message: "it worked!",

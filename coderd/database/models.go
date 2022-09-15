@@ -17,8 +17,8 @@ import (
 type ApiKeyScope string
 
 const (
-	ApiKeyScopeAny     ApiKeyScope = "any"
-	ApiKeyScopeDevurls ApiKeyScope = "devurls"
+	ApiKeyScopeAny                ApiKeyScope = "any"
+	ApiKeyScopeApplicationConnect ApiKeyScope = "application_connect"
 )
 
 func (e *ApiKeyScope) Scan(src interface{}) error {
