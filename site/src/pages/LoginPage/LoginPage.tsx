@@ -1,4 +1,5 @@
 import { useActor } from "@xstate/react"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import React, { useContext } from "react"
 import { Helmet } from "react-helmet-async"
@@ -28,26 +29,32 @@ export const LoginPage: React.FC = () => {
 
   if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
+  } else if (authState.matches("waitingForTheFirstUser")) {
+    return <Navigate to="/setup" />
   } else {
     return (
       <>
         <Helmet>
           <title>{pageTitle("Login")}</title>
         </Helmet>
-        <SignInLayout>
-          <SignInForm
-            authMethods={authState.context.methods}
-            redirectTo={redirectTo}
-            isLoading={isLoading}
-            loginErrors={{
-              [LoginErrors.AUTH_ERROR]: authError,
-              [LoginErrors.GET_USER_ERROR]: isRedirected ? getUserError : null,
-              [LoginErrors.CHECK_PERMISSIONS_ERROR]: checkPermissionsError,
-              [LoginErrors.GET_METHODS_ERROR]: getMethodsError,
-            }}
-            onSubmit={onSubmit}
-          />
-        </SignInLayout>
+        {authState.hasTag("loading") ? (
+          <FullScreenLoader />
+        ) : (
+          <SignInLayout>
+            <SignInForm
+              authMethods={authState.context.methods}
+              redirectTo={redirectTo}
+              isLoading={isLoading}
+              loginErrors={{
+                [LoginErrors.AUTH_ERROR]: authError,
+                [LoginErrors.GET_USER_ERROR]: isRedirected ? getUserError : null,
+                [LoginErrors.CHECK_PERMISSIONS_ERROR]: checkPermissionsError,
+                [LoginErrors.GET_METHODS_ERROR]: getMethodsError,
+              }}
+              onSubmit={onSubmit}
+            />
+          </SignInLayout>
+        )}
       </>
     )
   }
