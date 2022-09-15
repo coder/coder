@@ -43,7 +43,14 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
       </Maybe>
       <Typography>{t("deleteDialog.confirm", { entity })}</Typography>
       <Stack spacing={1}>
-        <TextField placeholder={name} value={nameValue} onChange={handleChange} />
+        <TextField
+          name="confirmation"
+          id="confirmation"
+          placeholder={name}
+          value={nameValue}
+          onChange={handleChange}
+          label={t("deleteDialog.confirmLabel", { entity })}
+        />
         <Maybe condition={nameValue.length > 0 && !confirmed}>
           <FormHelperText error>{t("deleteDialog.incorrectName", { entity })}</FormHelperText>
         </Maybe>

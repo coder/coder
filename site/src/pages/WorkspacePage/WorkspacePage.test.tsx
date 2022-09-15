@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
@@ -103,9 +104,10 @@ describe("WorkspacePage", () => {
     const button = await screen.findByText(Language.delete)
     fireEvent.click(button)
 
-    const confirmDialog = await screen.findByRole("dialog")
-    const confirmButton = within(confirmDialog).getByText("Delete")
-
+    const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "workspace" })
+    const textField = screen.getByLabelText(labelText)
+    await userEvent.type(textField, MockWorkspace.name)
+    const confirmButton = screen.getByRole("button", { name: "Delete" })
     fireEvent.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
   })

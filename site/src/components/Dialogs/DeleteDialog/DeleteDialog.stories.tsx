@@ -19,11 +19,11 @@ export default {
       defaultValue: "foo",
     },
     name: {
-      defaultValue: "MyFoo"
+      defaultValue: "MyFoo",
     },
     info: {
-      defaultValue: "Here's some info about the foo so you know you're deleting the right one."
-    }
+      defaultValue: "Here's some info about the foo so you know you're deleting the right one.",
+    },
   },
 } as ComponentMeta<typeof DeleteDialog>
 

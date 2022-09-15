@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { i18n } from "i18n"
 import { rest } from "msw"
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
 import * as API from "../../api/api"
@@ -19,6 +21,8 @@ import { server } from "../../testHelpers/server"
 import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 import { Language as UsersViewLanguage } from "./UsersPageView"
+
+const { t } = i18n
 
 const suspendUser = async (setupActionSpies: () => void) => {
   // Get the first user in the table
@@ -73,14 +77,19 @@ const deleteUser = async (setupActionSpies: () => void) => {
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog")
   expect(confirmDialog).toHaveTextContent(
-    `${UsersPageLanguage.deleteDialogMessagePrefix} ${MockUser.username}?`,
+    t("deleteDialog.confirm", { ns: "common", entity: "user" }),
   )
+
+  // Confirm with text input
+  const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "user" })
+  const textField = screen.getByLabelText(labelText)
+  await userEvent.type(textField, MockUser.username)
 
   // Setup spies to check the actions after
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.deleteDialogAction)
+  const confirmButton = screen.getByRole("button", { name: "Delete" })
   fireEvent.click(confirmButton)
 }
 
