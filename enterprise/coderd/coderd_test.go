@@ -59,6 +59,31 @@ func TestEntitlements(t *testing.T) {
 		assert.Nil(t, al.Actual)
 		assert.Empty(t, res.Warnings)
 	})
+	t.Run("FullLicenseToNone", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		license := coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{
+			UserLimit: 100,
+			AuditLog:  true,
+		})
+		res, err := client.Entitlements(context.Background())
+		require.NoError(t, err)
+		assert.True(t, res.HasLicense)
+		al := res.Features[codersdk.FeatureAuditLog]
+		assert.Equal(t, codersdk.EntitlementEntitled, al.Entitlement)
+		assert.True(t, al.Enabled)
+
+		err = client.DeleteLicense(context.Background(), license.ID)
+		require.NoError(t, err)
+
+		res, err = client.Entitlements(context.Background())
+		require.NoError(t, err)
+		assert.True(t, res.HasLicense)
+		al = res.Features[codersdk.FeatureAuditLog]
+		assert.Equal(t, codersdk.EntitlementNotEntitled, al.Entitlement)
+		assert.True(t, al.Enabled)
+	})
 	t.Run("Warnings", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)

@@ -78,6 +78,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 type Options struct {
 	*coderd.Options
 
+	AuditLogging               bool
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }
@@ -125,7 +126,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.mutex.Lock()
 	defer api.mutex.Unlock()
 	now := time.Now()
-	auditLogs := api.auditLogs
+
+	// Default all entitlements to be disabled.
+	activeUsers := codersdk.Feature{
+		Enabled:     false,
+		Entitlement: codersdk.EntitlementNotEntitled,
+	}
+	auditLogs := codersdk.EntitlementNotEntitled
+
 	for _, l := range licenses {
 		claims, err := validateDBLicense(l, api.Keys)
 		if err != nil {
@@ -141,24 +149,25 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			entitlement = codersdk.EntitlementGracePeriod
 		}
 		if claims.Features.UserLimit > 0 {
-			api.activeUsers.Enabled = true
-			api.activeUsers.Entitlement = entitlement
+			activeUsers.Enabled = true
+			activeUsers.Entitlement = entitlement
 			currentLimit := int64(0)
-			if api.activeUsers.Limit != nil {
-				currentLimit = *api.activeUsers.Limit
+			if activeUsers.Limit != nil {
+				currentLimit = *activeUsers.Limit
 			}
 			limit := max(currentLimit, claims.Features.UserLimit)
-			api.activeUsers.Limit = &limit
+			activeUsers.Limit = &limit
 		}
 		if claims.Features.AuditLog > 0 {
-			api.auditLogs = entitlement
+			auditLogs = entitlement
 		}
 	}
+
 	if auditLogs != api.auditLogs {
 		auditor := agplaudit.NewNop()
 		// A flag could be added to the options that would allow disabling
 		// enhanced audit logging here!
-		if api.auditLogs == codersdk.EntitlementEntitled {
+		if api.auditLogs == codersdk.EntitlementEntitled && api.AuditLogging {
 			auditor = audit.NewAuditor(
 				audit.DefaultFilter,
 				backends.NewPostgres(api.Database, true),
@@ -167,6 +176,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 		api.AGPL.Auditor.Store(auditor)
 	}
+
+	api.activeUsers = activeUsers
+	api.auditLogs = auditLogs
+
 	return nil
 }
 
@@ -205,9 +218,9 @@ func (api *API) entitlements(rw http.ResponseWriter, r *http.Request) {
 	// Audit logs
 	resp.Features[codersdk.FeatureAuditLog] = codersdk.Feature{
 		Entitlement: auditLogs,
-		Enabled:     true,
+		Enabled:     api.AuditLogging,
 	}
-	if auditLogs == codersdk.EntitlementGracePeriod {
+	if auditLogs == codersdk.EntitlementGracePeriod && api.AuditLogging {
 		resp.Warnings = append(resp.Warnings,
 			"Audit logging is enabled but your license for this feature is expired.")
 	}
