@@ -4,6 +4,7 @@ import {
   isNotificationTextPrefixed,
   MsgType,
   NotificationMsg,
+  NotificationTextPrefixed,
   SnackbarEventType,
 } from "./utils"
 
@@ -13,6 +14,29 @@ describe("Snackbar", () => {
     it("does not crash on null values", () => {
       // Given
       const msg = null
+
+      // When
+      const isTextPrefixed = isNotificationTextPrefixed(msg)
+
+      // Then
+      expect(isTextPrefixed).toBe(false)
+    })
+    it("returns true if prefixed", () => {
+      // Given
+      const msg: NotificationTextPrefixed = {
+        prefix: "warning",
+        text: "careful with this workspace",
+      }
+
+      // When
+      const isTextPrefixed = isNotificationTextPrefixed(msg)
+
+      // Then
+      expect(isTextPrefixed).toBe(true)
+    })
+    it("returns false if not prefixed", () => {
+      // Given
+      const msg = "plain ol' message"
 
       // When
       const isTextPrefixed = isNotificationTextPrefixed(msg)
