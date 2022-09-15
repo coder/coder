@@ -490,10 +490,6 @@ func New(options *Options) *API {
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
-		r.Route("/entitlements", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/", nopEntitlements)
-		})
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -505,8 +501,9 @@ type API struct {
 	Auditor  *pointer.Handle[audit.Auditor]
 	HTTPAuth *HTTPAuthorizer
 
-	// APIHandler serves "/api/v2" and all children routes.
-	APIHandler  chi.Router
+	// APIHandler serves "/api/v2"
+	APIHandler chi.Router
+	// RootHandler serves "/"
 	RootHandler chi.Router
 
 	derpServer          *derp.Server
@@ -546,19 +543,4 @@ func compressHandler(h http.Handler) http.Handler {
 	})
 
 	return cmp.Handler(h)
-}
-
-func nopEntitlements(rw http.ResponseWriter, _ *http.Request) {
-	feats := make(map[string]codersdk.Feature)
-	for _, f := range codersdk.FeatureNames {
-		feats[f] = codersdk.Feature{
-			Entitlement: codersdk.EntitlementNotEntitled,
-			Enabled:     false,
-		}
-	}
-	httpapi.Write(rw, http.StatusOK, codersdk.Entitlements{
-		Features:   feats,
-		Warnings:   []string{},
-		HasLicense: false,
-	})
 }

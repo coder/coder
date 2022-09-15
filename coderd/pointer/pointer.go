@@ -6,6 +6,7 @@ import (
 	"go.uber.org/atomic"
 )
 
+// New constructs a Handle with an initialized value.
 func New[T any](value T) *Handle[T] {
 	h := &Handle[T]{
 		key: struct{}{},

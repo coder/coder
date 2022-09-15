@@ -3,12 +3,15 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -36,11 +39,15 @@ func featuresList() *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := agpl.CreateClient(cmd)
 			if err != nil {
 				return err
 			}
 			entitlements, err := client.Entitlements(cmd.Context())
+			var apiError *codersdk.Error
+			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
+				return xerrors.New("You are on the AGPL licensed version of Coder that does not have Enterprise functionality!")
+			}
 			if err != nil {
 				return err
 			}

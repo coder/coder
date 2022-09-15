@@ -21,6 +21,7 @@ func enterpriseOnly() []*cobra.Command {
 			}
 			return api.AGPL, nil
 		}),
+		features(),
 		licenses(),
 	}
 }

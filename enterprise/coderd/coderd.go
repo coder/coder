@@ -37,6 +37,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		AGPL:    coderd.New(options.Options),
 		Options: options,
 
+		activeUsers: codersdk.Feature{
+			Entitlement: codersdk.EntitlementNotEntitled,
+			Enabled:     false,
+		},
 		auditLogs:              codersdk.EntitlementNotEntitled,
 		cancelEntitlementsLoop: cancelFunc,
 	}
