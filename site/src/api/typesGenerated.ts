@@ -369,8 +369,8 @@ export interface Role {
 }
 
 // From codersdk/sse.go
-export interface ServerSideEvent {
-  readonly Type: ServerSideEventType
+export interface ServerSentEvent {
+  readonly Type: ServerSentEventType
   // eslint-disable-next-line
   readonly Data: any
 }
@@ -713,7 +713,7 @@ export type ResourceType =
   | "workspace"
 
 // From codersdk/sse.go
-export type ServerSideEventType = "data" | "error" | "ping"
+export type ServerSentEventType = "data" | "error" | "ping"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
