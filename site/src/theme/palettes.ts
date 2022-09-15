@@ -14,7 +14,7 @@ export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
     main: colors.blue[7],
-    contrastText: colors.gray[4],
+    contrastText: colors.blue[1],
     light: colors.blue[6],
     dark: colors.blue[9],
   },
