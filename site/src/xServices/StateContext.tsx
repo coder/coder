@@ -31,16 +31,11 @@ export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const redirectToUsersPage = () => {
     navigate("users")
   }
-  const redirectToSetupPage = () => {
-    navigate("setup")
-  }
 
   return (
     <XServiceContext.Provider
       value={{
-        authXService: useInterpret(() =>
-          authMachine.withConfig({ actions: { redirectToSetupPage } }),
-        ),
+        authXService: useInterpret(authMachine),
         buildInfoXService: useInterpret(buildInfoMachine),
         entitlementsXService: useInterpret(entitlementsMachine),
         usersXService: useInterpret(() =>
