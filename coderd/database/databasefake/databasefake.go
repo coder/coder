@@ -1257,6 +1257,9 @@ func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, user
 }
 
 func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	for i, mem := range q.organizationMembers {
 		if mem.UserID == arg.UserID && mem.OrganizationID == arg.OrgID {
 			uniqueRoles := make([]string, 0, len(arg.GrantedRoles))
@@ -1275,6 +1278,7 @@ func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 			return mem, nil
 		}
 	}
+
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
@@ -1449,6 +1453,10 @@ func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Conte
 	for _, resource := range resources {
 		resourceIDs[resource.ID] = struct{}{}
 	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
 	metadata := make([]database.WorkspaceResourceMetadatum, 0)
 	for _, m := range q.provisionerJobResourceMetadata {
 		_, ok := resourceIDs[m.WorkspaceResourceID]
