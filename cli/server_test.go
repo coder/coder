@@ -129,8 +129,9 @@ func TestServer(t *testing.T) {
 			"--access-url", "localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
-		buf := newThreadSafeBuffer()
-		root.SetOutput(buf)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -139,10 +140,11 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
+		pty.ExpectMatch("this may cause unexpected problems when creating workspaces")
+		pty.ExpectMatch("View the Web UI: http://localhost:3000/")
+
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
-		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: http://localhost:3000/\n")
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
@@ -159,8 +161,9 @@ func TestServer(t *testing.T) {
 			"--access-url", "foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
 		)
-		buf := newThreadSafeBuffer()
-		root.SetOutput(buf)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -169,10 +172,11 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
+		pty.ExpectMatch("this may cause unexpected problems when creating workspaces")
+		pty.ExpectMatch("View the Web UI: https://foobarbaz.mydomain")
+
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
-		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: https://foobarbaz.mydomain\n")
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -187,8 +191,9 @@ func TestServer(t *testing.T) {
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
 		)
-		buf := newThreadSafeBuffer()
-		root.SetOutput(buf)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -197,10 +202,10 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
+		pty.ExpectMatch("View the Web UI: https://google.com")
+
 		cancelFunc()
 		require.ErrorIs(t, <-errC, context.Canceled)
-		require.NotContains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: https://google.com\n")
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
