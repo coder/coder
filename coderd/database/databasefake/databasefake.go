@@ -2337,6 +2337,14 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			continue
 		}
 
+		if arg.Action != "" && !strings.Contains(strings.ToLower(string(alog.Action)), strings.ToLower(arg.Action)) {
+			continue
+		}
+
+		if arg.ResourceType != "" && !strings.Contains(strings.ToLower(string(alog.ResourceType)), strings.ToLower(arg.ResourceType)) {
+			continue
+		}
+
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
 

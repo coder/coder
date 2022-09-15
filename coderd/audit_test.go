@@ -68,13 +68,13 @@ func TestAuditLogsFilter(t *testing.T) {
 			SearchQuery: "action:create",
 		})
 		require.NoError(t, err)
-		require.Len(t, actionCreateLogs, 2)
+		require.Len(t, actionCreateLogs.AuditLogs, 2)
 
 		// Verify the number of delete logs
 		actionDeleteLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: "action:delete",
 		})
 		require.NoError(t, err)
-		require.Len(t, actionDeleteLogs, 1)
+		require.Len(t, actionDeleteLogs.AuditLogs, 1)
 	})
 }
