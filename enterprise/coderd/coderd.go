@@ -128,6 +128,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	now := time.Now()
 
 	// Default all entitlements to be disabled.
+	hasLicense := false
 	activeUsers := codersdk.Feature{
 		Enabled:     false,
 		Entitlement: codersdk.EntitlementNotEntitled,
@@ -141,7 +142,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				slog.F("id", l.ID), slog.Error(err))
 			continue
 		}
-		api.hasLicense = true
+		hasLicense = true
 		entitlement := codersdk.EntitlementEntitled
 		if now.After(claims.LicenseExpires.Time) {
 			// if the grace period were over, the validation fails, so if we are after
@@ -177,6 +178,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.Auditor.Store(auditor)
 	}
 
+	api.hasLicense = hasLicense
 	api.activeUsers = activeUsers
 	api.auditLogs = auditLogs
 
