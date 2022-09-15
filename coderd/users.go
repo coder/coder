@@ -255,8 +255,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
+	_, auditor := api.Auditor.Load(r.Context())
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
-		Audit:   *api.Auditor.Load(),
+		Audit:   auditor,
 		Log:     api.Logger,
 		Request: r,
 		Action:  database.AuditActionCreate,
@@ -339,9 +340,10 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
+	_, auditor := api.Auditor.Load(r.Context())
 	user := httpmw.UserParam(r)
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
-		Audit:   *api.Auditor.Load(),
+		Audit:   auditor,
 		Log:     api.Logger,
 		Request: r,
 		Action:  database.AuditActionDelete,
@@ -414,8 +416,9 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user              = httpmw.UserParam(r)
+		_, auditor        = api.Auditor.Load(r.Context())
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Audit:   *api.Auditor.Load(),
+			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
@@ -494,8 +497,9 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		var (
 			user              = httpmw.UserParam(r)
 			apiKey            = httpmw.APIKey(r)
+			_, auditor        = api.Auditor.Load(r.Context())
 			aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-				Audit:   *api.Auditor.Load(),
+				Audit:   auditor,
 				Log:     api.Logger,
 				Request: r,
 				Action:  database.AuditActionWrite,
@@ -560,8 +564,9 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user              = httpmw.UserParam(r)
 		params            codersdk.UpdateUserPasswordRequest
+		_, auditor        = api.Auditor.Load(r.Context())
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Audit:   *api.Auditor.Load(),
+			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
@@ -698,8 +703,9 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		actorRoles        = httpmw.AuthorizationUserRoles(r)
 		apiKey            = httpmw.APIKey(r)
+		_, auditor        = api.Auditor.Load(r.Context())
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Audit:   *api.Auditor.Load(),
+			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,

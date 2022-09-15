@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -33,6 +32,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
+	"github.com/coder/coder/coderd/pointer"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -148,9 +148,8 @@ func New(options *Options) *API {
 			Logger:     options.Logger,
 		},
 		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
+		Auditor:      pointer.New(options.Auditor),
 	}
-	api.Auditor.Store(&options.Auditor)
 
 	if options.TailscaleEnable {
 		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -495,7 +494,6 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", nopEntitlements)
 		})
-		r.HandleFunc("/licenses", unsupported)
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -504,19 +502,19 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+	Auditor  *pointer.Handle[audit.Auditor]
+	HTTPAuth *HTTPAuthorizer
 
-	derpServer *derp.Server
+	// APIHandler serves "/api/v2" and all children routes.
+	APIHandler  chi.Router
+	RootHandler chi.Router
 
-	Auditor             atomic.Pointer[audit.Auditor]
-	RootHandler         chi.Router
-	APIHandler          chi.Router
+	derpServer          *derp.Server
+	metricsCache        *metricscache.Cache
 	siteHandler         http.Handler
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
-	HTTPAuth            *HTTPAuthorizer
-
-	metricsCache *metricscache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -562,13 +560,5 @@ func nopEntitlements(rw http.ResponseWriter, _ *http.Request) {
 		Features:   feats,
 		Warnings:   []string{},
 		HasLicense: false,
-	})
-}
-
-func unsupported(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-		Message:     "Unsupported",
-		Detail:      "These endpoints are not supported in AGPL-licensed Coder",
-		Validations: nil,
 	})
 }

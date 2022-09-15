@@ -161,7 +161,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				backends.NewSlog(api.Logger),
 			)
 		}
-		api.AGPL.Auditor.Store(&auditor)
+		api.AGPL.Auditor.Store(auditor)
 	}
 	return nil
 }
