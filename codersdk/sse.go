@@ -9,20 +9,20 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type ServerSideEvent struct {
-	Type ServerSideEventType
+type ServerSentEvent struct {
+	Type ServerSentEventType
 	Data interface{}
 }
 
-type ServerSideEventType string
+type ServerSentEventType string
 
 const (
-	ServerSideEventTypePing  ServerSideEventType = "ping"
-	ServerSideEventTypeData  ServerSideEventType = "data"
-	ServerSideEventTypeError ServerSideEventType = "error"
+	ServerSentEventTypePing  ServerSentEventType = "ping"
+	ServerSentEventTypeData  ServerSentEventType = "data"
+	ServerSentEventTypeError ServerSentEventType = "error"
 )
 
-func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
+func ServerSentEventReader(rc io.ReadCloser) func() (*ServerSentEvent, error) {
 	reader := bufio.NewReader(rc)
 	nextLineValue := func(prefix string) ([]byte, error) {
 		var (
@@ -47,36 +47,36 @@ func ServerSideEventReader(rc io.ReadCloser) func() (*ServerSideEvent, error) {
 		return []byte(s), nil
 	}
 
-	nextEvent := func() (*ServerSideEvent, error) {
+	nextEvent := func() (*ServerSentEvent, error) {
 		for {
 			t, err := nextLineValue("event")
 			if err != nil {
 				return nil, xerrors.Errorf("reading next line value: %w", err)
 			}
 
-			switch ServerSideEventType(t) {
-			case ServerSideEventTypePing:
-				return &ServerSideEvent{
-					Type: ServerSideEventTypePing,
+			switch ServerSentEventType(t) {
+			case ServerSentEventTypePing:
+				return &ServerSentEvent{
+					Type: ServerSentEventTypePing,
 				}, nil
-			case ServerSideEventTypeData:
+			case ServerSentEventTypeData:
 				d, err := nextLineValue("data")
 				if err != nil {
 					return nil, xerrors.Errorf("reading next line value: %w", err)
 				}
 
-				return &ServerSideEvent{
-					Type: ServerSideEventTypeData,
+				return &ServerSentEvent{
+					Type: ServerSentEventTypeData,
 					Data: d,
 				}, nil
-			case ServerSideEventTypeError:
+			case ServerSentEventTypeError:
 				d, err := nextLineValue("data")
 				if err != nil {
 					return nil, xerrors.Errorf("reading next line value: %w", err)
 				}
 
-				return &ServerSideEvent{
-					Type: ServerSideEventTypeError,
+				return &ServerSentEvent{
+					Type: ServerSentEventTypeError,
 					Data: d,
 				}, nil
 			default:

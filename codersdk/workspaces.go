@@ -129,7 +129,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	nextEvent := ServerSideEventReader(res.Body)
+	nextEvent := ServerSentEventReader(res.Body)
 
 	wc := make(chan Workspace, 256)
 	go func() {
@@ -145,7 +145,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				if sse.Type == ServerSideEventTypeData {
+				if sse.Type == ServerSentEventTypeData {
 					var ws Workspace
 					b, ok := sse.Data.([]byte)
 					if !ok {

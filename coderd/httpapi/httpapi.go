@@ -149,7 +149,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context, sse codersdk.ServerSideEvent) error, error) {
+func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context, sse codersdk.ServerSentEvent) error, error) {
 	var mu sync.Mutex
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -162,13 +162,6 @@ func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 		panic("http.ResponseWriter is not http.Flusher")
 	}
 
-	pingMsg := fmt.Sprintf("event: %s\n\n", codersdk.ServerSideEventTypePing)
-	_, err := io.WriteString(rw, pingMsg)
-	if err != nil {
-		return nil, err
-	}
-	f.Flush()
-
 	// Send a heartbeat every 15 seconds to avoid the connection being killed.
 	go func() {
 		ticker := time.NewTicker(time.Second * 15)
@@ -180,7 +173,7 @@ func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 				return
 			case <-ticker.C:
 				mu.Lock()
-				_, err := io.WriteString(rw, pingMsg)
+				_, err := io.WriteString(rw, fmt.Sprintf("event: %s\n\n", codersdk.ServerSentEventTypePing))
 				if err != nil {
 					mu.Unlock()
 					return
@@ -191,14 +184,13 @@ func ServerSideEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 		}
 	}()
 
-	sendEvent := func(ctx context.Context, sse codersdk.ServerSideEvent) error {
+	sendEvent := func(ctx context.Context, sse codersdk.ServerSentEvent) error {
 		if r.Context().Err() != nil {
-			return err
+			return r.Context().Err()
 		}
 
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
-		enc.SetEscapeHTML(true)
 
 		_, err := buf.Write([]byte(fmt.Sprintf("event: %s\ndata: ", sse.Type)))
 		if err != nil {
