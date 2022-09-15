@@ -29,6 +29,8 @@ export const LoginPage: React.FC = () => {
 
   if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
+  } else if (authState.matches("waitingForTheFirstUser")) {
+    return <Navigate to="/setup" />
   } else {
     return (
       <>

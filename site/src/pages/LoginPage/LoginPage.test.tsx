@@ -1,6 +1,7 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
+import { Route, Routes } from "react-router-dom"
 import { Language } from "../../components/SignInForm/SignInForm"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
@@ -99,9 +100,14 @@ describe("LoginPage", () => {
     )
 
     // When
-    render(<LoginPage />)
+    render(
+      <Routes>
+        <Route path="/login" element={<LoginPage />}></Route>
+        <Route path="/setup" element={<h1>Setup</h1>}></Route>
+      </Routes>,
+    )
 
     // Then
-    await waitFor(() => expect(history.location.pathname).toEqual("/setup"))
+    await screen.findByText("Setup")
   })
 })

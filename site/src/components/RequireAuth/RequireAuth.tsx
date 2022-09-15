@@ -19,7 +19,7 @@ export const RequireAuth: React.FC<React.PropsWithChildren<RequireAuthProps>> = 
   if (authState.matches("signedOut")) {
     return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />
   } else if (authState.matches("waitingForTheFirstUser")) {
-    return <Navigate to="setup" />
+    return <Navigate to="/setup" />
   } else if (authState.hasTag("loading")) {
     return <FullScreenLoader />
   } else {
