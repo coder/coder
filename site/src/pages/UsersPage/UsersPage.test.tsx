@@ -26,16 +26,18 @@ const { t } = i18n
 
 const suspendUser = async (setupActionSpies: () => void) => {
   // Get the first user in the table
-  const users = await screen.findAllByText(/.*@coder.com/)
-  const firstUserRow = users[0].closest("tr")
-  if (!firstUserRow) {
-    throw new Error("Error on get the first user row")
-  }
+  waitFor(async () => {
+    const users = await screen.findAllByText(/.*@coder.com/)
+    const firstUserRow = users[0].closest("tr")
 
-  // Click on the "more" button to display the "Suspend" option
-  const moreButton = within(firstUserRow).getByLabelText("more")
+    if (!firstUserRow) {
+      throw new Error("Error on get the first user row")
+    }
+    // Click on the "more" button to display the "Suspend" option
+    const moreButton = within(firstUserRow).getByLabelText("more")
 
-  fireEvent.click(moreButton)
+    fireEvent.click(moreButton)
+  })
 
   const menu = await screen.findByRole("menu")
   const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
@@ -58,21 +60,23 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
 const deleteUser = async (setupActionSpies: () => void) => {
   // Get the first user in the table
-  const users = await screen.findAllByText(/.*@coder.com/)
-  const firstUserRow = users[0].closest("tr")
-  if (!firstUserRow) {
-    throw new Error("Error on get the first user row")
-  }
+  waitFor(async () => {
+    const users = await screen.findAllByText(/.*@coder.com/)
+    const firstUserRow = users[0].closest("tr")
+    if (!firstUserRow) {
+      throw new Error("Error on get the first user row")
+    }
 
-  // Click on the "more" button to display the "Suspend" option
-  const moreButton = within(firstUserRow).getByLabelText("more")
+    // Click on the "more" button to display the "Delete" option
+    const moreButton = within(firstUserRow).getByLabelText("more")
 
-  fireEvent.click(moreButton)
+    fireEvent.click(moreButton)
+  })
 
   const menu = await screen.findByRole("menu")
-  const suspendButton = within(menu).getByText(UsersTableBodyLanguage.deleteMenuItem)
+  const deleteButton = within(menu).getByText(UsersTableBodyLanguage.deleteMenuItem)
 
-  fireEvent.click(suspendButton)
+  fireEvent.click(deleteButton)
 
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog")
@@ -83,7 +87,9 @@ const deleteUser = async (setupActionSpies: () => void) => {
   // Confirm with text input
   const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "user" })
   const textField = screen.getByLabelText(labelText)
-  await userEvent.type(textField, MockUser.username)
+  waitFor(async () => {
+    await userEvent.type(textField, MockUser.username)
+  })
 
   // Setup spies to check the actions after
   setupActionSpies()
@@ -284,7 +290,7 @@ describe("UsersPage", () => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
           jest
             .spyOn(API, "getUsers")
-            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
+            .mockImplementationOnce(() => Promise.resolve([MockUser2]))
         })
 
         // Check if the success message is displayed
@@ -294,7 +300,7 @@ describe("UsersPage", () => {
         expect(API.deleteUser).toBeCalledTimes(1)
         expect(API.deleteUser).toBeCalledWith(MockUser.id)
 
-        // Check if the users list was reload
+        // Check if the users list was reloaded
         await waitFor(() => expect(API.getUsers).toBeCalledTimes(1))
       })
     })
