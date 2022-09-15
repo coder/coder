@@ -53,7 +53,8 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		Options: oop,
+		AuditLogging: true,
+		Options:      oop,
 		Keys: map[string]ed25519.PublicKey{
 			testKeyID: testPublicKey,
 		},
