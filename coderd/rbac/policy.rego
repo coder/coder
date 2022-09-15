@@ -160,7 +160,6 @@ allow {
 # ACL Allow
 allow {
 	# Should you have to be a member of the org too?
-	input.subject.id in input.object.acl_user_list[input.action]
+	perms := input.object.acl_user_list[input.subject.id]
+	input.action in perms
 }
-
-
