@@ -324,7 +324,7 @@ WHERE
 	-- Filter action
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			resource_type = LOWER($4)
+			action = LOWER($4)
 		ELSE true
 	END
 ORDER BY

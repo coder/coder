@@ -23,7 +23,7 @@ WHERE
 	-- Filter action
 	AND CASE
 		WHEN @action :: text != '' THEN
-			resource_type = LOWER(@action)
+			action = LOWER(@action)
 		ELSE true
 	END
 ORDER BY
