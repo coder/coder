@@ -652,7 +652,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
 		IDs: userIDs,
 	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
 	}
 
@@ -676,7 +676,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	}
 
 	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
 	}
 
