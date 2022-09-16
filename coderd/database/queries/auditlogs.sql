@@ -16,14 +16,14 @@ LEFT JOIN
 WHERE
     -- Filter resource_type
 	CASE
-		WHEN @resource_type :: resource_type != '' THEN
-			resource_type = @resource_type
+		WHEN @resource_type :: text != '' THEN
+			resource_type = @resource_type :: resource_type
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN @action :: audit_action != '' THEN
-			action = @action
+		WHEN @action :: text != '' THEN
+			action = @action :: audit_action
 		ELSE true
 	END
 ORDER BY

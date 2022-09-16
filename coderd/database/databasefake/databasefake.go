@@ -2337,11 +2337,11 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			continue
 		}
 
-		if arg.Action != "" && !strings.Contains(string(alog.Action), string(arg.Action)) {
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
 
-		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), string(arg.ResourceType)) {
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
 		}
 
