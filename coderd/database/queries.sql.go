@@ -317,13 +317,13 @@ LEFT JOIN
 WHERE
     -- Filter resource_type
 	CASE
-		WHEN $3 :: text != '' THEN
+		WHEN $3 :: resource_type != '' THEN
 			resource_type = $3
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $4 :: text != '' THEN
+		WHEN $4 :: audit_action != '' THEN
 			action = $4
 		ELSE true
 	END
@@ -336,10 +336,10 @@ OFFSET
 `
 
 type GetAuditLogsOffsetParams struct {
-	Limit        int32  `db:"limit" json:"limit"`
-	Offset       int32  `db:"offset" json:"offset"`
-	ResourceType string `db:"resource_type" json:"resource_type"`
-	Action       string `db:"action" json:"action"`
+	Limit        int32        `db:"limit" json:"limit"`
+	Offset       int32        `db:"offset" json:"offset"`
+	ResourceType ResourceType `db:"resource_type" json:"resource_type"`
+	Action       AuditAction  `db:"action" json:"action"`
 }
 
 type GetAuditLogsOffsetRow struct {
