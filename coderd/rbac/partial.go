@@ -6,6 +6,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/rego"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 type PartialAuthorizer struct {
@@ -24,6 +26,9 @@ type PartialAuthorizer struct {
 }
 
 func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:    subjectID,
