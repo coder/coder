@@ -50,11 +50,13 @@ func TestAuditLogsFilter(t *testing.T) {
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action: codersdk.AuditActionCreate,
+			Action:       codersdk.AuditActionCreate,
+			ResourceType: codersdk.ResourceTypeTemplate,
 		})
 		require.NoError(t, err)
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action: codersdk.AuditActionCreate,
+			Action:       codersdk.AuditActionCreate,
+			ResourceType: codersdk.ResourceTypeUser,
 		})
 		require.NoError(t, err)
 		// Create one log with "Delete"
@@ -66,6 +68,9 @@ func TestAuditLogsFilter(t *testing.T) {
 		// Verify the number of create logs
 		actionCreateLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: "action:create",
+			Pagination: codersdk.Pagination{
+				Limit: 25,
+			},
 		})
 		require.NoError(t, err)
 		require.Len(t, actionCreateLogs.AuditLogs, 2)
@@ -74,6 +79,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		actionDeleteLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: "action:delete",
 		})
+
 		require.NoError(t, err)
 		require.Len(t, actionDeleteLogs.AuditLogs, 1)
 	})
