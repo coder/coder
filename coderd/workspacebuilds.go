@@ -812,10 +812,10 @@ func (api *API) convertWorkspaceBuild(
 	}
 
 	resources := resourcesByJobID[job.ID]
-	apiResources := []codersdk.WorkspaceResource{}
+	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
 		agents := agentsByResourceID[resource.ID]
-		apiAgents := []codersdk.WorkspaceAgent{}
+		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
@@ -824,7 +824,7 @@ func (api *API) convertWorkspaceBuild(
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}
-		metadata := metadataByResourceID[resource.ID]
+		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
 
