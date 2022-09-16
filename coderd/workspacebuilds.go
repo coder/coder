@@ -670,6 +670,13 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
 	}
 
+	if len(resources) == 0 {
+		return workspaceBuildsData{
+			users: users,
+			jobs:  jobs,
+		}, nil
+	}
+
 	resourceIDs := make([]uuid.UUID, 0)
 	for _, resource := range resources {
 		resourceIDs = append(resourceIDs, resource.ID)
@@ -683,6 +690,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	if len(resources) == 0 {
+		return workspaceBuildsData{
+			users:     users,
+			jobs:      jobs,
+			resources: resources,
+			metadata:  metadata,
+		}, nil
 	}
 
 	agentIDs := make([]uuid.UUID, 0)
