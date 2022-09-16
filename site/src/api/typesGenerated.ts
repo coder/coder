@@ -370,9 +370,9 @@ export interface Role {
 
 // From codersdk/sse.go
 export interface ServerSentEvent {
-  readonly Type: ServerSentEventType
+  readonly type: ServerSentEventType
   // eslint-disable-next-line
-  readonly Data: any
+  readonly data: any
 }
 
 // From codersdk/templates.go
