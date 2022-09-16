@@ -37,9 +37,12 @@ GOARCH       := $(shell go env GOARCH)
 GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
 
-# Use the highest ZSTD compression level for the release binaries. For
-# development, a sane lower value would be `make build ZSTDFLAGS=-6`.
+# Use the highest ZSTD compression level in CI.
+ifdef CI
 ZSTDFLAGS := -22 --ultra
+else
+ZSTDFLAGS := -6
+endif
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
