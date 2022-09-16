@@ -921,7 +921,8 @@ func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout
 }
 
 // nolint:revive
-func newProvisionerDaemon(ctx context.Context,
+func newProvisionerDaemon(
+	ctx context.Context,
 	coderAPI *coderd.API,
 	logger slog.Logger,
 	cacheDir string,

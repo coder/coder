@@ -238,7 +238,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		attribute.Int64("job_created_at", job.CreatedAt),
 		attribute.String("initiator_username", job.UserName),
 		attribute.String("provisioner", job.Provisioner),
-		attribute.Int("size_bytes", len(job.TemplateSourceArchive)),
+		attribute.Int("template_size_bytes", len(job.TemplateSourceArchive)),
 	))
 	defer span.End()
 

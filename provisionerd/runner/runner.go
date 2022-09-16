@@ -248,6 +248,9 @@ func (r *Runner) doCleanFinish(ctx context.Context) {
 		completedJob *proto.CompletedJob
 	)
 
+	ctx, span := r.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	// push the fail/succeed write onto the defer stack before the cleanup, so
 	// that cleanup happens before this.
 	defer func() {
