@@ -37,6 +37,10 @@ GOARCH       := $(shell go env GOARCH)
 GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
 
+# Use the highest ZSTD compression level for the release binaries. For
+# development, a sane lower value would be `make build ZSTDFLAGS=-6`.
+ZSTDFLAGS := -22 --ultra
+
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
 	linux_amd64 linux_arm64 linux_armv7 \
@@ -102,9 +106,8 @@ build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CO
 	popd
 
 build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar
-	zstd -6 \
+	zstd $(ZSTDFLAGS) \
 		--force \
-		--ultra \
 		--long \
 		--no-progress \
 		-o "build/coder-slim_$(VERSION).tar.zst" \
