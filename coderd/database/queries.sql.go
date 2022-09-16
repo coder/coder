@@ -4528,6 +4528,47 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 	return items, nil
 }
 
+const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
+SELECT
+	id, created_at, job_id, transition, type, name, hide, icon
+FROM
+	workspace_resources
+WHERE
+	job_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourcesByJobIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResource
+	for rows.Next() {
+		var i WorkspaceResource
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Transition,
+			&i.Type,
+			&i.Name,
+			&i.Hide,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
 SELECT id, created_at, job_id, transition, type, name, hide, icon FROM workspace_resources WHERE created_at > $1
 `

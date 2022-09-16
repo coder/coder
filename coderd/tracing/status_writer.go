@@ -72,3 +72,11 @@ func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func (w *StatusWriter) ResponseBody() []byte {
 	return w.responseBody
 }
+
+func (w *StatusWriter) Flush() {
+	f, ok := w.ResponseWriter.(http.Flusher)
+	if !ok {
+		panic("http.ResponseWriter is not http.Flusher")
+	}
+	f.Flush()
+}

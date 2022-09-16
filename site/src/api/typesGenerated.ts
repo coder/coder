@@ -368,6 +368,13 @@ export interface Role {
   readonly display_name: string
 }
 
+// From codersdk/sse.go
+export interface ServerSentEvent {
+  readonly type: ServerSentEventType
+  // eslint-disable-next-line
+  readonly data: any
+}
+
 // From codersdk/templates.go
 export interface Template {
   readonly id: string
@@ -609,8 +616,9 @@ export interface WorkspaceBuild {
   readonly initiator_id: string
   readonly initiator_name: string
   readonly job: ProvisionerJob
-  readonly deadline?: string
   readonly reason: BuildReason
+  readonly resources: WorkspaceResource[]
+  readonly deadline?: string
 }
 
 // From codersdk/workspaces.go
@@ -703,6 +711,9 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+
+// From codersdk/sse.go
+export type ServerSentEventType = "data" | "error" | "ping"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

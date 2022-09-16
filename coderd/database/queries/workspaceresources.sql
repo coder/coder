@@ -14,6 +14,14 @@ FROM
 WHERE
 	job_id = $1;
 
+-- name: GetWorkspaceResourcesByJobIDs :many
+SELECT
+	*
+FROM
+	workspace_resources
+WHERE
+	job_id = ANY(@ids :: uuid [ ]);
+
 -- name: GetWorkspaceResourcesCreatedAfter :many
 SELECT * FROM workspace_resources WHERE created_at > $1;
 
