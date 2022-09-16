@@ -30,7 +30,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(r.Context(), []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -119,7 +119,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(r.Context(), workspaceBuilds)
+	data, err := api.workspaceBuildsData(r.Context(), []database.Workspace{workspace}, workspaceBuilds)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -200,7 +200,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(r.Context(), []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -641,10 +641,13 @@ type workspaceBuildsData struct {
 	apps      []database.WorkspaceApp
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		userIDs = append(userIDs, build.InitiatorID)
+	}
+	for _, workspace := range workspaces {
+		userIDs = append(userIDs, workspace.OwnerID)
 	}
 	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
 		IDs: userIDs,
