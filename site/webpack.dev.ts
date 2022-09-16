@@ -74,8 +74,6 @@ const config: Configuration = {
         secure: false,
       },
     },
-    // To disable compression :
-    compress: false,
     static: ["./static"],
   },
 
