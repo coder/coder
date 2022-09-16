@@ -237,8 +237,8 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
-		ResourceType: parser.String(searchParams, "", "resource_type"),
-		Action:       parser.String(searchParams, "", "action"),
+		ResourceType: database.ResourceType(parser.String(searchParams, "", "resource_type")),
+		Action:       database.AuditAction(parser.String(searchParams, "", "action")),
 	}
 
 	return filter, parser.Errors
