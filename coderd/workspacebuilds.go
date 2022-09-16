@@ -806,50 +806,6 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
 }
 
-func convertWorkspaceBuild(
-	workspaceOwner *database.User,
-	buildInitiator *database.User,
-	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuild,
-	job database.ProvisionerJob,
-) codersdk.WorkspaceBuild {
-	//nolint:unconvert
-	if workspace.ID != workspaceBuild.WorkspaceID {
-		panic("workspace and build do not match")
-	}
-
-	// Both owner and initiator should always be present. But from a static
-	// code analysis POV, these could be nil.
-	ownerName := "unknown"
-	if workspaceOwner != nil {
-		ownerName = workspaceOwner.Username
-	}
-
-	initiatorName := "unknown"
-	if workspaceOwner != nil {
-		initiatorName = buildInitiator.Username
-	}
-
-	return codersdk.WorkspaceBuild{
-		ID:                 workspaceBuild.ID,
-		CreatedAt:          workspaceBuild.CreatedAt,
-		UpdatedAt:          workspaceBuild.UpdatedAt,
-		WorkspaceOwnerID:   workspace.OwnerID,
-		WorkspaceOwnerName: ownerName,
-		WorkspaceID:        workspaceBuild.WorkspaceID,
-		WorkspaceName:      workspace.Name,
-		TemplateVersionID:  workspaceBuild.TemplateVersionID,
-		BuildNumber:        workspaceBuild.BuildNumber,
-		Transition:         codersdk.WorkspaceTransition(workspaceBuild.Transition),
-		InitiatorID:        workspaceBuild.InitiatorID,
-		InitiatorUsername:  initiatorName,
-		Job:                convertProvisionerJob(job),
-		Deadline:           codersdk.NewNullTime(workspaceBuild.Deadline, !workspaceBuild.Deadline.IsZero()),
-		Reason:             codersdk.BuildReason(workspaceBuild.Reason),
-		Resources:          []codersdk.WorkspaceResource{},
-	}
-}
-
 func (api *API) convertWorkspaceBuilds(
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
@@ -860,7 +816,6 @@ func (api *API) convertWorkspaceBuilds(
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
 ) ([]codersdk.WorkspaceBuild, error) {
-
 	workspaceByID := map[uuid.UUID]database.Workspace{}
 	for _, workspace := range workspaces {
 		workspaceByID[workspace.ID] = workspace

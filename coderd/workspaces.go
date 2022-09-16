@@ -431,8 +431,30 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
 	})
 
-	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace, workspaceBuild, templateVersionJob, template,
-		findUser(apiKey.UserID, users), findUser(workspaceBuild.InitiatorID, users)))
+	wsb, err := api.convertWorkspaceBuilds(
+		[]database.WorkspaceBuild{workspaceBuild},
+		[]database.Workspace{workspace},
+		users,
+		[]database.ProvisionerJob{provisionerJob},
+		[]database.WorkspaceResource{},
+		[]database.WorkspaceResourceMetadatum{},
+		[]database.WorkspaceAgent{},
+		[]database.WorkspaceApp{},
+	)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertWorkspace(
+		workspace,
+		wsb[0],
+		template,
+		findUser(apiKey.UserID, users),
+	))
 }
 
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
@@ -810,6 +832,9 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
 		IDs: userIDs,
 	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get users: %w", err)
+	}
 
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
@@ -850,8 +875,22 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 		return nil, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
 
-	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
-	for _, workspaceBuild := range workspaceBuilds {
+	apiBuilds, err := api.convertWorkspaceBuilds(
+		workspaceBuilds,
+		workspaces,
+		users,
+		jobs,
+		workspaceResources,
+		resourceMetadata,
+		resourceAgents,
+		agentApps,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("converting workspace build: %w", err)
+	}
+
+	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
+	for _, workspaceBuild := range apiBuilds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
 	}
 	templateByID := map[uuid.UUID]database.Template{}
@@ -861,26 +900,6 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 	userByID := map[uuid.UUID]database.User{}
 	for _, user := range users {
 		userByID[user.ID] = user
-	}
-	jobByID := map[uuid.UUID]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID] = job
-	}
-	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
-	for _, resource := range workspaceResources {
-		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
-	}
-	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
-	for _, metadata := range resourceMetadata {
-		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
-	}
-	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
-	for _, agent := range resourceAgents {
-		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
-	}
-	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
-	for _, app := range agentApps {
-		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 	}
 
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
@@ -893,39 +912,17 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 		if !exists {
 			return nil, xerrors.Errorf("template not found for workspace %q", workspace.Name)
 		}
-		job, exists := jobByID[build.JobID]
-		if !exists {
-			return nil, xerrors.Errorf("build job not found for workspace: %w", err)
-		}
 		owner, exists := userByID[workspace.OwnerID]
 		if !exists {
 			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
 		}
-		initiator, exists := userByID[build.InitiatorID]
-		if !exists {
-			return nil, xerrors.Errorf("build initiator not found for workspace: %q", workspace.Name)
-		}
 
-		resources := resourcesByJobID[job.ID]
-		var apiResources []codersdk.WorkspaceResource
-		for _, resource := range resources {
-			apiAgents := make([]codersdk.WorkspaceAgent, 0)
-			agents := agentsByResourceID[resource.ID]
-			for _, agent := range agents {
-				apps := appsByAgentID[agent.ID]
-				apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
-				if err != nil {
-					return nil, xerrors.Errorf("converting workspace agent: %w", err)
-				}
-				apiAgents = append(apiAgents, apiAgent)
-			}
-			metadata := metadataByResourceID[resource.ID]
-			apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
-		}
-
-		apiWorkspace := convertWorkspace(workspace, build, job, template, &owner, &initiator)
-		apiWorkspace.LatestBuild.Resources = apiResources
-		apiWorkspaces = append(apiWorkspaces, apiWorkspace)
+		apiWorkspaces = append(apiWorkspaces, convertWorkspace(
+			workspace,
+			build,
+			template,
+			&owner,
+		))
 	}
 	sort.Slice(apiWorkspaces, func(i, j int) bool {
 		iw := apiWorkspaces[i]
@@ -941,11 +938,9 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 
 func convertWorkspace(
 	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuild,
-	job database.ProvisionerJob,
+	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
 	owner *database.User,
-	initiator *database.User,
 ) codersdk.Workspace {
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
@@ -960,7 +955,7 @@ func convertWorkspace(
 		OwnerID:           workspace.OwnerID,
 		OwnerName:         owner.Username,
 		TemplateID:        workspace.TemplateID,
-		LatestBuild:       convertWorkspaceBuild(owner, initiator, workspace, workspaceBuild, job),
+		LatestBuild:       workspaceBuild,
 		TemplateName:      template.Name,
 		TemplateIcon:      template.Icon,
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
