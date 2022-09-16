@@ -14,11 +14,13 @@ import (
 
 func server() *cobra.Command {
 	var (
-		auditLogging bool
+		auditLogging   bool
+		scimAuthHeader string
 	)
 	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
 		api, err := coderd.New(ctx, &coderd.Options{
 			AuditLogging: auditLogging,
+			ScimAPIKey:   []byte(scimAuthHeader),
 			Options:      options,
 		})
 		if err != nil {
@@ -28,6 +30,7 @@ func server() *cobra.Command {
 	})
 	cliflag.BoolVarP(cmd.Flags(), &auditLogging, "audit-logging", "", "CODER_AUDIT_LOGGING", true,
 		"Specifies whether audit logging is enabled.")
+	cliflag.StringVarP(cmd.Flags(), &scimAuthHeader, "scim-auth-header", "", "CODER_SCIM_API_KEY", "", "Enables and sets the authentication header for the built-in SCIM server.")
 
 	return cmd
 }
