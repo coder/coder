@@ -167,7 +167,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			if traceEnable || telemetryEnable {
 				sdkTracerProvider, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 					Default: traceEnable,
-					Coder:   telemetryEnable,
+					Coder:   telemetryEnable && !isTest(),
 				})
 				if err != nil {
 					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
