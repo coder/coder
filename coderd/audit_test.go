@@ -59,6 +59,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			ResourceType: codersdk.ResourceTypeUser,
 		})
 		require.NoError(t, err)
+
 		// Create one log with "Delete"
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionDelete,
@@ -66,25 +67,46 @@ func TestAuditLogsFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Verify the number of create logs
-		actionCreateLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
-			SearchQuery: "action:create",
-			Pagination: codersdk.Pagination{
-				Limit: 25,
+		// Test cases
+		testCases := []struct {
+			Name           string
+			SearchQuery    string
+			ExpectedResult int
+		}{
+			{
+				Name:           "FilterByCreateAction",
+				SearchQuery:    "action:create",
+				ExpectedResult: 2,
 			},
-		})
-		require.NoError(t, err)
-		require.Len(t, actionCreateLogs.AuditLogs, 2)
-
-		// Verify the number of delete logs
-		actionDeleteLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
-			SearchQuery: "action:delete",
-			Pagination: codersdk.Pagination{
-				Limit: 25,
+			{
+				Name:           "FilterByDeleteAction",
+				SearchQuery:    "action:delete",
+				ExpectedResult: 1,
 			},
-		})
+			{
+				Name:           "FilterByUserResourceType",
+				SearchQuery:    "resource_type:user",
+				ExpectedResult: 2,
+			},
+			{
+				Name:           "FilterByTemplateResourceType",
+				SearchQuery:    "resource_type:template",
+				ExpectedResult: 1,
+			},
+		}
 
-		require.NoError(t, err)
-		require.Len(t, actionDeleteLogs.AuditLogs, 1)
+		for _, testCase := range testCases {
+			t.Run(testCase.Name, func(t *testing.T) {
+				t.Parallel()
+				auditLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+					SearchQuery: testCase.SearchQuery,
+					Pagination: codersdk.Pagination{
+						Limit: 25,
+					},
+				})
+				require.NoError(t, err, "fetch audit logs")
+				require.Len(t, auditLogs.AuditLogs, testCase.ExpectedResult, "expected audit logs returned")
+			})
+		}
 	})
 }
