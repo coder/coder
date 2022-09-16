@@ -29,67 +29,10 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
+	data, err := api.getWorkspaceBuildData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID},
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	workspaceResources, err := api.Database.GetWorkspaceResourcesByJobIDs(r.Context(), []uuid.UUID{job.ID})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceIDs := make([]uuid.UUID, 0)
-	for _, resource := range workspaceResources {
-		resourceIDs = append(resourceIDs, resource.ID)
-	}
-
-	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resource metadata.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resource agents.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceAgentIDs := make([]uuid.UUID, 0)
-	for _, agent := range resourceAgents {
-		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
-	}
-
-	agentApps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace apps.",
+			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
 		})
 		return
@@ -98,12 +41,12 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
-		job,
-		users,
-		workspaceResources,
-		resourceMetadata,
-		resourceAgents,
-		agentApps,
+		data.jobs[0],
+		data.users,
+		data.resources,
+		data.metadata,
+		data.agents,
+		data.apps,
 	)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -326,65 +269,10 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	initiator, err := api.Database.GetUserByID(r.Context(), workspaceBuild.InitiatorID)
+	data, err := api.getWorkspaceBuildData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build initiator.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace jobs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	workspaceResources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), job.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceIDs := make([]uuid.UUID, 0)
-	for _, resource := range workspaceResources {
-		resourceIDs = append(resourceIDs, resource.ID)
-	}
-
-	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resource metadata.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agents.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceAgentIDs := make([]uuid.UUID, 0)
-	for _, agent := range resourceAgents {
-		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
-	}
-
-	agentApps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace apps.",
+			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
 		})
 		return
@@ -393,12 +281,12 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
-		job,
-		[]database.User{owner, initiator},
-		workspaceResources,
-		resourceMetadata,
-		resourceAgents,
-		agentApps,
+		data.jobs[0],
+		data.users,
+		data.resources,
+		data.metadata,
+		data.agents,
+		data.apps,
 	)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{

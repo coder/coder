@@ -936,6 +936,76 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 	return apiWorkspaces, nil
 }
 
+type workspaceBuildData struct {
+	users     []database.User
+	jobs      []database.ProvisionerJob
+	resources []database.WorkspaceResource
+	metadata  []database.WorkspaceResourceMetadatum
+	agents    []database.WorkspaceAgent
+	apps      []database.WorkspaceApp
+}
+
+func (api *API) getWorkspaceBuildData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildData, error) {
+	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		userIDs = append(userIDs, build.InitiatorID)
+	}
+	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
+		IDs: userIDs,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildData{}, xerrors.Errorf("get users: %w", err)
+	}
+
+	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		jobIDs = append(jobIDs, build.JobID)
+	}
+	jobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+	}
+
+	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+	}
+
+	resourceIDs := make([]uuid.UUID, 0)
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return workspaceBuildData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildData{}, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	agentIDs := make([]uuid.UUID, 0)
+	for _, agent := range agents {
+		agentIDs = append(agentIDs, agent.ID)
+	}
+
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildData{}, xerrors.Errorf("fetching workspace apps: %w", err)
+	}
+
+	return workspaceBuildData{
+		users:     users,
+		jobs:      jobs,
+		resources: resources,
+		metadata:  metadata,
+		agents:    agents,
+		apps:      apps,
+	}, nil
+}
+
 func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
