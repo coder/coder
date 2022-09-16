@@ -431,11 +431,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
 	})
 
-	wsb, err := api.convertWorkspaceBuilds(
-		[]database.WorkspaceBuild{workspaceBuild},
-		[]database.Workspace{workspace},
+	apiBuild, err := api.convertWorkspaceBuild(
+		workspaceBuild,
+		workspace,
+		provisionerJob,
 		users,
-		[]database.ProvisionerJob{provisionerJob},
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -451,7 +451,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	httpapi.Write(rw, http.StatusCreated, convertWorkspace(
 		workspace,
-		wsb[0],
+		apiBuild,
 		template,
 		findUser(apiKey.UserID, users),
 	))
