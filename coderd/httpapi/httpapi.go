@@ -185,8 +185,8 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx co
 	}()
 
 	sendEvent := func(ctx context.Context, sse codersdk.ServerSentEvent) error {
-		if r.Context().Err() != nil {
-			return r.Context().Err()
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 
 		buf := &bytes.Buffer{}

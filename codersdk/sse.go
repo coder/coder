@@ -10,8 +10,8 @@ import (
 )
 
 type ServerSentEvent struct {
-	Type ServerSentEventType
-	Data interface{}
+	Type ServerSentEventType `json:"type"`
+	Data interface{}         `json:"data"`
 }
 
 type ServerSentEventType string
