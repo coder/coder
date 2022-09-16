@@ -20,7 +20,7 @@ import (
 func TestPostLicense(t *testing.T) {
 	t.Parallel()
 
-	t.Run("POST", func(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -37,7 +37,7 @@ func TestPostLicense(t *testing.T) {
 		assert.Equal(t, json.Number("1"), features[codersdk.FeatureAuditLog])
 	})
 
-	t.Run("POST_unauthorized", func(t *testing.T) {
+	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
@@ -51,7 +51,7 @@ func TestPostLicense(t *testing.T) {
 		}
 	})
 
-	t.Run("POST_corrupted", func(t *testing.T) {
+	t.Run("Corrupted", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -70,7 +70,7 @@ func TestPostLicense(t *testing.T) {
 
 func TestGetLicense(t *testing.T) {
 	t.Parallel()
-	t.Run("GET", func(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -108,7 +108,7 @@ func TestGetLicense(t *testing.T) {
 
 func TestDeleteLicense(t *testing.T) {
 	t.Parallel()
-	t.Run("DELETE_empty", func(t *testing.T) {
+	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -124,7 +124,7 @@ func TestDeleteLicense(t *testing.T) {
 		}
 	})
 
-	t.Run("DELETE_bad_id", func(t *testing.T) {
+	t.Run("BadID", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -137,7 +137,7 @@ func TestDeleteLicense(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	})
 
-	t.Run("DELETE", func(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)

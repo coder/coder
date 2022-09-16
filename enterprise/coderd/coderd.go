@@ -135,6 +135,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 	auditLogs := codersdk.EntitlementNotEntitled
 
+	// Here we loop through licenses to detect enabled features.
 	for _, l := range licenses {
 		claims, err := validateDBLicense(l, api.Keys)
 		if err != nil {
