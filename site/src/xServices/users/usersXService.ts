@@ -1,13 +1,6 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import {
-  ApiError,
-  FieldErrors,
-  getErrorMessage,
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "../../api/errors"
+import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 import { queryToFilter } from "../../util/filters"
@@ -15,8 +8,6 @@ import { generateRandomString } from "../../util/random"
 
 export const Language = {
   getUsersError: "Error getting users.",
-  createUserSuccess: "Successfully created user.",
-  createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
   suspendUserError: "Error suspending user.",
   deleteUserSuccess: "Successfully deleted the user.",
@@ -34,8 +25,6 @@ export interface UsersContext {
   users?: TypesGen.User[]
   filter?: string
   getUsersError?: Error | unknown
-  createUserErrorMessage?: string
-  createUserFormErrors?: FieldErrors
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
   suspendUserError?: Error | unknown
@@ -55,9 +44,7 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  | { type: "GET_USERS"; query: string }
-  | { type: "CREATE"; user: TypesGen.CreateUserRequest }
-  | { type: "CANCEL_CREATE_USER" }
+  | { type: "GET_USERS"; query?: string }
   // Suspend events
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }
@@ -109,16 +96,34 @@ export const usersMachine = createMachine(
         }
       },
     },
-    initial: "idle",
+    initial: "gettingUsers",
     states: {
+      gettingUsers: {
+        entry: "clearGetUsersError",
+        invoke: {
+          src: "getUsers",
+          id: "getUsers",
+          onDone: [
+            {
+              target: "#usersState.idle",
+              actions: "assignUsers",
+            },
+          ],
+          onError: [
+            {
+              actions: ["clearUsers", "assignGetUsersError", "displayGetUsersErrorMessage"],
+              target: "#usersState.error",
+            },
+          ],
+        },
+        tags: "loading",
+      },
       idle: {
         on: {
           GET_USERS: {
             actions: "assignFilter",
             target: "gettingUsers",
           },
-          CREATE: "creatingUser",
-          CANCEL_CREATE_USER: { actions: ["clearCreateUserError"] },
           SUSPEND_USER: {
             target: "confirmUserSuspension",
             actions: ["assignUserIdToSuspend"],
@@ -140,49 +145,6 @@ export const usersMachine = createMachine(
             actions: ["assignUserIdToUpdateRoles"],
           },
         },
-      },
-      gettingUsers: {
-        entry: "clearGetUsersError",
-        invoke: {
-          src: "getUsers",
-          id: "getUsers",
-          onDone: [
-            {
-              target: "#usersState.idle",
-              actions: "assignUsers",
-            },
-          ],
-          onError: [
-            {
-              actions: ["clearUsers", "assignGetUsersError", "displayGetUsersErrorMessage"],
-              target: "#usersState.error",
-            },
-          ],
-        },
-        tags: "loading",
-      },
-      creatingUser: {
-        entry: "clearCreateUserError",
-        invoke: {
-          src: "createUser",
-          id: "createUser",
-          onDone: {
-            target: "idle",
-            actions: ["displayCreateUserSuccess", "redirectToUsersPage"],
-          },
-          onError: [
-            {
-              target: "idle",
-              cond: "hasFieldErrors",
-              actions: ["assignCreateUserFormErrors"],
-            },
-            {
-              target: "idle",
-              actions: ["assignCreateUserError"],
-            },
-          ],
-        },
-        tags: "loading",
       },
       confirmUserSuspension: {
         on: {
@@ -301,7 +263,6 @@ export const usersMachine = createMachine(
       // when it is mocked. This happen in the UsersPage tests inside of the
       // "shows a success message and refresh the page" test case.
       getUsers: (context) => API.getUsers(queryToFilter(context.filter)),
-      createUser: (_, event) => API.createUser(event.user),
       suspendUser: (context) => {
         if (!context.userIdToSuspend) {
           throw new Error("userIdToSuspend is undefined")
@@ -344,9 +305,7 @@ export const usersMachine = createMachine(
         return API.updateUserRoles(event.roles, context.userIdToUpdateRoles)
       },
     },
-    guards: {
-      hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
-    },
+
     actions: {
       assignUsers: assign({
         users: (_, event) => event.data,
@@ -376,14 +335,6 @@ export const usersMachine = createMachine(
         ...context,
         getUsersError: undefined,
       })),
-      assignCreateUserError: assign({
-        createUserErrorMessage: (_, event) => getErrorMessage(event.data, Language.createUserError),
-      }),
-      assignCreateUserFormErrors: assign({
-        // the guard ensures it is ApiError
-        createUserFormErrors: (_, event) =>
-          mapApiErrorToFieldErrors((event.data as ApiError).response.data),
-      }),
       assignSuspendUserError: assign({
         suspendUserError: (_, event) => event.data,
       }),
@@ -403,11 +354,6 @@ export const usersMachine = createMachine(
         ...context,
         users: undefined,
       })),
-      clearCreateUserError: assign((context: UsersContext) => ({
-        ...context,
-        createUserErrorMessage: undefined,
-        createUserFormErrors: undefined,
-      })),
       clearSuspendUserError: assign({
         suspendUserError: (_) => undefined,
       }),
@@ -426,9 +372,6 @@ export const usersMachine = createMachine(
       displayGetUsersErrorMessage: (context) => {
         const message = getErrorMessage(context.getUsersError, Language.getUsersError)
         displayError(message)
-      },
-      displayCreateUserSuccess: () => {
-        displaySuccess(Language.createUserSuccess)
       },
       displaySuspendSuccess: () => {
         displaySuccess(Language.suspendUserSuccess)

@@ -27,6 +27,10 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
+variable "docker_image" {
+  default = "codercom/enterprise-base:ubuntu"
+}
+
 variable "dotfiles_uri" {
   description = <<-EOF
   Dotfiles repo URI (optional)
@@ -48,7 +52,7 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = var.docker_image
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   dns  = ["1.1.1.1"]

@@ -27,8 +27,10 @@ export const isNotificationText = (msg: AdditionalMessage): msg is string => {
 export const isNotificationTextPrefixed = (
   msg: AdditionalMessage | null,
 ): msg is NotificationTextPrefixed => {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  return typeof (msg as NotificationTextPrefixed)?.prefix !== "undefined"
+  if (msg) {
+    return typeof msg !== "string" && Object.prototype.hasOwnProperty.call(msg, "prefix")
+  }
+  return false
 }
 
 export const isNotificationList = (msg: AdditionalMessage): msg is string[] => {

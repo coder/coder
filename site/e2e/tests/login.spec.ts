@@ -1,7 +1,6 @@
 import { test } from "@playwright/test"
 import { email, password } from "../constants"
-import { SignInPage, WorkspacesPage } from "../pom"
-import { waitForClientSideNavigation } from "./../util"
+import { SignInPage } from "../pom"
 
 test("Login takes user to /workspaces", async ({ baseURL, page }) => {
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
@@ -9,9 +8,6 @@ test("Login takes user to /workspaces", async ({ baseURL, page }) => {
   // Log-in with the default credentials we set up in the development server
   const signInPage = new SignInPage(baseURL, page)
   await signInPage.submitBuiltInAuthentication(email, password)
-
-  const workspacesPage = new WorkspacesPage(baseURL, page, "?filter=owner%3Ame")
-  await waitForClientSideNavigation(page, { to: workspacesPage.url })
 
   await page.waitForSelector("text=Workspaces")
 })
