@@ -878,8 +878,8 @@ func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Wor
 	apiBuilds, err := api.convertWorkspaceBuilds(
 		workspaceBuilds,
 		workspaces,
-		users,
 		jobs,
+		users,
 		workspaceResources,
 		resourceMetadata,
 		resourceAgents,
@@ -945,7 +945,7 @@ type workspaceBuildData struct {
 	apps      []database.WorkspaceApp
 }
 
-func (api *API) getWorkspaceBuildData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildData, error) {
+func (api *API) getWorkspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildData, error) {
 	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		userIDs = append(userIDs, build.InitiatorID)

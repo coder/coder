@@ -29,7 +29,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.getWorkspaceBuildData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.getWorkspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -118,80 +118,10 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		userIDs = append(userIDs, build.InitiatorID)
-	}
-	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-		IDs: userIDs,
-	})
+	data, err := api.getWorkspaceBuildsData(r.Context(), workspaceBuilds)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		jobIDs = append(jobIDs, build.JobID)
-	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace jobs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	jobByID := map[uuid.UUID]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID] = job
-	}
-
-	workspaceResources, err := api.Database.GetWorkspaceResourcesByJobIDs(r.Context(), jobIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceIDs := make([]uuid.UUID, 0)
-	for _, resource := range workspaceResources {
-		resourceIDs = append(resourceIDs, resource.ID)
-	}
-
-	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resource metadata.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agents.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resourceAgentIDs := make([]uuid.UUID, 0)
-	for _, agent := range resourceAgents {
-		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
-	}
-
-	agentApps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace apps.",
+			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
 		})
 		return
@@ -200,12 +130,12 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiBuilds, err := api.convertWorkspaceBuilds(
 		workspaceBuilds,
 		[]database.Workspace{workspace},
-		users,
-		jobs,
-		workspaceResources,
-		resourceMetadata,
-		resourceAgents,
-		agentApps,
+		data.jobs,
+		data.users,
+		data.resources,
+		data.metadata,
+		data.agents,
+		data.apps,
 	)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -269,7 +199,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.getWorkspaceBuildData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.getWorkspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -704,8 +634,8 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 func (api *API) convertWorkspaceBuilds(
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
-	users []database.User,
 	jobs []database.ProvisionerJob,
+	users []database.User,
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
