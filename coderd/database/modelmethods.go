@@ -1,30 +1,14 @@
 package database
 
 import (
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/coderd/rbac"
 )
 
-var validAPIKeyScopes = map[string]ApiKeyScope{
-	string(ApiKeyScopeAny):                ApiKeyScopeAny,
-	string(ApiKeyScopeApplicationConnect): ApiKeyScopeApplicationConnect,
-}
-
-func ToAPIKeyScope(v string) (ApiKeyScope, error) {
-	scope, ok := validAPIKeyScopes[v]
-	if !ok {
-		return ApiKeyScope(""), xerrors.Errorf("invalid token scope: %s", v)
-	}
-
-	return scope, nil
-}
-
 func (s ApiKeyScope) ToRBAC() rbac.Scope {
-	switch {
-	case s == ApiKeyScopeAny:
+	switch s {
+	case ApiKeyScopeAny:
 		return rbac.ScopeAny
-	case s == ApiKeyScopeApplicationConnect:
+	case ApiKeyScopeApplicationConnect:
 		return rbac.ScopeApplicationConnect
 	default:
 		panic("developer error: unknown scope type " + string(s))
