@@ -6,13 +6,14 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			sw := &httpapi.StatusWriter{ResponseWriter: w}
+			sw := &tracing.StatusWriter{ResponseWriter: w}
 
 			httplog := log.With(
 				slog.F("host", httpapi.RequestHost(r)),

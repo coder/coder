@@ -7,6 +7,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 func Recover(log slog.Logger) func(h http.Handler) http.Handler {
@@ -22,7 +23,7 @@ func Recover(log slog.Logger) func(h http.Handler) http.Handler {
 					)
 
 					var hijacked bool
-					if sw, ok := w.(*httpapi.StatusWriter); ok {
+					if sw, ok := w.(*tracing.StatusWriter); ok {
 						hijacked = sw.Hijacked
 					}
 
