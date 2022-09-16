@@ -88,6 +88,9 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 
 // Authorize authorizes a single object using the partially prepared queries.
 func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	if a.alwaysTrue {
 		return nil
 	}
