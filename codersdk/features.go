@@ -17,6 +17,7 @@ const (
 const (
 	FeatureUserLimit = "user_limit"
 	FeatureAuditLog  = "audit_log"
+	FeatureSCIM      = "scim"
 )
 
 var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog}

@@ -222,11 +222,7 @@ func New(options *Options) *API {
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
-		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-				Message: "Route not found.",
-			})
-		})
+		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
