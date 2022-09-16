@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -29,7 +30,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.getWorkspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -118,7 +119,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.getWorkspaceBuildsData(r.Context(), workspaceBuilds)
+	data, err := api.workspaceBuildsData(r.Context(), workspaceBuilds)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -199,7 +200,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.getWorkspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(r.Context(), []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -629,6 +630,76 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+}
+
+type workspaceBuildsData struct {
+	users     []database.User
+	jobs      []database.ProvisionerJob
+	resources []database.WorkspaceResource
+	metadata  []database.WorkspaceResourceMetadatum
+	agents    []database.WorkspaceAgent
+	apps      []database.WorkspaceApp
+}
+
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		userIDs = append(userIDs, build.InitiatorID)
+	}
+	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
+		IDs: userIDs,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
+	}
+
+	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		jobIDs = append(jobIDs, build.JobID)
+	}
+	jobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+	}
+
+	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+	}
+
+	resourceIDs := make([]uuid.UUID, 0)
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	agentIDs := make([]uuid.UUID, 0)
+	for _, agent := range agents {
+		agentIDs = append(agentIDs, agent.ID)
+	}
+
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
+	}
+
+	return workspaceBuildsData{
+		users:     users,
+		jobs:      jobs,
+		resources: resources,
+		metadata:  metadata,
+		agents:    agents,
+		apps:      apps,
+	}, nil
 }
 
 func (api *API) convertWorkspaceBuilds(
