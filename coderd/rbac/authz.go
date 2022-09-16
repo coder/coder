@@ -4,11 +4,10 @@ import (
 	"context"
 	_ "embed"
 
+	"github.com/open-policy-agent/opa/rego"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
-
-	"github.com/open-policy-agent/opa/rego"
 
 	"github.com/coder/coder/coderd/tracing"
 )
