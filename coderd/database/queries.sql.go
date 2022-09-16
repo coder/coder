@@ -318,13 +318,13 @@ WHERE
     -- Filter resource_type
 	CASE
 		WHEN $3 :: text != '' THEN
-			resource_type = LOWER($3)
+			resource_type = $3
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			action = LOWER($4)
+			action = $4
 		ELSE true
 	END
 ORDER BY

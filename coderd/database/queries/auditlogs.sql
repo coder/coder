@@ -17,13 +17,13 @@ WHERE
     -- Filter resource_type
 	CASE
 		WHEN @resource_type :: text != '' THEN
-			resource_type = LOWER(@resource_type)
+			resource_type = @resource_type
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
 		WHEN @action :: text != '' THEN
-			action = LOWER(@action)
+			action = @action
 		ELSE true
 	END
 ORDER BY
