@@ -10,11 +10,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func StartFromRequest(r *http.Request, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	ctx := r.Context()
-	return trace.SpanFromContext(r.Context()).TracerProvider().Tracer("").Start(ctx, name, opts...)
-}
-
 // HTTPMW adds tracing to http routes.
 func HTTPMW(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
