@@ -50,8 +50,8 @@ type WorkspaceBuild struct {
 	InitiatorUsername  string              `json:"initiator_name"`
 	Job                ProvisionerJob      `json:"job"`
 	Reason             BuildReason         `db:"reason" json:"reason"`
+	Resources          []WorkspaceResource `json:"resources"`
 	Deadline           NullTime            `json:"deadline,omitempty"`
-	Resources          []WorkspaceResource `json:"resources,omitempty"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.

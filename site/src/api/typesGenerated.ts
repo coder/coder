@@ -617,8 +617,8 @@ export interface WorkspaceBuild {
   readonly initiator_name: string
   readonly job: ProvisionerJob
   readonly reason: BuildReason
+  readonly resources: WorkspaceResource[]
   readonly deadline?: string
-  readonly resources?: WorkspaceResource[]
 }
 
 // From codersdk/workspaces.go

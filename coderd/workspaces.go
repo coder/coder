@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -73,45 +72,16 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	wss, err := api.convertWorkspaces(r.Context(), []database.Workspace{workspace})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	var (
-		group    errgroup.Group
-		job      database.ProvisionerJob
-		template database.Template
-		users    []database.User
-	)
-	group.Go(func() (err error) {
-		job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
-		return err
-	})
-	group.Go(func() (err error) {
-		template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-		return err
-	})
-	group.Go(func() (err error) {
-		users, err = api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-			IDs: []uuid.UUID{workspace.OwnerID, build.InitiatorID},
-		})
-		return err
-	})
-	err = group.Wait()
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching resource.",
+			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template,
-		findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users)))
+	httpapi.Write(rw, http.StatusOK, wss[0])
 }
 
 // workspaces returns all workspaces a user can read.
@@ -153,7 +123,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+	wss, err := api.convertWorkspaces(r.Context(), workspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace.",
@@ -161,7 +131,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
+	httpapi.Write(rw, http.StatusOK, wss)
 }
 
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
@@ -210,41 +180,16 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	wss, err := api.convertWorkspaces(r.Context(), []database.Workspace{workspace})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template.",
+			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	initiator, err := api.Database.GetUserByID(r.Context(), build.InitiatorID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, build, job, template, &owner, &initiator))
+	httpapi.Write(rw, http.StatusOK, wss[0])
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -815,134 +760,28 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+
+			wss, err := api.convertWorkspaces(r.Context(), []database.Workspace{workspace})
 			if err != nil {
 				_ = sendEvent(r.Context(), codersdk.ServerSentEvent{
 					Type: codersdk.ServerSentEventTypeError,
 					Data: codersdk.Response{
-						Message: "Internal error fetching workspace.",
+						Message: "Internal error fetching workspace resources.",
 						Detail:  err.Error(),
 					},
 				})
 				return
 			}
-			var (
-				group        errgroup.Group
-				job          database.ProvisionerJob
-				template     database.Template
-				users        []database.User
-				apiResources []codersdk.WorkspaceResource
-			)
-			group.Go(func() (err error) {
-				job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
-				if err != nil {
-					return xerrors.Errorf("fetching workspace build job: %w", err)
-				}
 
-				if !job.CompletedAt.Valid {
-					return nil
-				}
-
-				resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), job.ID)
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("fetching workspace resources by job: %w", err)
-				}
-
-				resourceIDs := make([]uuid.UUID, 0)
-				for _, resource := range resources {
-					resourceIDs = append(resourceIDs, resource.ID)
-				}
-
-				resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("fetching workspace agents: %w", err)
-				}
-
-				resourceAgentIDs := make([]uuid.UUID, 0)
-				for _, agent := range resourceAgents {
-					resourceAgentIDs = append(resourceAgentIDs, agent.ID)
-				}
-
-				apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), resourceAgentIDs)
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("fetching workspace apps: %w", err)
-				}
-
-				resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(r.Context(), resourceIDs)
-				if err != nil {
-					return xerrors.Errorf("fetching resource metadata: %w", err)
-				}
-
-				for _, resource := range resources {
-					agents := make([]codersdk.WorkspaceAgent, 0)
-					for _, agent := range resourceAgents {
-						if agent.ResourceID != resource.ID {
-							continue
-						}
-						dbApps := make([]database.WorkspaceApp, 0)
-						for _, app := range apps {
-							if app.AgentID == agent.ID {
-								dbApps = append(dbApps, app)
-							}
-						}
-
-						apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
-						if err != nil {
-							return xerrors.Errorf("converting workspace agent: %w", err)
-						}
-						agents = append(agents, apiAgent)
-					}
-					metadata := make([]database.WorkspaceResourceMetadatum, 0)
-					for _, field := range resourceMetadata {
-						if field.WorkspaceResourceID == resource.ID {
-							metadata = append(metadata, field)
-						}
-					}
-					apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
-				}
-
-				return nil
-			})
-			group.Go(func() (err error) {
-				template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-				if err != nil {
-					return xerrors.Errorf("fetching template: %w", err)
-				}
-
-				return nil
-			})
-			group.Go(func() (err error) {
-				users, err = api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-					IDs: []uuid.UUID{workspace.OwnerID, build.InitiatorID},
-				})
-				if err != nil {
-					return xerrors.Errorf("fetching users: %w", err)
-				}
-
-				return nil
-			})
-			err = group.Wait()
-			if err != nil {
-				_ = sendEvent(r.Context(), codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeError,
-					Data: codersdk.Response{
-						Message: "Internal error fetching workspace.",
-						Detail:  err.Error(),
-					},
-				})
-				return
-			}
-			apiWorkspace := convertWorkspace(workspace, build, job, template, findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users))
-			apiWorkspace.LatestBuild.Resources = apiResources
 			_ = sendEvent(r.Context(), codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeData,
-				Data: apiWorkspace,
+				Data: wss[0],
 			})
 		}
 	}
 }
 
-func convertWorkspaces(ctx context.Context, db database.Store, workspaces []database.Workspace) ([]codersdk.Workspace, error) {
+func (api *API) convertWorkspaces(ctx context.Context, workspaces []database.Workspace) ([]codersdk.Workspace, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	userIDs := make([]uuid.UUID, 0, len(workspaces))
@@ -951,60 +790,69 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		templateIDs = append(templateIDs, workspace.TemplateID)
 		userIDs = append(userIDs, workspace.OwnerID)
 	}
-	workspaceBuilds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
+
+	templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		IDs: templateIDs,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get templates: %w", err)
 	}
+
+	//
+	workspaceBuilds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get workspace builds: %w", err)
+	}
+
 	for _, build := range workspaceBuilds {
 		userIDs = append(userIDs, build.InitiatorID)
 	}
-
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace builds: %w", err)
-	}
-	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-		IDs: templateIDs,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		return nil, xerrors.Errorf("get templates: %w", err)
-	}
-	users, err := db.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
+	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
 		IDs: userIDs,
 	})
-	if err != nil {
-		return nil, xerrors.Errorf("get users: %w", err)
-	}
+
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
 	}
-	jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
+	jobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get provisioner jobs: %w", err)
+	}
+
+	workspaceResources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get workspace resources by job: %w", err)
+	}
+
+	resourceIDs := make([]uuid.UUID, 0)
+	for _, resource := range workspaceResources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("fetching resource metadata: %w", err)
+	}
+
+	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	resourceAgentIDs := make([]uuid.UUID, 0)
+	for _, agent := range resourceAgents {
+		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
+	}
+
+	agentApps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, resourceAgentIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
 
 	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
 	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuild{
-			ID:                workspaceBuild.ID,
-			CreatedAt:         workspaceBuild.CreatedAt,
-			UpdatedAt:         workspaceBuild.UpdatedAt,
-			WorkspaceID:       workspaceBuild.WorkspaceID,
-			TemplateVersionID: workspaceBuild.TemplateVersionID,
-			BuildNumber:       workspaceBuild.BuildNumber,
-			Transition:        workspaceBuild.Transition,
-			InitiatorID:       workspaceBuild.InitiatorID,
-			ProvisionerState:  workspaceBuild.ProvisionerState,
-			JobID:             workspaceBuild.JobID,
-			Deadline:          workspaceBuild.Deadline,
-			Reason:            workspaceBuild.Reason,
-		}
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
 	}
 	templateByID := map[uuid.UUID]database.Template{}
 	for _, template := range templates {
@@ -1018,6 +866,23 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	for _, job := range jobs {
 		jobByID[job.ID] = job
 	}
+	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
+	for _, resource := range workspaceResources {
+		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
+	}
+	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
+	for _, metadata := range resourceMetadata {
+		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
+	}
+	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
+	for _, agent := range resourceAgents {
+		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
+	}
+	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
+	for _, app := range agentApps {
+		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
+	}
+
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		build, exists := buildByWorkspaceID[workspace.ID]
@@ -1040,7 +905,27 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		if !exists {
 			return nil, xerrors.Errorf("build initiator not found for workspace: %q", workspace.Name)
 		}
-		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace, build, job, template, &owner, &initiator))
+
+		resources := resourcesByJobID[job.ID]
+		var apiResources []codersdk.WorkspaceResource
+		for _, resource := range resources {
+			apiAgents := make([]codersdk.WorkspaceAgent, 0)
+			agents := agentsByResourceID[resource.ID]
+			for _, agent := range agents {
+				apps := appsByAgentID[agent.ID]
+				apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
+				if err != nil {
+					return nil, xerrors.Errorf("converting workspace agent: %w", err)
+				}
+				apiAgents = append(apiAgents, apiAgent)
+			}
+			metadata := metadataByResourceID[resource.ID]
+			apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
+		}
+
+		apiWorkspace := convertWorkspace(workspace, build, job, template, &owner, &initiator)
+		apiWorkspace.LatestBuild.Resources = apiResources
+		apiWorkspaces = append(apiWorkspaces, apiWorkspace)
 	}
 	sort.Slice(apiWorkspaces, func(i, j int) bool {
 		iw := apiWorkspaces[i]
