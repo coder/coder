@@ -61,7 +61,8 @@ func TestAuditLogsFilter(t *testing.T) {
 		require.NoError(t, err)
 		// Create one log with "Delete"
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action: codersdk.AuditActionDelete,
+			Action:       codersdk.AuditActionDelete,
+			ResourceType: codersdk.ResourceTypeUser,
 		})
 		require.NoError(t, err)
 
@@ -78,6 +79,9 @@ func TestAuditLogsFilter(t *testing.T) {
 		// Verify the number of delete logs
 		actionDeleteLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: "action:delete",
+			Pagination: codersdk.Pagination{
+				Limit: 25,
+			},
 		})
 
 		require.NoError(t, err)
