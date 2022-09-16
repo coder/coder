@@ -102,7 +102,7 @@ build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CO
 	popd
 
 build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar
-	zstd -6 \
+	zstd -22 \
 		--force \
 		--ultra \
 		--long \
