@@ -55,4 +55,7 @@ func EndHTTPSpan(r *http.Request, status int, span trace.Span) {
 	span.SetAttributes(semconv.HTTPStatusCodeKey.Int(status))
 	spanStatus, spanMessage := semconv.SpanStatusFromHTTPStatusCodeAndSpanKind(status, trace.SpanKindServer)
 	span.SetStatus(spanStatus, spanMessage)
+
+	// finally end span
+	span.End()
 }
