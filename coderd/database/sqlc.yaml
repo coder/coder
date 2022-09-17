@@ -32,3 +32,4 @@ rename:
   ip_addresses: IPAddresses
   ids: IDs
   jwt: JWT
+  user_acl: userACL

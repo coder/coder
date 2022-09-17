@@ -23,8 +23,11 @@ import (
 )
 
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -51,8 +54,11 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionUpdate, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -97,8 +103,12 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 }
 
 func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -144,9 +154,12 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		apiKey          = httpmw.APIKey(r)
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -188,9 +201,12 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 }
 
 func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		apiKey          = httpmw.APIKey(r)
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -352,9 +368,11 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
 	var (
 		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
 		jobID           = chi.URLParam(r, "jobID")
 	)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return database.ProvisionerJob{}, false
 	}
@@ -825,8 +843,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 // The agents returned are informative of the template version, and do not
 // return agents associated with any particular workspace.
 func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -847,8 +869,12 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // and not any build logs for a workspace.
 // Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
 func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

@@ -168,11 +168,6 @@ var (
 							Action:       ActionRead,
 						},
 						{
-							// All org members can read templates in the org
-							ResourceType: ResourceTemplate.Type,
-							Action:       ActionRead,
-						},
-						{
 							// Can read available roles.
 							ResourceType: ResourceOrgRoleAssignment.Type,
 							Action:       ActionRead,

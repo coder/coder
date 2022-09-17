@@ -1202,6 +1202,20 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
+func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.UserACL) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for i, t := range q.templates {
+		if t.ID == id {
+			t = t.SetUserACL(acl)
+			q.templates[i] = t
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1657,6 +1671,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		MinAutostartInterval: arg.MinAutostartInterval,
 		CreatedBy:            arg.CreatedBy,
 	}
+	template = template.SetUserACL(database.UserACL{})
 	q.templates = append(q.templates, template)
 	return template, nil
 }

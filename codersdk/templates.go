@@ -23,18 +23,29 @@ type Template struct {
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount            int       `json:"active_user_count"`
-	Description                string    `json:"description"`
-	Icon                       string    `json:"icon"`
-	MaxTTLMillis               int64     `json:"max_ttl_ms"`
-	MinAutostartIntervalMillis int64     `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.UUID `json:"created_by_id"`
-	CreatedByName              string    `json:"created_by_name"`
+	ActiveUserCount            int                     `json:"active_user_count"`
+	Description                string                  `json:"description"`
+	Icon                       string                  `json:"icon"`
+	MaxTTLMillis               int64                   `json:"max_ttl_ms"`
+	MinAutostartIntervalMillis int64                   `json:"min_autostart_interval_ms"`
+	CreatedByID                uuid.UUID               `json:"created_by_id"`
+	CreatedByName              string                  `json:"created_by_name"`
+	UserRoles                  map[string]TemplateRole `json:"user_roles"`
 }
 
 type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
 }
+
+type TemplateUserACL map[string]TemplateRole
+
+type TemplateRole string
+
+var (
+	TemplateRoleAdmin TemplateRole = "admin"
+	TemplateRoleWrite TemplateRole = "write"
+	TemplateRoleRead  TemplateRole = "read"
+)
 
 type UpdateTemplateMeta struct {
 	Name                       string `json:"name,omitempty" validate:"omitempty,username"`
@@ -42,6 +53,10 @@ type UpdateTemplateMeta struct {
 	Icon                       string `json:"icon,omitempty"`
 	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
 	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
+	// UserPerms is a map of user IDs to their corresponding role.
+	// In order to delete a user's permissions set a user's
+	// role to the empty string.
+	UserPerms map[string]TemplateRole `json:"user_perms"`
 }
 
 // Template returns a single template.

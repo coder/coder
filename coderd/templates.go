@@ -455,6 +455,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only users who are able to create templates (aka template admins)
+	// are able to control user permissions.
+	// TODO: It'd be nice to also assert delete since a template admin
+	// should be able to do both.
+	if len(req.UserPerms) > 0 && !api.Authorize(r, rbac.ActionCreate, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	var validErrs []codersdk.ValidationError
 	if req.MaxTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
@@ -463,13 +472,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
 	}
 	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid create template request.",
-			Validations: []codersdk.ValidationError{
-				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
-			},
-		})
-		return
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()})
+	}
+
+	for _, v := range req.UserPerms {
+		if err := validateTemplateRole(v); err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: err.Error()})
+		}
 	}
 
 	if len(validErrs) > 0 {
@@ -482,9 +491,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	count := uint32(0)
 	var updated database.Template
-	err := api.Database.InTx(func(s database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		// Fetch workspace counts
-		workspaceCounts, err := s.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
+		workspaceCounts, err := tx.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
@@ -521,7 +530,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}
 
-		updated, err = s.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
+		updated, err = tx.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
 			ID:                   template.ID,
 			UpdatedAt:            database.Now(),
 			Name:                 name,
@@ -532,6 +541,22 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return err
+		}
+
+		if len(req.UserPerms) > 0 {
+			userACL := template.UserACL()
+			for k, v := range req.UserPerms {
+				if len(v) == 0 {
+					delete(userACL, k)
+					continue
+				}
+				userACL[k] = database.TemplateRole(v)
+			}
+
+			err = tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
+			if err != nil {
+				return xerrors.Errorf("update template user ACL: %w", err)
+			}
 		}
 
 		return nil
@@ -775,5 +800,63 @@ func (api *API) convertTemplate(
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
 		CreatedByID:                template.CreatedBy,
 		CreatedByName:              createdByName,
+		UserRoles:                  convertTemplateACL(template.UserACL()),
 	}
+}
+
+func convertTemplateACL(acl database.UserACL) codersdk.TemplateUserACL {
+	userACL := make(codersdk.TemplateUserACL, len(acl))
+	for k, v := range acl {
+		userACL[k] = convertDatabaseTemplateRole(v)
+	}
+
+	return userACL
+}
+
+func convertDatabaseTemplateRole(role database.TemplateRole) codersdk.TemplateRole {
+	switch role {
+	case database.TemplateRoleAdmin:
+		return codersdk.TemplateRoleAdmin
+	case database.TemplateRoleWrite:
+		return codersdk.TemplateRoleWrite
+	case database.TemplateRoleRead:
+		return codersdk.TemplateRoleRead
+	}
+
+	return ""
+}
+
+func convertSDKTemplateRole(role codersdk.TemplateRole) database.TemplateRole {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return database.TemplateRoleAdmin
+	case codersdk.TemplateRoleWrite:
+		return database.TemplateRoleWrite
+	case codersdk.TemplateRoleRead:
+		return database.TemplateRoleRead
+	}
+
+	return ""
+}
+
+func templateRoleToActions(role codersdk.TemplateRole) []string {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return []string{rbac.WildcardSymbol}
+	case codersdk.TemplateRoleWrite:
+		return []string{rbac.ActionRead, rbac.ActionUpdate}
+	case codersdk.TemplateRoleRead:
+		return []string{rbac.ActionRead}
+	}
+
+	return nil
+}
+
+func validateTemplateRole(role codersdk.TemplateRole) error {
+	dbRole := convertSDKTemplateRole(role)
+	if dbRole == "" {
+		return xerrors.Errorf("role %q is not a valid Template role", role)
+	}
+
+	return nil
 }

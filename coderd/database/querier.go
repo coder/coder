@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type querier interface {
+type sqlcQuerier interface {
 	// Acquires the lock for a single job that isn't started, completed,
 	// canceled, and that matches an array of provisioner types.
 	//
@@ -154,4 +154,4 @@ type querier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 }
 
-var _ querier = (*sqlQuerier)(nil)
+var _ sqlcQuerier = (*sqlQuerier)(nil)

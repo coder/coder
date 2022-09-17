@@ -1,16 +1,63 @@
 package database
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func (t Template) RBACObject() rbac.Object {
-	return rbac.ResourceTemplate.InOrg(t.OrganizationID)
+// UserACL is a map of user_ids to permissions.
+type UserACL map[string]TemplateRole
+
+func (u UserACL) Actions() map[string][]rbac.Action {
+	aclRBAC := make(map[string][]rbac.Action, len(u))
+	for k, v := range u {
+		aclRBAC[k] = templateRoleToActions(v)
+	}
+
+	return aclRBAC
 }
 
-func (t TemplateVersion) RBACObject() rbac.Object {
+func (t Template) UserACL() UserACL {
+	var acl UserACL
+	err := json.Unmarshal(t.userACL, &acl)
+	if err != nil {
+		panic(fmt.Sprintf("failed to unmarshal template.userACL: %v", err.Error()))
+	}
+
+	return acl
+}
+
+func (t Template) SetUserACL(acl UserACL) Template {
+	raw, err := json.Marshal(acl)
+	if err != nil {
+		panic(fmt.Sprintf("marshal user acl: %v", err))
+	}
+
+	t.userACL = raw
+	return t
+}
+
+func templateRoleToActions(t TemplateRole) []rbac.Action {
+	switch t {
+	case TemplateRoleRead:
+		return []rbac.Action{rbac.ActionRead}
+	case TemplateRoleWrite:
+		return []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}
+	case TemplateRoleAdmin:
+		return []rbac.Action{rbac.WildcardSymbol}
+	}
+	return nil
+}
+
+func (t Template) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.InOrg(t.OrganizationID).WithACLUserList(t.UserACL().Actions())
+}
+
+func (t TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
-	return rbac.ResourceTemplate.InOrg(t.OrganizationID)
+	return rbac.ResourceTemplate.InOrg(t.OrganizationID).WithACLUserList(template.UserACL().Actions())
 }
 
 func (w Workspace) RBACObject() rbac.Object {

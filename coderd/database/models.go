@@ -274,6 +274,26 @@ func (e *ResourceType) Scan(src interface{}) error {
 	return nil
 }
 
+type TemplateRole string
+
+const (
+	TemplateRoleRead  TemplateRole = "read"
+	TemplateRoleWrite TemplateRole = "write"
+	TemplateRoleAdmin TemplateRole = "admin"
+)
+
+func (e *TemplateRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TemplateRole(s)
+	case string:
+		*e = TemplateRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TemplateRole: %T", src)
+	}
+	return nil
+}
+
 type UserStatus string
 
 const (
@@ -481,6 +501,7 @@ type Template struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
+	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
 }
 
 type TemplateVersion struct {
