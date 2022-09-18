@@ -211,6 +211,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
+  resources: [],
 }
 
 export const MockFailedWorkspaceBuild = (
@@ -231,6 +232,7 @@ export const MockFailedWorkspaceBuild = (
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
+  resources: [],
 })
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {

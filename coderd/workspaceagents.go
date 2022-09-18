@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -113,7 +114,7 @@ func (api *API) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
+	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	err = peerbroker.ProxyListen(ctx, session, peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
@@ -309,7 +310,7 @@ func (api *API) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
+	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
@@ -398,8 +399,9 @@ func (api *API) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, wsNetConn := websocketNetConn(r.Context(), wsConn, websocket.MessageBinary)
-	defer wsNetConn.Close()     // Also closes conn.
-	tracing.EndHTTPSpan(r, 200) // end span so we don't get long lived trace data
+	defer wsNetConn.Close() // Also closes conn.
+	// end span so we don't get long lived trace data
+	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	api.Logger.Debug(ctx, "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {

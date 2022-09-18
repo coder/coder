@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -38,12 +39,12 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	appName, port := httpapi.AppNameOrPort(chi.URLParam(r, "workspaceapp"))
 	api.proxyWorkspaceApplication(proxyApplication{
-		Workspace:        workspace,
-		Agent:            agent,
-		AppName:          appName,
-		Port:             port,
+		Workspace: workspace,
+		Agent:     agent,
+		// We do not support port proxying for paths.
+		AppName:          chi.URLParam(r, "workspaceapp"),
+		Port:             0,
 		Path:             chiPath,
 		DashboardOnError: true,
 	}, rw, r)
@@ -125,6 +126,7 @@ type proxyApplication struct {
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionCreate, proxyApp.Workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -138,7 +140,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	// If the app name was used instead, fetch the app from the database so we
 	// can get the internal URL.
 	if proxyApp.AppName != "" {
-		app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
+		app, err := api.Database.GetWorkspaceAppByAgentIDAndName(ctx, database.GetWorkspaceAppByAgentIDAndNameParams{
 			AgentID: proxyApp.Agent.ID,
 			Name:    proxyApp.AppName,
 		})
@@ -195,7 +197,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		if proxyApp.DashboardOnError {
 			// To pass friendly errors to the frontend, special meta tags are
 			// overridden in the index.html with the content passed here.
-			r = r.WithContext(site.WithAPIResponse(r.Context(), site.APIResponse{
+			r = r.WithContext(site.WithAPIResponse(ctx, site.APIResponse{
 				StatusCode: http.StatusBadGateway,
 				Message:    err.Error(),
 			}))
@@ -228,7 +230,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	proxy.Transport = conn.HTTPTransport()
 
 	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
+	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	proxy.ServeHTTP(rw, r)
 }

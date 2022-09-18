@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -29,29 +30,34 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
+	data, err := api.workspaceBuildsData(r.Context(), []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
+			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID},
-	})
+	apiBuild, err := api.convertWorkspaceBuild(
+		workspaceBuild,
+		workspace,
+		data.jobs[0],
+		data.users,
+		data.resources,
+		data.metadata,
+		data.agents,
+		data.apps,
+	)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
+			Message: "Internal error converting workspace build.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK,
-		convertWorkspaceBuild(findUser(workspace.OwnerID, users), findUser(workspaceBuild.InitiatorID, users),
-			workspace, workspaceBuild, job))
+	httpapi.Write(rw, http.StatusOK, apiBuild)
 }
 
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -67,7 +73,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var builds []database.WorkspaceBuild
+	var workspaceBuilds []database.WorkspaceBuild
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
 		var err error
@@ -95,7 +101,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			OffsetOpt:   int32(paginationParams.Offset),
 			LimitOpt:    int32(paginationParams.Limit),
 		}
-		builds, err = store.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
+		workspaceBuilds, err = store.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
@@ -113,53 +119,31 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobIDs := make([]uuid.UUID, 0, len(builds))
-	for _, build := range builds {
-		jobIDs = append(jobIDs, build.JobID)
-	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+	data, err := api.workspaceBuildsData(r.Context(), []database.Workspace{workspace}, workspaceBuilds)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner jobs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	jobByID := map[string]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID.String()] = job
-	}
-
-	userIDs := []uuid.UUID{workspace.OwnerID}
-	for _, build := range builds {
-		userIDs = append(userIDs, build.InitiatorID)
-	}
-	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-		IDs: userIDs,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
+			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	apiBuilds := make([]codersdk.WorkspaceBuild, 0)
-	for _, build := range builds {
-		job, exists := jobByID[build.JobID.String()]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Job %q doesn't exist for build %q.", build.JobID, build.ID),
-			})
-			return
-		}
-		apiBuilds = append(apiBuilds,
-			convertWorkspaceBuild(findUser(workspace.OwnerID, users), findUser(build.InitiatorID, users),
-				workspace, build, job))
+	apiBuilds, err := api.convertWorkspaceBuilds(
+		workspaceBuilds,
+		[]database.Workspace{workspace},
+		data.jobs,
+		data.users,
+		data.resources,
+		data.metadata,
+		data.agents,
+		data.apps,
+	)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace build.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiBuilds)
@@ -216,29 +200,34 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
+	data, err := api.workspaceBuildsData(r.Context(), []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
+			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(r.Context(), database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{workspace.OwnerID, workspaceBuild.InitiatorID},
-	})
+	apiBuild, err := api.convertWorkspaceBuild(
+		workspaceBuild,
+		workspace,
+		data.jobs[0],
+		data.users,
+		data.resources,
+		data.metadata,
+		data.agents,
+		data.apps,
+	)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
+			Message: "Internal error converting workspace build.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK,
-		convertWorkspaceBuild(findUser(workspace.OwnerID, users), findUser(workspaceBuild.InitiatorID, users),
-			workspace, workspaceBuild, job))
+	httpapi.Write(rw, http.StatusOK, apiBuild)
 }
 
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -496,9 +485,25 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated,
-		convertWorkspaceBuild(findUser(workspace.OwnerID, users), findUser(workspaceBuild.InitiatorID, users),
-			workspace, workspaceBuild, provisionerJob))
+	apiBuild, err := api.convertWorkspaceBuild(
+		workspaceBuild,
+		workspace,
+		provisionerJob,
+		users,
+		[]database.WorkspaceResource{},
+		[]database.WorkspaceResourceMetadatum{},
+		[]database.WorkspaceAgent{},
+		[]database.WorkspaceApp{},
+	)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, apiBuild)
 }
 
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
@@ -627,47 +632,220 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
 }
 
-func convertWorkspaceBuild(
-	workspaceOwner *database.User,
-	buildInitiator *database.User,
+type workspaceBuildsData struct {
+	users     []database.User
+	jobs      []database.ProvisionerJob
+	resources []database.WorkspaceResource
+	metadata  []database.WorkspaceResourceMetadatum
+	agents    []database.WorkspaceAgent
+	apps      []database.WorkspaceApp
+}
+
+func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		userIDs = append(userIDs, build.InitiatorID)
+	}
+	for _, workspace := range workspaces {
+		userIDs = append(userIDs, workspace.OwnerID)
+	}
+	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
+		IDs: userIDs,
+	})
+	if err != nil {
+		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
+	}
+
+	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		jobIDs = append(jobIDs, build.JobID)
+	}
+	jobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+	}
+
+	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+	}
+
+	if len(resources) == 0 {
+		return workspaceBuildsData{
+			users: users,
+			jobs:  jobs,
+		}, nil
+	}
+
+	resourceIDs := make([]uuid.UUID, 0)
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	if len(resources) == 0 {
+		return workspaceBuildsData{
+			users:     users,
+			jobs:      jobs,
+			resources: resources,
+			metadata:  metadata,
+		}, nil
+	}
+
+	agentIDs := make([]uuid.UUID, 0)
+	for _, agent := range agents {
+		agentIDs = append(agentIDs, agent.ID)
+	}
+
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
+	}
+
+	return workspaceBuildsData{
+		users:     users,
+		jobs:      jobs,
+		resources: resources,
+		metadata:  metadata,
+		agents:    agents,
+		apps:      apps,
+	}, nil
+}
+
+func (api *API) convertWorkspaceBuilds(
+	workspaceBuilds []database.WorkspaceBuild,
+	workspaces []database.Workspace,
+	jobs []database.ProvisionerJob,
+	users []database.User,
+	workspaceResources []database.WorkspaceResource,
+	resourceMetadata []database.WorkspaceResourceMetadatum,
+	resourceAgents []database.WorkspaceAgent,
+	agentApps []database.WorkspaceApp,
+) ([]codersdk.WorkspaceBuild, error) {
+	workspaceByID := map[uuid.UUID]database.Workspace{}
+	for _, workspace := range workspaces {
+		workspaceByID[workspace.ID] = workspace
+	}
+	jobByID := map[uuid.UUID]database.ProvisionerJob{}
+	for _, job := range jobs {
+		jobByID[job.ID] = job
+	}
+
+	var apiBuilds []codersdk.WorkspaceBuild
+	for _, build := range workspaceBuilds {
+		job, exists := jobByID[build.JobID]
+		if !exists {
+			return nil, xerrors.New("build job not found")
+		}
+		workspace, exists := workspaceByID[build.WorkspaceID]
+		if !exists {
+			return nil, xerrors.New("workspace not found")
+		}
+
+		apiBuild, err := api.convertWorkspaceBuild(
+			build,
+			workspace,
+			job,
+			users,
+			workspaceResources,
+			resourceMetadata,
+			resourceAgents,
+			agentApps,
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("converting workspace build: %w", err)
+		}
+
+		apiBuilds = append(apiBuilds, apiBuild)
+	}
+
+	return apiBuilds, nil
+}
+
+func (api *API) convertWorkspaceBuild(
+	build database.WorkspaceBuild,
 	workspace database.Workspace,
-	workspaceBuild database.WorkspaceBuild,
 	job database.ProvisionerJob,
-) codersdk.WorkspaceBuild {
-	//nolint:unconvert
-	if workspace.ID != workspaceBuild.WorkspaceID {
-		panic("workspace and build do not match")
+	users []database.User,
+	workspaceResources []database.WorkspaceResource,
+	resourceMetadata []database.WorkspaceResourceMetadatum,
+	resourceAgents []database.WorkspaceAgent,
+	agentApps []database.WorkspaceApp,
+) (codersdk.WorkspaceBuild, error) {
+	userByID := map[uuid.UUID]database.User{}
+	for _, user := range users {
+		userByID[user.ID] = user
+	}
+	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
+	for _, resource := range workspaceResources {
+		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
+	}
+	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
+	for _, metadata := range resourceMetadata {
+		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
+	}
+	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
+	for _, agent := range resourceAgents {
+		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
+	}
+	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
+	for _, app := range agentApps {
+		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 	}
 
-	// Both owner and initiator should always be present. But from a static
-	// code analysis POV, these could be nil.
-	ownerName := "unknown"
-	if workspaceOwner != nil {
-		ownerName = workspaceOwner.Username
+	owner, exists := userByID[workspace.OwnerID]
+	if !exists {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
+	}
+	initiator, exists := userByID[build.InitiatorID]
+	if !exists {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("build initiator not found for workspace: %q", workspace.Name)
 	}
 
-	initiatorName := "unknown"
-	if workspaceOwner != nil {
-		initiatorName = buildInitiator.Username
+	resources := resourcesByJobID[job.ID]
+	apiResources := make([]codersdk.WorkspaceResource, 0)
+	for _, resource := range resources {
+		agents := agentsByResourceID[resource.ID]
+		apiAgents := make([]codersdk.WorkspaceAgent, 0)
+		for _, agent := range agents {
+			apps := appsByAgentID[agent.ID]
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
+			}
+			apiAgents = append(apiAgents, apiAgent)
+		}
+		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
+		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
 
 	return codersdk.WorkspaceBuild{
-		ID:                 workspaceBuild.ID,
-		CreatedAt:          workspaceBuild.CreatedAt,
-		UpdatedAt:          workspaceBuild.UpdatedAt,
+		ID:                 build.ID,
+		CreatedAt:          build.CreatedAt,
+		UpdatedAt:          build.UpdatedAt,
 		WorkspaceOwnerID:   workspace.OwnerID,
-		WorkspaceOwnerName: ownerName,
-		WorkspaceID:        workspaceBuild.WorkspaceID,
+		WorkspaceOwnerName: owner.Username,
+		WorkspaceID:        build.WorkspaceID,
 		WorkspaceName:      workspace.Name,
-		TemplateVersionID:  workspaceBuild.TemplateVersionID,
-		BuildNumber:        workspaceBuild.BuildNumber,
-		Transition:         codersdk.WorkspaceTransition(workspaceBuild.Transition),
-		InitiatorID:        workspaceBuild.InitiatorID,
-		InitiatorUsername:  initiatorName,
+		TemplateVersionID:  build.TemplateVersionID,
+		BuildNumber:        build.BuildNumber,
+		Transition:         codersdk.WorkspaceTransition(build.Transition),
+		InitiatorID:        build.InitiatorID,
+		InitiatorUsername:  initiator.Username,
 		Job:                convertProvisionerJob(job),
-		Deadline:           codersdk.NewNullTime(workspaceBuild.Deadline, !workspaceBuild.Deadline.IsZero()),
-		Reason:             codersdk.BuildReason(workspaceBuild.Reason),
-	}
+		Deadline:           codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
+		Reason:             codersdk.BuildReason(build.Reason),
+		Resources:          apiResources,
+	}, nil
 }
 
 func convertWorkspaceResource(resource database.WorkspaceResource, agents []codersdk.WorkspaceAgent, metadata []database.WorkspaceResourceMetadatum) codersdk.WorkspaceResource {

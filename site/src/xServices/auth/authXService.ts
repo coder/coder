@@ -408,7 +408,6 @@ export const authMachine =
           tags: "loading",
         },
         waitingForTheFirstUser: {
-          entry: "redirectToSetupPage",
           on: {
             SIGN_IN: {
               target: "signingIn",
