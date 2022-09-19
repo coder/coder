@@ -37,15 +37,6 @@ func (w fakeObject) RBACObject() Object {
 	}
 }
 
-func TestFilterError(t *testing.T) {
-	t.Parallel()
-	auth, err := NewAuthorizer()
-	require.NoError(t, err)
-
-	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
-	require.ErrorContains(t, err, "object types must be uniform")
-}
-
 // TestFilter ensures the filter acts the same as an individual authorize.
 // It generates a random set of objects, then runs the Filter batch function
 // against the singular ByRoleName function.

@@ -19,28 +19,34 @@ type PreparedAuthorized interface {
 }
 
 // Filter takes in a list of objects, and will filter the list removing all
-// the elements the subject does not have permission for. All objects must be
-// of the same type.
+// the elements the subject does not have permission for. This function slows
+// down if the list contains objects of multiple types. Attempt to only
+// filter objects of the same type for faster performance.
 func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, action Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
 	}
-	objectType := objects[0].RBACObject().Type
 
 	filtered := make([]O, 0)
-	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, action, objectType)
-	if err != nil {
-		return nil, xerrors.Errorf("prepare: %w", err)
-	}
+	prepared := make(map[string]PreparedAuthorized)
 
 	for i := range objects {
 		object := objects[i]
-		rbacObj := object.RBACObject()
-		if rbacObj.Type != objectType {
-			return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, object.RBACObject().Type)
+		objectType := object.RBACObject().Type
+		// objectAuth is the prepared authorization for the object type.
+		objectAuth, ok := prepared[object.RBACObject().Type]
+		if !ok {
+			var err error
+			objectAuth, err = auth.PrepareByRoleName(ctx, subjID, subjRoles, action, objectType)
+			if err != nil {
+				return nil, xerrors.Errorf("prepare: %w", err)
+			}
+			prepared[objectType] = objectAuth
 		}
-		err := prepared.Authorize(ctx, rbacObj)
+
+		rbacObj := object.RBACObject()
+		err := objectAuth.Authorize(ctx, rbacObj)
 		if err == nil {
 			filtered = append(filtered, object)
 		}
