@@ -399,6 +399,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
 func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.TemplateVersion {
+	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)

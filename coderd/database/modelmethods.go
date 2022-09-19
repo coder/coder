@@ -21,6 +21,10 @@ func (u UserACL) Actions() map[string][]rbac.Action {
 
 func (t Template) UserACL() UserACL {
 	var acl UserACL
+	if len(t.userACL) == 0 {
+		return acl
+	}
+
 	err := json.Unmarshal(t.userACL, &acl)
 	if err != nil {
 		panic(fmt.Sprintf("failed to unmarshal template.userACL: %v", err.Error()))

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -32,6 +33,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			if !parsed {
 				return
 			}
+
 			templateVersion, err := db.GetTemplateVersionByID(r.Context(), templateVersionID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.ResourceNotFound(rw)
@@ -46,11 +48,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			}
 
 			template, err := db.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
-			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			if err != nil {
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching template.",
 					Detail:  err.Error(),
@@ -61,8 +59,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			ctx := context.WithValue(r.Context(), templateVersionParamContextKey{}, templateVersion)
 			chi.RouteContext(ctx).URLParams.Add("organization", templateVersion.OrganizationID.String())
 
-			ctx = context.WithValue(r.Context(), templateParamContextKey{}, template)
-			chi.RouteContext(ctx).URLParams.Add("organization", template.OrganizationID.String())
+			ctx = context.WithValue(ctx, templateParamContextKey{}, template)
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

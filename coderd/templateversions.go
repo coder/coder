@@ -27,6 +27,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		templateVersion = httpmw.TemplateVersionParam(r)
 		template        = httpmw.TemplateParam(r)
 	)
+
 	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
