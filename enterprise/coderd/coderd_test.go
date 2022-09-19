@@ -159,7 +159,7 @@ func TestEntitlements(t *testing.T) {
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(-1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				AuditLog: true,
+				ExpiresAt: database.Now().AddDate(-1, 0, 0),
 			}),
 		})
 		require.NoError(t, err)
