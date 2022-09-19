@@ -321,7 +321,7 @@ func (api *API) postWorkspaceAppHealths(rw http.ResponseWriter, r *http.Request)
 	}
 
 	for _, app := range newApps {
-		api.Database.UpdateWorkspaceAppHealthByID(r.Context(), database.UpdateWorkspaceAppHealthByIDParams{
+		err = api.Database.UpdateWorkspaceAppHealthByID(r.Context(), database.UpdateWorkspaceAppHealthByIDParams{
 			ID:        app.ID,
 			UpdatedAt: time.Now(),
 			Health:    app.Health,
