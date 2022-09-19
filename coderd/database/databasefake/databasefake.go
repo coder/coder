@@ -3,7 +3,6 @@ package databasefake
 import (
 	"context"
 	"database/sql"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -2395,7 +2394,6 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
 		}
-		runtime.Breakpoint()
 		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
 			continue
 		}
