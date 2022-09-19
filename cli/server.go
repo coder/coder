@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/prometheusmetrics"
@@ -430,7 +431,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("ping postgres: %w", err)
 				}
-				err = database.MigrateUp(sqlDB)
+				err = migrations.Up(sqlDB)
 				if err != nil {
 					return xerrors.Errorf("migrate up: %w", err)
 				}

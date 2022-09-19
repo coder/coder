@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/userpassword"
 )
 
@@ -35,7 +36,7 @@ func resetPassword() *cobra.Command {
 				return xerrors.Errorf("ping postgres: %w", err)
 			}
 
-			err = database.EnsureClean(sqlDB)
+			err = migrations.EnsureClean(sqlDB)
 			if err != nil {
 				return xerrors.Errorf("database needs migration: %w", err)
 			}
