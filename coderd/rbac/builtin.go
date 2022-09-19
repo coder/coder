@@ -398,12 +398,12 @@ func roleSplit(role string) (name string, orgID string, err error) {
 // and actions a bit easier.
 func permissions(perms map[string][]Action) []Permission {
 	list := make([]Permission, 0, len(perms))
-	for objectType, actions := range perms {
+	for k, actions := range perms {
 		for _, act := range actions {
 			act := act
 			list = append(list, Permission{
 				Negate:       false,
-				ResourceType: objectType,
+				ResourceType: k,
 				Action:       act,
 			})
 		}
