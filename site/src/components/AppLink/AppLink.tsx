@@ -1,6 +1,8 @@
 import Button from "@material-ui/core/Button"
+import CircularProgress from "@material-ui/core/CircularProgress"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import CloseIcon from "@material-ui/icons/Close"
 import ComputerIcon from "@material-ui/icons/Computer"
 import { FC, PropsWithChildren } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -17,6 +19,7 @@ export interface AppLinkProps {
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
+  health: TypesGen.WorkspaceApp["health"]
 }
 
 export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
@@ -26,6 +29,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   appName,
   appIcon,
   appCommand,
+  health,
 }) => {
   const styles = useStyles()
 
@@ -38,37 +42,57 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
     )}`
   }
 
+  let canClick = true
+  let icon = appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />
+  if (health === "initializing") {
+    canClick = false
+    icon = <CircularProgress size={16} />
+  }
+  if (health === "unhealthy") {
+    canClick = false
+    icon = <CloseIcon className={styles.unhealthyIcon} />
+  }
+
   return (
     <Link
       href={href}
       target="_blank"
-      className={styles.link}
-      onClick={(event) => {
-        event.preventDefault()
-        window.open(
-          href,
-          Language.appTitle(appName, generateRandomString(12)),
-          "width=900,height=600",
-        )
-      }}
+      className={canClick ? styles.link : styles.disabledLink}
+      onClick={
+        canClick
+          ? (event) => {
+              event.preventDefault()
+              window.open(
+                href,
+                Language.appTitle(appName, generateRandomString(12)),
+                "width=900,height=600",
+              )
+            }
+          : undefined
+      }
     >
-      <Button
-        size="small"
-        startIcon={appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />}
-        className={styles.button}
-      >
+      <Button size="small" startIcon={icon} className={styles.button} disabled={!canClick}>
         {appName}
       </Button>
     </Link>
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   link: {
+    textDecoration: "none !important",
+  },
+
+  disabledLink: {
+    pointerEvents: "none",
     textDecoration: "none !important",
   },
 
   button: {
     whiteSpace: "nowrap",
+  },
+
+  unhealthyIcon: {
+    color: theme.palette.error.main,
   },
 }))

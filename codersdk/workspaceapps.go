@@ -20,11 +20,14 @@ type WorkspaceApp struct {
 	Command string `json:"command,omitempty"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
-	Icon   string             `json:"icon,omitempty"`
-	Status WorkspaceAppHealth `json:"health"`
+	Icon                 string             `json:"icon,omitempty"`
+	HealthcheckEnabled   bool               `json:"healthcheck_enabled"`
+	HealthcheckPeriod    int32              `json:"healthcheck_period"`
+	HealthcheckThreshold int32              `json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `json:"health"`
 }
 
 type PostWorkspaceAppHealthsRequest struct {
-	// Healths is a map of the workspace app name and the status of the app.
+	// Healths is a map of the workspace app name and the health of the app.
 	Healths map[string]WorkspaceAppHealth
 }
