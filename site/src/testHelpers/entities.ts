@@ -324,6 +324,10 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
   icon: "",
+  health: "disabled",
+  healthcheck_enabled: false,
+  healthcheck_period: 0,
+  healthcheck_threshold: 0,
 }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
