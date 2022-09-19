@@ -8,18 +8,22 @@ import { workspacesMachine } from "xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
-  const [workspacesState, send] = useMachine(workspacesMachine)
   const [searchParams, setSearchParams] = useSearchParams()
+  const filter = searchParams.get("filter")
+  const defaultFilter = filter ?? workspaceFilterQuery.me
+  const [workspacesState, send] = useMachine(workspacesMachine, {
+    context: {
+      filter: defaultFilter,
+    },
+  })
+
   const { workspaceRefs } = workspacesState.context
 
   // On page load, populate the table with workspaces
   useEffect(() => {
-    const filter = searchParams.get("filter")
-    const query = filter ?? workspaceFilterQuery.me
-
     send({
       type: "GET_WORKSPACES",
-      query,
+      query: defaultFilter,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
