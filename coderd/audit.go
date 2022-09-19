@@ -46,7 +46,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Offset:       int32(page.Offset),
 		Limit:        int32(page.Limit),
 		ResourceType: filter.ResourceType,
+		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
+		Username:     filter.Username,
+		UserEmail:    filter.UserEmail,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -77,7 +80,10 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 
 	count, err := api.Database.GetAuditLogCount(ctx, database.GetAuditLogCountParams{
 		ResourceType: filter.ResourceType,
+		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
+		Username:     filter.Username,
+		UserEmail:    filter.UserEmail,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

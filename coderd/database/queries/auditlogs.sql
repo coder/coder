@@ -20,10 +20,34 @@ WHERE
 			resource_type = @resource_type :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN @resource_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = @resource_id
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN @resource_target :: text != '' THEN
+			resource_target = @resource_target
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
 		WHEN @action :: text != '' THEN
 			action = @action :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN @username :: text != '' THEN
+			user_username = @username
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN @user_email :: text != '' THEN
+			user_email = @user_email
 		ELSE true
 	END
 ORDER BY
@@ -45,10 +69,34 @@ WHERE
 			resource_type = @resource_type :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN @resource_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = @resource_id
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN @resource_target :: text != '' THEN
+			resource_target = @resource_target
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
 		WHEN @action :: text != '' THEN
 			action = @action :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN @username :: text != '' THEN
+			user_username = @username
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN @user_email :: text != '' THEN
+			user_email = @user_email
 		ELSE true
 	END;
 
