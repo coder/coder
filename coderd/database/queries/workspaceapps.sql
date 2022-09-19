@@ -24,3 +24,12 @@ INSERT INTO
     )
 VALUES
     ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+
+-- name: UpdateWorkspaceAppHealthByID :exec
+UPDATE
+	workspace_apps
+SET
+	updated_at = $2,
+	health = $3
+WHERE
+	id = $1;

@@ -22,3 +22,8 @@ type WorkspaceApp struct {
 	Icon   string             `json:"icon,omitempty"`
 	Status WorkspaceAppHealth `json:"health"`
 }
+
+type PostWorkspaceAppHealthsRequest struct {
+	// Healths is a map of the workspace app name and the status of the app.
+	Healths map[string]WorkspaceAppHealth
+}

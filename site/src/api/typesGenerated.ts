@@ -336,6 +336,11 @@ export interface PostWorkspaceAgentVersionRequest {
   readonly version: string
 }
 
+// From codersdk/workspaceapps.go
+export interface PostWorkspaceAppHealthsRequest {
+  readonly Healths: Record<string, WorkspaceAppHealth>
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string

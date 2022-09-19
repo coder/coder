@@ -7,9 +7,11 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -253,4 +255,77 @@ func (api *API) applicationCookie(authCookie *http.Cookie) *http.Cookie {
 	// another hostname.
 	appCookie.Domain = "." + api.AccessURL.Hostname()
 	return &appCookie
+}
+
+func (api *API) postWorkspaceAppHealths(rw http.ResponseWriter, r *http.Request) {
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	var req codersdk.PostWorkspaceAppHealthsRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	apps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error getting agent apps",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var newApps []database.WorkspaceApp
+	for name, health := range req.Healths {
+		var found *database.WorkspaceApp
+		for _, app := range apps {
+			if app.Name == name {
+				found = &app
+			}
+		}
+		if found == nil {
+			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  xerrors.Errorf("workspace app name %s not found", name).Error(),
+			})
+			return
+		}
+
+		switch health {
+		case codersdk.WorkspaceAppInitializing:
+			found.Health = database.WorkspaceAppHealthIntializing
+		case codersdk.WorkspaceAppHealthy:
+			found.Health = database.WorkspaceAppHealthHealthy
+		case codersdk.WorkspaceAppUnhealthy:
+			found.Health = database.WorkspaceAppHealthUnhealthy
+		default:
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", health).Error(),
+			})
+			return
+		}
+
+		// don't save if the value hasn't changed
+		if found.Health == database.WorkspaceAppHealth(health) {
+			continue
+		}
+
+		newApps = append(newApps, *found)
+	}
+
+	for _, app := range newApps {
+		api.Database.UpdateWorkspaceAppHealthByID(r.Context(), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:        app.ID,
+			UpdatedAt: time.Now(),
+			Health:    app.Health,
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	httpapi.Write(rw, http.StatusOK, nil)
 }

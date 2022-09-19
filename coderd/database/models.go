@@ -604,6 +604,7 @@ type WorkspaceApp struct {
 	Url          sql.NullString     `db:"url" json:"url"`
 	RelativePath bool               `db:"relative_path" json:"relative_path"`
 	Health       WorkspaceAppHealth `db:"health" json:"health"`
+	UpdatedAt    time.Time          `db:"updated_at" json:"updated_at"`
 }
 
 type WorkspaceBuild struct {
