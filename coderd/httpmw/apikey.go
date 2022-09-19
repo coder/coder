@@ -41,7 +41,7 @@ type Authorization struct {
 	ID       uuid.UUID
 	Username string
 	Roles    []string
-	Scope    database.ApiKeyScope
+	Scope    database.APIKeyScope
 }
 
 // UserAuthorization returns the roles and scope used for authorization. Depends

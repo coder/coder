@@ -4,11 +4,11 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func (s ApiKeyScope) ToRBAC() rbac.Scope {
+func (s APIKeyScope) ToRBAC() rbac.Scope {
 	switch s {
-	case ApiKeyScopeAny:
-		return rbac.ScopeAny
-	case ApiKeyScopeApplicationConnect:
+	case APIKeyScopeAll:
+		return rbac.ScopeAll
+	case APIKeyScopeApplicationConnect:
 		return rbac.ScopeApplicationConnect
 	default:
 		panic("developer error: unknown scope type " + string(s))

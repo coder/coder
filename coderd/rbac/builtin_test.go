@@ -39,27 +39,27 @@ func BenchmarkRBACFilter(b *testing.B) {
 			Name:   "NoRoles",
 			Roles:  []string{},
 			UserID: users[0],
-			Scope:  rbac.ScopeAny,
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "Admin",
 			// Give some extra roles that an admin might have
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
 			UserID: users[0],
-			Scope:  rbac.ScopeAny,
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name:   "OrgAdmin",
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]), rbac.RoleMember()},
 			UserID: users[0],
-			Scope:  rbac.ScopeAny,
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "OrgMember",
 			// Member of 2 orgs
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgMember(orgs[1]), rbac.RoleMember()},
 			UserID: users[0],
-			Scope:  rbac.ScopeAny,
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "ManyRoles",
@@ -71,7 +71,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 				rbac.RoleMember(),
 			},
 			UserID: users[0],
-			Scope:  rbac.ScopeAny,
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "AdminWithScope",
@@ -359,7 +359,7 @@ func TestRolePermissions(t *testing.T) {
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
 						// TODO: scopey
-						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAny, action, c.Resource)
+						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAll, action, c.Resource)
 						if result {
 							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {

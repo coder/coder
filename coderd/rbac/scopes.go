@@ -9,16 +9,16 @@ import (
 type Scope string
 
 const (
-	ScopeAny                Scope = "any"
+	ScopeAll                Scope = "all"
 	ScopeApplicationConnect Scope = "application_connect"
 )
 
 var builtinScopes map[Scope]Role = map[Scope]Role{
-	// ScopeAny is a special scope that allows access to all resources. During
+	// ScopeAll is a special scope that allows access to all resources. During
 	// authorize checks it is usually not used directly and skips scope checks.
-	ScopeAny: {
-		Name:        fmt.Sprintf("Scope_%s", ScopeAny),
-		DisplayName: "Any operation",
+	ScopeAll: {
+		Name:        fmt.Sprintf("Scope_%s", ScopeAll),
+		DisplayName: "All operations",
 		Site: permissions(map[Object][]Action{
 			ResourceWildcard: {WildcardSymbol},
 		}),

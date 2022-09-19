@@ -95,7 +95,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 	}
 
 	// If the scope isn't "any", we need to check with the scope's role as well.
-	if scope != ScopeAny {
+	if scope != ScopeAll {
 		scopeRole := builtinScopes[scope]
 		err = a.Authorize(ctx, subjectID, []Role{scopeRole}, action, object)
 		if err != nil {

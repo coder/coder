@@ -37,7 +37,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 	}
 
 	var scopeAuth *subPartialAuthorizer
-	if scope != ScopeAny {
+	if scope != ScopeAll {
 		scopeRole := builtinScopes[scope]
 		scopeAuth, err = newSubPartialAuthorizer(ctx, subjectID, []Role{scopeRole}, action, objectType)
 		if err != nil {

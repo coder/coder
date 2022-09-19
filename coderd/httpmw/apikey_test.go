@@ -146,7 +146,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			UserID:       user.ID,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -172,7 +172,7 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			UserID:       user.ID,
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -199,7 +199,7 @@ func TestAPIKey(t *testing.T) {
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -240,14 +240,14 @@ func TestAPIKey(t *testing.T) {
 			HashedSecret: hashed[:],
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeApplicationConnect,
+			Scope:        database.APIKeyScopeApplicationConnect,
 		})
 		require.NoError(t, err)
 
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
-			assert.Equal(t, database.ApiKeyScopeApplicationConnect, apiKey.Scope)
+			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
 
 			httpapi.Write(rw, http.StatusOK, codersdk.Response{
 				Message: "it worked!",
@@ -279,7 +279,7 @@ func TestAPIKey(t *testing.T) {
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -313,7 +313,7 @@ func TestAPIKey(t *testing.T) {
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -347,7 +347,7 @@ func TestAPIKey(t *testing.T) {
 			ExpiresAt:    database.Now().Add(time.Minute),
 			UserID:       user.ID,
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
@@ -381,7 +381,7 @@ func TestAPIKey(t *testing.T) {
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 
@@ -421,7 +421,7 @@ func TestAPIKey(t *testing.T) {
 			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
 			UserID:       user.ID,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
@@ -474,7 +474,7 @@ func TestAPIKey(t *testing.T) {
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 			UserID:       user.ID,
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)

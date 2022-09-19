@@ -1073,7 +1073,7 @@ func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scope:        database.ApiKeyScopeAny,
+		Scope:        database.APIKeyScopeAll,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert API key: %w", err)

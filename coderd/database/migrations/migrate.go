@@ -1,4 +1,4 @@
-package database
+package migrations
 
 import (
 	"context"
@@ -14,12 +14,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
-//go:embed migrations/*.sql
+//go:embed *.sql
 var migrations embed.FS
 
 func migrateSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 	ctx := context.Background()
-	sourceDriver, err := iofs.New(migrations, "migrations")
+	sourceDriver, err := iofs.New(migrations, ".")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create iofs: %w", err)
 	}

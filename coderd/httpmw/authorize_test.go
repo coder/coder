@@ -124,7 +124,7 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		LastUsed:     database.Now(),
 		ExpiresAt:    database.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
-		Scope:        database.ApiKeyScopeAny,
+		Scope:        database.APIKeyScopeAll,
 	})
 	require.NoError(t, err)
 

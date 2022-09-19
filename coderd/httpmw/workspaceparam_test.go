@@ -54,7 +54,7 @@ func TestWorkspaceParam(t *testing.T) {
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.ApiKeyScopeAny,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 
@@ -360,7 +360,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 		LastUsed:     database.Now(),
 		ExpiresAt:    database.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
-		Scope:        database.ApiKeyScopeAny,
+		Scope:        database.APIKeyScopeAll,
 	})
 	require.NoError(t, err)
 

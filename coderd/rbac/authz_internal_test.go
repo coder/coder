@@ -43,7 +43,7 @@ func TestFilterError(t *testing.T) {
 	auth, err := NewAuthorizer()
 	require.NoError(t, err)
 
-	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAny, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -163,7 +163,7 @@ func TestFilter(t *testing.T) {
 			auth, err := NewAuthorizer()
 			require.NoError(t, err, "new auth")
 
-			scope := ScopeAny
+			scope := ScopeAll
 			if tc.Scope != "" {
 				scope = tc.Scope
 			}
@@ -703,13 +703,13 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
 
-					scope := ScopeAny
+					scope := ScopeAll
 					if subject.Scope != "" {
 						scope = subject.Scope
 					}
 
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
-					if authError == nil && scope != ScopeAny {
+					if authError == nil && scope != ScopeAll {
 						scopeRole := builtinScopes[scope]
 						authError = authorizer.Authorize(ctx, subject.UserID, []Role{scopeRole}, a, c.resource)
 					}

@@ -14,21 +14,21 @@ import (
 	"github.com/tabbed/pqtype"
 )
 
-type ApiKeyScope string
+type APIKeyScope string
 
 const (
-	ApiKeyScopeAny                ApiKeyScope = "any"
-	ApiKeyScopeApplicationConnect ApiKeyScope = "application_connect"
+	APIKeyScopeAll                APIKeyScope = "all"
+	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
 )
 
-func (e *ApiKeyScope) Scan(src interface{}) error {
+func (e *APIKeyScope) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = ApiKeyScope(s)
+		*e = APIKeyScope(s)
 	case string:
-		*e = ApiKeyScope(s)
+		*e = APIKeyScope(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ApiKeyScope: %T", src)
+		return fmt.Errorf("unsupported scan type for APIKeyScope: %T", src)
 	}
 	return nil
 }
@@ -343,7 +343,7 @@ type APIKey struct {
 	LoginType       LoginType   `db:"login_type" json:"login_type"`
 	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
 	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
-	Scope           ApiKeyScope `db:"scope" json:"scope"`
+	Scope           APIKeyScope `db:"scope" json:"scope"`
 }
 
 type AgentStat struct {

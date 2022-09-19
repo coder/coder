@@ -231,7 +231,7 @@ type InsertAPIKeyParams struct {
 	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
 	LoginType       LoginType   `db:"login_type" json:"login_type"`
-	Scope           ApiKeyScope `db:"scope" json:"scope"`
+	Scope           APIKeyScope `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {

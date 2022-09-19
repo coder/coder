@@ -1,6 +1,6 @@
 CREATE TYPE api_key_scope AS ENUM (
-    'any',
+    'all',
     'application_connect'
 );
 
-ALTER TABLE api_keys ADD COLUMN scope api_key_scope NOT NULL DEFAULT 'any';
+ALTER TABLE api_keys ADD COLUMN scope api_key_scope NOT NULL DEFAULT 'all';
