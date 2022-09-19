@@ -89,6 +89,7 @@ CREATE TYPE user_status AS ENUM (
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
+    'disabled',
     'intializing',
     'healthy',
     'unhealthy'
@@ -349,8 +350,11 @@ CREATE TABLE workspace_apps (
     command character varying(65534),
     url character varying(65534),
     relative_path boolean DEFAULT false NOT NULL,
-    health workspace_app_health DEFAULT 'intializing'::public.workspace_app_health NOT NULL,
-    updated_at timestamp with time zone DEFAULT '-infinity'::timestamp with time zone NOT NULL
+    updated_at timestamp with time zone DEFAULT '-infinity'::timestamp with time zone NOT NULL,
+    healthcheck_enabled boolean DEFAULT false NOT NULL,
+    healthcheck_period integer DEFAULT 0 NOT NULL,
+    unhealthy_threshold integer DEFAULT 0 NOT NULL,
+    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
 );
 
 CREATE TABLE workspace_builds (

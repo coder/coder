@@ -2032,6 +2032,22 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
+func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, app := range q.workspaceApps {
+		if app.ID != arg.ID {
+			continue
+		}
+		app.UpdatedAt = arg.UpdatedAt
+		app.Health = arg.Health
+		q.workspaceApps[index] = app
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

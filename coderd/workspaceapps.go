@@ -289,12 +289,20 @@ func (api *API) postWorkspaceAppHealths(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 
+		if !found.HealthcheckEnabled {
+			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", name).Error(),
+			})
+			return
+		}
+
 		switch health {
-		case codersdk.WorkspaceAppInitializing:
+		case codersdk.WorkspaceAppHealthInitializing:
 			found.Health = database.WorkspaceAppHealthIntializing
-		case codersdk.WorkspaceAppHealthy:
+		case codersdk.WorkspaceAppHealthHealthy:
 			found.Health = database.WorkspaceAppHealthHealthy
-		case codersdk.WorkspaceAppUnhealthy:
+		case codersdk.WorkspaceAppHealthUnhealthy:
 			found.Health = database.WorkspaceAppHealthUnhealthy
 		default:
 			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{

@@ -745,7 +745,7 @@ export type UserStatus = "active" | "suspended"
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppHealth = "healthy" | "initializing" | "unhealthy"
+export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"

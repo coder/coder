@@ -7,9 +7,10 @@ import (
 type WorkspaceAppHealth string
 
 const (
-	WorkspaceAppInitializing WorkspaceAppHealth = "initializing"
-	WorkspaceAppHealthy      WorkspaceAppHealth = "healthy"
-	WorkspaceAppUnhealthy    WorkspaceAppHealth = "unhealthy"
+	WorkspaceAppHealthDisabled     WorkspaceAppHealth = "disabled"
+	WorkspaceAppHealthInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
 )
 
 type WorkspaceApp struct {
