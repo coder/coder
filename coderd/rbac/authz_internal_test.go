@@ -662,6 +662,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	require.NoError(t, err)
 	for _, cases := range sets {
 		for _, c := range cases {
+			c := c
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {
