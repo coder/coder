@@ -117,6 +117,12 @@ func TestWorkspaceResource(t *testing.T) {
 		require.Equal(t, app.Command, got.Command)
 		require.Equal(t, app.Icon, got.Icon)
 		require.Equal(t, app.Name, got.Name)
+
+		// ensure these are returned as disabled until we enable on the terraform side
+		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
+		require.EqualValues(t, false, got.HealthcheckEnabled)
+		require.EqualValues(t, 0, got.HealthcheckPeriod)
+		require.EqualValues(t, 0, got.HealthcheckThreshold)
 	})
 
 	t.Run("Metadata", func(t *testing.T) {

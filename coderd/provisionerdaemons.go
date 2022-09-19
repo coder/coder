@@ -826,7 +826,11 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
-				RelativePath: app.RelativePath,
+				RelativePath:         app.RelativePath,
+				HealthcheckEnabled:   false,
+				HealthcheckPeriod:    0,
+				HealthcheckThreshold: 0,
+				Health:               database.WorkspaceAppHealthDisabled,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

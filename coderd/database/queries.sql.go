@@ -4011,21 +4011,29 @@ INSERT INTO
         icon,
         command,
         url,
-        relative_path
+        relative_path,
+		healthcheck_enabled,
+		healthcheck_period,
+		healthcheck_threshold,
+		health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path, updated_at, healthcheck_enabled, healthcheck_period, healthcheck_threshold, health
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path, updated_at, healthcheck_enabled, healthcheck_period, healthcheck_threshold, health
 `
 
 type InsertWorkspaceAppParams struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name                 string             `db:"name" json:"name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	RelativePath         bool               `db:"relative_path" json:"relative_path"`
+	HealthcheckEnabled   bool               `db:"healthcheck_enabled" json:"healthcheck_enabled"`
+	HealthcheckPeriod    int32              `db:"healthcheck_period" json:"healthcheck_period"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -4038,6 +4046,10 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.Command,
 		arg.Url,
 		arg.RelativePath,
+		arg.HealthcheckEnabled,
+		arg.HealthcheckPeriod,
+		arg.HealthcheckThreshold,
+		arg.Health,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
