@@ -37,6 +37,7 @@ type querier interface {
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetFileByHash(ctx context.Context, hash string) (File, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
+	GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (AgentStat, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
