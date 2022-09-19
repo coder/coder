@@ -1,4 +1,4 @@
-CREATE TYPE workspace_app_health AS ENUM ('disabled', 'intializing', 'healthy', 'unhealthy');
+CREATE TYPE workspace_app_health AS ENUM ('disabled', 'initializing', 'healthy', 'unhealthy');
 
 ALTER TABLE ONLY workspace_apps
 	ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT '-infinity',

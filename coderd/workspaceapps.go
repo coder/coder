@@ -299,7 +299,7 @@ func (api *API) postWorkspaceAppHealths(rw http.ResponseWriter, r *http.Request)
 
 		switch health {
 		case codersdk.WorkspaceAppHealthInitializing:
-			found.Health = database.WorkspaceAppHealthIntializing
+			found.Health = database.WorkspaceAppHealthInitializing
 		case codersdk.WorkspaceAppHealthHealthy:
 			found.Health = database.WorkspaceAppHealthHealthy
 		case codersdk.WorkspaceAppHealthUnhealthy:

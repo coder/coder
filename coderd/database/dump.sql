@@ -90,7 +90,7 @@ CREATE TYPE user_status AS ENUM (
 
 CREATE TYPE workspace_app_health AS ENUM (
     'disabled',
-    'intializing',
+    'initializing',
     'healthy',
     'unhealthy'
 );

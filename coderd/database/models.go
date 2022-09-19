@@ -315,10 +315,10 @@ func (e *UserStatus) Scan(src interface{}) error {
 type WorkspaceAppHealth string
 
 const (
-	WorkspaceAppHealthDisabled    WorkspaceAppHealth = "disabled"
-	WorkspaceAppHealthIntializing WorkspaceAppHealth = "intializing"
-	WorkspaceAppHealthHealthy     WorkspaceAppHealth = "healthy"
-	WorkspaceAppHealthUnhealthy   WorkspaceAppHealth = "unhealthy"
+	WorkspaceAppHealthDisabled     WorkspaceAppHealth = "disabled"
+	WorkspaceAppHealthInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
 )
 
 func (e *WorkspaceAppHealth) Scan(src interface{}) error {
