@@ -795,10 +795,22 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	}
 	defer conn.Close(websocket.StatusAbnormalClosure, "")
 
+	var lastReport codersdk.AgentStatsReportResponse
+	latestStat, err := api.Database.GetLatestAgentStat(r.Context(), workspaceAgent.ID)
+	if err == nil {
+		err = json.Unmarshal(latestStat.Payload, &lastReport)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to unmarshal stat payload.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	// Allow overriding the stat interval for debugging and testing purposes.
 	ctx := r.Context()
 	timer := time.NewTicker(api.AgentStatsRefreshInterval)
-	var lastReport codersdk.AgentStatsReportResponse
 	for {
 		err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
 		if err != nil {
