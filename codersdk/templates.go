@@ -42,9 +42,10 @@ type TemplateUserACL map[string]TemplateRole
 type TemplateRole string
 
 var (
-	TemplateRoleAdmin TemplateRole = "admin"
-	TemplateRoleWrite TemplateRole = "write"
-	TemplateRoleRead  TemplateRole = "read"
+	TemplateRoleAdmin   TemplateRole = "admin"
+	TemplateRoleWrite   TemplateRole = "write"
+	TemplateRoleRead    TemplateRole = "read"
+	TemplateRoleDeleted TemplateRole = ""
 )
 
 type UpdateTemplateMeta struct {

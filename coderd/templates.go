@@ -457,8 +457,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	// Only users who are able to create templates (aka template admins)
 	// are able to control user permissions.
-	// TODO: It'd be nice to also assert delete since a template admin
-	// should be able to do both.
+	// TODO: It might be cleaner to control template perms access
+	// via a separate RBAC resource, and restrict all actions to the template
+	// admin role.
 	if len(req.UserPerms) > 0 && !api.Authorize(r, rbac.ActionCreate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -475,9 +476,23 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()})
 	}
 
-	for _, v := range req.UserPerms {
+	for k, v := range req.UserPerms {
 		if err := validateTemplateRole(v); err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: err.Error()})
+			continue
+		}
+
+		userID, err := uuid.Parse(k)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: "User ID " + k + "must be a valid UUID."})
+			continue
+		}
+
+		// This could get slow if we get a ton of user perm updates.
+		_, err = api.Database.GetUserByID(r.Context(), userID)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: fmt.Sprintf("Failed to find user with ID %q: %v", k, err.Error())})
+			continue
 		}
 	}
 
@@ -509,7 +524,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
-			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
+			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() &&
+			len(req.UserPerms) == 0 {
 			return nil
 		}
 
@@ -530,6 +546,24 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
 		}
 
+		if len(req.UserPerms) > 0 {
+			userACL := template.UserACL()
+			for k, v := range req.UserPerms {
+				// A user with an empty string implies
+				// deletion.
+				if v == "" {
+					delete(userACL, k)
+					continue
+				}
+				userACL[k] = database.TemplateRole(v)
+			}
+
+			err = tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
+			if err != nil {
+				return xerrors.Errorf("update template user ACL: %w", err)
+			}
+		}
+
 		updated, err = tx.UpdateTemplateMetaByID(r.Context(), database.UpdateTemplateMetaByIDParams{
 			ID:                   template.ID,
 			UpdatedAt:            database.Now(),
@@ -541,22 +575,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return err
-		}
-
-		if len(req.UserPerms) > 0 {
-			userACL := template.UserACL()
-			for k, v := range req.UserPerms {
-				if len(v) == 0 {
-					delete(userACL, k)
-					continue
-				}
-				userACL[k] = database.TemplateRole(v)
-			}
-
-			err = tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
-			}
 		}
 
 		return nil
@@ -839,22 +857,9 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) database.TemplateRole {
 	return ""
 }
 
-func templateRoleToActions(role codersdk.TemplateRole) []string {
-	switch role {
-	case codersdk.TemplateRoleAdmin:
-		return []string{rbac.WildcardSymbol}
-	case codersdk.TemplateRoleWrite:
-		return []string{rbac.ActionRead, rbac.ActionUpdate}
-	case codersdk.TemplateRoleRead:
-		return []string{rbac.ActionRead}
-	}
-
-	return nil
-}
-
 func validateTemplateRole(role codersdk.TemplateRole) error {
 	dbRole := convertSDKTemplateRole(role)
-	if dbRole == "" {
+	if dbRole == "" && role != codersdk.TemplateRoleDeleted {
 		return xerrors.Errorf("role %q is not a valid Template role", role)
 	}
 

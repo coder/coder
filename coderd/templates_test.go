@@ -519,6 +519,217 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, updated.Icon, "")
 	})
+
+	t.Run("UserPerms", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleRead,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			template, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			role, ok := template.UserRoles[user2.ID.String()]
+			require.True(t, ok, "User not contained within user_roles map")
+			require.Equal(t, codersdk.TemplateRoleRead, role)
+		})
+
+		t.Run("DeleteUser", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleRead,
+					user3.ID.String(): codersdk.TemplateRoleWrite,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			template, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			role, ok := template.UserRoles[user2.ID.String()]
+			require.True(t, ok, "User not contained within user_roles map")
+			require.Equal(t, codersdk.TemplateRoleRead, role)
+
+			role, ok = template.UserRoles[user3.ID.String()]
+			require.True(t, ok, "User not contained within user_roles map")
+			require.Equal(t, codersdk.TemplateRoleWrite, role)
+
+			req = codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleAdmin,
+					user3.ID.String(): codersdk.TemplateRoleDeleted,
+				},
+			}
+
+			template, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			role, ok = template.UserRoles[user2.ID.String()]
+			require.True(t, ok, "User not contained within user_roles map")
+			require.Equal(t, codersdk.TemplateRoleAdmin, role)
+
+			_, ok = template.UserRoles[user3.ID.String()]
+			require.False(t, ok, "User should have been deleted from user_roles map")
+		})
+
+		t.Run("InvalidUUID", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					"hi": "admin",
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.Error(t, err)
+			cerr, _ := codersdk.AsError(err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		})
+
+		t.Run("InvalidUser", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					uuid.NewString(): "admin",
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.Error(t, err)
+			cerr, _ := codersdk.AsError(err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		})
+
+		t.Run("InvalidRole", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): "updater",
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.Error(t, err)
+			cerr, _ := codersdk.AsError(err)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		})
+
+		t.Run("RegularUserCannotUpdatePerms", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleWrite,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			template, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			req = codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleAdmin,
+				},
+			}
+
+			template, err = client2.UpdateTemplateMeta(ctx, template.ID, req)
+			require.Error(t, err)
+			cerr, _ := codersdk.AsError(err)
+			require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+		})
+
+		t.Run("RegularUserWithAdminCanUpdate", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleAdmin,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			template, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			req = codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user3.ID.String(): codersdk.TemplateRoleRead,
+				},
+			}
+
+			template, err = client2.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			role, ok := template.UserRoles[user3.ID.String()]
+			require.True(t, ok, "User not contained within user_roles map")
+			require.Equal(t, codersdk.TemplateRoleRead, role)
+		})
+	})
 }
 
 func TestDeleteTemplate(t *testing.T) {

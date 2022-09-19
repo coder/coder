@@ -46,7 +46,8 @@ func templateRoleToActions(t TemplateRole) []rbac.Action {
 	case TemplateRoleWrite:
 		return []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}
 	case TemplateRoleAdmin:
-		return []rbac.Action{rbac.WildcardSymbol}
+		// TODO: Why does rbac.Wildcard not work here?
+		return []rbac.Action{rbac.ActionRead, rbac.ActionUpdate, rbac.ActionCreate, rbac.ActionDelete}
 	}
 	return nil
 }
