@@ -25,10 +25,10 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func TestWorkspaces(t *testing.T) {
+func TestWorkspace(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OKK", func(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
