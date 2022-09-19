@@ -281,10 +281,12 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if errors.Is(err, context.Canceled) {
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				return
 			}
 			if err != nil {
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
@@ -294,12 +296,15 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 			logger.Debug(ctx, "serving coordinator")
 			err = <-errChan
 			if errors.Is(err, context.Canceled) {
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				return
 			}
 			if err != nil {
 				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				continue
 			}
+			_ = ws.Close(websocket.StatusAbnormalClosure, "")
 		}
 	}()
 	return &agent.Conn{
@@ -423,6 +428,7 @@ func (c *Client) AgentReportStats(
 					var req AgentStatsReportRequest
 					err := wsjson.Read(ctx, conn, &req)
 					if err != nil {
+						_ = conn.Close(websocket.StatusAbnormalClosure, "")
 						return err
 					}
 
@@ -436,6 +442,7 @@ func (c *Client) AgentReportStats(
 
 					err = wsjson.Write(ctx, conn, resp)
 					if err != nil {
+						_ = conn.Close(websocket.StatusAbnormalClosure, "")
 						return err
 					}
 				}

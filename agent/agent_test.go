@@ -522,7 +522,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 				return
 			}
 			ssh, err := agentConn.SSH()
-			if !assert.NoError(t, err) {
+			if err != nil {
 				_ = conn.Close()
 				return
 			}
@@ -581,11 +581,16 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		},
 		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
 			clientConn, serverConn := net.Pipe()
+			closed := make(chan struct{})
 			t.Cleanup(func() {
 				_ = serverConn.Close()
 				_ = clientConn.Close()
+				<-closed
 			})
-			go coordinator.ServeAgent(serverConn, agentID)
+			go func() {
+				_ = coordinator.ServeAgent(serverConn, agentID)
+				close(closed)
+			}()
 			return clientConn, nil
 		},
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
