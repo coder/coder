@@ -198,8 +198,8 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
@@ -227,9 +227,9 @@ func New(options *Options) *API {
 			})
 		})
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, codersdk.Response{
