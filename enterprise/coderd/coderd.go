@@ -38,11 +38,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		AGPL:    coderd.New(options.Options),
 		Options: options,
 
-		activeUsers: codersdk.Feature{
-			Entitlement: codersdk.EntitlementNotEntitled,
-			Enabled:     false,
+		entitlements: entitlements{
+			activeUsers: codersdk.Feature{
+				Entitlement: codersdk.EntitlementNotEntitled,
+				Enabled:     false,
+			},
+			auditLogs: codersdk.EntitlementNotEntitled,
 		},
-		auditLogs:              codersdk.EntitlementNotEntitled,
 		cancelEntitlementsLoop: cancelFunc,
 	}
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -52,7 +54,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Get("/entitlements", api.entitlements)
+		r.Get("/entitlements", api.serveEntitlements)
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.postLicense)
@@ -83,10 +85,14 @@ type API struct {
 	*Options
 
 	cancelEntitlementsLoop func()
-	mutex                  sync.RWMutex
-	hasLicense             bool
-	activeUsers            codersdk.Feature
-	auditLogs              codersdk.Entitlement
+	entitlementsMu         sync.RWMutex
+	entitlements           entitlements
+}
+
+type entitlements struct {
+	hasLicense  bool
+	activeUsers codersdk.Feature
+	auditLogs   codersdk.Entitlement
 }
 
 func (api *API) Close() error {
@@ -99,17 +105,19 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	api.mutex.Lock()
-	defer api.mutex.Unlock()
+	api.entitlementsMu.Lock()
+	defer api.entitlementsMu.Unlock()
 	now := time.Now()
 
 	// Default all entitlements to be disabled.
-	hasLicense := false
-	activeUsers := codersdk.Feature{
-		Enabled:     false,
-		Entitlement: codersdk.EntitlementNotEntitled,
+	entitlements := entitlements{
+		hasLicense: false,
+		activeUsers: codersdk.Feature{
+			Enabled:     false,
+			Entitlement: codersdk.EntitlementNotEntitled,
+		},
+		auditLogs: codersdk.EntitlementNotEntitled,
 	}
-	auditLogs := codersdk.EntitlementNotEntitled
 
 	// Here we loop through licenses to detect enabled features.
 	for _, l := range licenses {
@@ -119,7 +127,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				slog.F("id", l.ID), slog.Error(err))
 			continue
 		}
-		hasLicense = true
+		entitlements.hasLicense = true
 		entitlement := codersdk.EntitlementEntitled
 		if now.After(claims.LicenseExpires.Time) {
 			// if the grace period were over, the validation fails, so if we are after
@@ -127,25 +135,27 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			entitlement = codersdk.EntitlementGracePeriod
 		}
 		if claims.Features.UserLimit > 0 {
-			activeUsers.Enabled = true
-			activeUsers.Entitlement = entitlement
+			entitlements.activeUsers = codersdk.Feature{
+				Enabled:     true,
+				Entitlement: entitlement,
+			}
 			currentLimit := int64(0)
-			if activeUsers.Limit != nil {
-				currentLimit = *activeUsers.Limit
+			if entitlements.activeUsers.Limit != nil {
+				currentLimit = *entitlements.activeUsers.Limit
 			}
 			limit := max(currentLimit, claims.Features.UserLimit)
-			activeUsers.Limit = &limit
+			entitlements.activeUsers.Limit = &limit
 		}
 		if claims.Features.AuditLog > 0 {
-			auditLogs = entitlement
+			entitlements.auditLogs = entitlement
 		}
 	}
 
-	if auditLogs != api.auditLogs {
+	if entitlements.auditLogs != api.entitlements.auditLogs {
 		auditor := agplaudit.NewNop()
 		// A flag could be added to the options that would allow disabling
 		// enhanced audit logging here!
-		if auditLogs == codersdk.EntitlementEntitled && api.AuditLogging {
+		if entitlements.auditLogs == codersdk.EntitlementEntitled && api.AuditLogging {
 			auditor = audit.NewAuditor(
 				audit.DefaultFilter,
 				backends.NewPostgres(api.Database, true),
@@ -155,27 +165,23 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.Auditor.Store(&auditor)
 	}
 
-	api.hasLicense = hasLicense
-	api.activeUsers = activeUsers
-	api.auditLogs = auditLogs
+	api.entitlements = entitlements
 
 	return nil
 }
 
-func (api *API) entitlements(rw http.ResponseWriter, r *http.Request) {
-	api.mutex.RLock()
-	hasLicense := api.hasLicense
-	activeUsers := api.activeUsers
-	auditLogs := api.auditLogs
-	api.mutex.RUnlock()
+func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
+	api.entitlementsMu.RLock()
+	entitlements := api.entitlements
+	api.entitlementsMu.RUnlock()
 
 	resp := codersdk.Entitlements{
 		Features:   make(map[string]codersdk.Feature),
 		Warnings:   make([]string, 0),
-		HasLicense: hasLicense,
+		HasLicense: entitlements.hasLicense,
 	}
 
-	if activeUsers.Limit != nil {
+	if entitlements.activeUsers.Limit != nil {
 		activeUserCount, err := api.Database.GetActiveUserCount(r.Context())
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -184,22 +190,22 @@ func (api *API) entitlements(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		activeUsers.Actual = &activeUserCount
-		if activeUserCount > *activeUsers.Limit {
+		entitlements.activeUsers.Actual = &activeUserCount
+		if activeUserCount > *entitlements.activeUsers.Limit {
 			resp.Warnings = append(resp.Warnings,
 				fmt.Sprintf(
 					"Your deployment has %d active users but is only licensed for %d.",
-					activeUserCount, *activeUsers.Limit))
+					activeUserCount, *entitlements.activeUsers.Limit))
 		}
 	}
-	resp.Features[codersdk.FeatureUserLimit] = activeUsers
+	resp.Features[codersdk.FeatureUserLimit] = entitlements.activeUsers
 
 	// Audit logs
 	resp.Features[codersdk.FeatureAuditLog] = codersdk.Feature{
-		Entitlement: auditLogs,
+		Entitlement: entitlements.auditLogs,
 		Enabled:     api.AuditLogging,
 	}
-	if auditLogs == codersdk.EntitlementGracePeriod && api.AuditLogging {
+	if entitlements.auditLogs == codersdk.EntitlementGracePeriod && api.AuditLogging {
 		resp.Warnings = append(resp.Warnings,
 			"Audit logging is enabled but your license for this feature is expired.")
 	}
