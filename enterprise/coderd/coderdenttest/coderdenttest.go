@@ -36,6 +36,7 @@ func init() {
 
 type Options struct {
 	*coderdtest.Options
+	EntitlementsUpdateInterval time.Duration
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -53,8 +54,9 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		AuditLogging: true,
-		Options:      oop,
+		AuditLogging:               true,
+		Options:                    oop,
+		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys: map[string]ed25519.PublicKey{
 			testKeyID: testPublicKey,
 		},
@@ -72,7 +74,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
 }
 
-type AddLicenseOptions struct {
+type LicenseOptions struct {
 	AccountType string
 	AccountID   string
 	GraceAt     time.Time
@@ -82,7 +84,16 @@ type AddLicenseOptions struct {
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
-func AddLicense(t *testing.T, client *codersdk.Client, options AddLicenseOptions) codersdk.License {
+func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) codersdk.License {
+	license, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+		License: GenerateLicense(t, options),
+	})
+	require.NoError(t, err)
+	return license
+}
+
+// GenerateLicense returns a signed JWT using the test key.
+func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.ExpiresAt.IsZero() {
 		options.ExpiresAt = time.Now().Add(time.Hour)
 	}
@@ -113,11 +124,7 @@ func AddLicense(t *testing.T, client *codersdk.Client, options AddLicenseOptions
 	tok.Header[coderd.HeaderKeyID] = testKeyID
 	signedTok, err := tok.SignedString(testPrivateKey)
 	require.NoError(t, err)
-	license, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
-		License: signedTok,
-	})
-	require.NoError(t, err)
-	return license
+	return signedTok
 }
 
 type nopcloser struct{}

@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog"
@@ -64,7 +65,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
 	}
-	api.closeLicenseSubscribe, err = api.Pubsub.Subscribe(pubSubEventLicenses, func(ctx context.Context, message []byte) {
+	api.closeLicenseSubscribe, err = api.Pubsub.Subscribe(PubsubEventLicenses, func(ctx context.Context, message []byte) {
 		_ = api.updateEntitlements(ctx)
 	})
 	if err != nil {
@@ -99,23 +100,6 @@ func (api *API) Close() error {
 	api.closeLicenseSubscribe()
 	api.cancelEntitlementsLoop()
 	return api.AGPL.Close()
-}
-
-func (api *API) runEntitlementsLoop(ctx context.Context) {
-	ticker := time.NewTicker(api.EntitlementsUpdateInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-		err := api.updateEntitlements(ctx)
-		if err != nil {
-			api.Logger.Warn(ctx, "failed to get feature entitlements", slog.Error(err))
-			continue
-		}
-	}
 }
 
 func (api *API) updateEntitlements(ctx context.Context) error {
@@ -169,7 +153,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		auditor := agplaudit.NewNop()
 		// A flag could be added to the options that would allow disabling
 		// enhanced audit logging here!
-		if api.auditLogs == codersdk.EntitlementEntitled && api.AuditLogging {
+		if auditLogs == codersdk.EntitlementEntitled && api.AuditLogging {
 			auditor = audit.NewAuditor(
 				audit.DefaultFilter,
 				backends.NewPostgres(api.Database, true),
@@ -229,6 +213,64 @@ func (api *API) entitlements(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusOK, resp)
+}
+
+func (api *API) runEntitlementsLoop(ctx context.Context) {
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = 0 // retry indefinitely
+	b := backoff.WithContext(eb, ctx)
+	updates := make(chan struct{}, 1)
+	subscribed := false
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// pass
+		}
+		if !subscribed {
+			cancel, err := api.Pubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
+				// don't block.  If the channel is full, drop the event, as there is a resync
+				// scheduled already.
+				select {
+				case updates <- struct{}{}:
+					// pass
+				default:
+					// pass
+				}
+			})
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to subscribe to license updates", slog.Error(err))
+				time.Sleep(b.NextBackOff())
+				continue
+			}
+			// nolint: revive
+			defer cancel()
+			subscribed = true
+			api.Logger.Debug(ctx, "successfully subscribed to pubsub")
+		}
+
+		api.Logger.Info(ctx, "syncing licensed entitlements")
+		err := api.updateEntitlements(ctx)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to get feature entitlements", slog.Error(err))
+			time.Sleep(b.NextBackOff())
+			continue
+		}
+		b.Reset()
+		api.Logger.Debug(ctx, "synced licensed entitlements")
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(api.EntitlementsUpdateInterval):
+			continue
+		case <-updates:
+			api.Logger.Debug(ctx, "got pubsub update")
+			continue
+		}
+	}
 }
 
 func max(a, b int64) int64 {

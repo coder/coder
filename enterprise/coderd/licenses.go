@@ -31,7 +31,7 @@ const (
 	AccountTypeSalesforce = "salesforce"
 	VersionClaim          = "version"
 
-	pubSubEventLicenses = "licenses"
+	PubsubEventLicenses = "licenses"
 )
 
 var ValidMethods = []string{"EdDSA"}
@@ -127,7 +127,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(pubSubEventLicenses, []byte("add"))
+	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("add"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
@@ -206,7 +206,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(pubSubEventLicenses, []byte("delete"))
+	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("delete"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database

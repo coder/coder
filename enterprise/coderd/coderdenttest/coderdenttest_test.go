@@ -402,7 +402,7 @@ func newAuthTester(ctx context.Context, t *testing.T) *authTester {
 		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 	})
 	require.NoError(t, err, "create template param")
-	license := coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{})
+	license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{})
 	urlParameters := map[string]string{
 		"{organization}":        admin.OrganizationID.String(),
 		"{user}":                admin.UserID.String(),

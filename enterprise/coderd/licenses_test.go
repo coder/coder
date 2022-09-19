@@ -24,7 +24,7 @@ func TestPostLicense(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		respLic := coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{
+		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountType: coderd.AccountTypeSalesforce,
 			AccountID:   "testing",
 			AuditLog:    true,
@@ -55,7 +55,7 @@ func TestPostLicense(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{})
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 			License: "invalid",
 		})
@@ -77,12 +77,12 @@ func TestGetLicense(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing",
 			AuditLog:  true,
 		})
 
-		coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing2",
 			AuditLog:  true,
 			UserLimit: 200,
@@ -144,11 +144,11 @@ func TestDeleteLicense(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing",
 			AuditLog:  true,
 		})
-		coderdenttest.AddLicense(t, client, coderdenttest.AddLicenseOptions{
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing2",
 			AuditLog:  true,
 			UserLimit: 200,
