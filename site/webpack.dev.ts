@@ -74,6 +74,8 @@ const config: Configuration = {
         secure: false,
       },
     },
+    // We must disable compression to get SSEs to work (in workspaceXService.ts)
+    compress: false,
     static: ["./static"],
   },
 
