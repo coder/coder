@@ -163,3 +163,8 @@ allow {
 	perms := input.object.acl_user_list[input.subject.id]
 	input.action in perms
 }
+
+# ACL wildcard allow
+allow {
+	"*" in input.object.acl_user_list[input.subject.id]
+}

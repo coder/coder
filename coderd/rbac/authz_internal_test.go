@@ -201,6 +201,13 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
 				user.UserID: {ActionRead, ActionUpdate},
 			}),
 			actions: []Action{ActionCreate, ActionDelete},
