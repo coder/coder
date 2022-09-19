@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,9 +32,21 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := auditSearchQuery(queryStr)
+	if len(errs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid audit search query.",
+			Validations: errs,
+		})
+		return
+	}
+
 	dblogs, err := api.Database.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-		Offset: int32(page.Offset),
-		Limit:  int32(page.Limit),
+		Offset:       int32(page.Offset),
+		Limit:        int32(page.Limit),
+		ResourceType: filter.ResourceType,
+		Action:       filter.Action,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -97,16 +111,27 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var params codersdk.CreateTestAuditLogRequest
+	if !httpapi.Read(rw, r, &params) {
+		return
+	}
+	if params.Action == "" {
+		params.Action = codersdk.AuditActionWrite
+	}
+	if params.ResourceType == "" {
+		params.ResourceType = codersdk.ResourceTypeUser
+	}
+
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
 		Time:             time.Now(),
 		UserID:           user.ID,
 		Ip:               ipNet,
 		UserAgent:        r.UserAgent(),
-		ResourceType:     database.ResourceTypeUser,
+		ResourceType:     database.ResourceType(params.ResourceType),
 		ResourceID:       user.ID,
 		ResourceTarget:   user.Username,
-		Action:           database.AuditActionWrite,
+		Action:           database.AuditAction(params.Action),
 		Diff:             diff,
 		StatusCode:       http.StatusOK,
 		AdditionalFields: []byte("{}"),
@@ -178,4 +203,43 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
+}
+
+// auditSearchQuery takes a query string and returns the auditLog filter.
+// It also can return the list of validation errors to return to the api.
+func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
+	searchParams := make(url.Values)
+	if query == "" {
+		// No filter
+		return database.GetAuditLogsOffsetParams{}, nil
+	}
+	query = strings.ToLower(query)
+	// Because we do this in 2 passes, we want to maintain quotes on the first
+	// pass.Further splitting occurs on the second pass and quotes will be
+	// dropped.
+	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	for _, element := range elements {
+		parts := splitQueryParameterByDelimiter(element, ':', false)
+		switch len(parts) {
+		case 1:
+			// No key:value pair.
+			searchParams.Set("resource_type", parts[0])
+		case 2:
+			searchParams.Set(parts[0], parts[1])
+		default:
+			return database.GetAuditLogsOffsetParams{}, []codersdk.ValidationError{
+				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
+			}
+		}
+	}
+
+	// Using the query param parser here just returns consistent errors with
+	// other parsing.
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetAuditLogsOffsetParams{
+		ResourceType: parser.String(searchParams, "", "resource_type"),
+		Action:       parser.String(searchParams, "", "action"),
+	}
+
+	return filter, parser.Errors
 }

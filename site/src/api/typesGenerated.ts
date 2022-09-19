@@ -86,6 +86,11 @@ export interface AuditLogResponse {
   readonly audit_logs: AuditLog[]
 }
 
+// From codersdk/audit.go
+export interface AuditLogsRequest extends Pagination {
+  readonly q?: string
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
@@ -164,6 +169,12 @@ export interface CreateTemplateVersionRequest {
   readonly storage_source: string
   readonly provisioner: ProvisionerType
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/audit.go
+export interface CreateTestAuditLogRequest {
+  readonly action?: AuditAction
+  readonly resource_type?: ResourceType
 }
 
 // From codersdk/users.go

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -93,6 +94,11 @@ type AuditLog struct {
 	User *User `json:"user"`
 }
 
+type AuditLogsRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
+
 type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
 }
@@ -101,9 +107,22 @@ type AuditLogCountResponse struct {
 	Count int64 `json:"count"`
 }
 
+type CreateTestAuditLogRequest struct {
+	Action       AuditAction  `json:"action,omitempty"`
+	ResourceType ResourceType `json:"resource_type,omitempty"`
+}
+
 // AuditLogs retrieves audit logs from the given page.
-func (c *Client) AuditLogs(ctx context.Context, page Pagination) (AuditLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, page.asRequestOption())
+func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	})
 	if err != nil {
 		return AuditLogResponse{}, err
 	}
@@ -143,8 +162,8 @@ func (c *Client) AuditLogCount(ctx context.Context) (AuditLogCountResponse, erro
 	return logRes, nil
 }
 
-func (c *Client) CreateTestAuditLog(ctx context.Context) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/audit/testgenerate", nil)
+func (c *Client) CreateTestAuditLog(ctx context.Context, req CreateTestAuditLogRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/audit/testgenerate", req)
 	if err != nil {
 		return err
 	}

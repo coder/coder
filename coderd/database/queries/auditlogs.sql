@@ -13,6 +13,19 @@ FROM
 	audit_logs
 LEFT JOIN
     users ON audit_logs.user_id = users.id
+WHERE
+    -- Filter resource_type
+	CASE
+		WHEN @resource_type :: text != '' THEN
+			resource_type = @resource_type :: resource_type
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN @action :: text != '' THEN
+			action = @action :: audit_action
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
