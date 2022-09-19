@@ -23,7 +23,7 @@ func TestNestedInTx(t *testing.T) {
 
 	uid := uuid.New()
 	sqlDB := testSQLDB(t)
-	err := migrations.MigrateUp(sqlDB)
+	err := migrations.Up(sqlDB)
 	require.NoError(t, err, "migrations")
 
 	db := database.New(sqlDB)

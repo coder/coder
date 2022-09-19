@@ -33,7 +33,7 @@ func TestMigrate(t *testing.T) {
 
 		db := testSQLDB(t)
 
-		err := migrations.MigrateUp(db)
+		err := migrations.Up(db)
 		require.NoError(t, err)
 	})
 
@@ -42,10 +42,10 @@ func TestMigrate(t *testing.T) {
 
 		db := testSQLDB(t)
 
-		err := migrations.MigrateUp(db)
+		err := migrations.Up(db)
 		require.NoError(t, err)
 
-		err = migrations.MigrateUp(db)
+		err = migrations.Up(db)
 		require.NoError(t, err)
 	})
 
@@ -54,13 +54,13 @@ func TestMigrate(t *testing.T) {
 
 		db := testSQLDB(t)
 
-		err := migrations.MigrateUp(db)
+		err := migrations.Up(db)
 		require.NoError(t, err)
 
-		err = migrations.MigrateDown(db)
+		err = migrations.Down(db)
 		require.NoError(t, err)
 
-		err = migrations.MigrateUp(db)
+		err = migrations.Up(db)
 		require.NoError(t, err)
 	})
 }

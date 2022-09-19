@@ -25,7 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	err = migrations.MigrateUp(db)
+	err = migrations.Up(db)
 	if err != nil {
 		panic(err)
 	}

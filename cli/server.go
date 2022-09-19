@@ -431,7 +431,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("ping postgres: %w", err)
 				}
-				err = migrations.MigrateUp(sqlDB)
+				err = migrations.Up(sqlDB)
 				if err != nil {
 					return xerrors.Errorf("migrate up: %w", err)
 				}

@@ -143,7 +143,7 @@ func Open() (string, func(), error) {
 			return retryErr
 		}
 
-		err = migrations.MigrateUp(db)
+		err = migrations.Up(db)
 		if err != nil {
 			retryErr = xerrors.Errorf("migrate db: %w", err)
 			// Only try to migrate once.

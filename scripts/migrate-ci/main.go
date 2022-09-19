@@ -34,7 +34,7 @@ func main() {
 	}
 	defer target.Close()
 
-	err = migrations.MigrateUp(target)
+	err = migrations.Up(target)
 	if err != nil {
 		panic(err)
 	}
