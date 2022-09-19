@@ -275,12 +275,15 @@ func (api *API) postWorkspaceAppHealths(rw http.ResponseWriter, r *http.Request)
 
 	var newApps []database.WorkspaceApp
 	for name, health := range req.Healths {
-		var found *database.WorkspaceApp
-		for _, app := range apps {
-			if app.Name == name {
-				found = &app
+		found := func() *database.WorkspaceApp {
+			for _, app := range apps {
+				if app.Name == name {
+					return &app
+				}
 			}
-		}
+
+			return nil
+		}()
 		if found == nil {
 			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
