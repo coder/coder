@@ -90,11 +90,14 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
+			// Step 1: Pass on if subdomain-based application proxying is not
+			// configured.
 			if api.AppHostname == "" {
 				next.ServeHTTP(rw, r)
 				return
 			}
 
+			// Step 2: Get the request Host.
 			host := httpapi.RequestHost(r)
 			if host == "" {
 				if r.URL.Path == "/derp" {
@@ -112,49 +115,9 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			// Check if the hostname matches the access URL. If it does, the
-			// user was definitely trying to connect to the dashboard/API.
-			if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
-				next.ServeHTTP(rw, r)
-				return
-			}
-
-			// Split the subdomain so we can parse the application details and
-			// verify it matches the configured app hostname later.
-			subdomain, rest := httpapi.SplitSubdomain(host)
-			if rest == "" {
-				// If there are no periods in the hostname, then it can't be a
-				// valid application URL.
-				next.ServeHTTP(rw, r)
-				return
-			}
-			matchingBaseHostname := httpapi.HostnamesMatch(api.AppHostname, rest)
-
-			// Parse the application URL from the subdomain.
-			app, err := httpapi.ParseSubdomainAppURL(subdomain)
-			if err != nil {
-				// If it isn't a valid app URL and the base domain doesn't match
-				// the configured app hostname, this request was probably
-				// destined for the dashboard/API router.
-				if !matchingBaseHostname {
-					next.ServeHTTP(rw, r)
-					return
-				}
-
-				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Could not parse subdomain application URL.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			// At this point we've verified that the subdomain looks like a
-			// valid application URL, so the base hostname should match the
-			// configured app hostname.
-			if !matchingBaseHostname {
-				httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-					Message: "The server does not accept application requests on this hostname.",
-				})
+			// Steps 3-6: Parse application from subdomain.
+			app, ok := parseWorkspaceApplicationHostname(rw, r, next, api.AccessURL, api.AppHostname, host)
+			if !ok {
 				return
 			}
 
@@ -169,6 +132,8 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				workspace := httpmw.WorkspaceParam(r)
 				agent := httpmw.WorkspaceAgentParam(r)
 
+				// TODO: Verify authentication.
+
 				api.proxyWorkspaceApplication(proxyApplication{
 					Workspace:        workspace,
 					Agent:            agent,
@@ -180,6 +145,56 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+func parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, accessURL *url.URL, appHostname, host string) (httpapi.ApplicationURL, bool) {
+	// Check if the hostname matches the access URL. If it does, the
+	// user was definitely trying to connect to the dashboard/API.
+	if httpapi.HostnamesMatch(accessURL.Hostname(), host) {
+		next.ServeHTTP(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
+
+	// Split the subdomain so we can parse the application details and
+	// verify it matches the configured app hostname later.
+	subdomain, rest := httpapi.SplitSubdomain(host)
+	if rest == "" {
+		// If there are no periods in the hostname, then it can't be a
+		// valid application URL.
+		next.ServeHTTP(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
+	matchingBaseHostname := httpapi.HostnamesMatch(appHostname, rest)
+
+	// Parse the application URL from the subdomain.
+	app, err := httpapi.ParseSubdomainAppURL(subdomain)
+	if err != nil {
+		// If it isn't a valid app URL and the base domain doesn't match
+		// the configured app hostname, this request was probably
+		// destined for the dashboard/API router.
+		if !matchingBaseHostname {
+			next.ServeHTTP(rw, r)
+			return httpapi.ApplicationURL{}, false
+		}
+
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Could not parse subdomain application URL.",
+			Detail:  err.Error(),
+		})
+		return httpapi.ApplicationURL{}, false
+	}
+
+	// At this point we've verified that the subdomain looks like a
+	// valid application URL, so the base hostname should match the
+	// configured app hostname.
+	if !matchingBaseHostname {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "The server does not accept application requests on this hostname.",
+		})
+		return httpapi.ApplicationURL{}, false
+	}
+
+	return app, true
 }
 
 // proxyApplication are the required fields to proxy a workspace application.
