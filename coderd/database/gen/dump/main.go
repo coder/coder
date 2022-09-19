@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
 )
 
@@ -25,7 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	err = database.MigrateUp(db)
+	err = migrations.Up(db)
 	if err != nil {
 		panic(err)
 	}

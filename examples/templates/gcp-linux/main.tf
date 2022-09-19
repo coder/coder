@@ -46,9 +46,9 @@ resource "google_compute_disk" "root" {
 }
 
 resource "coder_agent" "main" {
-  auth = "google-instance-identity"
-  arch = "amd64"
-  os   = "linux"
+  auth           = "google-instance-identity"
+  arch           = "amd64"
+  os             = "linux"
   startup_script = <<EOT
     #!/bin/bash
 

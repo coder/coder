@@ -10,8 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -123,28 +121,42 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 }
 
 func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
-	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
+	//nolint:bodyclose
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/watch", id), nil)
 	if err != nil {
 		return nil, err
 	}
-	wc := make(chan Workspace, 256)
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	nextEvent := ServerSentEventReader(res.Body)
 
+	wc := make(chan Workspace, 256)
 	go func() {
 		defer close(wc)
-		defer conn.Close(websocket.StatusNormalClosure, "")
+		defer res.Body.Close()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				var ws Workspace
-				err := wsjson.Read(ctx, conn, &ws)
+				sse, err := nextEvent()
 				if err != nil {
-					conn.Close(websocket.StatusInternalError, "failed to read workspace")
 					return
 				}
-				wc <- ws
+				if sse.Type == ServerSentEventTypeData {
+					var ws Workspace
+					b, ok := sse.Data.([]byte)
+					if !ok {
+						return
+					}
+					err = json.Unmarshal(b, &ws)
+					if err != nil {
+						return
+					}
+					wc <- ws
+				}
 			}
 		}
 	}()

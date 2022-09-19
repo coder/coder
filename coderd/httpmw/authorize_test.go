@@ -87,7 +87,7 @@ func TestExtractUserRoles(t *testing.T) {
 				httpmw.ExtractAPIKey(db, &httpmw.OAuth2Configs{}, false),
 			)
 			rtr.Get("/", func(_ http.ResponseWriter, r *http.Request) {
-				roles := httpmw.AuthorizationUserRoles(r)
+				roles := httpmw.UserAuthorization(r)
 				require.ElementsMatch(t, user.ID, roles.ID)
 				require.ElementsMatch(t, expRoles, roles.Roles)
 			})
@@ -124,6 +124,7 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		LastUsed:     database.Now(),
 		ExpiresAt:    database.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
+		Scope:        database.APIKeyScopeAll,
 	})
 	require.NoError(t, err)
 

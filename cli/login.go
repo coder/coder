@@ -45,7 +45,7 @@ func login() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "login <url>",
-		Short: "Authenticate with a Coder deployment",
+		Short: "Authenticate with Coder deployment",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rawURL := args[0]

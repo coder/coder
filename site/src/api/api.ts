@@ -428,20 +428,32 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   return response.data
 }
 
-interface GetAuditLogsOptions {
-  limit: number
-  offset: number
-}
-
 export const getAuditLogs = async (
-  options: GetAuditLogsOptions,
+  options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
-  const response = await axios.get(`/api/v2/audit?limit=${options.limit}&offset=${options.offset}`)
+  const searchParams = new URLSearchParams()
+  if (options.limit) {
+    searchParams.set("limit", options.limit.toString())
+  }
+  if (options.offset) {
+    searchParams.set("offset", options.offset.toString())
+  }
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+
+  const response = await axios.get(`/api/v2/audit?${searchParams.toString()}`)
   return response.data
 }
 
-export const getAuditLogsCount = async (): Promise<TypesGen.AuditLogCountResponse> => {
-  const response = await axios.get(`/api/v2/audit/count`)
+export const getAuditLogsCount = async (
+  options: TypesGen.AuditLogCountRequest = {},
+): Promise<TypesGen.AuditLogCountResponse> => {
+  const searchParams = new URLSearchParams()
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+  const response = await axios.get(`/api/v2/audit/count?${searchParams.toString()}`)
   return response.data
 }
 

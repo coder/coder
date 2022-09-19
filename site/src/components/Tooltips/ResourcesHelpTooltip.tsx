@@ -10,7 +10,7 @@ export const Language = {
   resourceTooltipTitle: "What is a resource?",
   resourceTooltipText:
     "A resource is an infrastructure object that is created when the workspace is provisioned.",
-  resourceTooltipLink: "Persistent and ephemeral resources",
+  resourceTooltipLink: "Persistent vs. ephemeral resources",
 }
 
 export const ResourcesHelpTooltip: React.FC = () => {
@@ -19,7 +19,7 @@ export const ResourcesHelpTooltip: React.FC = () => {
       <HelpTooltipTitle>{Language.resourceTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.resourceTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/templates#persistent-and-ephemeral-resources">
+        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/templates#persistent-vs-ephemeral-resources">
           {Language.resourceTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>

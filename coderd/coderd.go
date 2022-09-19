@@ -15,7 +15,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"tailscale.com/derp"
@@ -70,7 +70,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
-	TracerProvider       *sdktrace.TracerProvider
+	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 	FeaturesService      features.Service
@@ -198,8 +198,8 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
@@ -227,9 +227,9 @@ func New(options *Options) *API {
 			})
 		})
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, codersdk.Response{

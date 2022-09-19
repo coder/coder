@@ -12,6 +12,9 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
+-- name: GetLatestAgentStat :one
+SELECT * FROM agent_stats WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1; 
+
 -- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
