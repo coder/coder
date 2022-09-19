@@ -110,7 +110,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterByResourceID",
 				SearchQuery:    "resource_id:" + userResourceID.String(),
-				ExpectedResult: 3,
+				ExpectedResult: 2,
 			},
 		}
 
