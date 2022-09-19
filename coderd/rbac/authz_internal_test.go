@@ -732,7 +732,19 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 							t.Logf("support: %+v", s.String())
 						}
 					}
-					require.Equal(t, 0, len(partialAuthz.mainAuthorizer.partialQueries.Support), "expected 0 support rules")
+					if partialAuthz.scopeAuthorizer != nil {
+						if len(partialAuthz.scopeAuthorizer.partialQueries.Support) > 0 {
+							d, _ := json.Marshal(partialAuthz.scopeAuthorizer.input)
+							t.Logf("scope input: %s", string(d))
+							for _, q := range partialAuthz.scopeAuthorizer.partialQueries.Queries {
+								t.Logf("scope query: %+v", q.String())
+							}
+							for _, s := range partialAuthz.scopeAuthorizer.partialQueries.Support {
+								t.Logf("scope support: %+v", s.String())
+							}
+						}
+						require.Equal(t, 0, len(partialAuthz.scopeAuthorizer.partialQueries.Support), "expected 0 support rules in scope authorizer")
+					}
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {
