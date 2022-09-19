@@ -51,44 +51,6 @@ export const WorkspacePage: FC = () => {
     cancellationError,
   } = workspaceState.context
 
-  useEffect(() => {
-    // console.log("workspace updating in component", workspace)
-    // console.log("resources", resources)
-  }, [workspace, resources])
-
-  //   useEffect(() => {
-  //     if (!workspace?.id) {
-  //       return
-  //     }
-  //
-  //     console.log("hey im in here")
-  //     const sse = new EventSource(
-  //       `${location.protocol}//${location.host}/api/v2/workspaces/${workspace.id}/watch`,
-  //       { withCredentials: true },
-  //     )
-  //
-  //     sse.onmessage = (e) => console.log("event", e)
-  //
-  //     sse.addEventListener("ping", (event) => {
-  //       console.log("ping event", event)
-  //     })
-  //
-  //     sse.addEventListener("data", (event) => {
-  //       console.log("data event", event)
-  //     })
-  //
-  //     sse.onerror = (error) => {
-  //       // error log here
-  //       console.log("error", error)
-  //
-  //       sse.close()
-  //     }
-  //
-  //     return () => {
-  //       sse.close()
-  //     }
-  //   }, [workspace])
-
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
 
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)

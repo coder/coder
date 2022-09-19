@@ -5,12 +5,12 @@ import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 
-// const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
-//   // Cloning builds to not change the origin object with the sort()
-//   return [...builds].sort((a, b) => {
-//     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-//   })[0]
-// }
+const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
+  // Cloning builds to not change the origin object with the sort()
+  return [...builds].sort((a, b) => {
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  })[0]
+}
 
 const Language = {
   refreshTemplateError: "Error updating workspace: latest template could not be fetched.",
@@ -20,8 +20,10 @@ const Language = {
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceContext {
-  workspace?: TypesGen.Workspace | TypesGen.ServerSentEvent["data"]
-  template?: TypesGen.Template | TypesGen.ServerSentEvent["data"]
+  // our server side events instance
+  sse: EventSource | undefined,
+  workspace?: TypesGen.Workspace
+  template?: TypesGen.Template
   build?: TypesGen.WorkspaceBuild
   resources?: TypesGen.WorkspaceResource[]
   getWorkspaceError?: Error | unknown
@@ -38,9 +40,9 @@ export interface WorkspaceContext {
   cancellationMessage?: Types.Message
   cancellationError?: Error | unknown
   // permissions
-  permissions?: Permissions | TypesGen.ServerSentEvent["data"]
+  permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  userId?: string
+  userId?: string,
 }
 
 export type WorkspaceEvent =
@@ -53,6 +55,7 @@ export type WorkspaceEvent =
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
+  | { type: "CHECK_REFRESH_TIMELINE", data: TypesGen.ServerSentEvent["data"] }
   | { type: "REFRESH_TIMELINE" }
   | { type: "UPDATE_EVENT", data: TypesGen.ServerSentEvent["data"] }
   | { type: "SSE_ERROR", error: Error | unknown }
@@ -111,12 +114,9 @@ export const workspaceMachine = createMachine(
         cancelWorkspace: {
           data: Types.Message
         }
-        refreshWorkspace: {
-          data: TypesGen.Workspace | undefined
-        }
-        getResources: {
-          data: TypesGen.WorkspaceResource[]
-        }
+        listenForEvents: {
+          data: TypesGen.ServerSentEvent
+        },
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
         }
@@ -199,90 +199,34 @@ export const workspaceMachine = createMachine(
         },
       },
       sseFailure: {
-        entry: ["updateGetWorkspaceError", "updateGetResourcesError"],
+        entry: ["assignRefreshWorkspaceError", "assignGetResourcesError"],
         after: {
           "1000": {
-            target: 'ready.watchEvents'
+            target: 'ready.listenForEvents'
           }
         }
       },
       ready: {
         type: "parallel",
         states: {
-          watchEvents: {
-            context: {
-              test: ''
-            },
+          listenForEvents: {
             on: {
               UPDATE_EVENT: {
-                actions: ["updateWorkspace", "updateResources"]
+                actions: ["updateWorkspace", "assignResources"]
               },
               SSE_ERROR: {
                 target: "#workspaceState.sseFailure"
+              },
+              CHECK_REFRESH_TIMELINE: {
+                actions: ["refreshTimeline"]
               }
             },
-            entry: ["clearGetWorkspaceError", "clearGetResourcesError"],
+            entry: ["clearGetWorkspaceError", "clearGetResourcesError", "initSse"],
+            exit: "closeSse",
             invoke: {
-              src: (context) => (callback) => {
-                if (!context.workspace.id) {
-                  callback({ type: "SSE_ERROR", error: "Cannot refresh workspace without id" })
-                }
-
-                // open a new EventSource so we can stream SSE
-                const sse = new EventSource(`${location.protocol}//${location.host}/api/v2/workspaces/${context.workspace?.id}/watch`,
-                  { withCredentials: true }
-                )
-
-                // update our data objects (workspace, resources) with each SSE that comes back from the server
-                sse.addEventListener("data", (event) => {
-                  callback({ type: "UPDATE_EVENT", data: JSON.parse(event.data) })
-                })
-
-                // handle any error events returned by our sse
-                sse.addEventListener("error", (event) => {
-                  callback({ type: "SSE_ERROR", error: event })
-                })
-
-                // handle any sse implementation exceptions
-                sse.onerror = () => {
-                  sse.close();
-                  callback({ type: "SSE_ERROR", error: "sse error" })
-                }
-    
-              },
+              src: "listenForEvents",
             },
           },
-          // pollingWorkspace: {
-          //   initial: "refreshingWorkspace",
-          //   states: {
-          //     refreshingWorkspace: {
-          //       entry: "clearRefreshWorkspaceError",
-          //       invoke: {
-          //         src: "refreshWorkspace",
-          //         id: "refreshWorkspace",
-          //         onDone: [
-          //           {
-          //             actions: ["refreshTimeline", "assignWorkspace"],
-          //             target: "waiting",
-          //           },
-          //         ],
-          //         onError: [
-          //           {
-          //             actions: "assignRefreshWorkspaceError",
-          //             target: "waiting",
-          //           },
-          //         ],
-          //       },
-          //     },
-          //     waiting: {
-          //       after: {
-          //         "1000": {
-          //           target: "refreshingWorkspace",
-          //         },
-          //       },
-          //     },
-          //   },
-          // },
           build: {
             initial: "idle",
             states: {
@@ -421,37 +365,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          // pollingResources: {
-          //   initial: "gettingResources",
-          //   states: {
-          //     gettingResources: {
-          //       entry: "clearGetResourcesError",
-          //       invoke: {
-          //         src: "getResources",
-          //         id: "getResources",
-          //         onDone: [
-          //           {
-          //             actions: "assignResources",
-          //             target: "waiting",
-          //           },
-          //         ],
-          //         onError: [
-          //           {
-          //             actions: "assignGetResourcesError",
-          //             target: "waiting",
-          //           },
-          //         ],
-          //       },
-          //     },
-          //     waiting: {
-          //       after: {
-          //         "5000": {
-          //           target: "gettingResources",
-          //         },
-          //       },
-          //     },
-          //   },
-          // },
           timeline: {
             initial: "gettingBuilds",
             states: {
@@ -531,18 +444,6 @@ export const workspaceMachine = createMachine(
           build: undefined,
           permissions: undefined,
         }),
-      updateWorkspace: assign({
-        workspace: (_, event) => event.data,
-      }),
-      updateGetWorkspaceError: assign({
-        getWorkspaceError: (_, event) => event,
-      }),
-      updateResources: assign({
-        resources: (_, event) => event.data.latest_build.resources,
-      }),
-      updateGetResourcesError: assign({
-        getResourcesError: (_, event) => event,
-      }),
       assignWorkspace: assign({
         workspace: (_, event) => event.data,
       }),
@@ -590,12 +491,29 @@ export const workspaceMachine = createMachine(
       clearCancellationError: assign({
         cancellationError: (_) => undefined,
       }),
-      // assignRefreshWorkspaceError: assign({
-      //   refreshWorkspaceError: (_, event) => event.data,
-      // }),
-      // clearRefreshWorkspaceError: assign({
-      //   refreshWorkspaceError: (_) => undefined,
-      // }),
+      // SSE related actions
+      // open a new EventSource so we can stream SSE
+      initSse: assign({
+        sse: (context) => context.workspace?.id ? API.watchWorkspace(context.workspace.id) : undefined
+      }),
+      closeSse: (context) => context.sse && context.sse.close(),
+      // updating workspaces
+      updateWorkspace: assign({
+        workspace: (_, event) => event.data,
+      }),
+      assignRefreshWorkspaceError: assign({
+        refreshWorkspaceError: (_, event) => event,
+      }),
+      // getting resources
+      assignResources: assign({
+        resources: (_, event) => event.data.latest_build.resources,
+      }),
+      assignGetResourcesError: assign({
+        getResourcesError: (_, event) => event,
+      }),
+      clearGetResourcesError: assign({
+        getResourcesError: (_) => undefined,
+      }),
       assignRefreshTemplateError: assign({
         refreshTemplateError: (_, event) => event.data,
       }),
@@ -604,16 +522,6 @@ export const workspaceMachine = createMachine(
       },
       clearRefreshTemplateError: assign({
         refreshTemplateError: (_) => undefined,
-      }),
-      // Resources
-      // assignResources: assign({
-      //   resources: (_, event) => event.data,
-      // }),
-      // assignGetResourcesError: assign({
-      //   getResourcesError: (_, event) => event.data,
-      // }),
-      clearGetResourcesError: assign({
-        getResourcesError: (_) => undefined,
       }),
       // Timeline
       assignBuilds: assign({
@@ -643,25 +551,23 @@ export const workspaceMachine = createMachine(
       clearLoadMoreBuildsError: assign({
         loadMoreBuildsError: (_) => undefined,
       }),
-      refreshTimeline: pure((context) => {
+      refreshTimeline: pure((context, event) => {
         // No need to refresh the timeline if it is not loaded
         if (!context.builds) {
           return
         }
 
-        // KIRA REVISIT
-        return send({ type: "REFRESH_TIMELINE" })
-        // When it is a refresh workspace event, we want to check if the latest
+        // When it is a CHECK_REFRESH_TIMELINE workspace event, we want to check if the latest
         // build was updated to not over fetch the builds
-        // if (event.type === "done.invoke.refreshWorkspace") {
-        //   const latestBuildInTimeline = latestBuild(context.builds)
-        //   const isUpdated = event.data?.latest_build.updated_at !== latestBuildInTimeline.updated_at
-        //   if (isUpdated) {
-        //     return send({ type: "REFRESH_TIMELINE" })
-        //   }
-        // } else {
-        //   return send({ type: "REFRESH_TIMELINE" })
-        // }
+        if (event.type === "CHECK_REFRESH_TIMELINE") {
+          const latestBuildInTimeline = latestBuild(context.builds)
+          const isUpdated = event.data?.latest_build.updated_at !== latestBuildInTimeline.updated_at
+          if (isUpdated) {
+            return send({ type: "REFRESH_TIMELINE" })
+          }
+        } else {
+          return send({ type: "REFRESH_TIMELINE" })
+        }
       }),
     },
     guards: {
@@ -718,28 +624,31 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot cancel workspace without build id")
         }
       },
-      // refreshWorkspace: async (context) => {
-      //   if (context.workspace) {
-      //     return await API.getWorkspaceByOwnerAndName(
-      //       context.workspace.owner_name,
-      //       context.workspace.name,
-      //       {
-      //         include_deleted: true,
-      //       },
-      //     )
-      //   } else {
-      //     throw Error("Cannot refresh workspace without id")
-      //   }
-      // },
-      // getResources: async (context) => {
-      //   // If the job hasn't completed, fetching resources will result
-      //   // in an unfriendly error for the user.
-      //   if (!context.workspace?.latest_build.job.completed_at) {
-      //     return []
-      //   }
-      //   const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
-      //   return resources
-      // },
+      listenForEvents: (context) => (callback) => {
+        if (!context.sse) {
+          callback({ type: "SSE_ERROR", error: "error initializing sse" })
+          return
+        }
+
+        context.sse.addEventListener("data", (event) => {
+          // update our data objects (workspace, resources) with each SSE that comes back from the server
+          callback({ type: "UPDATE_EVENT", data: JSON.parse(event.data) })
+          // refresh our timeline
+          callback({ type: "CHECK_REFRESH_TIMELINE", data: JSON.parse(event.data) })
+        })
+
+        // handle any error events returned by our sse
+        context.sse.addEventListener("error", (event) => {
+          callback({ type: "SSE_ERROR", error: event })
+        })
+
+        // handle any sse implementation exceptions
+        context.sse.onerror = () => {
+          context.sse && context.sse.close();
+          callback({ type: "SSE_ERROR", error: "sse error" })
+        }
+
+      },
       getBuilds: async (context) => {
         if (context.workspace) {
           return await API.getWorkspaceBuilds(context.workspace.id)

@@ -203,6 +203,12 @@ export const getWorkspace = async (
   return response.data
 }
 
+export const watchWorkspace = (workspaceId: string): EventSource => {
+  return new EventSource(`${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
+    { withCredentials: true }
+  )
+}
+
 export const getURLWithSearchParams = (
   basePath: string,
   filter?: TypesGen.WorkspaceFilter | TypesGen.UsersRequest,
