@@ -89,9 +89,48 @@ resource "k8s_core_v1_pod" "dev" {
 
 > Sysbox CE (Community Edition) supports a maximum of 16 pods (workspaces) per node on Kubernetes. See the [Sysbox documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md#limitations) for more details.
 
-## Privileged sidecar container (Kubernetes)
+## Privileged sidecar container
 
 While less secure, you can attach a [privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) to your templates. This may come in handy if your nodes cannot run Sysbox.
+
+### Use a privileged sidecar container in Docker-based templates:
+
+```hcl
+resource "coder_agent" "main" {
+  os             = "linux"
+  arch           = "amd64"
+}
+
+resource "docker_network" "private_network" {
+  name = "network-${data.coder_workspace.me.id}"
+}
+
+resource "docker_container" "dind" {
+  image      = "docker:dind"
+  privileged = true
+  name       = "dind-${data.coder_workspace.me.id}"
+  entrypoint = ["dockerd", "-H", "tcp://0.0.0.0:2375"]
+  networks_advanced {
+    name = docker_network.private_network.name
+  }
+}
+
+resource "docker_container" "workspace" {
+  count   = data.coder_workspace.me.start_count
+  image   = "codercom/enterprise-base:ubuntu"
+  name    = "dev-${data.coder_workspace.me.id}"
+  command = ["sh", "-c", coder_agent.main.init_script]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "DOCKER_HOST=${docker_container.dind.name}:2375"
+  ]
+  networks_advanced {
+    name = docker_network.private_network.name
+  }
+}
+```
+
+### Use a privileged sidecar container in Kubernetes-based templates:
 
 ```hcl
 resource "coder_agent" "main" {
@@ -134,37 +173,4 @@ resource "kubernetes_pod" "main" {
     }
   }
 }
-
 ```
-
-## Shared Docker socket (Docker)
-
-While less secure, Docker-based templates can share the host's Docker socket.
-
-````hcl
-resource "coder_agent" "main" {
-  arch           = data.coder_provisioner.me.arch
-  os             = "linux"
-  startup_script = <<EOF
-    #!/bin/sh
-
-    # Give the internal "coder" user permission
-    # to use the Docker socket
-    sudo chmod 666 /var/run/socker.sock
-
-    EOF
-}
-
-resource "docker_container" "workspace" {
-  count   = data.coder_workspace.me.start_count
-  image   = "codercom/enterprise-base:ubuntu"
-  name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  command = ["sh", "-c", coder_agent.main.init_script]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-  volumes {
-    container_path = "/var/run/docker.sock"
-    host_path      = "/var/run/docker.sock"
-  }
-}
-```hcl
-````
