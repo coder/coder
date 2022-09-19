@@ -163,6 +163,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
 		"POST:/api/v2/users/logout": "Logging out deletes the API Key for other routes",
@@ -396,11 +398,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 
 	assertAllHTTPMethods("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
 		AssertAction: rbac.ActionCreate,
-		AssertObject: workspaceExecObj,
+		AssertObject: applicationConnectObj,
 	})
 	assertAllHTTPMethods("/@{user}/{workspace_and_agent}/apps/{workspaceapp}/*", RouteCheck{
 		AssertAction: rbac.ActionCreate,
-		AssertObject: workspaceExecObj,
+		AssertObject: applicationConnectObj,
 	})
 
 	return skipRoutes, assertRoute
@@ -506,6 +508,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 type authCall struct {
 	SubjectID string
 	Roles     []string
+	Scope     rbac.Scope
 	Action    rbac.Action
 	Object    rbac.Object
 }
@@ -515,21 +518,25 @@ type recordingAuthorizer struct {
 	AlwaysReturn error
 }
 
-func (r *recordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
+var _ rbac.Authorizer = (*recordingAuthorizer)(nil)
+
+func (r *recordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
+		Scope:     scope,
 		Action:    action,
 		Object:    object,
 	}
 	return r.AlwaysReturn
 }
 
-func (r *recordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *recordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:  r,
 		SubjectID: subjectID,
 		Roles:     roles,
+		Scope:     scope,
 		Action:    action,
 	}, nil
 }
@@ -542,9 +549,10 @@ type fakePreparedAuthorizer struct {
 	Original  *recordingAuthorizer
 	SubjectID string
 	Roles     []string
+	Scope     rbac.Scope
 	Action    rbac.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Action, object)
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
 }

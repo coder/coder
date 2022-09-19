@@ -35,16 +35,23 @@ func APIKey(r *http.Request) database.APIKey {
 }
 
 // User roles are the 'subject' field of Authorize()
-type userRolesKey struct{}
+type userAuthKey struct{}
 
-// AuthorizationUserRoles returns the roles used for authorization.
-// Comes from the ExtractAPIKey handler.
-func AuthorizationUserRoles(r *http.Request) database.GetAuthorizationUserRolesRow {
-	userRoles, ok := r.Context().Value(userRolesKey{}).(database.GetAuthorizationUserRolesRow)
+type Authorization struct {
+	ID       uuid.UUID
+	Username string
+	Roles    []string
+	Scope    database.APIKeyScope
+}
+
+// UserAuthorization returns the roles and scope used for authorization. Depends
+// on the ExtractAPIKey handler.
+func UserAuthorization(r *http.Request) Authorization {
+	auth, ok := r.Context().Value(userAuthKey{}).(Authorization)
 	if !ok {
-		panic("developer error: user roles middleware not provided")
+		panic("developer error: ExtractAPIKey middleware not provided")
 	}
-	return userRoles
+	return auth
 }
 
 // OAuth2Configs is a collection of configurations for OAuth-based authentication.
@@ -324,7 +331,13 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
-			ctx = context.WithValue(ctx, userRolesKey{}, roles)
+			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
+				ID:       key.UserID,
+				Username: roles.Username,
+				Roles:    roles.Roles,
+				Scope:    key.Scope,
+			})
+
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

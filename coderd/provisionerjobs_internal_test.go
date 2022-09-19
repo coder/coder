@@ -77,6 +77,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			UserID:       userID,
 			ExpiresAt:    time.Now().Add(5 * time.Hour),
 			LoginType:    database.LoginTypePassword,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{

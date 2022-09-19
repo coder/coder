@@ -66,7 +66,7 @@ func list() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
-		Short:       "List all workspaces",
+		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
 		Args:        cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
