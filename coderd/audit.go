@@ -140,6 +140,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if params.ResourceType == "" {
 		params.ResourceType = codersdk.ResourceTypeUser
 	}
+	if params.ResourceID == uuid.Nil {
+		params.ResourceID = uuid.New()
+	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
@@ -148,7 +151,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Ip:               ipNet,
 		UserAgent:        r.UserAgent(),
 		ResourceType:     database.ResourceType(params.ResourceType),
-		ResourceID:       user.ID,
+		ResourceID:       params.ResourceID,
 		ResourceTarget:   user.Username,
 		Action:           database.AuditAction(params.Action),
 		Diff:             diff,
