@@ -170,7 +170,7 @@ require (
 	tailscale.com v1.30.0
 )
 
-require github.com/jmoiron/sqlx v1.3.5 // indirect
+require github.com/jmoiron/sqlx v1.3.5
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
