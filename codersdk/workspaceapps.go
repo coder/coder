@@ -4,13 +4,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// type WorkspaceAppHealth string
+type WorkspaceAppHealth string
 
-// const (
-// 	WorkspaceAppHealthInitializing = "initializing"
-// 	WorkspaceAppHealthHealthy      = "healthy"
-// 	WorkspaceAppHealthUnhealthy    = "unhealthy"
-// )
+const (
+	WorkspaceAppInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppUnhealthy    WorkspaceAppHealth = "unhealthy"
+)
 
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id"`
@@ -19,6 +19,6 @@ type WorkspaceApp struct {
 	Command string `json:"command,omitempty"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
-	Icon string `json:"icon,omitempty"`
-	// Status WorkspaceAppHealth `json:"health"`
+	Icon   string             `json:"icon,omitempty"`
+	Status WorkspaceAppHealth `json:"health"`
 }

@@ -616,6 +616,7 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
+  readonly health: WorkspaceAppHealth
 }
 
 // From codersdk/workspacebuilds.go
@@ -737,6 +738,9 @@ export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceresources.go
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppHealth = "healthy" | "initializing" | "unhealthy"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"
