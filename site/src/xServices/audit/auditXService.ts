@@ -124,7 +124,7 @@ export const auditMachine = createMachine(
             q: filter,
           }).then((data) => data.audit_logs),
           getAuditLogsCount({
-            q: filter
+            q: filter,
           }).then((data) => data.count),
         ])
 
