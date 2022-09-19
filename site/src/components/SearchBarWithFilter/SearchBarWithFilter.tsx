@@ -99,6 +99,9 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
               debouncedOnFilter(event.currentTarget.value)
             }}
             inputRef={searchInputRef}
+            inputProps={{
+              "aria-label": "Filter",
+            }}
             startAdornment={
               <InputAdornment position="start" className={styles.searchIcon}>
                 <SearchIcon fontSize="small" />
