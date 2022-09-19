@@ -73,7 +73,7 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
 		opts:   opts,
-		tracer: opts.Tracer.Tracer("provisionerd"),
+		tracer: opts.Tracer.Tracer(""),
 
 		clientDialer: clientDialer,
 

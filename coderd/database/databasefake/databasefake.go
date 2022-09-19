@@ -1431,6 +1431,22 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 	return resources, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceResourcesByJobIDs(_ context.Context, jobIDs []uuid.UUID) ([]database.WorkspaceResource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	resources := make([]database.WorkspaceResource, 0)
+	for _, resource := range q.provisionerJobResources {
+		for _, jobID := range jobIDs {
+			if resource.JobID != jobID {
+				continue
+			}
+			resources = append(resources, resource)
+		}
+	}
+	return resources, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2343,6 +2359,14 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 	for _, alog := range q.auditLogs {
 		if arg.Offset > 0 {
 			arg.Offset--
+			continue
+		}
+
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
 		}
 

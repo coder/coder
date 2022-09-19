@@ -48,27 +48,23 @@ describe("Snackbar", () => {
 
   describe("displaySuccess", () => {
     const originalWindowDispatchEvent = window.dispatchEvent
-    let dispatchEventMock: jest.Mock
+    type TDispatchEventMock = jest.MockedFunction<(msg: CustomEvent<NotificationMsg>) => boolean>
+    let dispatchEventMock: TDispatchEventMock
 
     // Helper function to extract the notification event
     // that was sent to `dispatchEvent`. This lets us validate
     // the contents of the notification event are what we expect.
-    const extractNotificationEvent = (dispatchEventMock: jest.Mock): NotificationMsg => {
-      // The jest mock API isn't typesafe - but we know in our usage that
-      // this will always be a `NotificationMsg`.
-
+    const extractNotificationEvent = (dispatchEventMock: TDispatchEventMock): NotificationMsg => {
       // calls[0] is the first call made to the mock (this is reset in `beforeEach`)
       // calls[0][0] is the first argument of the first call
       // calls[0][0].detail is the 'detail' argument passed to the `CustomEvent` -
       // this is the `NotificationMsg` object that gets sent to `dispatchEvent`
-
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      return dispatchEventMock.mock.calls[0][0].detail as NotificationMsg
+      return dispatchEventMock.mock.calls[0][0].detail
     }
 
     beforeEach(() => {
       dispatchEventMock = jest.fn()
-      window.dispatchEvent = dispatchEventMock
+      window.dispatchEvent = dispatchEventMock as unknown as typeof window.dispatchEvent
     })
 
     afterEach(() => {

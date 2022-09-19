@@ -1,4 +1,4 @@
-package httpapi_test
+package tracing_test
 
 import (
 	"bufio"
@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 func TestStatusWriter(t *testing.T) {
@@ -22,7 +22,7 @@ func TestStatusWriter(t *testing.T) {
 
 		var (
 			rec = httptest.NewRecorder()
-			w   = &httpapi.StatusWriter{ResponseWriter: rec}
+			w   = &tracing.StatusWriter{ResponseWriter: rec}
 		)
 
 		w.WriteHeader(http.StatusOK)
@@ -36,7 +36,7 @@ func TestStatusWriter(t *testing.T) {
 
 		var (
 			rec  = httptest.NewRecorder()
-			w    = &httpapi.StatusWriter{ResponseWriter: rec}
+			w    = &tracing.StatusWriter{ResponseWriter: rec}
 			code = http.StatusNotFound
 		)
 
@@ -52,7 +52,7 @@ func TestStatusWriter(t *testing.T) {
 		t.Parallel()
 		var (
 			rec  = httptest.NewRecorder()
-			w    = &httpapi.StatusWriter{ResponseWriter: rec}
+			w    = &tracing.StatusWriter{ResponseWriter: rec}
 			body = []byte("hello")
 		)
 
@@ -70,7 +70,7 @@ func TestStatusWriter(t *testing.T) {
 		t.Parallel()
 		var (
 			rec  = httptest.NewRecorder()
-			w    = &httpapi.StatusWriter{ResponseWriter: rec}
+			w    = &tracing.StatusWriter{ResponseWriter: rec}
 			body = []byte("hello")
 			code = http.StatusInternalServerError
 		)
@@ -88,7 +88,7 @@ func TestStatusWriter(t *testing.T) {
 		t.Parallel()
 		var (
 			rec = httptest.NewRecorder()
-			w   = &httpapi.StatusWriter{ResponseWriter: rec}
+			w   = &tracing.StatusWriter{ResponseWriter: rec}
 			// 8kb body.
 			body = make([]byte, 8<<10)
 			code = http.StatusInternalServerError
@@ -112,7 +112,7 @@ func TestStatusWriter(t *testing.T) {
 			rec = httptest.NewRecorder()
 		)
 
-		w := &httpapi.StatusWriter{ResponseWriter: hijacker{rec}}
+		w := &tracing.StatusWriter{ResponseWriter: hijacker{rec}}
 
 		_, _, err := w.Hijack()
 		require.Error(t, err)

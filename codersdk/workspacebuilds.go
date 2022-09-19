@@ -49,8 +49,9 @@ type WorkspaceBuild struct {
 	InitiatorID        uuid.UUID           `json:"initiator_id"`
 	InitiatorUsername  string              `json:"initiator_name"`
 	Job                ProvisionerJob      `json:"job"`
-	Deadline           NullTime            `json:"deadline,omitempty"`
 	Reason             BuildReason         `db:"reason" json:"reason"`
+	Resources          []WorkspaceResource `json:"resources"`
+	Deadline           NullTime            `json:"deadline,omitempty"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.

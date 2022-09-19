@@ -15,6 +15,7 @@ vendor
 yarn-error.log
 gotests.coverage
 .idea
+.gitpod.yml
 .DS_Store
 
 # Front-end ignore

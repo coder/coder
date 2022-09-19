@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/tracing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -67,9 +68,9 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 				rctx   = chi.RouteContext(r.Context())
 			)
 
-			sw, ok := w.(*httpapi.StatusWriter)
+			sw, ok := w.(*tracing.StatusWriter)
 			if !ok {
-				panic("dev error: http.ResponseWriter is not *httpapi.StatusWriter")
+				panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 			}
 
 			var (
