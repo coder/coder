@@ -31,6 +31,8 @@ const (
 	proxyTestAppQuery    = "query=true"
 	proxyTestAppBody     = "hello world"
 	proxyTestFakeAppName = "fake"
+
+	proxyTestSubdomain = "test.coder.com"
 )
 
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
@@ -58,6 +60,7 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 	require.True(t, ok)
 
 	client := coderdtest.New(t, &coderdtest.Options{
+		AppHostname:              proxyTestSubdomain,
 		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -252,8 +255,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspace.Name,
 			Username:      me.Username,
-			BaseHostname:  "test.coder.com",
-		}.String()
+		}.String() + "." + proxyTestSubdomain
 
 		actualPath := "/"
 		query := ""

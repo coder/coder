@@ -55,13 +55,18 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
+			if api.AppHostname == "" {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
 			host := httpapi.RequestHost(r)
 			if host == "" {
 				if r.URL.Path == "/derp" {
 					// The /derp endpoint is used by wireguard clients to tunnel
 					// through coderd. For some reason these requests don't set
-					// a Host header properly sometimes (no idea how), which
-					// causes this path to get hit.
+					// a Host header properly sometimes in tests (no idea how),
+					// which causes this path to get hit.
 					next.ServeHTTP(rw, r)
 					return
 				}
@@ -72,15 +77,35 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			app, err := httpapi.ParseSubdomainAppURL(host)
-			if err != nil {
-				// Subdomain is not a valid application url. Pass through to the
-				// rest of the app.
-				// TODO: @emyrk we should probably catch invalid subdomains. Meaning
-				// 	an invalid application should not route to the coderd.
-				//	To do this we would need to know the list of valid access urls
-				//	though?
+			// Check if the hostname matches the access URL.
+			if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
+				// The user was definitely trying to connect to the
+				// dashboard/API.
 				next.ServeHTTP(rw, r)
+				return
+			}
+
+			// Split the subdomain and verify it matches the configured app
+			// hostname.
+			subdomain, rest, err := httpapi.SplitSubdomain(host)
+			if err != nil {
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Could not split request Host header %q.", host),
+					Detail:  err.Error(),
+				})
+				return
+			}
+			if !httpapi.HostnamesMatch(api.AppHostname, rest) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+
+			app, err := httpapi.ParseSubdomainAppURL(subdomain)
+			if err != nil {
+				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Could not parse subdomain application URL.",
+					Detail:  err.Error(),
+				})
 				return
 			}
 

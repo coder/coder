@@ -45,9 +45,12 @@ import (
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
-	Logger    slog.Logger
-	Database  database.Store
-	Pubsub    database.Pubsub
+	// AppHostname should be the wildcard hostname to use for workspace
+	// applications without the asterisk or leading dot. E.g. "apps.coder.com".
+	AppHostname string
+	Logger      slog.Logger
+	Database    database.Store
+	Pubsub      database.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string

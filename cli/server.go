@@ -75,6 +75,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
+		appHostname           string
 		autobuildPollInterval time.Duration
 		derpServerEnabled     bool
 		derpServerRegionID    int
@@ -360,6 +361,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
+				AppHostname:                 appHostname,
 				ICEServers:                  iceServers,
 				Logger:                      logger.Named("coderd"),
 				Database:                    databasefake.New(),
@@ -763,6 +765,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		"External URL to access your deployment. This must be accessible by all provisioned workspaces.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000",
 		"Bind address of the server.")
+	cliflag.StringVarP(root.Flags(), &appHostname, "app-hostname", "", "CODER_APP_HOSTNAME", "", `Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".`)
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
 		"URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",
