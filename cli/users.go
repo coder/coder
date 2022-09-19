@@ -8,7 +8,7 @@ import (
 
 func users() *cobra.Command {
 	cmd := &cobra.Command{
-		Short:   "Create, remove, and list users",
+		Short:   "Manage users",
 		Use:     "users",
 		Aliases: []string{"user"},
 	}

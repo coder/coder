@@ -48,7 +48,7 @@ func ssh() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
-		Short:       "SSH into a workspace",
+		Short:       "Start a shell into a workspace",
 		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())

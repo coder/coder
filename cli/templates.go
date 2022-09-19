@@ -13,7 +13,8 @@ import (
 func templates() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "templates",
-		Short:   "Create, manage, and deploy templates",
+		Short:   "Manage templates",
+		Long:    "Templates are written in standard Terraform and describe the infrastructure for workspaces",
 		Aliases: []string{"template"},
 		Example: formatExamples(
 			example{

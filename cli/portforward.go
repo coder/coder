@@ -32,7 +32,7 @@ func portForward() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:     "port-forward <workspace>",
-		Short:   "Forward one or more ports from the local machine to the remote workspace",
+		Short:   "Forward ports from machine to a workspace",
 		Aliases: []string{"tunnel"},
 		Args:    cobra.ExactArgs(1),
 		Example: formatExamples(
