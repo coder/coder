@@ -22,15 +22,14 @@ var (
 // SplitSubdomain splits a subdomain from the rest of the hostname. E.g.:
 //   - "foo.bar.com" becomes "foo", "bar.com"
 //   - "foo.bar.baz.com" becomes "foo", "bar.baz.com"
-//
-// An error is returned if the string doesn't contain a period.
-func SplitSubdomain(hostname string) (subdomain string, rest string, err error) {
+//   - "foo" becomes "foo", ""
+func SplitSubdomain(hostname string) (subdomain string, rest string) {
 	toks := strings.SplitN(hostname, ".", 2)
 	if len(toks) < 2 {
-		return "", "", xerrors.New("no subdomain")
+		return toks[0], ""
 	}
 
-	return toks[0], toks[1], nil
+	return toks[0], toks[1]
 }
 
 // ApplicationURL is a parsed application URL hostname.

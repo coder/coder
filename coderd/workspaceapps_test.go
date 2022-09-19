@@ -232,7 +232,10 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
+	// No AppHostname set.
+	client := coderdtest.New(t, &coderdtest.Options{
+		AppHostname: "",
+	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	// Configure the HTTP client to always route all requests to the coder test
@@ -259,6 +262,73 @@ func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&user)
 	require.NoError(t, err)
 	require.Equal(t, firstUser.UserID, user.ID)
+}
+
+// This test ensures that the subdomain handler blocks the request if it looks
+// like a workspace app request but the configured app hostname differs from the
+// request, or the request is not a valid app subdomain but the hostname
+// matches.
+func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T, appHostname string) *codersdk.Client {
+		client := coderdtest.New(t, &coderdtest.Options{
+			AppHostname: appHostname,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Configure the HTTP client to always route all requests to the coder test
+		// server.
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		require.True(t, ok)
+		transport := defaultTransport.Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+		}
+		client.HTTPClient.Transport = transport
+
+		return client
+	}
+
+	t.Run("NotMatchingHostname", func(t *testing.T) {
+		t.Parallel()
+		client := setup(t, "test."+proxyTestSubdomain)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		uri := fmt.Sprintf("http://app--agent--workspace--username.%s/api/v2/users/me", proxyTestSubdomain)
+		resp, err := client.Request(ctx, http.MethodGet, uri, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Should have an error response.
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		var resBody codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		require.NoError(t, err)
+		require.Contains(t, resBody.Message, "does not accept application requests on this hostname")
+	})
+
+	t.Run("InvalidSubdomain", func(t *testing.T) {
+		t.Parallel()
+		client := setup(t, proxyTestSubdomain)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		uri := fmt.Sprintf("http://not-an-app-subdomain.%s/api/v2/users/me", proxyTestSubdomain)
+		resp, err := client.Request(ctx, http.MethodGet, uri, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Should have an error response.
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var resBody codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		require.NoError(t, err)
+		require.Contains(t, resBody.Message, "Could not parse subdomain application URL")
+	})
 }
 
 func TestWorkspaceAppsProxySubdomain(t *testing.T) {

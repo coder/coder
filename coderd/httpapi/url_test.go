@@ -15,49 +15,42 @@ func TestSplitSubdomain(t *testing.T) {
 		Host              string
 		ExpectedSubdomain string
 		ExpectedRest      string
-		ExpectedErr       string
 	}{
 		{
 			Name:              "Empty",
 			Host:              "",
 			ExpectedSubdomain: "",
 			ExpectedRest:      "",
-			ExpectedErr:       "no subdomain",
 		},
 		{
 			Name:              "NoSubdomain",
 			Host:              "com",
-			ExpectedSubdomain: "",
+			ExpectedSubdomain: "com",
 			ExpectedRest:      "",
-			ExpectedErr:       "no subdomain",
 		},
 		{
 			Name:              "Domain",
 			Host:              "coder.com",
 			ExpectedSubdomain: "coder",
 			ExpectedRest:      "com",
-			ExpectedErr:       "",
 		},
 		{
 			Name:              "Subdomain",
 			Host:              "subdomain.coder.com",
 			ExpectedSubdomain: "subdomain",
 			ExpectedRest:      "coder.com",
-			ExpectedErr:       "",
 		},
 		{
 			Name:              "DoubleSubdomain",
 			Host:              "subdomain1.subdomain2.coder.com",
 			ExpectedSubdomain: "subdomain1",
 			ExpectedRest:      "subdomain2.coder.com",
-			ExpectedErr:       "",
 		},
 		{
 			Name:              "WithPort",
 			Host:              "subdomain.coder.com:8080",
 			ExpectedSubdomain: "subdomain",
 			ExpectedRest:      "coder.com:8080",
-			ExpectedErr:       "",
 		},
 	}
 
@@ -66,13 +59,7 @@ func TestSplitSubdomain(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			subdomain, rest, err := httpapi.SplitSubdomain(c.Host)
-			if c.ExpectedErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), c.ExpectedErr)
-			} else {
-				require.NoError(t, err)
-			}
+			subdomain, rest := httpapi.SplitSubdomain(c.Host)
 			require.Equal(t, c.ExpectedSubdomain, subdomain)
 			require.Equal(t, c.ExpectedRest, rest)
 		})
