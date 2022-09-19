@@ -37,7 +37,20 @@ OFFSET
 SELECT
     COUNT(*) as count
 FROM
-    audit_logs;
+    audit_logs
+WHERE
+    -- Filter resource_type
+	CASE
+		WHEN @resource_type :: text != '' THEN
+			resource_type = @resource_type :: resource_type
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN @action :: text != '' THEN
+			action = @action :: audit_action
+		ELSE true
+	END;
 
 -- name: InsertAuditLog :one
 INSERT INTO

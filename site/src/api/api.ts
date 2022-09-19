@@ -446,8 +446,14 @@ export const getAuditLogs = async (
   return response.data
 }
 
-export const getAuditLogsCount = async (): Promise<TypesGen.AuditLogCountResponse> => {
-  const response = await axios.get(`/api/v2/audit/count`)
+export const getAuditLogsCount = async (
+  options: TypesGen.AuditLogCountRequest = {},
+): Promise<TypesGen.AuditLogCountResponse> => {
+  const searchParams = new URLSearchParams()
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+  const response = await axios.get(`/api/v2/audit/count?${searchParams.toString()}`)
   return response.data
 }
 

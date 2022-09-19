@@ -167,21 +167,21 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 
 	cmd.SetUsageTemplate(usageTemplate())
 
-	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
+	cmd.PersistentFlags().String(varURL, "", "URL to a deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoFeatureWarning, "", envNoFeatureWarning, false, "Suppress warnings about unlicensed features.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
-	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
+	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "An agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
-	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
+	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
+	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
-	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output")
+	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
 
 	return cmd
 }

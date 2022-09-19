@@ -187,7 +187,7 @@ export type WorkspaceItemMachineRef = ActorRefFrom<typeof workspaceItemMachine>
 
 interface WorkspacesContext {
   workspaceRefs?: WorkspaceItemMachineRef[]
-  filter?: string
+  filter: string
   getWorkspacesError?: Error | unknown
 }
 

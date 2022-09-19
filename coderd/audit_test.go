@@ -23,7 +23,7 @@ func TestAuditLogs(t *testing.T) {
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{})
 		require.NoError(t, err)
 
-		count, err := client.AuditLogCount(ctx)
+		count, err := client.AuditLogCount(ctx, codersdk.AuditLogCountRequest{})
 		require.NoError(t, err)
 
 		alogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
@@ -41,7 +41,7 @@ func TestAuditLogs(t *testing.T) {
 func TestAuditLogsFilter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FilterByResourceType", func(t *testing.T) {
+	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -106,6 +106,76 @@ func TestAuditLogsFilter(t *testing.T) {
 				})
 				require.NoError(t, err, "fetch audit logs")
 				require.Len(t, auditLogs.AuditLogs, testCase.ExpectedResult, "expected audit logs returned")
+			})
+		}
+	})
+}
+
+func TestAuditLogCountFilter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Filter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Create two logs with "Create"
+		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionCreate,
+			ResourceType: codersdk.ResourceTypeTemplate,
+		})
+		require.NoError(t, err)
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionCreate,
+			ResourceType: codersdk.ResourceTypeUser,
+		})
+		require.NoError(t, err)
+
+		// Create one log with "Delete"
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionDelete,
+			ResourceType: codersdk.ResourceTypeUser,
+		})
+		require.NoError(t, err)
+
+		// Test cases
+		testCases := []struct {
+			Name           string
+			SearchQuery    string
+			ExpectedResult int64
+		}{
+			{
+				Name:           "FilterByCreateAction",
+				SearchQuery:    "action:create",
+				ExpectedResult: 2,
+			},
+			{
+				Name:           "FilterByDeleteAction",
+				SearchQuery:    "action:delete",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterByUserResourceType",
+				SearchQuery:    "resource_type:user",
+				ExpectedResult: 2,
+			},
+			{
+				Name:           "FilterByTemplateResourceType",
+				SearchQuery:    "resource_type:template",
+				ExpectedResult: 1,
+			},
+		}
+
+		for _, testCase := range testCases {
+			t.Run(testCase.Name, func(t *testing.T) {
+				t.Parallel()
+				response, err := client.AuditLogCount(ctx, codersdk.AuditLogCountRequest{
+					SearchQuery: testCase.SearchQuery,
+				})
+				require.NoError(t, err, "fetch audit logs count")
+				require.Equal(t, response.Count, testCase.ExpectedResult, "expected audit logs count returned")
 			})
 		}
 	})

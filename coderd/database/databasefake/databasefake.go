@@ -2402,11 +2402,25 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetAuditLogCount(_ context.Context) (int64, error) {
+func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditLogCountParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return int64(len(q.auditLogs)), nil
+	logs := make([]database.AuditLog, 0)
+
+	for _, alog := range q.auditLogs {
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+
+		logs = append(logs, alog)
+	}
+
+	return int64(len(logs)), nil
 }
 
 func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {

@@ -28,7 +28,7 @@ func speedtest() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Args:        cobra.ExactArgs(1),
-		Short:       "Run a speed test from your machine to the workspace.",
+		Short:       "Run upload and download tests from your machine to a workspace",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
