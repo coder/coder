@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -224,6 +225,40 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		// this is 200 OK because it returns a dashboard page
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
+}
+
+// This test ensures that the subdomain handler does nothing if --app-hostname
+// is not set by the admin.
+func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	// Configure the HTTP client to always route all requests to the coder test
+	// server.
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok)
+	transport := defaultTransport.Clone()
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+	}
+	client.HTTPClient.Transport = transport
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	uri := fmt.Sprintf("http://app--agent--workspace--username.%s/api/v2/users/me", proxyTestSubdomain)
+	resp, err := client.Request(ctx, http.MethodGet, uri, nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Should look like a codersdk.User response.
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var user codersdk.User
+	err = json.NewDecoder(resp.Body).Decode(&user)
+	require.NoError(t, err)
+	require.Equal(t, firstUser.UserID, user.ID)
 }
 
 func TestWorkspaceAppsProxySubdomain(t *testing.T) {
