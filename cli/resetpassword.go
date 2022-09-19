@@ -20,7 +20,7 @@ func resetPassword() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "reset-password <username>",
-		Short: "Reset a user's password by directly updating the database",
+		Short: "Directly connect to the database to reset a user's password",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			username := args[0]

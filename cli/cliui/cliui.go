@@ -48,7 +48,7 @@ var Styles = struct {
 	Field:         defaultStyles.Code.Copy().Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}),
 	Keyword:       defaultStyles.Keyword,
 	Paragraph:     defaultStyles.Paragraph,
-	Placeholder:   lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#585858", Dark: "#005fff"}),
+	Placeholder:   lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#585858", Dark: "#4d46b3"}),
 	Prompt:        defaultStyles.Prompt.Foreground(lipgloss.AdaptiveColor{Light: "#9B9B9B", Dark: "#5C5C5C"}),
 	FocusedPrompt: defaultStyles.FocusedPrompt.Foreground(lipgloss.Color("#651fff")),
 	Fuchsia:       defaultStyles.SelectedMenuItem.Copy(),

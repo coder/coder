@@ -755,95 +755,119 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		},
 	})
 
-	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
-	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
-	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
+	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute,
+		"Interval to poll for scheduled workspace builds.")
+	_ = root.Flags().MarkHidden("autobuild-poll-interval")
+	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "",
+		"External URL to access your deployment. This must be accessible by all provisioned workspaces.")
+	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000",
+		"Bind address of the server.")
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
-		"Specifies a URL to periodically fetch a DERP map. See: https://tailscale.com/kb/1118/custom-derp-servers/")
+		"URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",
-		"Specifies a path to read a DERP map from. See: https://tailscale.com/kb/1118/custom-derp-servers/")
-	cliflag.BoolVarP(root.Flags(), &derpServerEnabled, "derp-server-enable", "", "CODER_DERP_SERVER_ENABLE", true, "Specifies whether to enable or disable the embedded DERP server.")
-	cliflag.IntVarP(root.Flags(), &derpServerRegionID, "derp-server-region-id", "", "CODER_DERP_SERVER_REGION_ID", 999, "Specifies the region ID to use for the embedded DERP server.")
-	cliflag.StringVarP(root.Flags(), &derpServerRegionCode, "derp-server-region-code", "", "CODER_DERP_SERVER_REGION_CODE", "coder", "Specifies the region code that is displayed in the Coder UI for the embedded DERP server.")
-	cliflag.StringVarP(root.Flags(), &derpServerRegionName, "derp-server-region-name", "", "CODER_DERP_SERVER_REGION_NAME", "Coder Embedded Relay", "Specifies the region name that is displayed in the Coder UI for the embedded DERP server.")
+		"Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/")
+	cliflag.BoolVarP(root.Flags(), &derpServerEnabled, "derp-server-enable", "", "CODER_DERP_SERVER_ENABLE", true,
+		"Whether to enable or disable the embedded DERP relay server.")
+	cliflag.IntVarP(root.Flags(), &derpServerRegionID, "derp-server-region-id", "", "CODER_DERP_SERVER_REGION_ID", 999,
+		"Region ID to use for the embedded DERP server.")
+	cliflag.StringVarP(root.Flags(), &derpServerRegionCode, "derp-server-region-code", "", "CODER_DERP_SERVER_REGION_CODE", "coder",
+		"Region code that for the embedded DERP server.")
+	cliflag.StringVarP(root.Flags(), &derpServerRegionName, "derp-server-region-name", "", "CODER_DERP_SERVER_REGION_NAME", "Coder Embedded Relay",
+		"Region name that for the embedded DERP server.")
 	cliflag.StringArrayVarP(root.Flags(), &derpServerSTUNAddrs, "derp-server-stun-addresses", "", "CODER_DERP_SERVER_STUN_ADDRESSES", []string{
 		"stun.l.google.com:19302",
-	}, "Specify addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections entirely.")
-	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
-	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
-	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
-	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
+	}, "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.")
+	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false,
+		"Serve prometheus metrics on the address defined by `prometheus-address`.")
+	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112",
+		"The bind address to serve prometheus metrics.")
+	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false,
+		"Serve pprof metrics on the address defined by `pprof-address`.")
+	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060",
+		"The bind address to serve pprof.")
 	defaultCacheDir := filepath.Join(os.TempDir(), "coder-cache")
 	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
 		// For compatibility with systemd.
 		defaultCacheDir = dir
 	}
-	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir, "Specifies a directory to cache binaries for provision operations. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
+	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir,
+		"The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
 	cliflag.BoolVarP(root.Flags(), &inMemoryDatabase, "in-memory", "", "CODER_INMEMORY", false,
-		"Specifies whether data will be stored in an in-memory database.")
+		"Controls whether data will be stored in an in-memory database.")
 	_ = root.Flags().MarkHidden("in-memory")
-	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\"")
-	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
+	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "",
+		"URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\"")
+	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3,
+		"Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
-		"Specifies a client ID to use for oauth2 with GitHub.")
+		"Client ID for Login with GitHub.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientSecret, "oauth2-github-client-secret", "", "CODER_OAUTH2_GITHUB_CLIENT_SECRET", "",
-		"Specifies a client secret to use for oauth2 with GitHub.")
+		"Client secret for Login with GitHub.")
 	cliflag.StringArrayVarP(root.Flags(), &oauth2GithubAllowedOrganizations, "oauth2-github-allowed-orgs", "", "CODER_OAUTH2_GITHUB_ALLOWED_ORGS", nil,
-		"Specifies organizations the user must be a member of to authenticate with GitHub.")
+		"Organizations the user must be a member of to Login with GitHub.")
 	cliflag.StringArrayVarP(root.Flags(), &oauth2GithubAllowedTeams, "oauth2-github-allowed-teams", "", "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS", nil,
-		"Specifies teams inside organizations the user must be a member of to authenticate with GitHub. Formatted as: <organization-name>/<team-slug>.")
+		"Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
-		"Specifies whether new users can sign up with GitHub.")
+		"Whether new users can sign up with GitHub.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubEnterpriseBaseURL, "oauth2-github-enterprise-base-url", "", "CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL", "",
-		"Specifies the base URL of a GitHub Enterprise instance to use for oauth2.")
+		"Base URL of a GitHub Enterprise deployment to use for Login with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &oidcAllowSignups, "oidc-allow-signups", "", "CODER_OIDC_ALLOW_SIGNUPS", true,
-		"Specifies whether new users can sign up with OIDC.")
+		"Whether new users can sign up with OIDC.")
 	cliflag.StringVarP(root.Flags(), &oidcClientID, "oidc-client-id", "", "CODER_OIDC_CLIENT_ID", "",
-		"Specifies a client ID to use for OIDC.")
+		"Client ID to use for Login with OIDC.")
 	cliflag.StringVarP(root.Flags(), &oidcClientSecret, "oidc-client-secret", "", "CODER_OIDC_CLIENT_SECRET", "",
-		"Specifies a client secret to use for OIDC.")
+		"Client secret to use for Login with OIDC.")
 	cliflag.StringVarP(root.Flags(), &oidcEmailDomain, "oidc-email-domain", "", "CODER_OIDC_EMAIL_DOMAIN", "",
-		"Specifies an email domain that clients authenticating with OIDC must match.")
+		"Email domain that clients logging in with OIDC must match.")
 	cliflag.StringVarP(root.Flags(), &oidcIssuerURL, "oidc-issuer-url", "", "CODER_OIDC_ISSUER_URL", "",
-		"Specifies an issuer URL to use for OIDC.")
+		"Issuer URL to use for Login with OIDC.")
 	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
-		"Specifies scopes to grant when authenticating with OIDC.")
+		"Scopes to grant when authenticating with OIDC.")
 	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", true,
 		"Specifies whether Tailscale networking is used for web applications and terminals.")
 	_ = root.Flags().MarkHidden("tailscale")
 	enableTelemetryByDefault := !isTest()
-	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault, "Specifies whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
-	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com", "Specifies a URL to send telemetry to.")
+	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault,
+		"Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
+	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com",
+		"URL to send telemetry.")
 	_ = root.Flags().MarkHidden("telemetry-url")
-	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
+	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false,
+		"Whether TLS will be enabled.")
 	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
-		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
+		"Path to the certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
-			"and the CA certificate together. The primary certificate should appear first in the combined file")
+			"and the CA certificate together. The primary certificate should appear first in the combined file.")
 	cliflag.StringVarP(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
 		"PEM-encoded Certificate Authority file used for checking the authenticity of client")
 	cliflag.StringVarP(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
-		`Specifies the policy the server will follow for TLS Client Authentication. `+
+		`Policy the server will follow for TLS Client Authentication. `+
 			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
 	cliflag.StringVarP(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
-		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
+		"Path to the private key for the certificate. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
-		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
+		`Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
 		"Workspaces must be able to reach the `access-url`. This overrides your access URL with a public access URL that tunnels your Coder deployment.")
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
-	}, "Specify URLs for STUN servers to enable P2P connections.")
-	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
+	}, "URLs for STUN servers to enable P2P connections.")
+	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace", "", "CODER_TRACE", false,
+		"Whether application tracing data is collected.")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
-		"Specifies the address to bind TURN connections.")
-	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
-	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
-		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
-	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{}, "Which templates to auto-import. Available auto-importable templates are: kubernetes")
-	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
+		"The address to bind TURN connections.")
+	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false,
+		"Controls if the 'Secure' property is set on browser session cookies")
+	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519",
+		"The algorithm to use for generating ssh keys. "+
+			`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
+	cliflag.StringArrayVarP(root.Flags(), &autoImportTemplates, "auto-import-template", "", "CODER_TEMPLATE_AUTOIMPORT", []string{},
+		"Templates to auto-import. Available auto-importable templates are: kubernetes")
+	_ = root.Flags().MarkHidden("auto-import-template")
+	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level...")
 	_ = root.Flags().MarkHidden("spooky")
-	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
+	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false,
+		"Enables verbose logging.")
 
 	// These metrics flags are for manually testing the metric system.
 	// The defaults should be acceptable for any Coder deployment of any
@@ -851,7 +875,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.DurationVarP(root.Flags(), &metricsCacheRefreshInterval, "metrics-cache-refresh-interval", "", "CODER_METRICS_CACHE_REFRESH_INTERVAL", time.Hour, "How frequently metrics are refreshed")
 	_ = root.Flags().MarkHidden("metrics-cache-refresh-interval")
 	cliflag.DurationVarP(root.Flags(), &agentStatRefreshInterval, "agent-stats-refresh-interval", "", "CODER_AGENT_STATS_REFRESH_INTERVAL", time.Minute*10, "How frequently agent stats are recorded")
-	_ = root.Flags().MarkHidden("agent-stats-report-interval")
+	_ = root.Flags().MarkHidden("agent-stats-refresh-interval")
 
 	return root
 }
