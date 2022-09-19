@@ -2,7 +2,7 @@ import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import CloseIcon from "@material-ui/icons/Close"
+import ErrorOutlineIcon from '@material-ui/icons/ErrorOutline';
 import ComputerIcon from "@material-ui/icons/Computer"
 import { FC, PropsWithChildren } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -50,7 +50,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   }
   if (health === "unhealthy") {
     canClick = false
-    icon = <CloseIcon className={styles.unhealthyIcon} />
+    icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
   }
 
   return (
@@ -93,6 +93,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   unhealthyIcon: {
-    color: theme.palette.error.main,
+    color: theme.palette.warning.light,
   },
 }))
