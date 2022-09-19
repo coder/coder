@@ -107,7 +107,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
           />
         </div>
 
-        {presetFilters && presetFilters.length && (
+        {presetFilters && presetFilters.length ? (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}
@@ -130,7 +130,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
               </MenuItem>
             ))}
           </Menu>
-        )}
+        ) : null}
       </Stack>
       {errorMessage && <Stack className={styles.errorRoot}>{errorMessage}</Stack>}
     </Stack>
