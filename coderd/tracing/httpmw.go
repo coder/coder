@@ -10,17 +10,21 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// HTTPMW adds tracing to http routes.
-func HTTPMW(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
+// Middleware adds tracing to http routes.
+func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
+	var tracer trace.Tracer
+	if tracerProvider != nil {
+		tracer = tracerProvider.Tracer(TracerName)
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if tracerProvider == nil {
+			if tracer == nil {
 				next.ServeHTTP(rw, r)
 				return
 			}
 
 			// start span with default span name. Span name will be updated to "method route" format once request finishes.
-			ctx, span := tracerProvider.Tracer("").Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.RequestURI))
+			ctx, span := tracer.Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.RequestURI))
 			defer span.End()
 			r = r.WithContext(ctx)
 
@@ -59,5 +63,5 @@ func EndHTTPSpan(r *http.Request, status int, span trace.Span) {
 }
 
 func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, FuncNameSkip(1), opts...)
+	return trace.SpanFromContext(ctx).TracerProvider().Tracer(TracerName).Start(ctx, FuncNameSkip(1), opts...)
 }
