@@ -701,7 +701,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// User is the user to modify.
 		user              = httpmw.UserParam(r)
-		actorRoles        = httpmw.AuthorizationUserRoles(r)
+		actorRoles        = httpmw.UserAuthorization(r)
 		apiKey            = httpmw.APIKey(r)
 		_, auditor        = api.Auditor.Load(r.Context())
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
@@ -1079,6 +1079,7 @@ func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
+		Scope:        database.APIKeyScopeAll,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert API key: %w", err)

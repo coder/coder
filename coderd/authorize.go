@@ -11,14 +11,15 @@ import (
 )
 
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
-	roles := httpmw.AuthorizationUserRoles(r)
-	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, action, objects)
+	roles := httpmw.UserAuthorization(r)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
 		h.Logger.Error(r.Context(), "filter failed",
 			slog.Error(err),
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles.Username),
+			slog.F("scope", roles.Scope),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 		)
@@ -55,8 +56,8 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //		return
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
-	roles := httpmw.AuthorizationUserRoles(r)
-	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object.RBACObject())
+	roles := httpmw.UserAuthorization(r)
+	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
@@ -70,6 +71,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 			slog.F("roles", roles.Roles),
 			slog.F("user_id", roles.ID),
 			slog.F("username", roles.Username),
+			slog.F("scope", roles.Scope),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 			slog.F("object", object),

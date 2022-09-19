@@ -4,12 +4,15 @@ package database_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/migrations"
+	"github.com/coder/coder/coderd/database/postgres"
 )
 
 func TestNestedInTx(t *testing.T) {
@@ -20,7 +23,7 @@ func TestNestedInTx(t *testing.T) {
 
 	uid := uuid.New()
 	sqlDB := testSQLDB(t)
-	err := database.MigrateUp(sqlDB)
+	err := migrations.Up(sqlDB)
 	require.NoError(t, err, "migrations")
 
 	db := database.New(sqlDB)
@@ -47,4 +50,18 @@ func TestNestedInTx(t *testing.T) {
 	user, err := db.GetUserByID(context.Background(), uid)
 	require.NoError(t, err, "user exists")
 	require.Equal(t, uid, user.ID, "user id expected")
+}
+
+func testSQLDB(t testing.TB) *sql.DB {
+	t.Helper()
+
+	connection, closeFn, err := postgres.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFn)
+
+	db, err := sql.Open("postgres", connection)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	return db
 }

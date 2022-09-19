@@ -18,6 +18,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 // IsSetBool returns the value of the boolean flag if it is set.
@@ -176,7 +178,7 @@ func fmtUsage(u string, env string) string {
 		if strings.HasSuffix(u, ".") {
 			dot = ""
 		}
-		u = fmt.Sprintf("%s%s\nConsumes $%s", u, dot, env)
+		u = fmt.Sprintf("%s%s\n"+cliui.Styles.Placeholder.Render("Consumes $%s"), u, dot, env)
 	}
 
 	return u

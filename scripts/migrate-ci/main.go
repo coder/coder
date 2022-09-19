@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -34,7 +34,7 @@ func main() {
 	}
 	defer target.Close()
 
-	err = database.MigrateUp(target)
+	err = migrations.Up(target)
 	if err != nil {
 		panic(err)
 	}

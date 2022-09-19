@@ -21,7 +21,7 @@ vim main.tf
 
 Modify your file to match the following:
 
-```hcl
+```diff
 variable "docker_image" {
   description = "What Docker image would you like to use for your workspace?"
   default     = "codercom/enterprise-base:ubuntu"

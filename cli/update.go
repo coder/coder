@@ -20,7 +20,7 @@ func update() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
 		Args:        cobra.ExactArgs(1),
-		Short:       "Update a workspace to the latest template version",
+		Short:       "Update a workspace",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {

@@ -128,7 +128,7 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
 FROM
 	api_keys
 WHERE
@@ -151,12 +151,13 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -179,6 +180,7 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
+			&i.Scope,
 		); err != nil {
 			return nil, err
 		}
@@ -205,7 +207,8 @@ INSERT INTO
 		expires_at,
 		created_at,
 		updated_at,
-		login_type
+		login_type,
+		scope
 	)
 VALUES
 	($1,
@@ -214,7 +217,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
 `
 
 type InsertAPIKeyParams struct {
@@ -228,6 +231,7 @@ type InsertAPIKeyParams struct {
 	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
 	LoginType       LoginType   `db:"login_type" json:"login_type"`
+	Scope           APIKeyScope `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -242,6 +246,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.LoginType,
+		arg.Scope,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -255,6 +260,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -292,10 +298,28 @@ SELECT
     COUNT(*) as count
 FROM
     audit_logs
+WHERE
+    -- Filter resource_type
+	CASE
+		WHEN $1 :: text != '' THEN
+			resource_type = $1 :: resource_type
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			action = $2 :: audit_action
+		ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetAuditLogCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getAuditLogCount)
+type GetAuditLogCountParams struct {
+	ResourceType string `db:"resource_type" json:"resource_type"`
+	Action       string `db:"action" json:"action"`
+}
+
+func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAuditLogCount, arg.ResourceType, arg.Action)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -314,6 +338,19 @@ FROM
 	audit_logs
 LEFT JOIN
     users ON audit_logs.user_id = users.id
+WHERE
+    -- Filter resource_type
+	CASE
+		WHEN $3 :: text != '' THEN
+			resource_type = $3 :: resource_type
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			action = $4 :: audit_action
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
@@ -323,8 +360,10 @@ OFFSET
 `
 
 type GetAuditLogsOffsetParams struct {
-	Limit  int32 `db:"limit" json:"limit"`
-	Offset int32 `db:"offset" json:"offset"`
+	Limit        int32  `db:"limit" json:"limit"`
+	Offset       int32  `db:"offset" json:"offset"`
+	ResourceType string `db:"resource_type" json:"resource_type"`
+	Action       string `db:"action" json:"action"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -354,7 +393,12 @@ type GetAuditLogsOffsetRow struct {
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 // ID.
 func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAuditLogsOffset, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, getAuditLogsOffset,
+		arg.Limit,
+		arg.Offset,
+		arg.ResourceType,
+		arg.Action,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ import (
 
 func features() *cobra.Command {
 	cmd := &cobra.Command{
-		Short:   "List features",
+		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
 	}

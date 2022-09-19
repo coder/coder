@@ -144,7 +144,7 @@ func configSSH() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
-		Short:       "Populate your SSH config with Host entries for all of your workspaces",
+		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
 		Example: formatExamples(
 			example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
