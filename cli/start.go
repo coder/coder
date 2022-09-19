@@ -14,7 +14,7 @@ func start() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
-		Short:       "Build a workspace with the start state",
+		Short:       "Start a workspace",
 		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)

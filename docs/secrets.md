@@ -34,9 +34,6 @@ Users can view their public key in their account settings:
 
 ![SSH keys in account settings](./images/ssh-keys.png)
 
-> There is a [known issue](https://github.com/coder/coder/issues/3126) that prevents users from
-> using their own SSH keys within Coder workspaces.
-
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and automatically
