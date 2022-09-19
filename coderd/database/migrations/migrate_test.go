@@ -1,6 +1,6 @@
 //go:build linux
 
-package database_test
+package migrations_test
 
 import (
 	"database/sql"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
 )
 
@@ -33,7 +33,7 @@ func TestMigrate(t *testing.T) {
 
 		db := testSQLDB(t)
 
-		err := database.MigrateUp(db)
+		err := migrations.Up(db)
 		require.NoError(t, err)
 	})
 
@@ -42,10 +42,10 @@ func TestMigrate(t *testing.T) {
 
 		db := testSQLDB(t)
 
-		err := database.MigrateUp(db)
+		err := migrations.Up(db)
 		require.NoError(t, err)
 
-		err = database.MigrateUp(db)
+		err = migrations.Up(db)
 		require.NoError(t, err)
 	})
 
@@ -54,13 +54,13 @@ func TestMigrate(t *testing.T) {
 
 		db := testSQLDB(t)
 
-		err := database.MigrateUp(db)
+		err := migrations.Up(db)
 		require.NoError(t, err)
 
-		err = database.MigrateDown(db)
+		err = migrations.Down(db)
 		require.NoError(t, err)
 
-		err = database.MigrateUp(db)
+		err = migrations.Up(db)
 		require.NoError(t, err)
 	})
 }
@@ -120,7 +120,7 @@ func TestCheckLatestVersion(t *testing.T) {
 				})
 			}
 
-			err := database.CheckLatestVersion(driver, tc.currentVersion)
+			err := migrations.CheckLatestVersion(driver, tc.currentVersion)
 			var errMessage string
 			if err != nil {
 				errMessage = err.Error()

@@ -18,6 +18,9 @@ packages:
 
 rename:
   api_key: APIKey
+  api_key_scope: APIKeyScope
+  api_key_scope_all: APIKeyScopeAll
+  api_key_scope_application_connect: APIKeyScopeApplicationConnect
   avatar_url: AvatarURL
   login_type_oidc: LoginTypeOIDC
   oauth_access_token: OAuthAccessToken

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 func TestRecover(t *testing.T) {
@@ -60,7 +60,7 @@ func TestRecover(t *testing.T) {
 			var (
 				log = slogtest.Make(t, nil)
 				r   = httptest.NewRequest("GET", "/", nil)
-				w   = &httpapi.StatusWriter{
+				w   = &tracing.StatusWriter{
 					ResponseWriter: httptest.NewRecorder(),
 					Hijacked:       c.Hijack,
 				}

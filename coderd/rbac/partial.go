@@ -6,9 +6,64 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/rego"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 type PartialAuthorizer struct {
+	// mainAuthorizer is used for the user's roles. It is always not-nil.
+	mainAuthorizer *subPartialAuthorizer
+	// scopeAuthorizer is used for the API key scope. It may be nil.
+	scopeAuthorizer *subPartialAuthorizer
+}
+
+var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
+
+func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	err := pa.mainAuthorizer.Authorize(ctx, object)
+	if err != nil {
+		return err
+	}
+
+	if pa.scopeAuthorizer != nil {
+		return pa.scopeAuthorizer.Authorize(ctx, object)
+	}
+
+	return nil
+}
+
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	pAuth, err := newSubPartialAuthorizer(ctx, subjectID, roles, action, objectType)
+	if err != nil {
+		return nil, err
+	}
+
+	var scopeAuth *subPartialAuthorizer
+	if scope != ScopeAll {
+		scopeRole, err := ScopeRole(scope)
+		if err != nil {
+			return nil, xerrors.Errorf("unknown scope %q", scope)
+		}
+
+		scopeAuth, err = newSubPartialAuthorizer(ctx, subjectID, []Role{scopeRole}, action, objectType)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &PartialAuthorizer{
+		mainAuthorizer:  pAuth,
+		scopeAuthorizer: scopeAuth,
+	}, nil
+}
+
+type subPartialAuthorizer struct {
 	// partialQueries is mainly used for unit testing to assert our rego policy
 	// can always be compressed into a set of queries.
 	partialQueries *rego.PartialQueries
@@ -23,7 +78,10 @@ type PartialAuthorizer struct {
 	alwaysTrue bool
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*PartialAuthorizer, error) {
+func newSubPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*subPartialAuthorizer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:    subjectID,
@@ -51,7 +109,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}
 
-	pAuth := &PartialAuthorizer{
+	pAuth := &subPartialAuthorizer{
 		partialQueries:  partialQueries,
 		preparedQueries: []rego.PreparedEvalQuery{},
 		input:           input,
@@ -83,7 +141,10 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, a
 }
 
 // Authorize authorizes a single object using the partially prepared queries.
-func (a PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
+func (a subPartialAuthorizer) Authorize(ctx context.Context, object Object) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	if a.alwaysTrue {
 		return nil
 	}

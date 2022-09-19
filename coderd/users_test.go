@@ -330,10 +330,16 @@ func TestPostLogout(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		cookies := res.Cookies()
-		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, codersdk.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
-		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+		var found bool
+		for _, cookie := range cookies {
+			if cookie.Name == codersdk.SessionTokenKey {
+				require.Equal(t, codersdk.SessionTokenKey, cookie.Name, "Cookie should be the auth cookie")
+				require.Equal(t, -1, cookie.MaxAge, "Cookie should be set to delete")
+				found = true
+			}
+		}
+		require.True(t, found, "auth cookie should be returned")
 
 		_, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		sdkErr := &codersdk.Error{}
@@ -1240,6 +1246,7 @@ func TestWorkspacesByUser(t *testing.T) {
 // This is mainly to confirm the db fake has the same behavior.
 func TestSuspendedPagination(t *testing.T) {
 	t.Parallel()
+	t.Skip("This fails when two users are created at the exact same time. The reason is unknown... See: https://github.com/coder/coder/actions/runs/3057047622/jobs/4931863163")
 	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
 	coderdtest.CreateFirstUser(t, client)
 

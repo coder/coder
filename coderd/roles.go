@@ -13,7 +13,7 @@ import (
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
-	actorRoles := httpmw.AuthorizationUserRoles(r)
+	actorRoles := httpmw.UserAuthorization(r)
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceRoleAssignment) {
 		httpapi.Forbidden(rw)
 		return
@@ -26,7 +26,7 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	actorRoles := httpmw.AuthorizationUserRoles(r)
+	actorRoles := httpmw.UserAuthorization(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
@@ -39,6 +39,7 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
@@ -69,7 +70,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		if v.Object.OwnerID == "me" {
 			v.Object.OwnerID = roles.ID.String()
 		}
-		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.Action(v.Action),
+		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, apiKey.Scope.ToRBAC(), rbac.Action(v.Action),
 			rbac.Object{
 				Owner: v.Object.OwnerID,
 				OrgID: v.Object.OrganizationID,

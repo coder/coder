@@ -28,8 +28,8 @@ update](./templates.md#manage-templates) available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template's definitions. For more
-information, see [persistent and ephemeral
-resources](./templates.md#persistent-and-ephemeral-resources).
+information, see [persistent vs. ephemeral
+resources](./templates.md#persistent-vs-ephemeral-resources).
 
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default

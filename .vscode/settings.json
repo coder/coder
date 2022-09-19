@@ -8,6 +8,8 @@
     "circbuf",
     "cliflag",
     "cliui",
+    "codecov",
+    "Codespaces",
     "coderd",
     "coderdtest",
     "codersdk",
@@ -80,6 +82,7 @@
     "ptty",
     "ptys",
     "ptytest",
+    "quickstart",
     "reconfig",
     "retrier",
     "rpty",
@@ -117,10 +120,12 @@
     "tstun",
     "turnconn",
     "typegen",
+    "typesafe",
     "unconvert",
     "Untar",
     "Userspace",
     "VMID",
+    "walkthrough",
     "weblinks",
     "webrtc",
     "wgcfg",
@@ -139,6 +144,10 @@
     "xerrors",
     "xstate",
     "yamux"
+  ],
+  "cSpell.ignorePaths": [
+    "site/package.json",
+    ".vscode/settings.json"
   ],
   "emeraldwalk.runonsave": {
     "commands": [

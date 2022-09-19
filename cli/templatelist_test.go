@@ -49,7 +49,7 @@ func TestTemplateList(t *testing.T) {
 	})
 	t.Run("NoTemplates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, &coderdtest.Options{})
 		coderdtest.CreateFirstUser(t, client)
 
 		cmd, root := clitest.New(t, "templates", "list")
@@ -66,6 +66,8 @@ func TestTemplateList(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		pty.ExpectMatch("No templates found in testuser! Create one:")
+		pty.ExpectMatch("No templates found in")
+		pty.ExpectMatch(coderdtest.FirstUserParams.Username)
+		pty.ExpectMatch("Create one:")
 	})
 }

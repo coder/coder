@@ -51,6 +51,12 @@ const config: Configuration = {
     },
     devMiddleware: {
       publicPath: "/",
+      headers: {
+        // This header corresponds to "src/api/api.ts"'s hardcoded FE token.
+        // This is the secret side of the CSRF double cookie submit method.
+        "Set-Cookie":
+          "csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
+      },
     },
     headers: {
       "Access-Control-Allow-Origin": "*",

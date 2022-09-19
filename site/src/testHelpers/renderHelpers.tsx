@@ -1,5 +1,10 @@
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-import { render as wrappedRender, RenderResult } from "@testing-library/react"
+import {
+  render as wrappedRender,
+  RenderResult,
+  screen,
+  waitForElementToBeRemoved,
+} from "@testing-library/react"
 import { createMemoryHistory } from "history"
 import { i18n } from "i18n"
 import { FC, ReactElement } from "react"
@@ -44,7 +49,7 @@ type RenderWithAuthResult = RenderResult & { user: typeof MockUser }
  */
 export function renderWithAuth(
   ui: JSX.Element,
-  { route = "/", path }: { route?: string; path?: string } = {},
+  { route = "/", path, routes }: { route?: string; path?: string; routes?: JSX.Element } = {},
 ): RenderWithAuthResult {
   const renderResult = wrappedRender(
     <HelmetProvider>
@@ -54,6 +59,7 @@ export function renderWithAuth(
             <ThemeProvider theme={dark}>
               <Routes>
                 <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
+                {routes}
               </Routes>
             </ThemeProvider>
           </I18nextProvider>
@@ -67,5 +73,8 @@ export function renderWithAuth(
     ...renderResult,
   }
 }
+
+export const waitForLoaderToBeRemoved = (): Promise<void> =>
+  waitForElementToBeRemoved(() => screen.getByRole("progressbar"))
 
 export * from "./entities"

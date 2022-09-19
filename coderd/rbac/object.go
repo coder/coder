@@ -31,6 +31,15 @@ var (
 		Type: "workspace_execution",
 	}
 
+	// ResourceWorkspaceApplicationConnect CRUD. Org + User owner
+	//	create = connect to an application
+	// 	read = ?
+	//	update = ?
+	// 	delete = ?
+	ResourceWorkspaceApplicationConnect = Object{
+		Type: "application_connect",
+	}
+
 	// ResourceAuditLog
 	// read = access audit log
 	ResourceAuditLog = Object{

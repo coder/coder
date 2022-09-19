@@ -45,7 +45,7 @@ func login() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "login <url>",
-		Short: "Authenticate with a Coder deployment",
+		Short: "Authenticate with Coder deployment",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rawURL := args[0]
@@ -83,7 +83,7 @@ func login() *cobra.Command {
 
 			hasInitialUser, err := client.HasFirstUser(cmd.Context())
 			if err != nil {
-				return xerrors.Errorf("has initial user: %w", err)
+				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			if !hasInitialUser {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Your Coder deployment hasn't been set up!\n")

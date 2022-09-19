@@ -15,7 +15,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"tailscale.com/derp"
@@ -70,7 +70,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
 	TURNServer           *turnconn.Server
-	TracerProvider       *sdktrace.TracerProvider
+	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 	LicenseHandler       http.Handler
 	FeaturesService      features.Service
@@ -94,6 +94,12 @@ func New(options *Options) *API {
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
+	}
+	if options.AgentStatsRefreshInterval == 0 {
+		options.AgentStatsRefreshInterval = 10 * time.Minute
+	}
+	if options.MetricsCacheRefreshInterval == 0 {
+		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.Authorizer == nil {
 		var err error
@@ -160,6 +166,26 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
+		// handleSubdomainApplications checks if the first subdomain is a valid
+		// app URL. If it is, it will serve that application.
+		api.handleSubdomainApplications(
+			// Middleware to impose on the served application.
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.UseLoginURL(func() *url.URL {
+				if options.AccessURL == nil {
+					return nil
+				}
+
+				u := *options.AccessURL
+				u.Path = "/login"
+				return &u
+			}()),
+			// This should extract the application specific API key when we
+			// implement a scoped token.
+			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
+			httpmw.ExtractUserParam(api.Database),
+			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+		),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -167,12 +193,13 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
 	apps := func(r chi.Router) {
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
@@ -200,9 +227,9 @@ func New(options *Options) *API {
 			})
 		})
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, codersdk.Response{

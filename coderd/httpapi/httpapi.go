@@ -2,12 +2,16 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 
@@ -143,4 +147,76 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	}
 
 	return msg
+}
+
+func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (func(ctx context.Context, sse codersdk.ServerSentEvent) error, error) {
+	var mu sync.Mutex
+	h := rw.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set("X-Accel-Buffering", "no")
+
+	f, ok := rw.(http.Flusher)
+	if !ok {
+		panic("http.ResponseWriter is not http.Flusher")
+	}
+
+	// Send a heartbeat every 15 seconds to avoid the connection being killed.
+	go func() {
+		ticker := time.NewTicker(time.Second * 15)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				mu.Lock()
+				_, err := io.WriteString(rw, fmt.Sprintf("event: %s\n\n", codersdk.ServerSentEventTypePing))
+				if err != nil {
+					mu.Unlock()
+					return
+				}
+				f.Flush()
+				mu.Unlock()
+			}
+		}
+	}()
+
+	sendEvent := func(ctx context.Context, sse codersdk.ServerSentEvent) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		buf := &bytes.Buffer{}
+		enc := json.NewEncoder(buf)
+
+		_, err := buf.Write([]byte(fmt.Sprintf("event: %s\ndata: ", sse.Type)))
+		if err != nil {
+			return err
+		}
+
+		err = enc.Encode(sse.Data)
+		if err != nil {
+			return err
+		}
+
+		err = buf.WriteByte('\n')
+		if err != nil {
+			return err
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		_, err = rw.Write(buf.Bytes())
+		if err != nil {
+			return err
+		}
+		f.Flush()
+
+		return nil
+	}
+
+	return sendEvent, nil
 }

@@ -696,7 +696,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// User is the user to modify.
 		user              = httpmw.UserParam(r)
-		actorRoles        = httpmw.AuthorizationUserRoles(r)
+		actorRoles        = httpmw.UserAuthorization(r)
 		apiKey            = httpmw.APIKey(r)
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
 			Features: api.FeaturesService,
@@ -915,7 +915,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
+	api.setAuthCookie(rw, cookie)
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
@@ -992,8 +992,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenKey,
 		Path:   "/",
 	}
-
-	http.SetCookie(rw, cookie)
+	api.setAuthCookie(rw, cookie)
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
@@ -1074,6 +1073,7 @@ func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
+		Scope:        database.APIKeyScopeAll,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert API key: %w", err)
@@ -1171,6 +1171,15 @@ func (api *API) createUser(ctx context.Context, store database.Store, req create
 		}
 		return nil
 	})
+}
+
+func (api *API) setAuthCookie(rw http.ResponseWriter, cookie *http.Cookie) {
+	http.SetCookie(rw, cookie)
+
+	devurlCookie := api.applicationCookie(cookie)
+	if devurlCookie != nil {
+		http.SetCookie(rw, devurlCookie)
+	}
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {

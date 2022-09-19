@@ -1,4 +1,4 @@
-package database
+package migrations
 
 import (
 	"context"
@@ -14,12 +14,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
-//go:embed migrations/*.sql
+//go:embed *.sql
 var migrations embed.FS
 
-func migrateSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
+func setup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 	ctx := context.Background()
-	sourceDriver, err := iofs.New(migrations, "migrations")
+	sourceDriver, err := iofs.New(migrations, ".")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create iofs: %w", err)
 	}
@@ -45,9 +45,9 @@ func migrateSetup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 	return sourceDriver, m, nil
 }
 
-// MigrateUp runs SQL migrations to ensure the database schema is up-to-date.
-func MigrateUp(db *sql.DB) (retErr error) {
-	_, m, err := migrateSetup(db)
+// Up runs SQL migrations to ensure the database schema is up-to-date.
+func Up(db *sql.DB) (retErr error) {
+	_, m, err := setup(db)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -76,9 +76,9 @@ func MigrateUp(db *sql.DB) (retErr error) {
 	return nil
 }
 
-// MigrateDown runs all down SQL migrations.
-func MigrateDown(db *sql.DB) error {
-	_, m, err := migrateSetup(db)
+// Down runs all down SQL migrations.
+func Down(db *sql.DB) error {
+	_, m, err := setup(db)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -100,7 +100,7 @@ func MigrateDown(db *sql.DB) error {
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
-	sourceDriver, m, err := migrateSetup(db)
+	sourceDriver, m, err := setup(db)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}

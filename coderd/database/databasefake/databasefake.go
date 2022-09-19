@@ -159,6 +159,33 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 	return stat, nil
 }
 
+func (q *fakeQuerier) GetLatestAgentStat(_ context.Context, agentID uuid.UUID) (database.AgentStat, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	found := false
+	latest := database.AgentStat{}
+	for _, agentStat := range q.agentStats {
+		if agentStat.AgentID != agentID {
+			continue
+		}
+		if !found {
+			latest = agentStat
+			found = true
+			continue
+		}
+		if agentStat.CreatedAt.After(latest.CreatedAt) {
+			latest = agentStat
+			found = true
+			continue
+		}
+	}
+	if !found {
+		return database.AgentStat{}, sql.ErrNoRows
+	}
+	return latest, nil
+}
+
 func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1272,6 +1299,9 @@ func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, user
 }
 
 func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	for i, mem := range q.organizationMembers {
 		if mem.UserID == arg.UserID && mem.OrganizationID == arg.OrgID {
 			uniqueRoles := make([]string, 0, len(arg.GrantedRoles))
@@ -1290,6 +1320,7 @@ func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 			return mem, nil
 		}
 	}
+
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
@@ -1442,6 +1473,22 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 	return resources, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceResourcesByJobIDs(_ context.Context, jobIDs []uuid.UUID) ([]database.WorkspaceResource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	resources := make([]database.WorkspaceResource, 0)
+	for _, resource := range q.provisionerJobResources {
+		for _, jobID := range jobIDs {
+			if resource.JobID != jobID {
+				continue
+			}
+			resources = append(resources, resource)
+		}
+	}
+	return resources, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1464,6 +1511,10 @@ func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Conte
 	for _, resource := range resources {
 		resourceIDs[resource.ID] = struct{}{}
 	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
 	metadata := make([]database.WorkspaceResourceMetadatum, 0)
 	for _, m := range q.provisionerJobResourceMetadata {
 		_, ok := resourceIDs[m.WorkspaceResourceID]
@@ -1579,6 +1630,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		UpdatedAt:       arg.UpdatedAt,
 		LastUsed:        arg.LastUsed,
 		LoginType:       arg.LoginType,
+		Scope:           arg.Scope,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
@@ -2354,6 +2406,14 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			continue
 		}
 
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
 
@@ -2387,11 +2447,25 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetAuditLogCount(_ context.Context) (int64, error) {
+func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditLogCountParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return int64(len(q.auditLogs)), nil
+	logs := make([]database.AuditLog, 0)
+
+	for _, alog := range q.auditLogs {
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+
+		logs = append(logs, alog)
+	}
+
+	return int64(len(logs)), nil
 }
 
 func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {

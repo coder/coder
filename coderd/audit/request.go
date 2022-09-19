@@ -13,8 +13,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/features"
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 type RequestParams struct {
@@ -93,9 +93,9 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
 func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func()) {
-	sw, ok := w.(*httpapi.StatusWriter)
+	sw, ok := w.(*tracing.StatusWriter)
 	if !ok {
-		panic("dev error: http.ResponseWriter is not *httpapi.StatusWriter")
+		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 	}
 
 	req := &Request[T]{
