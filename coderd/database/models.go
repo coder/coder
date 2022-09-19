@@ -312,6 +312,26 @@ func (e *UserStatus) Scan(src interface{}) error {
 	return nil
 }
 
+type WorkspaceAppHealth string
+
+const (
+	WorkspaceAppHealthIntializing WorkspaceAppHealth = "intializing"
+	WorkspaceAppHealthHealthy     WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy   WorkspaceAppHealth = "unhealthy"
+)
+
+func (e *WorkspaceAppHealth) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppHealth(s)
+	case string:
+		*e = WorkspaceAppHealth(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
+	}
+	return nil
+}
+
 type WorkspaceTransition string
 
 const (
@@ -575,14 +595,15 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceApp struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID           uuid.UUID          `db:"id" json:"id"`
+	CreatedAt    time.Time          `db:"created_at" json:"created_at"`
+	AgentID      uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name         string             `db:"name" json:"name"`
+	Icon         string             `db:"icon" json:"icon"`
+	Command      sql.NullString     `db:"command" json:"command"`
+	Url          sql.NullString     `db:"url" json:"url"`
+	RelativePath bool               `db:"relative_path" json:"relative_path"`
+	Health       WorkspaceAppHealth `db:"health" json:"health"`
 }
 
 type WorkspaceBuild struct {

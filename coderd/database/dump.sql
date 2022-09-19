@@ -88,6 +88,12 @@ CREATE TYPE user_status AS ENUM (
     'suspended'
 );
 
+CREATE TYPE workspace_app_health AS ENUM (
+    'intializing',
+    'healthy',
+    'unhealthy'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -342,7 +348,8 @@ CREATE TABLE workspace_apps (
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
-    relative_path boolean DEFAULT false NOT NULL
+    relative_path boolean DEFAULT false NOT NULL,
+    health workspace_app_health DEFAULT 'intializing'::public.workspace_app_health NOT NULL
 );
 
 CREATE TABLE workspace_builds (
