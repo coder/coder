@@ -18,6 +18,8 @@ func TestHandle(t *testing.T) {
 		ctx, value := ptr.Load(ctx)
 		require.Equal(t, "hello", value)
 		ptr.Store("world")
+		ctx, value = ptr.Load(ctx)
+		require.Equal(t, "hello", value)
 		_, value = ptr.Load(ctx)
 		require.Equal(t, "hello", value)
 	})
