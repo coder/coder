@@ -147,7 +147,7 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 
 // AuditLogCount returns the count of all audit logs in the product.
 func (c *Client) AuditLogCount(ctx context.Context, req AuditLogCountRequest) (AuditLogCountResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil, nil, func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil, func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {

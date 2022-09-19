@@ -144,7 +144,7 @@ func TestAuditLogCountFilter(t *testing.T) {
 		testCases := []struct {
 			Name           string
 			SearchQuery    string
-			ExpectedResult int
+			ExpectedResult int64
 		}{
 			{
 				Name:           "FilterByCreateAction",
@@ -175,7 +175,7 @@ func TestAuditLogCountFilter(t *testing.T) {
 					SearchQuery: testCase.SearchQuery,
 				})
 				require.NoError(t, err, "fetch audit logs count")
-				require.Len(t, response.Count, testCase.ExpectedResult, "expected audit logs count returned")
+				require.Equal(t, response.Count, testCase.ExpectedResult, "expected audit logs count returned")
 			})
 		}
 	})
