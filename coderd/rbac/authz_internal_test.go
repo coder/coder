@@ -20,7 +20,6 @@ type subject struct {
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
 	Roles []Role `json:"roles"`
-	Scope Scope  `json:"scope"`
 }
 
 type fakeObject struct {
@@ -172,7 +171,6 @@ func TestFilter(t *testing.T) {
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				// TODO: scopes
 				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
@@ -636,39 +634,26 @@ func TestAuthorizeScope(t *testing.T) {
 	unusedID := uuid.New()
 	user := subject{
 		UserID: "me",
-		Roles: []Role{
-			must(RoleByName(RoleOwner())),
-			must(RoleByName(RoleMember())),
-		},
+		Roles:  []Role{},
 	}
 
-	user.Scope = ScopeApplicationConnect
-	testAuthorize(t, "ScopeApplicationConnect", user, []authTestCase{
-		// Org + me
+	user.Roles = []Role{must(ScopeRole(ScopeApplicationConnect))}
+	testAuthorize(t, "Admin_ScopeApplicationConnect", user, []authTestCase{
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
-
 		{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
-
 		{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
-
-		// Other org + me
 		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
 		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-
-		// Other org + other user
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
-
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
-
-		// Other org + other use
 		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
 		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
-		// TODO: add allowed cases when scope application_connect actually has
-		// permissions
+		// Allowed by scope:
+		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
 	})
 }
 
@@ -696,6 +681,9 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	for _, cases := range sets {
 		for i, c := range cases {
 			c := c
+			if c.resource.Type != "application_connect" {
+				continue
+			}
 			caseName := fmt.Sprintf("%s/%d", name, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
@@ -703,16 +691,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
 
-					scope := ScopeAll
-					if subject.Scope != "" {
-						scope = subject.Scope
-					}
-
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
-					if authError == nil && scope != ScopeAll {
-						scopeRole := builtinScopes[scope]
-						authError = authorizer.Authorize(ctx, subject.UserID, []Role{scopeRole}, a, c.resource)
-					}
 
 					// Logging only
 					if authError != nil {
@@ -737,7 +716,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, scope, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, ScopeAll, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.
