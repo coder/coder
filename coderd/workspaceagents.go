@@ -352,7 +352,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	closeChan := make(chan struct{})
 	go func() {
 		defer close(closeChan)
-		err = api.TailnetCoordinator.ServeAgent(wsNetConn, workspaceAgent.ID)
+		err := api.TailnetCoordinator.ServeAgent(wsNetConn, workspaceAgent.ID)
 		if err != nil {
 			_ = conn.Close(websocket.StatusInternalError, err.Error())
 			return
@@ -375,7 +375,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 			return
 		}
-		err = ensureLatestBuild()
+		err := ensureLatestBuild()
 		if err != nil {
 			// Disconnect agents that are no longer valid.
 			_ = conn.Close(websocket.StatusGoingAway, "")
