@@ -627,7 +627,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			role, ok := template.UserRoles[user2.ID.String()]
 			require.True(t, ok, "User not contained within user_roles map")
 			require.Equal(t, codersdk.TemplateRoleRead, role)
-
 		})
 
 		t.Run("DeleteUser", func(t *testing.T) {
