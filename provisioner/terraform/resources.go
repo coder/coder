@@ -25,12 +25,16 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string `mapstructure:"agent_id"`
-	Name         string `mapstructure:"name"`
-	Icon         string `mapstructure:"icon"`
-	URL          string `mapstructure:"url"`
-	Command      string `mapstructure:"command"`
-	RelativePath bool   `mapstructure:"relative_path"`
+	AgentID              string `mapstructure:"agent_id"`
+	Name                 string `mapstructure:"name"`
+	Icon                 string `mapstructure:"icon"`
+	URL                  string `mapstructure:"url"`
+	Command              string `mapstructure:"command"`
+	RelativePath         bool   `mapstructure:"relative_path"`
+	HealthcheckEnabled   bool   `mapstructure:"healthcheck_enabled"`
+	HealthcheckURL       string `mapstructure:"healthcheck_url"`
+	HealthcheckInterval  int32  `mapstructure:"healthcheck_interval"`
+	HealthcheckThreshold int32  `mapstructure:"healthcheck_threshold"`
 }
 
 // A mapping of attributes on the "coder_metadata" resource.
@@ -225,11 +229,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:         attrs.Name,
-					Command:      attrs.Command,
-					Url:          attrs.URL,
-					Icon:         attrs.Icon,
-					RelativePath: attrs.RelativePath,
+					Name:                 attrs.Name,
+					Command:              attrs.Command,
+					Url:                  attrs.URL,
+					Icon:                 attrs.Icon,
+					RelativePath:         attrs.RelativePath,
+					HealthcheckEnabled:   attrs.HealthcheckEnabled,
+					HealthcheckUrl:       attrs.HealthcheckURL,
+					HealthcheckInterval:  attrs.HealthcheckInterval,
+					HealthcheckThreshold: attrs.HealthcheckThreshold,
 				})
 			}
 		}
