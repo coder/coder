@@ -31,6 +31,7 @@ type Template struct {
 	CreatedByID                uuid.UUID               `json:"created_by_id"`
 	CreatedByName              string                  `json:"created_by_name"`
 	UserRoles                  map[string]TemplateRole `json:"user_roles"`
+	IsPrivate                  bool                    `json:"is_private"`
 }
 
 type UpdateActiveTemplateVersion struct {
@@ -49,15 +50,13 @@ var (
 )
 
 type UpdateTemplateMeta struct {
-	Name                       string `json:"name,omitempty" validate:"omitempty,username"`
-	Description                string `json:"description,omitempty"`
-	Icon                       string `json:"icon,omitempty"`
-	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
-	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
-	// UserPerms is a map of user IDs to their corresponding role.
-	// In order to delete a user's permissions set a user's
-	// role to the empty string.
-	UserPerms map[string]TemplateRole `json:"user_perms"`
+	Name                       string                  `json:"name,omitempty" validate:"omitempty,username"`
+	Description                string                  `json:"description,omitempty"`
+	Icon                       string                  `json:"icon,omitempty"`
+	MaxTTLMillis               int64                   `json:"max_ttl_ms,omitempty"`
+	MinAutostartIntervalMillis int64                   `json:"min_autostart_interval_ms,omitempty"`
+	UserPerms                  map[string]TemplateRole `json:"user_perms,omitempty"`
+	IsPrivate                  *bool                   `json:"is_private,omitempty"`
 }
 
 // Template returns a single template.

@@ -970,6 +970,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Icon = arg.Icon
 		tpl.MaxTtl = arg.MaxTtl
 		tpl.MinAutostartInterval = arg.MinAutostartInterval
+		tpl.IsPrivate = arg.IsPrivate
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
@@ -1670,6 +1671,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		MaxTtl:               arg.MaxTtl,
 		MinAutostartInterval: arg.MinAutostartInterval,
 		CreatedBy:            arg.CreatedBy,
+		IsPrivate:            arg.IsPrivate,
 	}
 	template = template.SetUserACL(database.UserACL{})
 	q.templates = append(q.templates, template)

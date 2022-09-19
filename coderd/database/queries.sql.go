@@ -2060,7 +2060,7 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, is_private
 FROM
 	templates
 WHERE
@@ -2087,13 +2087,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
+		&i.IsPrivate,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, is_private
 FROM
 	templates
 WHERE
@@ -2128,12 +2129,13 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
+		&i.IsPrivate,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, is_private FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -2161,6 +2163,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.CreatedBy,
 			&i.Icon,
 			&i.userACL,
+			&i.IsPrivate,
 		); err != nil {
 			return nil, err
 		}
@@ -2177,7 +2180,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, is_private
 FROM
 	templates
 WHERE
@@ -2240,6 +2243,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.CreatedBy,
 			&i.Icon,
 			&i.userACL,
+			&i.IsPrivate,
 		); err != nil {
 			return nil, err
 		}
@@ -2269,10 +2273,10 @@ INSERT INTO
 		min_autostart_interval,
 		created_by,
 		icon,
-		user_acl
+		is_private
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, is_private
 `
 
 type InsertTemplateParams struct {
@@ -2288,7 +2292,7 @@ type InsertTemplateParams struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
-	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	IsPrivate            bool            `db:"is_private" json:"is_private"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -2305,7 +2309,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.MinAutostartInterval,
 		arg.CreatedBy,
 		arg.Icon,
-		arg.userACL,
+		arg.IsPrivate,
 	)
 	var i Template
 	err := row.Scan(
@@ -2323,6 +2327,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
+		&i.IsPrivate,
 	)
 	return i, err
 }
@@ -2378,11 +2383,12 @@ SET
 	max_ttl = $4,
 	min_autostart_interval = $5,
 	name = $6,
-	icon = $7
+	icon = $7,
+	is_private = $8
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, is_private
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -2393,6 +2399,7 @@ type UpdateTemplateMetaByIDParams struct {
 	MinAutostartInterval int64     `db:"min_autostart_interval" json:"min_autostart_interval"`
 	Name                 string    `db:"name" json:"name"`
 	Icon                 string    `db:"icon" json:"icon"`
+	IsPrivate            bool      `db:"is_private" json:"is_private"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
@@ -2404,6 +2411,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.MinAutostartInterval,
 		arg.Name,
 		arg.Icon,
+		arg.IsPrivate,
 	)
 	var i Template
 	err := row.Scan(
@@ -2421,6 +2429,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
+		&i.IsPrivate,
 	)
 	return i, err
 }

@@ -57,12 +57,16 @@ func templateRoleToActions(t TemplateRole) []rbac.Action {
 }
 
 func (t Template) RBACObject() rbac.Object {
-	return rbac.ResourceTemplate.InOrg(t.OrganizationID).WithACLUserList(t.UserACL().Actions())
+	obj := rbac.ResourceTemplate
+	if t.IsPrivate {
+		obj = rbac.ResourceTemplatePrivate
+	}
+	return obj.InOrg(t.OrganizationID).WithACLUserList(t.UserACL().Actions())
 }
 
-func (t TemplateVersion) RBACObject(template Template) rbac.Object {
+func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
-	return rbac.ResourceTemplate.InOrg(t.OrganizationID).WithACLUserList(template.UserACL().Actions())
+	return template.RBACObject()
 }
 
 func (w Workspace) RBACObject() rbac.Object {

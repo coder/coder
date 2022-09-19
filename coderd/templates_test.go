@@ -41,6 +41,53 @@ func TestTemplate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	// Test that a regular user cannot get a private template.
+	t.Run("GetPrivate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client2, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+			func(r *codersdk.CreateTemplateRequest) {
+				r.IsPrivate = true
+			},
+		)
+
+		require.True(t, template.IsPrivate)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client2.Template(ctx, template.ID)
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	// Test that a privileged user can get a private template.
+	t.Run("GetPrivateOwner", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+			func(r *codersdk.CreateTemplateRequest) {
+				r.IsPrivate = true
+			},
+		)
+
+		require.True(t, template.IsPrivate)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		template, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.True(t, template.IsPrivate)
+	})
+
 	t.Run("WorkspaceCount", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -315,6 +362,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Icon:                       "/icons/new-icon.png",
 			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
 			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
+			IsPrivate:                  boolPtr(true),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -331,6 +379,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.True(t, updated.IsPrivate)
 
 		// Extra paranoid: did it _really_ happen?
 		updated, err = client.Template(ctx, template.ID)
@@ -341,6 +390,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, *req.IsPrivate, updated.IsPrivate)
 
 		require.Len(t, auditor.AuditLogs, 4)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
@@ -546,6 +596,38 @@ func TestPatchTemplateMeta(t *testing.T) {
 			role, ok := template.UserRoles[user2.ID.String()]
 			require.True(t, ok, "User not contained within user_roles map")
 			require.Equal(t, codersdk.TemplateRoleRead, role)
+		})
+
+		// Test that a regular user can access a private template
+		// if given access.
+		t.Run("PrivateTemplate", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+				func(r *codersdk.CreateTemplateRequest) {
+					r.IsPrivate = true
+				},
+			)
+			req := codersdk.UpdateTemplateMeta{
+				UserPerms: map[string]codersdk.TemplateRole{
+					user2.ID.String(): codersdk.TemplateRoleRead,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			template, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+			require.NoError(t, err)
+
+			role, ok := template.UserRoles[user2.ID.String()]
+			require.True(t, ok, "User not contained within user_roles map")
+			require.Equal(t, codersdk.TemplateRoleRead, role)
+
 		})
 
 		t.Run("DeleteUser", func(t *testing.T) {
@@ -878,4 +960,8 @@ func TestTemplateDAUs(t *testing.T) {
 	assert.WithinDuration(t,
 		database.Now(), workspaces[0].LastUsedAt, time.Minute,
 	)
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

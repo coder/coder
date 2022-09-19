@@ -45,6 +45,10 @@ var (
 		Type: "template",
 	}
 
+	ResourceTemplatePrivate = Object{
+		Type: "template_private",
+	}
+
 	ResourceFile = Object{
 		Type: "file",
 	}

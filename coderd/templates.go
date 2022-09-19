@@ -257,6 +257,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
 			CreatedBy:            apiKey.UserID,
+			IsPrivate:            createTemplate.IsPrivate,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -457,10 +458,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	// Only users who are able to create templates (aka template admins)
 	// are able to control user permissions.
-	// TODO: It might be cleaner to control template perms access
-	// via a separate RBAC resource, and restrict all actions to the template
-	// admin role.
-	if len(req.UserPerms) > 0 && !api.Authorize(r, rbac.ActionCreate, template) {
+	if (len(req.UserPerms) > 0 || req.IsPrivate != nil) &&
+		!api.Authorize(r, rbac.ActionCreate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -525,7 +524,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
 			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() &&
-			len(req.UserPerms) == 0 {
+			len(req.UserPerms) == 0 &&
+			(req.IsPrivate == nil || req.IsPrivate != nil && *req.IsPrivate == template.IsPrivate) {
 			return nil
 		}
 
@@ -535,6 +535,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		icon := req.Icon
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		minAutostartInterval := time.Duration(req.MinAutostartIntervalMillis) * time.Millisecond
+		isPrivate := template.IsPrivate
 
 		if name == "" {
 			name = template.Name
@@ -544,6 +545,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
+		}
+		if req.IsPrivate != nil {
+			isPrivate = *req.IsPrivate
 		}
 
 		if len(req.UserPerms) > 0 {
@@ -572,6 +576,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Icon:                 icon,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
+			IsPrivate:            isPrivate,
 		})
 		if err != nil {
 			return err
@@ -819,6 +824,7 @@ func (api *API) convertTemplate(
 		CreatedByID:                template.CreatedBy,
 		CreatedByName:              createdByName,
 		UserRoles:                  convertTemplateACL(template.UserACL()),
+		IsPrivate:                  template.IsPrivate,
 	}
 }
 

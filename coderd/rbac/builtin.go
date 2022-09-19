@@ -108,7 +108,8 @@ var (
 				Name:        templateAdmin,
 				DisplayName: "Template Admin",
 				Site: permissions(map[string][]Action{
-					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceTemplate.Type:        {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceTemplatePrivate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// CRUD all files, even those they did not upload.
 					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					ResourceWorkspace.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
@@ -168,8 +169,18 @@ var (
 							Action:       ActionRead,
 						},
 						{
+							// All org members can read templates in the org
+							ResourceType: ResourceTemplate.Type,
+							Action:       ActionRead,
+						},
+						{
 							// Can read available roles.
 							ResourceType: ResourceOrgRoleAssignment.Type,
+							Action:       ActionRead,
+						},
+						{
+							// Can read public templates.
+							ResourceType: ResourceTemplate.Type,
 							Action:       ActionRead,
 						},
 					},

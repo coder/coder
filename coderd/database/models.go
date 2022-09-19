@@ -502,6 +502,7 @@ type Template struct {
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
 	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	IsPrivate            bool            `db:"is_private" json:"is_private"`
 }
 
 type TemplateVersion struct {

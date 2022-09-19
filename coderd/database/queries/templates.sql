@@ -68,10 +68,11 @@ INSERT INTO
 		max_ttl,
 		min_autostart_interval,
 		created_by,
-		icon
+		icon,
+		is_private
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -100,7 +101,8 @@ SET
 	max_ttl = $4,
 	min_autostart_interval = $5,
 	name = $6,
-	icon = $7
+	icon = $7,
+	is_private = $8
 WHERE
 	id = $1
 RETURNING
