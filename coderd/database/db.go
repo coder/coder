@@ -13,7 +13,6 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
 )
 
@@ -37,7 +36,7 @@ type DBTX interface {
 func New(sdb *sql.DB) Store {
 	return &sqlQuerier{
 		db:  sdb,
-		sdb: sqlx.NewDb(sdb, "postgres"),
+		sdb: sdb,
 	}
 }
 
@@ -49,13 +48,13 @@ type querier interface {
 }
 
 type sqlQuerier struct {
-	sdb *sqlx.DB
+	sdb *sql.DB
 	db  DBTX
 }
 
 // InTx performs database operations inside a transaction.
 func (q *sqlQuerier) InTx(function func(Store) error) error {
-	if _, ok := q.db.(*sqlx.Tx); ok {
+	if _, ok := q.db.(*sql.Tx); ok {
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
