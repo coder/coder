@@ -112,7 +112,7 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
 func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
-	client, closer, _ := newWithAPI(t, options)
+	client, closer, _ := NewWithAPI(t, options)
 	return client, closer
 }
 
@@ -247,10 +247,10 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 	}
 }
 
-// newWithAPI constructs an in-memory API instance and returns a client to talk to it.
+// NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
 // Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
 // Do not expose the API or wrath shall descend upon thee.
-func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
 	if options == nil {
 		options = &Options{}
 	}
