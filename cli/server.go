@@ -32,7 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
@@ -78,6 +78,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		derpServerRegionName  string
 		derpServerSTUNAddrs   []string
 		derpConfigURL         string
+		derpConfigPath        string
 		promEnabled           bool
 		promAddress           string
 		pprofEnabled          bool
@@ -109,7 +110,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		tlsKeyFile                       string
 		tlsMinVersion                    string
 		tunnel                           bool
-		trace                            bool
+		traceEnable                      bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		autoImportTemplates              []string
@@ -153,26 +154,32 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			defer http.DefaultClient.CloseIdleConnections()
 
 			var (
-				tracerProvider *sdktrace.TracerProvider
+				tracerProvider trace.TracerProvider
 				err            error
 				sqlDriver      = "postgres"
 			)
-			if trace {
-				tracerProvider, err = tracing.TracerProvider(ctx, "coderd")
+
+			if traceEnable || telemetryEnable {
+				sdkTracerProvider, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+					Default: traceEnable,
+					Coder:   telemetryEnable && !isTest(),
+				})
 				if err != nil {
-					logger.Warn(ctx, "failed to start telemetry exporter", slog.Error(err))
+					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
 				} else {
 					// allow time for traces to flush even if command context is canceled
 					defer func() {
-						_ = shutdownWithTimeout(tracerProvider, 5*time.Second)
+						_ = shutdownWithTimeout(sdkTracerProvider, 5*time.Second)
 					}()
 
-					d, err := tracing.PostgresDriver(tracerProvider, "coderd.database")
+					d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
 					if err != nil {
-						logger.Warn(ctx, "failed to start postgres tracing driver", slog.Error(err))
+						logger.Warn(ctx, "start postgres tracing driver", slog.Error(err))
 					} else {
 						sqlDriver = d
 					}
+
+					tracerProvider = sdkTracerProvider
 				}
 			}
 
@@ -324,7 +331,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			if !derpServerEnabled {
 				defaultRegion = nil
 			}
-			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL)
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL, derpConfigPath)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
@@ -663,7 +670,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 
 			cmd.Println("Waiting for WebSocket connections to close...")
 			_ = coderAPI.Close()
-			cmd.Println("Done wainting for WebSocket connections")
+			cmd.Println("Done waiting for WebSocket connections")
 
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel {
@@ -729,6 +736,8 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
 		"Specifies a URL to periodically fetch a DERP map. See: https://tailscale.com/kb/1118/custom-derp-servers/")
+	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",
+		"Specifies a path to read a DERP map from. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.BoolVarP(root.Flags(), &derpServerEnabled, "derp-server-enable", "", "CODER_DERP_SERVER_ENABLE", true, "Specifies whether to enable or disable the embedded DERP server.")
 	cliflag.IntVarP(root.Flags(), &derpServerRegionID, "derp-server-region-id", "", "CODER_DERP_SERVER_REGION_ID", 999, "Specifies the region ID to use for the embedded DERP server.")
 	cliflag.StringVarP(root.Flags(), &derpServerRegionCode, "derp-server-region-code", "", "CODER_DERP_SERVER_REGION_CODE", "coder", "Specifies the region code that is displayed in the Coder UI for the embedded DERP server.")
@@ -736,15 +745,6 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &derpServerSTUNAddrs, "derp-server-stun-addresses", "", "CODER_DERP_SERVER_STUN_ADDRESSES", []string{
 		"stun.l.google.com:19302",
 	}, "Specify addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections entirely.")
-
-	// Mark hidden while this feature is in testing!
-	_ = root.Flags().MarkHidden("derp-config-url")
-	_ = root.Flags().MarkHidden("derp-server-enable")
-	_ = root.Flags().MarkHidden("derp-server-region-id")
-	_ = root.Flags().MarkHidden("derp-server-region-code")
-	_ = root.Flags().MarkHidden("derp-server-region-name")
-	_ = root.Flags().MarkHidden("derp-server-stun-addresses")
-
 	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
 	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
 	cliflag.BoolVarP(root.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
@@ -784,7 +784,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		"Specifies an issuer URL to use for OIDC.")
 	cliflag.StringArrayVarP(root.Flags(), &oidcScopes, "oidc-scopes", "", "CODER_OIDC_SCOPES", []string{oidc.ScopeOpenID, "profile", "email"},
 		"Specifies scopes to grant when authenticating with OIDC.")
-	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", false,
+	cliflag.BoolVarP(root.Flags(), &tailscaleEnable, "tailscale", "", "CODER_TAILSCALE", true,
 		"Specifies whether Tailscale networking is used for web applications and terminals.")
 	_ = root.Flags().MarkHidden("tailscale")
 	enableTelemetryByDefault := !isTest()
@@ -807,7 +807,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
 		"Workspaces must be able to reach the `access-url`. This overrides your access URL with a public access URL that tunnels your Coder deployment.")
-	cliflag.BoolVarP(root.Flags(), &trace, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
+	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
@@ -882,8 +882,13 @@ func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout
 }
 
 // nolint:revive
-func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
-	logger slog.Logger, cacheDir string, errCh chan error, dev bool,
+func newProvisionerDaemon(
+	ctx context.Context,
+	coderAPI *coderd.API,
+	logger slog.Logger,
+	cacheDir string,
+	errCh chan error,
+	dev bool,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -956,6 +961,7 @@ func newProvisionerDaemon(ctx context.Context, coderAPI *coderd.API,
 		UpdateInterval: 500 * time.Millisecond,
 		Provisioners:   provisioners,
 		WorkDirectory:  tempDir,
+		Tracer:         coderAPI.TracerProvider,
 	}), nil
 }
 

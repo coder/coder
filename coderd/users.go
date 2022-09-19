@@ -338,6 +338,57 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
 }
 
+func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Features: api.FeaturesService,
+		Log:      api.Logger,
+		Request:  r,
+		Action:   database.AuditActionDelete,
+	})
+	aReq.Old = user
+	defer commitAudit()
+
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	workspaces, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
+		OwnerID: user.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaces) > 0 {
+		httpapi.Write(rw, http.StatusExpectationFailed, codersdk.Response{
+			Message: "You cannot delete a user that has workspaces. Delete their workspaces and try again!",
+		})
+		return
+	}
+
+	err = api.Database.UpdateUserDeletedByID(r.Context(), database.UpdateUserDeletedByIDParams{
+		ID:      user.ID,
+		Deleted: true,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	user.Deleted = true
+	aReq.New = user
+	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+		Message: "User has been deleted!",
+	})
+}
+
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
@@ -864,7 +915,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
+	api.setAuthCookie(rw, cookie)
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
@@ -941,8 +992,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenKey,
 		Path:   "/",
 	}
-
-	http.SetCookie(rw, cookie)
+	api.setAuthCookie(rw, cookie)
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
@@ -1120,6 +1170,15 @@ func (api *API) createUser(ctx context.Context, store database.Store, req create
 		}
 		return nil
 	})
+}
+
+func (api *API) setAuthCookie(rw http.ResponseWriter, cookie *http.Cookie) {
+	http.SetCookie(rw, cookie)
+
+	devurlCookie := api.applicationCookie(cookie)
+	if devurlCookie != nil {
+		http.SetCookie(rw, devurlCookie)
+	}
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {

@@ -284,7 +284,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	defer q.mutex.RUnlock()
 
 	for _, user := range q.users {
-		if user.Email == arg.Email || user.Username == arg.Username {
+		if (user.Email == arg.Email || user.Username == arg.Username) && user.Deleted == arg.Deleted {
 			return user, nil
 		}
 	}
@@ -307,7 +307,13 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return int64(len(q.users)), nil
+	existing := int64(0)
+	for _, u := range q.users {
+		if !u.Deleted {
+			existing++
+		}
+	}
+	return existing, nil
 }
 
 func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
@@ -316,11 +322,25 @@ func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 
 	active := int64(0)
 	for _, u := range q.users {
-		if u.Status == database.UserStatusActive {
+		if u.Status == database.UserStatusActive && !u.Deleted {
 			active++
 		}
 	}
 	return active, nil
+}
+
+func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == params.ID {
+			u.Deleted = params.Deleted
+			q.users[i] = u
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
@@ -340,6 +360,16 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		}
 		return a.CreatedAt.Before(b.CreatedAt)
 	})
+
+	if params.Deleted {
+		tmp := make([]database.User, 0, len(users))
+		for _, user := range users {
+			if user.Deleted {
+				tmp = append(tmp, user)
+			}
+		}
+		users = tmp
+	}
 
 	if params.AfterID != uuid.Nil {
 		found := false
@@ -409,14 +439,17 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	return users, nil
 }
 
-func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {
+func (q *fakeQuerier) GetUsersByIDs(_ context.Context, params database.GetUsersByIDsParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	users := make([]database.User, 0)
 	for _, user := range q.users {
-		for _, id := range ids {
+		for _, id := range params.IDs {
 			if user.ID.String() != id.String() {
+				continue
+			}
+			if user.Deleted != params.Deleted {
 				continue
 			}
 			users = append(users, user)
@@ -879,8 +912,8 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 			}
 		}
 
-		if len(arg.Ids) > 0 {
-			if !slice.Contains(arg.Ids, parameterValue.ID) {
+		if len(arg.IDs) > 0 {
+			if !slice.Contains(arg.IDs, parameterValue.ID) {
 				continue
 			}
 		}
@@ -961,9 +994,9 @@ func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.Get
 			continue
 		}
 
-		if len(arg.Ids) > 0 {
+		if len(arg.IDs) > 0 {
 			match := false
-			for _, id := range arg.Ids {
+			for _, id := range arg.IDs {
 				if template.ID == id {
 					match = true
 					break
@@ -1224,6 +1257,9 @@ func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, user
 }
 
 func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	for i, mem := range q.organizationMembers {
 		if mem.UserID == arg.UserID && mem.OrganizationID == arg.OrgID {
 			uniqueRoles := make([]string, 0, len(arg.GrantedRoles))
@@ -1242,6 +1278,7 @@ func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 			return mem, nil
 		}
 	}
+
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
@@ -1394,6 +1431,22 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 	return resources, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceResourcesByJobIDs(_ context.Context, jobIDs []uuid.UUID) ([]database.WorkspaceResource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	resources := make([]database.WorkspaceResource, 0)
+	for _, resource := range q.provisionerJobResources {
+		for _, jobID := range jobIDs {
+			if resource.JobID != jobID {
+				continue
+			}
+			resources = append(resources, resource)
+		}
+	}
+	return resources, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1416,6 +1469,10 @@ func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Conte
 	for _, resource := range resources {
 		resourceIDs[resource.ID] = struct{}{}
 	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
 	metadata := make([]database.WorkspaceResourceMetadatum, 0)
 	for _, m := range q.provisionerJobResourceMetadata {
 		_, ok := resourceIDs[m.WorkspaceResourceID]
@@ -1768,6 +1825,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Type:       arg.Type,
 		Name:       arg.Name,
 		Hide:       arg.Hide,
+		Icon:       arg.Icon,
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil
@@ -2300,6 +2358,14 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 	for _, alog := range q.auditLogs {
 		if arg.Offset > 0 {
 			arg.Offset--
+			continue
+		}
+
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
 		}
 

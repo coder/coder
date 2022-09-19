@@ -211,6 +211,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
+  resources: [],
 }
 
 export const MockFailedWorkspaceBuild = (
@@ -231,6 +232,7 @@ export const MockFailedWorkspaceBuild = (
   workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
+  resources: [],
 })
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -394,6 +396,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   type: "google_compute_disk",
   workspace_transition: "start",
   hide: false,
+  icon: "",
   metadata: [
     { key: "type", value: "a-workspace-resource", sensitive: false },
     { key: "api_key", value: "12345678", sensitive: true },
@@ -409,6 +412,7 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   type: "google_compute_disk",
   workspace_transition: "start",
   hide: false,
+  icon: "",
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
@@ -424,6 +428,7 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
   type: "google_compute_disk",
   workspace_transition: "start",
   hide: true,
+  icon: "",
   metadata: [
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },

@@ -6,12 +6,13 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/gliderlabs/ssh"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"go.uber.org/goleak"
-
+	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -40,10 +41,16 @@ func TestStart(t *testing.T) {
 		assert.NotEqual(t, 0, exitErr.ExitCode())
 	})
 
-	t.Run("SSH_PTY", func(t *testing.T) {
+	t.Run("SSH_TTY", func(t *testing.T) {
 		t.Parallel()
-		pty, ps := ptytest.Start(t, exec.Command("env"))
-		pty.ExpectMatch("SSH_PTY=/dev/")
+		opts := pty.WithPTYOption(pty.WithSSHRequest(ssh.Pty{
+			Window: ssh.Window{
+				Width:  80,
+				Height: 24,
+			},
+		}))
+		pty, ps := ptytest.Start(t, exec.Command("env"), opts)
+		pty.ExpectMatch("SSH_TTY=/dev/")
 		err := ps.Wait()
 		require.NoError(t, err)
 	})

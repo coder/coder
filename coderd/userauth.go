@@ -162,7 +162,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
+	api.setAuthCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -296,7 +296,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(rw, cookie)
+	api.setAuthCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -518,7 +518,11 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 		if err != nil {
 			return database.User{}, database.UserLink{}, xerrors.Errorf("get user by id: %w", err)
 		}
-		return user, link, nil
+		if !user.Deleted {
+			return user, link, nil
+		}
+		// If the user was deleted, act as if no account link exists.
+		user = database.User{}
 	}
 
 	for _, email := range emails {

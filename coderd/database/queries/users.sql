@@ -9,7 +9,7 @@ LIMIT
 	1;
 
 -- name: GetUsersByIDs :many
-SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]);
+SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
 -- name: GetUserByEmailOrUsername :one
 SELECT
@@ -17,8 +17,8 @@ SELECT
 FROM
 	users
 WHERE
-	LOWER(username) = LOWER(@username)
-	OR email = @email
+	(LOWER(username) = LOWER(@username) OR email = @email)
+	AND deleted = @deleted
 LIMIT
 	1;
 
@@ -26,7 +26,7 @@ LIMIT
 SELECT
 	COUNT(*)
 FROM
-	users;
+	users WHERE deleted = false;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -34,7 +34,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::public.user_status;
+    status = 'active'::public.user_status AND deleted = false;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -80,13 +80,22 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateUserDeletedByID :exec
+UPDATE
+	users
+SET
+	deleted = $2
+WHERE
+	id = $1;
+
 -- name: GetUsers :many
 SELECT
 	*
 FROM
 	users
 WHERE
-	CASE
+	users.deleted = @deleted
+	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.

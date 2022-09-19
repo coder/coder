@@ -1,18 +1,15 @@
 import { useInterpret } from "@xstate/react"
 import { createContext, FC, ReactNode } from "react"
-import { useNavigate } from "react-router"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
 import { entitlementsMachine } from "./entitlements/entitlementsXService"
 import { siteRolesMachine } from "./roles/siteRolesXService"
-import { usersMachine } from "./users/usersXService"
 
 interface XServiceContextType {
   authXService: ActorRefFrom<typeof authMachine>
   buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
   entitlementsXService: ActorRefFrom<typeof entitlementsMachine>
-  usersXService: ActorRefFrom<typeof usersMachine>
   siteRolesXService: ActorRefFrom<typeof siteRolesMachine>
 }
 
@@ -27,25 +24,12 @@ interface XServiceContextType {
 export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const navigate = useNavigate()
-  const redirectToUsersPage = () => {
-    navigate("users")
-  }
-  const redirectToSetupPage = () => {
-    navigate("setup")
-  }
-
   return (
     <XServiceContext.Provider
       value={{
-        authXService: useInterpret(() =>
-          authMachine.withConfig({ actions: { redirectToSetupPage } }),
-        ),
+        authXService: useInterpret(authMachine),
         buildInfoXService: useInterpret(buildInfoMachine),
         entitlementsXService: useInterpret(entitlementsMachine),
-        usersXService: useInterpret(() =>
-          usersMachine.withConfig({ actions: { redirectToUsersPage } }),
-        ),
         siteRolesXService: useInterpret(siteRolesMachine),
       }}
     >

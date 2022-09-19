@@ -1,13 +1,6 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import {
-  ApiError,
-  FieldErrors,
-  getErrorMessage,
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "../../api/errors"
+import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 import { queryToFilter } from "../../util/filters"
@@ -15,10 +8,10 @@ import { generateRandomString } from "../../util/random"
 
 export const Language = {
   getUsersError: "Error getting users.",
-  createUserSuccess: "Successfully created user.",
-  createUserError: "Error on creating the user.",
   suspendUserSuccess: "Successfully suspended the user.",
   suspendUserError: "Error suspending user.",
+  deleteUserSuccess: "Successfully deleted the user.",
+  deleteUserError: "Error deleting user.",
   activateUserSuccess: "Successfully activated the user.",
   activateUserError: "Error activating user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
@@ -32,11 +25,12 @@ export interface UsersContext {
   users?: TypesGen.User[]
   filter?: string
   getUsersError?: Error | unknown
-  createUserErrorMessage?: string
-  createUserFormErrors?: FieldErrors
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
   suspendUserError?: Error | unknown
+  // Delete user
+  userIdToDelete?: TypesGen.User["id"]
+  deleteUserError?: Error | unknown
   // Activate user
   userIdToActivate?: TypesGen.User["id"]
   activateUserError?: Error | unknown
@@ -50,13 +44,15 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  | { type: "GET_USERS"; query: string }
-  | { type: "CREATE"; user: TypesGen.CreateUserRequest }
-  | { type: "CANCEL_CREATE_USER" }
+  | { type: "GET_USERS"; query?: string }
   // Suspend events
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }
   | { type: "CANCEL_USER_SUSPENSION" }
+  // Delete events
+  | { type: "DELETE_USER"; userId: TypesGen.User["id"] }
+  | { type: "CONFIRM_USER_DELETE" }
+  | { type: "CANCEL_USER_DELETE" }
   // Activate events
   | { type: "ACTIVATE_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_ACTIVATION" }
@@ -70,6 +66,8 @@ export type UsersEvent =
 
 export const usersMachine = createMachine(
   {
+    id: "usersState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./usersXService.typegen").Typegen0,
     schema: {
       context: {} as UsersContext,
@@ -84,6 +82,9 @@ export const usersMachine = createMachine(
         suspendUser: {
           data: TypesGen.User
         }
+        deleteUser: {
+          data: undefined
+        }
         activateUser: {
           data: TypesGen.User
         }
@@ -95,35 +96,8 @@ export const usersMachine = createMachine(
         }
       },
     },
-    id: "usersState",
-    initial: "idle",
+    initial: "gettingUsers",
     states: {
-      idle: {
-        on: {
-          GET_USERS: {
-            actions: "assignFilter",
-            target: "gettingUsers",
-          },
-          CREATE: "creatingUser",
-          CANCEL_CREATE_USER: { actions: ["clearCreateUserError"] },
-          SUSPEND_USER: {
-            target: "confirmUserSuspension",
-            actions: ["assignUserIdToSuspend"],
-          },
-          ACTIVATE_USER: {
-            target: "confirmUserActivation",
-            actions: ["assignUserIdToActivate"],
-          },
-          RESET_USER_PASSWORD: {
-            target: "confirmUserPasswordReset",
-            actions: ["assignUserIdToResetPassword", "generateRandomPassword"],
-          },
-          UPDATE_USER_ROLES: {
-            target: "updatingUserRoles",
-            actions: ["assignUserIdToUpdateRoles"],
-          },
-        },
-      },
       gettingUsers: {
         entry: "clearGetUsersError",
         invoke: {
@@ -144,33 +118,44 @@ export const usersMachine = createMachine(
         },
         tags: "loading",
       },
-      creatingUser: {
-        entry: "clearCreateUserError",
-        invoke: {
-          src: "createUser",
-          id: "createUser",
-          onDone: {
-            target: "idle",
-            actions: ["displayCreateUserSuccess", "redirectToUsersPage"],
+      idle: {
+        on: {
+          GET_USERS: {
+            actions: "assignFilter",
+            target: "gettingUsers",
           },
-          onError: [
-            {
-              target: "idle",
-              cond: "hasFieldErrors",
-              actions: ["assignCreateUserFormErrors"],
-            },
-            {
-              target: "idle",
-              actions: ["assignCreateUserError"],
-            },
-          ],
+          SUSPEND_USER: {
+            target: "confirmUserSuspension",
+            actions: ["assignUserIdToSuspend"],
+          },
+          DELETE_USER: {
+            target: "confirmUserDeletion",
+            actions: ["assignUserIdToDelete"],
+          },
+          ACTIVATE_USER: {
+            target: "confirmUserActivation",
+            actions: ["assignUserIdToActivate"],
+          },
+          RESET_USER_PASSWORD: {
+            target: "confirmUserPasswordReset",
+            actions: ["assignUserIdToResetPassword", "generateRandomPassword"],
+          },
+          UPDATE_USER_ROLES: {
+            target: "updatingUserRoles",
+            actions: ["assignUserIdToUpdateRoles"],
+          },
         },
-        tags: "loading",
       },
       confirmUserSuspension: {
         on: {
           CONFIRM_USER_SUSPENSION: "suspendingUser",
           CANCEL_USER_SUSPENSION: "idle",
+        },
+      },
+      confirmUserDeletion: {
+        on: {
+          CONFIRM_USER_DELETE: "deletingUser",
+          CANCEL_USER_DELETE: "idle",
         },
       },
       confirmUserActivation: {
@@ -192,6 +177,21 @@ export const usersMachine = createMachine(
           onError: {
             target: "idle",
             actions: ["assignSuspendUserError", "displaySuspendedErrorMessage"],
+          },
+        },
+      },
+      deletingUser: {
+        entry: "clearDeleteUserError",
+        invoke: {
+          src: "deleteUser",
+          id: "deleteUser",
+          onDone: {
+            target: "gettingUsers",
+            actions: ["displayDeleteSuccess"],
+          },
+          onError: {
+            target: "idle",
+            actions: ["assignDeleteUserError", "displayDeleteErrorMessage"],
           },
         },
       },
@@ -263,13 +263,18 @@ export const usersMachine = createMachine(
       // when it is mocked. This happen in the UsersPage tests inside of the
       // "shows a success message and refresh the page" test case.
       getUsers: (context) => API.getUsers(queryToFilter(context.filter)),
-      createUser: (_, event) => API.createUser(event.user),
       suspendUser: (context) => {
         if (!context.userIdToSuspend) {
           throw new Error("userIdToSuspend is undefined")
         }
 
         return API.suspendUser(context.userIdToSuspend)
+      },
+      deleteUser: (context) => {
+        if (!context.userIdToDelete) {
+          throw new Error("userIdToDelete is undefined")
+        }
+        return API.deleteUser(context.userIdToDelete)
       },
       activateUser: (context) => {
         if (!context.userIdToActivate) {
@@ -300,9 +305,7 @@ export const usersMachine = createMachine(
         return API.updateUserRoles(event.roles, context.userIdToUpdateRoles)
       },
     },
-    guards: {
-      hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
-    },
+
     actions: {
       assignUsers: assign({
         users: (_, event) => event.data,
@@ -315,6 +318,9 @@ export const usersMachine = createMachine(
       }),
       assignUserIdToSuspend: assign({
         userIdToSuspend: (_, event) => event.userId,
+      }),
+      assignUserIdToDelete: assign({
+        userIdToDelete: (_, event) => event.userId,
       }),
       assignUserIdToActivate: assign({
         userIdToActivate: (_, event) => event.userId,
@@ -329,16 +335,11 @@ export const usersMachine = createMachine(
         ...context,
         getUsersError: undefined,
       })),
-      assignCreateUserError: assign({
-        createUserErrorMessage: (_, event) => getErrorMessage(event.data, Language.createUserError),
-      }),
-      assignCreateUserFormErrors: assign({
-        // the guard ensures it is ApiError
-        createUserFormErrors: (_, event) =>
-          mapApiErrorToFieldErrors((event.data as ApiError).response.data),
-      }),
       assignSuspendUserError: assign({
         suspendUserError: (_, event) => event.data,
+      }),
+      assignDeleteUserError: assign({
+        deleteUserError: (_, event) => event.data,
       }),
       assignActivateUserError: assign({
         activateUserError: (_, event) => event.data,
@@ -353,13 +354,11 @@ export const usersMachine = createMachine(
         ...context,
         users: undefined,
       })),
-      clearCreateUserError: assign((context: UsersContext) => ({
-        ...context,
-        createUserErrorMessage: undefined,
-        createUserFormErrors: undefined,
-      })),
       clearSuspendUserError: assign({
         suspendUserError: (_) => undefined,
+      }),
+      clearDeleteUserError: assign({
+        deleteUserError: (_) => undefined,
       }),
       clearActivateUserError: assign({
         activateUserError: (_) => undefined,
@@ -374,14 +373,18 @@ export const usersMachine = createMachine(
         const message = getErrorMessage(context.getUsersError, Language.getUsersError)
         displayError(message)
       },
-      displayCreateUserSuccess: () => {
-        displaySuccess(Language.createUserSuccess)
-      },
       displaySuspendSuccess: () => {
         displaySuccess(Language.suspendUserSuccess)
       },
       displaySuspendedErrorMessage: (context) => {
         const message = getErrorMessage(context.suspendUserError, Language.suspendUserError)
+        displayError(message)
+      },
+      displayDeleteSuccess: () => {
+        displaySuccess(Language.deleteUserSuccess)
+      },
+      displayDeleteErrorMessage: (context) => {
+        const message = getErrorMessage(context.deleteUserError, Language.deleteUserError)
         displayError(message)
       },
       displayActivateSuccess: () => {

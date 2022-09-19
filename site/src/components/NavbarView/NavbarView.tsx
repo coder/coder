@@ -48,7 +48,10 @@ const NavItems: React.FC<
         </NavLink>
       </ListItem>
       <ListItem button className={styles.item}>
-        <NavLink className={styles.link} to="/users">
+        <NavLink
+          className={styles.link}
+          to={`/users?filter=${encodeURIComponent("status:active")}`}
+        >
           {Language.users}
         </NavLink>
       </ListItem>
@@ -187,7 +190,7 @@ const useStyles = makeStyles((theme) => ({
     // NavLink adds this class when the current route matches.
     "&.active": {
       position: "relative",
-      color: theme.palette.primary.contrastText,
+      color: theme.palette.text.primary,
       fontWeight: "bold",
 
       "&::before": {

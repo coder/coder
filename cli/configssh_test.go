@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -123,17 +124,28 @@ func TestConfigSSH(t *testing.T) {
 	defer func() {
 		_ = listener.Close()
 	}()
+	copyDone := make(chan struct{})
 	go func() {
+		defer close(copyDone)
+		var wg sync.WaitGroup
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				return
+				break
 			}
 			ssh, err := agentConn.SSH()
 			assert.NoError(t, err)
-			go io.Copy(conn, ssh)
-			go io.Copy(ssh, conn)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				_, _ = io.Copy(conn, ssh)
+			}()
+			go func() {
+				defer wg.Done()
+				_, _ = io.Copy(ssh, conn)
+			}()
 		}
+		wg.Wait()
 	}()
 
 	sshConfigFile := sshConfigFileName(t)
@@ -178,6 +190,9 @@ func TestConfigSSH(t *testing.T) {
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
+
+	_ = listener.Close()
+	<-copyDone
 }
 
 func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {

@@ -224,6 +224,19 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+// DeleteUser deletes a user.
+func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // UpdateUserProfile enables callers to update profile information
 func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)

@@ -121,6 +121,7 @@ func TestConvertResources(t *testing.T) {
 			Name: "about",
 			Type: "null_resource",
 			Hide: true,
+			Icon: "/icon/server.svg",
 			Metadata: []*proto.Resource_Metadata{{
 				Key:   "hello",
 				Value: "world",

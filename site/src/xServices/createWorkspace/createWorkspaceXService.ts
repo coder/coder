@@ -28,7 +28,8 @@ type CreateWorkspaceEvent = {
 export const createWorkspaceMachine = createMachine(
   {
     id: "createWorkspaceState",
-    initial: "gettingTemplates",
+    predictableActionArguments: true,
+    tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
     schema: {
       context: {} as CreateWorkspaceContext,
       events: {} as CreateWorkspaceEvent,
@@ -44,7 +45,7 @@ export const createWorkspaceMachine = createMachine(
         }
       },
     },
-    tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
+    initial: "gettingTemplates",
     states: {
       gettingTemplates: {
         entry: "clearGetTemplatesError",

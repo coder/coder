@@ -25,6 +25,8 @@ export interface UsersPageViewProps {
   isLoading?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
+  onDeleteUser: (user: TypesGen.User) => void
+  onListWorkspaces: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
@@ -36,6 +38,8 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   roles,
   openUserCreationDialog,
   onSuspendUser,
+  onDeleteUser,
+  onListWorkspaces,
   onActivateUser,
   onResetUserPassword,
   onUpdateUserRoles,
@@ -66,19 +70,19 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         <PageHeaderTitle>{Language.pageTitle}</PageHeaderTitle>
       </PageHeader>
 
-      <div style={{ marginTop: "15px" }}>
-        <SearchBarWithFilter
-          filter={filter}
-          onFilter={onFilter}
-          presetFilters={presetFilters}
-          error={error}
-        />
-      </div>
+      <SearchBarWithFilter
+        filter={filter}
+        onFilter={onFilter}
+        presetFilters={presetFilters}
+        error={error}
+      />
 
       <UsersTable
         users={users}
         roles={roles}
         onSuspendUser={onSuspendUser}
+        onDeleteUser={onDeleteUser}
+        onListWorkspaces={onListWorkspaces}
         onActivateUser={onActivateUser}
         onResetUserPassword={onResetUserPassword}
         onUpdateUserRoles={onUpdateUserRoles}

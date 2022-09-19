@@ -19,7 +19,8 @@ type SiteRolesEvent = {
 export const siteRolesMachine = createMachine(
   {
     id: "siteRolesState",
-    initial: "idle",
+    predictableActionArguments: true,
+    tsTypes: {} as import("./siteRolesXService.typegen").Typegen0,
     schema: {
       context: {} as SiteRolesContext,
       events: {} as SiteRolesEvent,
@@ -29,7 +30,7 @@ export const siteRolesMachine = createMachine(
         },
       },
     },
-    tsTypes: {} as import("./siteRolesXService.typegen").Typegen0,
+    initial: "idle",
     states: {
       idle: {
         on: {

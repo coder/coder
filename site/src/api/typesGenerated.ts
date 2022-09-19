@@ -86,6 +86,11 @@ export interface AuditLogResponse {
   readonly audit_logs: AuditLog[]
 }
 
+// From codersdk/audit.go
+export interface AuditLogsRequest extends Pagination {
+  readonly q?: string
+}
+
 // From codersdk/users.go
 export interface AuthMethods {
   readonly password: boolean
@@ -164,6 +169,12 @@ export interface CreateTemplateVersionRequest {
   readonly storage_source: string
   readonly provisioner: ProvisionerType
   readonly parameter_values?: CreateParameterRequest[]
+}
+
+// From codersdk/audit.go
+export interface CreateTestAuditLogRequest {
+  readonly action?: AuditAction
+  readonly resource_type?: ResourceType
 }
 
 // From codersdk/users.go
@@ -366,6 +377,13 @@ export interface Response {
 export interface Role {
   readonly name: string
   readonly display_name: string
+}
+
+// From codersdk/sse.go
+export interface ServerSentEvent {
+  readonly type: ServerSentEventType
+  // eslint-disable-next-line
+  readonly data: any
 }
 
 // From codersdk/templates.go
@@ -609,8 +627,9 @@ export interface WorkspaceBuild {
   readonly initiator_id: string
   readonly initiator_name: string
   readonly job: ProvisionerJob
-  readonly deadline?: string
   readonly reason: BuildReason
+  readonly resources: WorkspaceResource[]
+  readonly deadline?: string
 }
 
 // From codersdk/workspaces.go
@@ -637,6 +656,7 @@ export interface WorkspaceResource {
   readonly type: string
   readonly name: string
   readonly hide: boolean
+  readonly icon: string
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
 }
@@ -702,6 +722,9 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+
+// From codersdk/sse.go
+export type ServerSentEventType = "data" | "error" | "ping"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

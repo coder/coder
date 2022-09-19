@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -343,7 +344,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 
 	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, 200)
+	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
@@ -607,7 +608,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 			_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
 				ID:          uuid.New(),
-				CreatedAt:   time.Now(),
+				CreatedAt:   database.Now(),
 				AgentID:     workspaceAgent.ID,
 				WorkspaceID: build.WorkspaceID,
 				UserID:      workspace.OwnerID,
@@ -624,7 +625,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 			err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 				ID:         build.WorkspaceID,
-				LastUsedAt: time.Now(),
+				LastUsedAt: database.Now(),
 			})
 			if err != nil {
 				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
