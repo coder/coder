@@ -15,8 +15,8 @@ func licenses() http.Handler {
 	return r
 }
 
-func unsupported(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+func unsupported(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 		Message:     "Unsupported",
 		Detail:      "These endpoints are not supported in AGPL-licensed Coder",
 		Validations: nil,

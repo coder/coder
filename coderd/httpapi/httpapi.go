@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -52,13 +53,13 @@ func init() {
 // ResourceNotFound is intentionally vague. All 404 responses should be identical
 // to prevent leaking existence of resources.
 func ResourceNotFound(rw http.ResponseWriter) {
-	Write(rw, http.StatusNotFound, codersdk.Response{
+	Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 		Message: "Resource not found or you do not have access to this resource",
 	})
 }
 
 func Forbidden(rw http.ResponseWriter) {
-	Write(rw, http.StatusForbidden, codersdk.Response{
+	Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
 		Message: "Forbidden.",
 	})
 }
@@ -69,14 +70,17 @@ func InternalServerError(rw http.ResponseWriter, err error) {
 		details = err.Error()
 	}
 
-	Write(rw, http.StatusInternalServerError, codersdk.Response{
+	Write(context.Background(), rw, http.StatusInternalServerError, codersdk.Response{
 		Message: "An internal server error occurred.",
 		Detail:  details,
 	})
 }
 
 // Write outputs a standardized format to an HTTP response body.
-func Write(rw http.ResponseWriter, status int, response interface{}) {
+func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
+	_, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
@@ -96,10 +100,13 @@ func Write(rw http.ResponseWriter, status int, response interface{}) {
 
 // Read decodes JSON from the HTTP request into the value provided.
 // It uses go-validator to validate the incoming request body.
-func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
-		Write(rw, http.StatusBadRequest, codersdk.Response{
+		Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
 		})
@@ -115,14 +122,14 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 				Detail: fmt.Sprintf("Validation failed for tag %q with value: \"%v\"", validationError.Tag(), validationError.Value()),
 			})
 		}
-		Write(rw, http.StatusBadRequest, codersdk.Response{
+		Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Validation failed.",
 			Validations: apiErrors,
 		})
 		return false
 	}
 	if err != nil {
-		Write(rw, http.StatusInternalServerError, codersdk.Response{
+		Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error validating request body payload.",
 			Detail:  err.Error(),
 		})

@@ -22,7 +22,8 @@ type featuresService struct {
 	feats *FeatureInterfaces
 }
 
-func (*featuresService) EntitlementsAPI(rw http.ResponseWriter, _ *http.Request) {
+func (*featuresService) EntitlementsAPI(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	feats := make(map[string]codersdk.Feature)
 	for _, f := range codersdk.FeatureNames {
 		feats[f] = codersdk.Feature{
@@ -30,7 +31,7 @@ func (*featuresService) EntitlementsAPI(rw http.ResponseWriter, _ *http.Request)
 			Enabled:     false,
 		}
 	}
-	httpapi.Write(rw, http.StatusOK, codersdk.Entitlements{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Entitlements{
 		Features:   feats,
 		Warnings:   []string{},
 		HasLicense: false,

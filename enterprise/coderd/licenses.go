@@ -173,14 +173,15 @@ func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
 	var addLicense codersdk.AddLicenseRequest
-	if !httpapi.Read(rw, r, &addLicense) {
+	if !httpapi.Read(ctx, rw, r, &addLicense) {
 		return
 	}
 
 	claims, err := parseLicense(addLicense.License, keys)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
 			Detail:  err.Error(),
 		})
@@ -188,7 +189,7 @@ func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	exp, ok := claims["exp"].(float64)
 	if !ok {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
 			Detail:  "exp claim missing or not parsable",
 		})
@@ -196,13 +197,13 @@ func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	expTime := time.Unix(int64(exp), 0)
 
-	dl, err := a.database.InsertLicense(r.Context(), database.InsertLicenseParams{
+	dl, err := a.database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: database.Now(),
 		JWT:        addLicense.License,
 		Exp:        expTime,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to add license to database",
 			Detail:  err.Error(),
 		})
@@ -214,7 +215,7 @@ func (a *licenseAPI) postLicense(rw http.ResponseWriter, r *http.Request) {
 		// don't fail the HTTP request, since we did write it successfully to the database
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertLicense(dl, claims))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, claims))
 }
 
 func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
@@ -226,13 +227,14 @@ func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 }
 
 func (a *licenseAPI) licenses(rw http.ResponseWriter, r *http.Request) {
-	licenses, err := a.database.GetLicenses(r.Context())
+	ctx := r.Context()
+	licenses, err := a.database.GetLicenses(ctx)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusOK, []codersdk.License{})
+		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.License{})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching licenses.",
 			Detail:  err.Error(),
 		})
@@ -241,7 +243,7 @@ func (a *licenseAPI) licenses(rw http.ResponseWriter, r *http.Request) {
 
 	licenses, err = coderd.AuthorizeFilter(a.auth, r, rbac.ActionRead, licenses)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching licenses.",
 			Detail:  err.Error(),
 		})
@@ -249,13 +251,13 @@ func (a *licenseAPI) licenses(rw http.ResponseWriter, r *http.Request) {
 	}
 	sdkLicenses, err := convertLicenses(licenses)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error parsing licenses.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, sdkLicenses)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkLicenses)
 }
 
 func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
@@ -298,24 +300,25 @@ func (a *licenseAPI) delete(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 32)
 	if err != nil {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "License ID must be an integer",
 		})
 		return
 	}
 
-	_, err = a.database.DeleteLicense(r.Context(), int32(id))
+	_, err = a.database.DeleteLicense(ctx, int32(id))
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Unknown license ID",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting license",
 			Detail:  err.Error(),
 		})

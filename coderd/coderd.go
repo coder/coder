@@ -189,7 +189,7 @@ func New(options *Options) *API {
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Add("Build-Version", buildinfo.Version())
+				w.Header().Add("X-Coder-Build-Version", buildinfo.Version())
 				next.ServeHTTP(w, r)
 			})
 		},
@@ -198,8 +198,8 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
@@ -222,17 +222,17 @@ func New(options *Options) *API {
 
 	r.Route("/api/v2", func(r chi.Router) {
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
 			})
 		})
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider),
+			tracing.Middleware(api.TracerProvider),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, codersdk.Response{
+			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
 				//nolint:gocritic
 				Message: "👋",
 			})
@@ -242,7 +242,7 @@ func New(options *Options) *API {
 
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
+				httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
 					ExternalURL: buildinfo.ExternalURL(),
 					Version:     buildinfo.Version(),
 				})

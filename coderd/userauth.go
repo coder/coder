@@ -40,8 +40,8 @@ type GithubOAuth2Config struct {
 	AllowTeams         []GithubOAuth2Team
 }
 
-func (api *API) userAuthMethods(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusOK, codersdk.AuthMethods{
+func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: true,
 		Github:   api.GithubOAuth2Config != nil,
 		OIDC:     api.OIDCConfig != nil,
@@ -57,7 +57,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
 	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(ctx, oauthClient)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching authenticated Github user organizations.",
 			Detail:  err.Error(),
 		})
@@ -74,7 +74,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if selectedMembership == nil {
-		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "You aren't a member of the authorized Github organizations!",
 		})
 		return
@@ -82,7 +82,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(ctx, oauthClient)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching authenticated Github user.",
 			Detail:  err.Error(),
 		})
@@ -106,7 +106,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if allowedTeam == nil {
-			httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: fmt.Sprintf("You aren't a member of an authorized team in the %s Github organization!", *selectedMembership.Organization.Login),
 			})
 			return
@@ -115,7 +115,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	emails, err := api.GithubOAuth2Config.ListEmails(ctx, oauthClient)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching personal Github user.",
 			Detail:  err.Error(),
 		})
@@ -131,7 +131,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if verifiedEmail == nil {
-		httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
 			Message: "Your primary email must be verified on GitHub!",
 		})
 		return
@@ -148,14 +148,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
-		httpapi.Write(rw, httpErr.code, codersdk.Response{
+		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
@@ -189,7 +189,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
 	if !ok {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "id_token not found in response payload. Ensure your OIDC callback is configured correctly!",
 		})
 		return
@@ -197,7 +197,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	idToken, err := api.OIDCConfig.Verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to verify OIDC token.",
 			Detail:  err.Error(),
 		})
@@ -210,7 +210,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	claims := map[string]interface{}{}
 	err = idToken.Claims(&claims)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to extract OIDC claims.",
 			Detail:  err.Error(),
 		})
@@ -218,14 +218,14 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 	emailRaw, ok := claims["email"]
 	if !ok {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "No email found in OIDC payload!",
 		})
 		return
 	}
 	email, ok := emailRaw.(string)
 	if !ok {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Email in OIDC payload isn't a string. Got: %t", emailRaw),
 		})
 		return
@@ -234,7 +234,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		verified, ok := verifiedRaw.(bool)
 		if ok && !verified {
-			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
 			})
 			return
@@ -259,7 +259,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 	if api.OIDCConfig.EmailDomain != "" {
 		if !strings.HasSuffix(email, api.OIDCConfig.EmailDomain) {
-			httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", email, api.OIDCConfig.EmailDomain),
 			})
 			return
@@ -282,14 +282,14 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
-		httpapi.Write(rw, httpErr.code, codersdk.Response{
+		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
@@ -479,9 +479,10 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, err := api.createAPIKey(r, createAPIKeyParams{
-		UserID:    user.ID,
-		LoginType: params.LoginType,
+	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+		UserID:     user.ID,
+		LoginType:  params.LoginType,
+		RemoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create API key: %w", err)

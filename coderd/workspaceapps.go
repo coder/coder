@@ -66,7 +66,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 					return
 				}
 
-				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Could not determine request Host.",
 				})
 				return
@@ -145,7 +145,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			Name:    proxyApp.AppName,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching workspace application.",
 				Detail:  err.Error(),
 			})
@@ -153,7 +153,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		}
 
 		if !app.Url.Valid {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
 			})
 			return
@@ -163,7 +163,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	appURL, err := url.Parse(internalURL)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("App URL %q is invalid.", internalURL),
 			Detail:  err.Error(),
 		})
@@ -205,7 +205,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			return
 		}
 
-		httpapi.Write(w, http.StatusBadGateway, codersdk.Response{
+		httpapi.Write(ctx, w, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to proxy request to application.",
 			Detail:  err.Error(),
 		})
@@ -213,7 +213,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",
 			Detail:  err.Error(),
 		})
