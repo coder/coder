@@ -34,14 +34,6 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, res.HasLicense)
 		require.Empty(t, res.Warnings)
 	})
-	t.Run("NoLicense", func(t *testing.T) {
-		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		res, err := client.Entitlements(context.Background())
-		require.NoError(t, err)
-		require.False(t, res.HasLicense)
-		require.Empty(t, res.Warnings)
-	})
 	t.Run("FullLicense", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
@@ -153,12 +145,29 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		coderdtest.CreateFirstUser(t, client)
+		// Valid
 		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				AuditLog: true,
 			}),
+		})
+		require.NoError(t, err)
+		// Expired
+		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
+			UploadedAt: database.Now(),
+			Exp:        database.Now().AddDate(-1, 0, 0),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				AuditLog: true,
+			}),
+		})
+		require.NoError(t, err)
+		// Invalid
+		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
+			UploadedAt: database.Now(),
+			Exp:        database.Now().AddDate(1, 0, 0),
+			JWT:        "invalid",
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
@@ -178,16 +187,18 @@ func TestAuditLogging(t *testing.T) {
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AuditLog: true,
 		})
-		_, auditor := api.AGPL.Auditor.Load(context.Background())
+		auditor := *api.AGPL.Auditor.Load()
 		ea := audit.NewAuditor(audit.DefaultFilter)
+		t.Logf("%T = %T", auditor, ea)
 		assert.Equal(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 		client, _, api := coderdenttest.NewWithAPI(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		_, auditor := api.AGPL.Auditor.Load(context.Background())
+		auditor := *api.AGPL.Auditor.Load()
 		ea := agplaudit.NewNop()
+		t.Logf("%T = %T", auditor, ea)
 		assert.Equal(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})
 }

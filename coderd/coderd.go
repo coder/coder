@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -32,7 +33,6 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
-	"github.com/coder/coder/coderd/pointer"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -148,8 +148,9 @@ func New(options *Options) *API {
 			Logger:     options.Logger,
 		},
 		metricsCache: metricsCache,
-		Auditor:      pointer.New(options.Auditor),
+		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
+	api.Auditor.Store(&options.Auditor)
 
 	if options.TailscaleEnable {
 		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -498,7 +499,7 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
-	Auditor  *pointer.Handle[audit.Auditor]
+	Auditor  atomic.Pointer[audit.Auditor]
 	HTTPAuth *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"

@@ -65,12 +65,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
 	}
-	api.closeLicenseSubscribe, err = api.Pubsub.Subscribe(PubsubEventLicenses, func(ctx context.Context, message []byte) {
-		_ = api.updateEntitlements(ctx)
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("subscribe to license updates: %w", err)
-	}
 	go api.runEntitlementsLoop(ctx)
 
 	return api, nil
@@ -88,7 +82,6 @@ type API struct {
 	AGPL *coderd.API
 	*Options
 
-	closeLicenseSubscribe  func()
 	cancelEntitlementsLoop func()
 	mutex                  sync.RWMutex
 	hasLicense             bool
@@ -97,7 +90,6 @@ type API struct {
 }
 
 func (api *API) Close() error {
-	api.closeLicenseSubscribe()
 	api.cancelEntitlementsLoop()
 	return api.AGPL.Close()
 }
@@ -160,7 +152,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				backends.NewSlog(api.Logger),
 			)
 		}
-		api.AGPL.Auditor.Store(auditor)
+		api.AGPL.Auditor.Store(&auditor)
 	}
 
 	api.hasLicense = hasLicense
@@ -242,7 +234,11 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			})
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to subscribe to license updates", slog.Error(err))
-				time.Sleep(b.NextBackOff())
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(b.NextBackOff()):
+				}
 				continue
 			}
 			// nolint: revive

@@ -559,7 +559,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
@@ -632,7 +632,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var (
 		apiKey            = httpmw.APIKey(r)
 		organization      = httpmw.OrganizationParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,

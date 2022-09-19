@@ -85,7 +85,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
@@ -140,7 +140,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		createTemplate                     codersdk.CreateTemplateRequest
 		organization                       = httpmw.OrganizationParam(r)
 		apiKey                             = httpmw.APIKey(r)
-		_, auditor                         = api.Auditor.Load(r.Context())
+		auditor                            = *api.Auditor.Load()
 		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
@@ -437,7 +437,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,

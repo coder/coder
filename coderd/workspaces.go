@@ -217,9 +217,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	var (
 		organization      = httpmw.OrganizationParam(r)
 		apiKey            = httpmw.APIKey(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
@@ -481,9 +481,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		workspace         = httpmw.WorkspaceParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
@@ -558,9 +558,9 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
 		workspace         = httpmw.WorkspaceParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
@@ -619,9 +619,9 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		workspace         = httpmw.WorkspaceParam(r)
-		_, auditor        = api.Auditor.Load(r.Context())
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
