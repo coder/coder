@@ -71,7 +71,7 @@ locals {
 resource "docker_image" "dogfood" {
   name          = data.docker_registry_image.dogfood.name
   pull_triggers = [data.docker_registry_image.dogfood.sha256_digest]
-  keep_locally = true
+  keep_locally  = true
 }
 
 resource "docker_container" "workspace" {
