@@ -606,6 +606,7 @@ type WorkspaceApp struct {
 	RelativePath         bool               `db:"relative_path" json:"relative_path"`
 	UpdatedAt            time.Time          `db:"updated_at" json:"updated_at"`
 	HealthcheckEnabled   bool               `db:"healthcheck_enabled" json:"healthcheck_enabled"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
 	HealthcheckPeriod    int32              `db:"healthcheck_period" json:"healthcheck_period"`
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`

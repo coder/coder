@@ -22,12 +22,13 @@ INSERT INTO
         url,
         relative_path,
         healthcheck_enabled,
+        healthcheck_url,
         healthcheck_period,
         healthcheck_threshold,
         health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateWorkspaceAppHealthByID :exec
 UPDATE

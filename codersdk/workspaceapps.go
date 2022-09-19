@@ -20,9 +20,12 @@ type WorkspaceApp struct {
 	Command string `json:"command,omitempty"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
-	Icon                 string             `json:"icon,omitempty"`
-	HealthcheckEnabled   bool               `json:"healthcheck_enabled"`
-	HealthcheckPeriod    int32              `json:"healthcheck_period"`
+	Icon               string `json:"icon,omitempty"`
+	HealthcheckEnabled bool   `json:"healthcheck_enabled"`
+	HealthcheckURL     string `json:"healthcheck_url"`
+	// HealthcheckInterval specifies the seconds between each health check.
+	HealthcheckInterval int32 `json:"healthcheck_period"`
+	// HealthcheckThreshold specifies the number of consecutive failed health checks before returning "unhealthy".
 	HealthcheckThreshold int32              `json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `json:"health"`
 }

@@ -826,8 +826,10 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
-				RelativePath:         app.RelativePath,
+				RelativePath: app.RelativePath,
+				// default to disabled until we tie up the terraform
 				HealthcheckEnabled:   false,
+				HealthcheckUrl:       "",
 				HealthcheckPeriod:    0,
 				HealthcheckThreshold: 0,
 				Health:               database.WorkspaceAppHealthDisabled,

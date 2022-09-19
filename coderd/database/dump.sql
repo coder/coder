@@ -352,6 +352,7 @@ CREATE TABLE workspace_apps (
     relative_path boolean DEFAULT false NOT NULL,
     updated_at timestamp with time zone DEFAULT '-infinity'::timestamp with time zone NOT NULL,
     healthcheck_enabled boolean DEFAULT false NOT NULL,
+    healthcheck_url text DEFAULT ''::text NOT NULL,
     healthcheck_period integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
     health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL

@@ -257,7 +257,7 @@ func (api *API) applicationCookie(authCookie *http.Cookie) *http.Cookie {
 	return &appCookie
 }
 
-func (api *API) postWorkspaceAppHealths(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	var req codersdk.PostWorkspaceAppHealthsRequest
 	if !httpapi.Read(rw, r, &req) {

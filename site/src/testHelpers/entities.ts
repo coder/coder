@@ -326,6 +326,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   icon: "",
   health: "disabled",
   healthcheck_enabled: false,
+  healthcheck_url: "",
   healthcheck_period: 0,
   healthcheck_threshold: 0,
 }
