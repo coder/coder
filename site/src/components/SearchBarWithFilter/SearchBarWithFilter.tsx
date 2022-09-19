@@ -22,6 +22,7 @@ export interface SearchBarWithFilterProps {
   onFilter: (query: string) => void
   presetFilters?: PresetFilter[]
   error?: unknown
+  docs?: string
 }
 
 export interface PresetFilter {
@@ -34,6 +35,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
   onFilter,
   presetFilters,
   error,
+  docs,
 }) => {
   const styles = useStyles({ error: Boolean(error) })
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -132,6 +134,11 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
                 {presetFilter.name}
               </MenuItem>
             ))}
+            {docs && (
+              <MenuItem component="a" href={docs} target="_blank">
+                View advanced filtering
+              </MenuItem>
+            )}
           </Menu>
         ) : null}
       </Stack>

@@ -68,7 +68,12 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
       </PageHeader>
 
-      <SearchBarWithFilter filter={filter} onFilter={onFilter} presetFilters={presetFilters} />
+      <SearchBarWithFilter
+        docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
+        filter={filter}
+        onFilter={onFilter}
+        presetFilters={presetFilters}
+      />
 
       <TableContainer>
         <Table>
