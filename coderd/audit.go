@@ -65,7 +65,20 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := api.Database.GetAuditLogCount(ctx)
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := auditSearchQuery(queryStr)
+	if len(errs) > 0 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid audit search query.",
+			Validations: errs,
+		})
+		return
+	}
+
+	count, err := api.Database.GetAuditLogCount(ctx, database.GetAuditLogCountParams{
+		ResourceType: filter.ResourceType,
+		Action:       filter.Action,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
