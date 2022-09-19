@@ -27,7 +27,7 @@ type querier interface {
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
-	GetAuditLogCount(ctx context.Context) (int64, error)
+	GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)

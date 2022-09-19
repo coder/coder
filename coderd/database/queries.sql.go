@@ -292,10 +292,28 @@ SELECT
     COUNT(*) as count
 FROM
     audit_logs
+WHERE
+    -- Filter resource_type
+	CASE
+		WHEN $1 :: text != '' THEN
+			resource_type = $1 :: resource_type
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			action = $2 :: audit_action
+		ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetAuditLogCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getAuditLogCount)
+type GetAuditLogCountParams struct {
+	ResourceType string `db:"resource_type" json:"resource_type"`
+	Action       string `db:"action" json:"action"`
+}
+
+func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAuditLogCount, arg.ResourceType, arg.Action)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
