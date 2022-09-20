@@ -30,12 +30,14 @@ var (
 
 // ReconnectingPTYRequest is sent from the client to the server
 // to pipe data to a PTY.
+// @typescript-ignore ReconnectingPTYRequest
 type ReconnectingPTYRequest struct {
 	Data   string `json:"data"`
 	Height uint16 `json:"height"`
 	Width  uint16 `json:"width"`
 }
 
+// @typescript-ignore AgentConn
 type AgentConn struct {
 	*tailnet.Conn
 	CloseFunc func()
@@ -70,6 +72,7 @@ func (c *AgentConn) Close() error {
 	return c.Conn.Close()
 }
 
+// @typescript-ignore ReconnectingPTYInit
 type ReconnectingPTYInit struct {
 	ID      string
 	Height  uint16

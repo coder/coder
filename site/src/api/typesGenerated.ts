@@ -12,12 +12,6 @@ export interface APIKey {
   readonly lifetime_seconds: number
 }
 
-// From codersdk/workspaceagents.go
-export interface AWSInstanceIdentityToken {
-  readonly signature: string
-  readonly document: string
-}
-
 // From codersdk/licenses.go
 export interface AddLicenseRequest {
   readonly license: string
@@ -250,11 +244,6 @@ export interface GitSSHKey {
   readonly public_key: string
 }
 
-// From codersdk/workspaceagents.go
-export interface GoogleInstanceIdentityToken {
-  readonly json_web_token: string
-}
-
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
@@ -329,16 +318,6 @@ export interface ParameterSchema {
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains?: string[]
-}
-
-// From codersdk/workspaceagents.go
-export interface PostWorkspaceAgentVersionRequest {
-  readonly version: string
-}
-
-// From codersdk/workspaceapps.go
-export interface PostWorkspaceAppHealthsRequest {
-  readonly Healths: Record<string, WorkspaceAppHealth>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -579,18 +558,6 @@ export interface WorkspaceAgent {
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
-}
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentAuthenticateResponse {
-  readonly session_token: string
-}
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentConnectionInfo {
-  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly derp_map?: any
 }
 
 // From codersdk/workspaceresources.go

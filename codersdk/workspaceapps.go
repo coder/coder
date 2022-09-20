@@ -30,6 +30,7 @@ type WorkspaceApp struct {
 	Health               WorkspaceAppHealth `json:"health"`
 }
 
+// @typescript-ignore PostWorkspaceAppHealthsRequest
 type PostWorkspaceAppHealthsRequest struct {
 	// Healths is a map of the workspace app name and the health of the app.
 	Healths map[string]WorkspaceAppHealth

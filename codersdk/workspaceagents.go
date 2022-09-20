@@ -25,15 +25,18 @@ import (
 	"github.com/coder/retry"
 )
 
+// @typescript-ignore GoogleInstanceIdentityToken
 type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
 }
 
+// @typescript-ignore AWSInstanceIdentityToken
 type AWSInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Document  string `json:"document" validate:"required"`
 }
 
+// @typescript-ignore ReconnectingPTYRequest
 type AzureInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Encoding  string `json:"encoding" validate:"required"`
@@ -41,20 +44,24 @@ type AzureInstanceIdentityToken struct {
 
 // WorkspaceAgentAuthenticateResponse is returned when an instance ID
 // has been exchanged for a session token.
+// @typescript-ignore WorkspaceAgentAuthenticateResponse
 type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
 // WorkspaceAgentConnectionInfo returns required information for establishing
 // a connection with a workspace.
+// @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
 	DERPMap *tailcfg.DERPMap `json:"derp_map"`
 }
 
+// @typescript-ignore PostWorkspaceAgentVersionRequest
 type PostWorkspaceAgentVersionRequest struct {
 	Version string `json:"version"`
 }
 
+// @typescript-ignore WorkspaceAgentMetadata
 type WorkspaceAgentMetadata struct {
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
@@ -427,6 +434,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 // Each member value must be written and read with atomic.
+// @typescript-ignore AgentStats
 type AgentStats struct {
 	NumConns int64 `json:"num_comms"`
 	RxBytes  int64 `json:"rx_bytes"`
