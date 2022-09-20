@@ -307,6 +307,50 @@ func TestTemplatesByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
 	})
+
+	t.Run("ListPrivate", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		template1 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+			func(r *codersdk.CreateTemplateRequest) {
+				r.IsPrivate = true
+			},
+		)
+		template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+			func(r *codersdk.CreateTemplateRequest) {
+				r.IsPrivate = true
+			},
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		templates, err := client2.TemplatesByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, templates, 0, "user should not be able to read any templates")
+
+		req := codersdk.UpdateTemplateMeta{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user2.ID.String(): codersdk.TemplateRoleRead,
+			},
+		}
+
+		_, err = client.UpdateTemplateMeta(ctx, template1.ID, req)
+		require.NoError(t, err)
+
+		_, err = client.UpdateTemplateMeta(ctx, template2.ID, req)
+		require.NoError(t, err)
+
+		templates, err = client2.TemplatesByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, templates, 2, "user should not be able to read any templates")
+	})
 }
 
 func TestTemplateByOrganizationAndName(t *testing.T) {
