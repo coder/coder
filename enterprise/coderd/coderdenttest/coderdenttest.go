@@ -38,6 +38,7 @@ type Options struct {
 	*coderdtest.Options
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
+	SCIMAPIKey                 []byte
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -57,6 +58,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		AuditLogging:               true,
 		BrowserOnly:                options.BrowserOnly,
+		SCIMAPIKey:                 options.SCIMAPIKey,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys: map[string]ed25519.PublicKey{
@@ -85,6 +87,7 @@ type LicenseOptions struct {
 	UserLimit   int64
 	AuditLog    bool
 	BrowserOnly bool
+	SCIM        bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -112,6 +115,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.BrowserOnly {
 		browserOnly = 1
 	}
+	scim := int64(0)
+	if options.SCIM {
+		scim = 1
+	}
+
 	c := &coderd.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -127,6 +135,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			UserLimit:   options.UserLimit,
 			AuditLog:    auditLog,
 			BrowserOnly: browserOnly,
+			SCIM:        scim,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

@@ -15,13 +15,15 @@ import (
 
 func server() *cobra.Command {
 	var (
-		auditLogging bool
-		browserOnly  bool
+		auditLogging   bool
+		browserOnly    bool
+		scimAuthHeader string
 	)
 	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
 		api, err := coderd.New(ctx, &coderd.Options{
 			AuditLogging: auditLogging,
 			BrowserOnly:  browserOnly,
+			SCIMAPIKey:   []byte(scimAuthHeader),
 			Options:      options,
 		})
 		if err != nil {
@@ -35,6 +37,8 @@ func server() *cobra.Command {
 		"Specifies whether audit logging is enabled. "+enterpriseOnly)
 	cliflag.BoolVarP(cmd.Flags(), &browserOnly, "browser-only", "", "CODER_BROWSER_ONLY", false,
 		"Whether Coder only allows connections to workspaces via the browser. "+enterpriseOnly)
+	cliflag.StringVarP(cmd.Flags(), &scimAuthHeader, "scim-auth-header", "", "CODER_SCIM_API_KEY", "",
+		"Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication. "+enterpriseOnly)
 
 	return cmd
 }

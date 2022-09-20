@@ -2388,13 +2388,26 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			arg.Offset--
 			continue
 		}
-
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
-
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
 		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
@@ -2440,9 +2453,23 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
-
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
 		}
 
 		logs = append(logs, alog)

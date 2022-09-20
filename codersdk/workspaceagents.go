@@ -283,7 +283,6 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if errors.Is(err, context.Canceled) {
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				return
 			}
 			if isFirst {

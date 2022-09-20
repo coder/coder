@@ -48,6 +48,7 @@ type Features struct {
 	UserLimit   int64 `json:"user_limit"`
 	AuditLog    int64 `json:"audit_log"`
 	BrowserOnly int64 `json:"browser_only"`
+	SCIM        int64 `json:"scim"`
 }
 
 type Claims struct {
