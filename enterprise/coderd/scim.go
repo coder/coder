@@ -140,7 +140,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	sUser.ID = user.ID.String()
 	sUser.UserName = user.Username
 
-	httpapi.Write(rw, http.StatusOK, sUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }
 
 // scimPatchUser supports suspending and activating users only.
@@ -190,5 +190,5 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, sUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }
