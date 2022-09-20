@@ -54,7 +54,6 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -202,12 +201,6 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
-	turnServer, err := turnconn.New(nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = turnServer.Close()
-	})
-
 	features := coderd.DisabledImplementations
 	if options.Auditor != nil {
 		features.Auditor = options.Auditor
@@ -231,7 +224,6 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		OIDCConfig:           options.OIDCConfig,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),

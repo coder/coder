@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -72,7 +74,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String(), "--wireguard=false")
+	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 	agentClient := client
 	clitest.SetupConfig(t, agentClient, root)
 
@@ -85,11 +87,13 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 	require.NoError(t, err)
-	dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+	dialer, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 	require.NoError(t, err)
 	defer dialer.Close()
-	_, err = dialer.Ping()
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err = dialer.Ping()
+		return err == nil
+	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	return agentClient, agentToken, pubkey
 }
