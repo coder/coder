@@ -158,7 +158,7 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({ children }) 
             href="/settings/deployment/oidc"
             icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
           >
-            OIDC
+            OpenID Connect
           </SidebarNavItem>
         </Sidebar>
 
@@ -229,7 +229,7 @@ const useStyles = makeStyles((theme) => ({
 
   headingGroup: {
     marginBottom: theme.spacing(3),
-    maxWidth: 360,
+    maxWidth: 550,
   },
 
   title: {
