@@ -348,6 +348,20 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+// WorkspaceAgent returns the requesting agent.
+func (c *Client) MyWorkspaceAgent(ctx context.Context) (WorkspaceAgent, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me", nil)
+	if err != nil {
+		return WorkspaceAgent{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgent{}, readBodyAsError(res)
+	}
+	var workspaceAgent WorkspaceAgent
+	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+}
+
 func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
 	// Phone home and tell the mothership what version we're on.
 	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
