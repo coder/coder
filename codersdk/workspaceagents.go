@@ -285,8 +285,8 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				return
 			}
 			if err != nil {
+				// WARN: closing here may lead to nhooyr websocket panicking.
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {

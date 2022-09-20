@@ -58,7 +58,9 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	require.True(t, ok)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+		IncludeProvisionerDaemon:    true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
@@ -104,6 +106,7 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
+		StatsReporter:     agentClient.AgentReportStats,
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
