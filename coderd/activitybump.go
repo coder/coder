@@ -17,7 +17,7 @@ import (
 func activityBumpWorkspace(log slog.Logger, db database.Store, workspace database.Workspace) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
 	err := db.InTx(func(s database.Store) error {
@@ -53,11 +53,11 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspace databas
 			return nil
 		}
 
-		newDeadline := time.Now().Add(bumpAmount)
+		newDeadline := database.Now().Add(bumpAmount)
 
 		if err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
-			UpdatedAt:        build.UpdatedAt,
+			UpdatedAt:        database.Now(),
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
 		}); err != nil {
@@ -65,7 +65,6 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspace databas
 		}
 		return nil
 	})
-
 	if err != nil {
 		log.Error(ctx, "bump failed", slog.Error(err))
 	} else {

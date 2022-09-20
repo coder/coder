@@ -281,11 +281,9 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if errors.Is(err, context.Canceled) {
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				return
 			}
 			if err != nil {
-				// WARN: closing here may lead to nhooyr websocket panicking.
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
