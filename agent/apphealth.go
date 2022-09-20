@@ -32,7 +32,7 @@ func reportAppHealth(ctx context.Context, logger slog.Logger, fetchApps FetchWor
 				health[app.Name] = app.Health
 			}
 
-			tickers := make(chan string, 0)
+			tickers := make(chan string)
 			for _, app := range apps {
 				if shouldStartTicker(app) {
 					t := time.NewTicker(time.Duration(app.HealthcheckInterval) * time.Second)
