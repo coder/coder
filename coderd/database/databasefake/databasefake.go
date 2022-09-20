@@ -1245,7 +1245,7 @@ func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID,
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
