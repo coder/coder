@@ -641,7 +641,7 @@ func (api *API) templateUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, users)
+	users, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, users)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
