@@ -117,7 +117,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 			}
 
 			// Steps 3-6: Parse application from subdomain.
-			app, ok := parseWorkspaceApplicationHostname(rw, r, next, api.AccessURL, api.AppHostname, host)
+			app, ok := api.parseWorkspaceApplicationHostname(rw, r, next, host)
 			if !ok {
 				return
 			}
@@ -133,7 +133,11 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				workspace := httpmw.WorkspaceParam(r)
 				agent := httpmw.WorkspaceAgentParam(r)
 
-				// TODO: Verify authentication.
+				// Verify application auth. This function will redirect or
+				// return an error page if the user doesn't have permission.
+				if !api.verifyWorkspaceApplicationAuth(rw, r, workspace, host) {
+					return
+				}
 
 				api.proxyWorkspaceApplication(proxyApplication{
 					Workspace:        workspace,
@@ -148,10 +152,10 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 	}
 }
 
-func parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, accessURL *url.URL, appHostname, host string) (httpapi.ApplicationURL, bool) {
+func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, host string) (httpapi.ApplicationURL, bool) {
 	// Check if the hostname matches the access URL. If it does, the
 	// user was definitely trying to connect to the dashboard/API.
-	if httpapi.HostnamesMatch(accessURL.Hostname(), host) {
+	if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
 		next.ServeHTTP(rw, r)
 		return httpapi.ApplicationURL{}, false
 	}
@@ -165,7 +169,7 @@ func parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, 
 		next.ServeHTTP(rw, r)
 		return httpapi.ApplicationURL{}, false
 	}
-	matchingBaseHostname := httpapi.HostnamesMatch(appHostname, rest)
+	matchingBaseHostname := httpapi.HostnamesMatch(api.AppHostname, rest)
 
 	// Parse the application URL from the subdomain.
 	app, err := httpapi.ParseSubdomainAppURL(subdomain)
@@ -198,6 +202,31 @@ func parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, 
 	return app, true
 }
 
+// verifyWorkspaceApplicationAuth checks that the request is authorized to
+// access the given application. If the user does not have a app session key,
+// they will be redirected to the route below. If the user does have a session
+// key but insufficient permissions a static error page will be rendered.
+func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, host string) bool {
+	_, ok := httpmw.APIKeyOptional(r)
+	if ok {
+		if !api.Authorize(r, rbac.ActionCreate, workspace.ApplicationConnectRBAC()) {
+			// TODO: This should be a static error page.
+			httpapi.ResourceNotFound(rw)
+			return false
+		}
+
+		// Request should be all good to go.
+		return true
+	}
+
+	// Request needs to be authenticated.
+	// TODO: redirect logic
+	httpapi.Forbidden(rw)
+	return false
+}
+
+// workspaceApplicationAuth is an endpoint on the main router that handles
+// redirects from the subdomain handler.
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	if api.AppHostname == "" {
 		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
