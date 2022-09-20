@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/klauspost/compress/zstd"
-	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -25,9 +25,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -35,7 +35,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -55,6 +54,7 @@ type Options struct {
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
 
+	Auditor                        audit.Auditor
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -68,17 +68,12 @@ type Options struct {
 	GithubOAuth2Config   *GithubOAuth2Config
 	OIDCConfig           *OIDCConfig
 	PrometheusRegistry   *prometheus.Registry
-	ICEServers           []webrtc.ICEServer
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
-	TURNServer           *turnconn.Server
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
-	LicenseHandler       http.Handler
-	FeaturesService      features.Service
 
-	TailscaleEnable    bool
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
 
@@ -88,12 +83,21 @@ type Options struct {
 
 // New constructs a Coder API handler.
 func New(options *Options) *API {
+	if options == nil {
+		options = &Options{}
+	}
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
+	}
+	if options.AgentStatsRefreshInterval == 0 {
+		options.AgentStatsRefreshInterval = 10 * time.Minute
+	}
+	if options.MetricsCacheRefreshInterval == 0 {
+		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
@@ -119,11 +123,8 @@ func New(options *Options) *API {
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
-	if options.LicenseHandler == nil {
-		options.LicenseHandler = licenses()
-	}
-	if options.FeaturesService == nil {
-		options.FeaturesService = &featuresService{}
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -144,19 +145,17 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
-		Handler:     r,
+		RootHandler: r,
 		siteHandler: site.Handler(site.FS(), binFS),
-		httpAuth: &HTTPAuthorizer{
+		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
 		metricsCache: metricsCache,
+		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
-	if options.TailscaleEnable {
-		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
-	} else {
-		api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgent, 0)
-	}
+	api.Auditor.Store(&options.Auditor)
+	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -201,8 +200,8 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider),
 			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
@@ -224,15 +223,17 @@ func New(options *Options) *API {
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
+		api.APIHandler = r
+
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
 			})
 		})
 		r.Use(
+			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			tracing.HTTPMW(api.TracerProvider),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, codersdk.Response{
@@ -418,14 +419,8 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
-				r.Get("/listen", api.workspaceAgentListen)
-
 				r.Get("/gitsshkey", api.agentGitSSHKey)
-				r.Get("/turn", api.workspaceAgentTurn)
-				r.Get("/iceservers", api.workspaceAgentICEServers)
-
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
-
 				r.Get("/report-stats", api.workspaceAgentReportStats)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
@@ -435,13 +430,17 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/dial", api.workspaceAgentDial)
-				r.Get("/turn", api.userWorkspaceAgentTurn)
 				r.Get("/pty", api.workspaceAgentPTY)
-				r.Get("/iceservers", api.workspaceAgentICEServers)
-
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				// TODO: This can be removed in October. It allows for a friendly
+				// error message when transitioning from WebRTC to Tailscale. See:
+				// https://github.com/coder/coder/issues/4126
+				r.Get("/dial", func(w http.ResponseWriter, r *http.Request) {
+					httpapi.Write(w, http.StatusGone, codersdk.Response{
+						Message: "Your Coder CLI is out of date, and requires v0.8.15+ to connect!",
+					})
+				})
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
@@ -489,14 +488,6 @@ func New(options *Options) *API {
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
-		r.Route("/entitlements", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/", api.FeaturesService.EntitlementsAPI)
-		})
-		r.Route("/licenses", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Mount("/", options.LicenseHandler)
-		})
 		r.Route("/authorization", func(r chi.Router) {
 			r.Route("/can-i", func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
@@ -520,17 +511,20 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+	Auditor  atomic.Pointer[audit.Auditor]
+	HTTPAuth *HTTPAuthorizer
 
-	derpServer *derp.Server
+	// APIHandler serves "/api/v2"
+	APIHandler chi.Router
+	// RootHandler serves "/"
+	RootHandler chi.Router
 
-	Handler             chi.Router
+	derpServer          *derp.Server
+	metricsCache        *metricscache.Cache
 	siteHandler         http.Handler
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
-	httpAuth            *HTTPAuthorizer
-
-	metricsCache *metricscache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.

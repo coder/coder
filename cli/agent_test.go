@@ -7,10 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -63,11 +66,13 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer dialer.Close()
-		_, err = dialer.Ping()
-		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			_, err := dialer.Ping()
+			return err == nil
+		}, testutil.WaitMedium, testutil.IntervalFast)
 		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)
@@ -121,11 +126,13 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer dialer.Close()
-		_, err = dialer.Ping()
-		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			_, err := dialer.Ping()
+			return err == nil
+		}, testutil.WaitMedium, testutil.IntervalFast)
 		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)
@@ -179,11 +186,13 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer dialer.Close()
-		_, err = dialer.Ping()
-		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			_, err := dialer.Ping()
+			return err == nil
+		}, testutil.WaitMedium, testutil.IntervalFast)
 		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)

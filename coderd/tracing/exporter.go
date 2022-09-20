@@ -3,9 +3,11 @@ package tracing
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -24,34 +26,53 @@ type TracerOpts struct {
 
 // TracerProvider creates a grpc otlp exporter and configures a trace provider.
 // Caller is responsible for calling TracerProvider.Shutdown to ensure all data is flushed.
-func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdktrace.TracerProvider, error) {
+func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdktrace.TracerProvider, func(context.Context) error, error) {
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		// the service name used to display traces in backends
 		semconv.ServiceNameKey.String(service),
 	)
 
-	tracerOpts := []sdktrace.TracerProviderOption{
-		sdktrace.WithResource(res),
-	}
+	var (
+		tracerOpts = []sdktrace.TracerProviderOption{
+			sdktrace.WithResource(res),
+		}
+		closers = []func(context.Context) error{}
+	)
+
 	if opts.Default {
 		exporter, err := DefaultExporter(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("default exporter: %w", err)
+			return nil, nil, xerrors.Errorf("default exporter: %w", err)
 		}
+		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
 	}
 	if opts.Coder {
 		exporter, err := CoderExporter(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("coder exporter: %w", err)
+			return nil, nil, xerrors.Errorf("coder exporter: %w", err)
 		}
+		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
 	}
 
 	tracerProvider := sdktrace.NewTracerProvider(tracerOpts...)
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
 
-	return tracerProvider, nil
+	return tracerProvider, func(ctx context.Context) error {
+		for _, close := range closers {
+			_ = close(ctx)
+		}
+		_ = tracerProvider.Shutdown(ctx)
+		return nil
+	}, nil
 }
 
 func DefaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {

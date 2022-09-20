@@ -16,6 +16,7 @@
         formatter = pkgs.nixpkgs-fmt;
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+            bash
             bat
             drpc.defaultPackage.${system}
             exa

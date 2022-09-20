@@ -159,6 +159,33 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 	return stat, nil
 }
 
+func (q *fakeQuerier) GetLatestAgentStat(_ context.Context, agentID uuid.UUID) (database.AgentStat, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	found := false
+	latest := database.AgentStat{}
+	for _, agentStat := range q.agentStats {
+		if agentStat.AgentID != agentID {
+			continue
+		}
+		if !found {
+			latest = agentStat
+			found = true
+			continue
+		}
+		if agentStat.CreatedAt.After(latest.CreatedAt) {
+			latest = agentStat
+			found = true
+			continue
+		}
+	}
+	if !found {
+		return database.AgentStat{}, sql.ErrNoRows
+	}
+	return latest, nil
+}
+
 func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2361,13 +2388,26 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			arg.Offset--
 			continue
 		}
-
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
-
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
 		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
@@ -2413,9 +2453,23 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
-
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
 		}
 
 		logs = append(logs, alog)

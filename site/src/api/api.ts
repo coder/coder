@@ -16,6 +16,22 @@ export const hardCodedCSRFCookie = (): string => {
   return csrfToken
 }
 
+// defaultEntitlements has a default set of disabled functionality.
+export const defaultEntitlements = (): TypesGen.Entitlements => {
+  const features: TypesGen.Entitlements["features"] = {}
+  for (const feature in Types.FeatureNames) {
+    features[feature] = {
+      enabled: false,
+      entitlement: "not_entitled",
+    }
+  }
+  return {
+    features: features,
+    has_license: false,
+    warnings: [],
+  }
+}
+
 // Always attach CSRF token to all requests.
 // In puppeteer the document is undefined. In those cases, just
 // do nothing.
@@ -424,8 +440,15 @@ export const putWorkspaceExtension = async (
 }
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
-  const response = await axios.get("/api/v2/entitlements")
-  return response.data
+  try {
+    const response = await axios.get("/api/v2/entitlements")
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return defaultEntitlements()
+    }
+    throw error
+  }
 }
 
 export const getAuditLogs = async (

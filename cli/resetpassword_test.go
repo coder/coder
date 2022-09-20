@@ -47,7 +47,7 @@ func TestResetPassword(t *testing.T) {
 	go func() {
 		defer close(serverDone)
 		err = serverCmd.ExecuteContext(ctx)
-		assert.ErrorIs(t, err, context.Canceled)
+		assert.NoError(t, err)
 	}()
 	var rawURL string
 	require.Eventually(t, func() bool {
