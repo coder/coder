@@ -687,6 +687,9 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
+			if xerrors.Is(exitErr, context.Canceled) {
+				return nil
+			}
 			return exitErr
 		},
 	}
