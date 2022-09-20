@@ -40,6 +40,12 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		return client, workspace, func(want bool) {
 			if !want {
+				// It is difficult to test the absence of a call in a non-racey
+				// way. In general, it is difficult for the API to generate
+				// false positive activity since Agent networking event
+				// is required. The Activity Bump behavior is also coupled with
+				// Last Used, so it would be obvious to the user if we
+				// are falsely recognizing activity.
 				time.Sleep(testutil.IntervalMedium)
 				workspace, err = client.Workspace(ctx, workspace.ID)
 				require.NoError(t, err)
