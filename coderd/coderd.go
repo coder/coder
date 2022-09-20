@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -24,9 +25,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -50,6 +51,7 @@ type Options struct {
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
 
+	Auditor                        audit.Auditor
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -68,8 +70,6 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
-	LicenseHandler       http.Handler
-	FeaturesService      features.Service
 
 	TailnetCoordinator *tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
@@ -80,6 +80,9 @@ type Options struct {
 
 // New constructs a Coder API handler.
 func New(options *Options) *API {
+	if options == nil {
+		options = &Options{}
+	}
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
@@ -117,11 +120,8 @@ func New(options *Options) *API {
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
-	if options.LicenseHandler == nil {
-		options.LicenseHandler = licenses()
-	}
-	if options.FeaturesService == nil {
-		options.FeaturesService = &featuresService{}
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -142,14 +142,16 @@ func New(options *Options) *API {
 	r := chi.NewRouter()
 	api := &API{
 		Options:     options,
-		Handler:     r,
+		RootHandler: r,
 		siteHandler: site.Handler(site.FS(), binFS),
-		httpAuth: &HTTPAuthorizer{
+		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
 		metricsCache: metricsCache,
+		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
+	api.Auditor.Store(&options.Auditor)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -218,6 +220,8 @@ func New(options *Options) *API {
 	})
 
 	r.Route("/api/v2", func(r chi.Router) {
+		api.APIHandler = r
+
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Route not found.",
@@ -473,14 +477,6 @@ func New(options *Options) *API {
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
-		r.Route("/entitlements", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/", api.FeaturesService.EntitlementsAPI)
-		})
-		r.Route("/licenses", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Mount("/", options.LicenseHandler)
-		})
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -489,17 +485,20 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+	Auditor  atomic.Pointer[audit.Auditor]
+	HTTPAuth *HTTPAuthorizer
 
-	derpServer *derp.Server
+	// APIHandler serves "/api/v2"
+	APIHandler chi.Router
+	// RootHandler serves "/"
+	RootHandler chi.Router
 
-	Handler             chi.Router
+	derpServer          *derp.Server
+	metricsCache        *metricscache.Cache
 	siteHandler         http.Handler
 	websocketWaitMutex  sync.Mutex
 	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
-	httpAuth            *HTTPAuthorizer
-
-	metricsCache *metricscache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.

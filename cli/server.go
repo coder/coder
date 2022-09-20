@@ -68,7 +68,7 @@ import (
 )
 
 // nolint:gocyclo
-func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
+func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
@@ -489,7 +489,10 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				), promAddress, "prometheus")()
 			}
 
-			coderAPI := newAPI(options)
+			coderAPI, err := newAPI(ctx, options)
+			if err != nil {
+				return err
+			}
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
@@ -536,7 +539,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
 				ErrorLog: log.New(io.Discard, "", 0),
-				Handler:  coderAPI.Handler,
+				Handler:  coderAPI.RootHandler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},

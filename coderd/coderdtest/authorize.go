@@ -22,143 +22,6 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-type RouteCheck struct {
-	NoAuthorize  bool
-	AssertAction rbac.Action
-	AssertObject rbac.Object
-	StatusCode   int
-}
-
-type AuthTester struct {
-	t          *testing.T
-	api        *coderd.API
-	authorizer *recordingAuthorizer
-
-	Client                *codersdk.Client
-	Workspace             codersdk.Workspace
-	Organization          codersdk.Organization
-	Admin                 codersdk.CreateFirstUserResponse
-	Template              codersdk.Template
-	Version               codersdk.TemplateVersion
-	WorkspaceResource     codersdk.WorkspaceResource
-	File                  codersdk.UploadResponse
-	TemplateVersionDryRun codersdk.ProvisionerJob
-	TemplateParam         codersdk.Parameter
-	URLParams             map[string]string
-}
-
-func NewAuthTester(ctx context.Context, t *testing.T, options *Options) *AuthTester {
-	authorizer := &recordingAuthorizer{}
-	if options == nil {
-		options = &Options{}
-	}
-	if options.Authorizer != nil {
-		t.Error("NewAuthTester cannot be called with custom Authorizer")
-	}
-	options.Authorizer = authorizer
-	options.IncludeProvisionerDaemon = true
-
-	client, _, api := newWithAPI(t, options)
-	admin := CreateFirstUser(t, client)
-	// The provisioner will call to coderd and register itself. This is async,
-	// so we wait for it to occur.
-	require.Eventually(t, func() bool {
-		provisionerds, err := client.ProvisionerDaemons(ctx)
-		return assert.NoError(t, err) && len(provisionerds) > 0
-	}, testutil.WaitLong, testutil.IntervalSlow)
-
-	provisionerds, err := client.ProvisionerDaemons(ctx)
-	require.NoError(t, err, "fetch provisioners")
-	require.Len(t, provisionerds, 1)
-
-	organization, err := client.Organization(ctx, admin.OrganizationID)
-	require.NoError(t, err, "fetch org")
-
-	// Setup some data in the database.
-	version := CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
-		Provision: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					// Return a workspace resource
-					Resources: []*proto.Resource{{
-						Name: "some",
-						Type: "example",
-						Agents: []*proto.Agent{{
-							Name: "agent",
-							Id:   "something",
-							Auth: &proto.Agent_Token{},
-							Apps: []*proto.App{{
-								Name: "testapp",
-								Url:  "http://localhost:3000",
-							}},
-						}},
-					}},
-				},
-			},
-		}},
-	})
-	AwaitTemplateVersionJob(t, client, version.ID)
-	template := CreateTemplate(t, client, admin.OrganizationID, version.ID)
-	workspace := CreateWorkspace(t, client, admin.OrganizationID, template.ID)
-	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
-	require.NoError(t, err, "upload file")
-	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	require.NoError(t, err, "workspace resources")
-	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		ParameterValues: []codersdk.CreateParameterRequest{},
-	})
-	require.NoError(t, err, "template version dry-run")
-
-	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
-		Name:              "test-param",
-		SourceValue:       "hello world",
-		SourceScheme:      codersdk.ParameterSourceSchemeData,
-		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
-	})
-	require.NoError(t, err, "create template param")
-
-	urlParameters := map[string]string{
-		"{organization}":        admin.OrganizationID.String(),
-		"{user}":                admin.UserID.String(),
-		"{organizationname}":    organization.Name,
-		"{workspace}":           workspace.ID.String(),
-		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
-		"{workspacename}":       workspace.Name,
-		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
-		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
-		"{template}":            template.ID.String(),
-		"{hash}":                file.Hash,
-		"{workspaceresource}":   workspaceResources[0].ID.String(),
-		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
-		"{templateversion}":     version.ID.String(),
-		"{jobID}":               templateVersionDryRun.ID.String(),
-		"{templatename}":        template.Name,
-		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
-		// Only checking template scoped params here
-		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
-			string(templateParam.Scope), templateParam.ScopeID.String()),
-	}
-
-	return &AuthTester{
-		t:                     t,
-		api:                   api,
-		authorizer:            authorizer,
-		Client:                client,
-		Workspace:             workspace,
-		Organization:          organization,
-		Admin:                 admin,
-		Template:              template,
-		Version:               version,
-		WorkspaceResource:     workspaceResources[0],
-		File:                  file,
-		TemplateVersionDryRun: templateVersionDryRun,
-		TemplateParam:         templateParam,
-		URLParams:             urlParameters,
-	}
-}
-
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -181,7 +44,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
-		"GET:/api/v2/entitlements":      {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -408,6 +270,134 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	return skipRoutes, assertRoute
 }
 
+type RouteCheck struct {
+	NoAuthorize  bool
+	AssertAction rbac.Action
+	AssertObject rbac.Object
+	StatusCode   int
+}
+
+type AuthTester struct {
+	t          *testing.T
+	api        *coderd.API
+	authorizer *RecordingAuthorizer
+
+	Client                *codersdk.Client
+	Workspace             codersdk.Workspace
+	Organization          codersdk.Organization
+	Admin                 codersdk.CreateFirstUserResponse
+	Template              codersdk.Template
+	Version               codersdk.TemplateVersion
+	WorkspaceResource     codersdk.WorkspaceResource
+	File                  codersdk.UploadResponse
+	TemplateVersionDryRun codersdk.ProvisionerJob
+	TemplateParam         codersdk.Parameter
+	URLParams             map[string]string
+}
+
+func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, api *coderd.API, admin codersdk.CreateFirstUserResponse) *AuthTester {
+	authorizer, ok := api.Authorizer.(*RecordingAuthorizer)
+	if !ok {
+		t.Fail()
+	}
+	// The provisioner will call to coderd and register itself. This is async,
+	// so we wait for it to occur.
+	require.Eventually(t, func() bool {
+		provisionerds, err := client.ProvisionerDaemons(ctx)
+		return assert.NoError(t, err) && len(provisionerds) > 0
+	}, testutil.WaitLong, testutil.IntervalSlow)
+
+	provisionerds, err := client.ProvisionerDaemons(ctx)
+	require.NoError(t, err, "fetch provisioners")
+	require.Len(t, provisionerds, 1)
+
+	organization, err := client.Organization(ctx, admin.OrganizationID)
+	require.NoError(t, err, "fetch org")
+
+	// Setup some data in the database.
+	version := CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					// Return a workspace resource
+					Resources: []*proto.Resource{{
+						Name: "some",
+						Type: "example",
+						Agents: []*proto.Agent{{
+							Name: "agent",
+							Id:   "something",
+							Auth: &proto.Agent_Token{},
+							Apps: []*proto.App{{
+								Name: "testapp",
+								Url:  "http://localhost:3000",
+							}},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	AwaitTemplateVersionJob(t, client, version.ID)
+	template := CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	workspace := CreateWorkspace(t, client, admin.OrganizationID, template.ID)
+	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+	require.NoError(t, err, "upload file")
+	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err, "workspace resources")
+	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+		ParameterValues: []codersdk.CreateParameterRequest{},
+	})
+	require.NoError(t, err, "template version dry-run")
+
+	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		Name:              "test-param",
+		SourceValue:       "hello world",
+		SourceScheme:      codersdk.ParameterSourceSchemeData,
+		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+	})
+	require.NoError(t, err, "create template param")
+	urlParameters := map[string]string{
+		"{organization}":        admin.OrganizationID.String(),
+		"{user}":                admin.UserID.String(),
+		"{organizationname}":    organization.Name,
+		"{workspace}":           workspace.ID.String(),
+		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
+		"{workspacename}":       workspace.Name,
+		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+		"{template}":            template.ID.String(),
+		"{hash}":                file.Hash,
+		"{workspaceresource}":   workspaceResources[0].ID.String(),
+		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{templateversion}":     version.ID.String(),
+		"{jobID}":               templateVersionDryRun.ID.String(),
+		"{templatename}":        template.Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
+		// Only checking template scoped params here
+		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
+			string(templateParam.Scope), templateParam.ScopeID.String()),
+	}
+
+	return &AuthTester{
+		t:                     t,
+		api:                   api,
+		authorizer:            authorizer,
+		Client:                client,
+		Workspace:             workspace,
+		Organization:          organization,
+		Admin:                 admin,
+		Template:              template,
+		Version:               version,
+		WorkspaceResource:     workspaceResources[0],
+		File:                  file,
+		TemplateVersionDryRun: templateVersionDryRun,
+		TemplateParam:         templateParam,
+		URLParams:             urlParameters,
+	}
+}
+
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
 	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -433,7 +423,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 	}
 
 	err := chi.Walk(
-		a.api.Handler,
+		a.api.RootHandler,
 		func(
 			method string,
 			route string,
@@ -513,14 +503,14 @@ type authCall struct {
 	Object    rbac.Object
 }
 
-type recordingAuthorizer struct {
+type RecordingAuthorizer struct {
 	Called       *authCall
 	AlwaysReturn error
 }
 
-var _ rbac.Authorizer = (*recordingAuthorizer)(nil)
+var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-func (r *recordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
@@ -531,7 +521,7 @@ func (r *recordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *recordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:  r,
 		SubjectID: subjectID,
@@ -541,12 +531,12 @@ func (r *recordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID str
 	}, nil
 }
 
-func (r *recordingAuthorizer) reset() {
+func (r *RecordingAuthorizer) reset() {
 	r.Called = nil
 }
 
 type fakePreparedAuthorizer struct {
-	Original  *recordingAuthorizer
+	Original  *RecordingAuthorizer
 	SubjectID string
 	Roles     []string
 	Scope     rbac.Scope

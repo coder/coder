@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -83,18 +81,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 		errC <- cmd.ExecuteContext(ctx)
 	}()
 	t.Cleanup(func() { require.NoError(t, <-errC) })
-
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	require.NoError(t, err)
-	dialer, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
-	require.NoError(t, err)
-	defer dialer.Close()
-	require.Eventually(t, func() bool {
-		_, err = dialer.Ping()
-		return err == nil
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
 	return agentClient, agentToken, pubkey
 }
 

@@ -91,12 +91,13 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
-		features(),
 	}
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(coderd.New))
+	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+		return coderd.New(o), nil
+	}))
 	return all
 }
 
@@ -548,13 +549,11 @@ func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
 	defer cancel()
 
 	entitlements, err := client.Entitlements(ctx)
-	if err != nil {
-		return xerrors.Errorf("get entitlements to show warnings: %w", err)
+	if err == nil {
+		for _, w := range entitlements.Warnings {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
+		}
 	}
-	for _, w := range entitlements.Warnings {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
-	}
-
 	return nil
 }
 
