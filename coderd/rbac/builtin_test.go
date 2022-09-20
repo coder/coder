@@ -33,28 +33,33 @@ func BenchmarkRBACFilter(b *testing.B) {
 		Name   string
 		Roles  []string
 		UserID uuid.UUID
+		Scope  rbac.Scope
 	}{
 		{
 			Name:   "NoRoles",
 			Roles:  []string{},
 			UserID: users[0],
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "Admin",
 			// Give some extra roles that an admin might have
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
 			UserID: users[0],
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name:   "OrgAdmin",
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]), rbac.RoleMember()},
 			UserID: users[0],
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "OrgMember",
 			// Member of 2 orgs
 			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgMember(orgs[1]), rbac.RoleMember()},
 			UserID: users[0],
+			Scope:  rbac.ScopeAll,
 		},
 		{
 			Name: "ManyRoles",
@@ -66,6 +71,14 @@ func BenchmarkRBACFilter(b *testing.B) {
 				rbac.RoleMember(),
 			},
 			UserID: users[0],
+			Scope:  rbac.ScopeAll,
+		},
+		{
+			Name: "AdminWithScope",
+			// Give some extra roles that an admin might have
+			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+			UserID: users[0],
+			Scope:  rbac.ScopeApplicationConnect,
 		},
 	}
 
@@ -77,7 +90,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, c.Scope, rbac.ActionRead, objects)
 			require.NoError(b, err)
 			var _ = allowed
 		})
@@ -179,6 +192,16 @@ func TestRolePermissions(t *testing.T) {
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceWorkspaceExecution.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name: "MyWorkspaceInOrgAppConnect",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Resource: rbac.ResourceWorkspaceApplicationConnect.InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgAdmin, orgMemberMe},
 				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
@@ -335,7 +358,8 @@ func TestRolePermissions(t *testing.T) {
 					for _, subj := range subjs {
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
-						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, action, c.Resource)
+						// TODO: scopey
+						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAll, action, c.Resource)
 						if result {
 							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {

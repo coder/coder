@@ -77,6 +77,11 @@ export interface AuditLog {
 }
 
 // From codersdk/audit.go
+export interface AuditLogCountRequest {
+  readonly q?: string
+}
+
+// From codersdk/audit.go
 export interface AuditLogCountResponse {
   readonly count: number
 }
@@ -175,6 +180,7 @@ export interface CreateTemplateVersionRequest {
 export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
+  readonly resource_id?: string
 }
 
 // From codersdk/users.go

@@ -223,7 +223,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, users)
+	users, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, users)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -259,11 +259,12 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := *api.Auditor.Load()
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
-		Features: api.FeaturesService,
-		Log:      api.Logger,
-		Request:  r,
-		Action:   database.AuditActionCreate,
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionCreate,
 	})
 	defer commitAudit()
 
@@ -344,12 +345,13 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := *api.Auditor.Load()
 	user := httpmw.UserParam(r)
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
-		Features: api.FeaturesService,
-		Log:      api.Logger,
-		Request:  r,
-		Action:   database.AuditActionDelete,
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionDelete,
 	})
 	aReq.Old = user
 	defer commitAudit()
@@ -421,11 +423,12 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -502,11 +505,12 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			ctx               = r.Context()
 			user              = httpmw.UserParam(r)
 			apiKey            = httpmw.APIKey(r)
+			auditor           = *api.Auditor.Load()
 			aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-				Features: api.FeaturesService,
-				Log:      api.Logger,
-				Request:  r,
-				Action:   database.AuditActionWrite,
+				Audit:   auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionWrite,
 			})
 		)
 		defer commitAudit()
@@ -569,11 +573,12 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
 		params            codersdk.UpdateUserPasswordRequest
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -683,7 +688,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only include ones we can read from RBAC.
-	memberships, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, memberships)
+	memberships, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, memberships)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching memberships.",
@@ -707,13 +712,14 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		ctx = r.Context()
 		// User is the user to modify.
 		user              = httpmw.UserParam(r)
-		actorRoles        = httpmw.AuthorizationUserRoles(r)
+		actorRoles        = httpmw.UserAuthorization(r)
 		apiKey            = httpmw.APIKey(r)
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -824,7 +830,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, organizations)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organizations.",
@@ -1092,6 +1098,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
+		Scope:        database.APIKeyScopeAll,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert API key: %w", err)
@@ -1194,9 +1201,9 @@ func (api *API) createUser(ctx context.Context, store database.Store, req create
 func (api *API) setAuthCookie(rw http.ResponseWriter, cookie *http.Cookie) {
 	http.SetCookie(rw, cookie)
 
-	devurlCookie := api.applicationCookie(cookie)
-	if devurlCookie != nil {
-		http.SetCookie(rw, devurlCookie)
+	appCookie := api.applicationCookie(cookie)
+	if appCookie != nil {
+		http.SetCookie(rw, appCookie)
 	}
 }
 

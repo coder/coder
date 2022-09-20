@@ -49,7 +49,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
-	daemons, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, daemons)
+	daemons, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, daemons)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",

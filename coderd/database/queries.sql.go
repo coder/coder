@@ -24,6 +24,25 @@ func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
 	return err
 }
 
+const getLatestAgentStat = `-- name: GetLatestAgentStat :one
+SELECT id, created_at, user_id, agent_id, workspace_id, template_id, payload FROM agent_stats WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *sqlQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (AgentStat, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAgentStat, agentID)
+	var i AgentStat
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UserID,
+		&i.AgentID,
+		&i.WorkspaceID,
+		&i.TemplateID,
+		&i.Payload,
+	)
+	return i, err
+}
+
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 select
 	(created_at at TIME ZONE 'UTC')::date as date,
@@ -128,7 +147,7 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
 FROM
 	api_keys
 WHERE
@@ -151,12 +170,13 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -179,6 +199,7 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.LoginType,
 			&i.LifetimeSeconds,
 			&i.IPAddress,
+			&i.Scope,
 		); err != nil {
 			return nil, err
 		}
@@ -205,7 +226,8 @@ INSERT INTO
 		expires_at,
 		created_at,
 		updated_at,
-		login_type
+		login_type,
+		scope
 	)
 VALUES
 	($1,
@@ -214,7 +236,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
 `
 
 type InsertAPIKeyParams struct {
@@ -228,6 +250,7 @@ type InsertAPIKeyParams struct {
 	CreatedAt       time.Time   `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
 	LoginType       LoginType   `db:"login_type" json:"login_type"`
+	Scope           APIKeyScope `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -242,6 +265,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.LoginType,
+		arg.Scope,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -255,6 +279,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.LoginType,
 		&i.LifetimeSeconds,
 		&i.IPAddress,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -289,13 +314,66 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAuditLogCount = `-- name: GetAuditLogCount :one
 SELECT
-    COUNT(*) as count
+  COUNT(*) as count
 FROM
-    audit_logs
+	audit_logs
+WHERE
+    -- Filter resource_type
+	CASE
+		WHEN $1 :: text != '' THEN
+			resource_type = $1 :: resource_type
+		ELSE true
+	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = $2
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			resource_target = $3
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			action = $4 :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			user_id = (SELECT id from users WHERE users.username = $5 )
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			user_id = (SELECT id from users WHERE users.email = $6 )
+		ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetAuditLogCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getAuditLogCount)
+type GetAuditLogCountParams struct {
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+}
+
+func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAuditLogCount,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.ResourceTarget,
+		arg.Action,
+		arg.Username,
+		arg.Email,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -321,10 +399,34 @@ WHERE
 			resource_type = $3 :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $4 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = $4
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			resource_target = $5
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			action = $4 :: audit_action
+		WHEN $6 :: text != '' THEN
+			action = $6 :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			users.username = $7
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
 		ELSE true
 	END
 ORDER BY
@@ -336,10 +438,14 @@ OFFSET
 `
 
 type GetAuditLogsOffsetParams struct {
-	Limit        int32  `db:"limit" json:"limit"`
-	Offset       int32  `db:"offset" json:"offset"`
-	ResourceType string `db:"resource_type" json:"resource_type"`
-	Action       string `db:"action" json:"action"`
+	Limit          int32     `db:"limit" json:"limit"`
+	Offset         int32     `db:"offset" json:"offset"`
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -373,7 +479,11 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Limit,
 		arg.Offset,
 		arg.ResourceType,
+		arg.ResourceID,
+		arg.ResourceTarget,
 		arg.Action,
+		arg.Username,
+		arg.Email,
 	)
 	if err != nil {
 		return nil, err

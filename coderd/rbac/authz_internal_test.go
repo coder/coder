@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,7 +14,6 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// subject is required because rego needs
 type subject struct {
 	UserID string `json:"id"`
 	// For the unit test we want to pass in the roles directly, instead of just
@@ -42,7 +42,7 @@ func TestFilterError(t *testing.T) {
 	auth, err := NewAuthorizer()
 	require.NoError(t, err)
 
-	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -75,6 +75,7 @@ func TestFilter(t *testing.T) {
 		SubjectID  string
 		Roles      []string
 		Action     Action
+		Scope      Scope
 		ObjectType string
 	}{
 		{
@@ -139,6 +140,13 @@ func TestFilter(t *testing.T) {
 			ObjectType: ResourceOrganization.Type,
 			Action:     ActionRead,
 		},
+		{
+			Name:       "ScopeApplicationConnect",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+			ObjectType: ResourceWorkspace.Type,
+			Action:     ActionRead,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -154,11 +162,16 @@ func TestFilter(t *testing.T) {
 			auth, err := NewAuthorizer()
 			require.NoError(t, err, "new auth")
 
+			scope := ScopeAll
+			if tc.Scope != "" {
+				scope = tc.Scope
+			}
+
 			// Run auth 1 by 1
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, ActionRead, obj.RBACObject())
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -167,7 +180,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, scope, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -614,6 +627,36 @@ func TestAuthorizeLevels(t *testing.T) {
 		}))
 }
 
+func TestAuthorizeScope(t *testing.T) {
+	t.Parallel()
+
+	defOrg := uuid.New()
+	unusedID := uuid.New()
+	user := subject{
+		UserID: "me",
+		Roles:  []Role{},
+	}
+
+	user.Roles = []Role{must(ScopeRole(ScopeApplicationConnect))}
+	testAuthorize(t, "Admin_ScopeApplicationConnect", user, []authTestCase{
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+
+		// Allowed by scope:
+		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+	})
+}
+
 // cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {
@@ -636,13 +679,20 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	authorizer, err := NewAuthorizer()
 	require.NoError(t, err)
 	for _, cases := range sets {
-		for _, c := range cases {
-			t.Run(name, func(t *testing.T) {
+		for i, c := range cases {
+			c := c
+			if c.resource.Type != "application_connect" {
+				continue
+			}
+			caseName := fmt.Sprintf("%s/%d", name, i)
+			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
+
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
+
 					// Logging only
 					if authError != nil {
 						var uerr *UnauthorizedError
@@ -666,23 +716,35 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, ScopeAll, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					if len(partialAuthz.partialQueries.Support) > 0 {
-						d, _ := json.Marshal(partialAuthz.input)
+					if len(partialAuthz.mainAuthorizer.partialQueries.Support) > 0 {
+						d, _ := json.Marshal(partialAuthz.mainAuthorizer.input)
 						t.Logf("input: %s", string(d))
-						for _, q := range partialAuthz.partialQueries.Queries {
+						for _, q := range partialAuthz.mainAuthorizer.partialQueries.Queries {
 							t.Logf("query: %+v", q.String())
 						}
-						for _, s := range partialAuthz.partialQueries.Support {
+						for _, s := range partialAuthz.mainAuthorizer.partialQueries.Support {
 							t.Logf("support: %+v", s.String())
 						}
 					}
-					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules")
+					if partialAuthz.scopeAuthorizer != nil {
+						if len(partialAuthz.scopeAuthorizer.partialQueries.Support) > 0 {
+							d, _ := json.Marshal(partialAuthz.scopeAuthorizer.input)
+							t.Logf("scope input: %s", string(d))
+							for _, q := range partialAuthz.scopeAuthorizer.partialQueries.Queries {
+								t.Logf("scope query: %+v", q.String())
+							}
+							for _, s := range partialAuthz.scopeAuthorizer.partialQueries.Support {
+								t.Logf("scope support: %+v", s.String())
+							}
+						}
+						require.Equal(t, 0, len(partialAuthz.scopeAuthorizer.partialQueries.Support), "expected 0 support rules in scope authorizer")
+					}
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {

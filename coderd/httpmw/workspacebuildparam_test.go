@@ -51,6 +51,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 

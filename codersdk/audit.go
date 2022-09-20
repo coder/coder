@@ -103,6 +103,10 @@ type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
 }
 
+type AuditLogCountRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+}
+
 type AuditLogCountResponse struct {
 	Count int64 `json:"count"`
 }
@@ -110,6 +114,7 @@ type AuditLogCountResponse struct {
 type CreateTestAuditLogRequest struct {
 	Action       AuditAction  `json:"action,omitempty"`
 	ResourceType ResourceType `json:"resource_type,omitempty"`
+	ResourceID   uuid.UUID    `json:"resource_id,omitempty"`
 }
 
 // AuditLogs retrieves audit logs from the given page.
@@ -142,8 +147,16 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 }
 
 // AuditLogCount returns the count of all audit logs in the product.
-func (c *Client) AuditLogCount(ctx context.Context) (AuditLogCountResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil)
+func (c *Client) AuditLogCount(ctx context.Context, req AuditLogCountRequest) (AuditLogCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil, func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	})
 	if err != nil {
 		return AuditLogCountResponse{}, err
 	}

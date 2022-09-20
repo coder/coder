@@ -38,16 +38,6 @@ func TestBuildInfo(t *testing.T) {
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
 }
 
-// TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
-func TestAuthorizeAllEndpoints(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	a := coderdtest.NewAuthTester(ctx, t, nil)
-	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
-	a.Test(ctx, assertRoute, skipRoutes)
-}
-
 func TestDERP(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

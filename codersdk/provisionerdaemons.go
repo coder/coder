@@ -135,6 +135,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	decoder := json.NewDecoder(websocket.NetConn(ctx, conn, websocket.MessageText))
 	go func() {
 		defer close(logs)
+		defer conn.Close(websocket.StatusGoingAway, "")
 		var log ProvisionerJobLog
 		for {
 			err = decoder.Decode(&log)

@@ -41,7 +41,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 		api := New(&opts)
 		defer api.Close()
 
-		server := httptest.NewServer(api.Handler)
+		server := httptest.NewServer(api.RootHandler)
 		defer server.Close()
 		userID := uuid.New()
 		keyID, keySecret, err := generateAPIKeyIDSecret()
@@ -77,6 +77,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			UserID:       userID,
 			ExpiresAt:    time.Now().Add(5 * time.Hour),
 			LoginType:    database.LoginTypePassword,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{

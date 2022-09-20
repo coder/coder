@@ -23,7 +23,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		organization = httpmw.OrganizationParam(r)
 		member       = httpmw.OrganizationMemberParam(r)
 		apiKey       = httpmw.APIKey(r)
-		actorRoles   = httpmw.AuthorizationUserRoles(r)
+		actorRoles   = httpmw.UserAuthorization(r)
 	)
 
 	if apiKey.UserID == member.UserID {
