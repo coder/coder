@@ -74,3 +74,14 @@ CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 Once complete, run `sudo service coder restart` to reboot Coder.
 
 > When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
+
+## SCIM
+
+Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
+authentication. Upon deactivation, users are deactivated within the platform but
+are not deleted. Configure your SCIM application with an auth key and supply it
+to Coder.
+
+```console
+CODER_SCIM_API_KEY="your-api-key"
+```
