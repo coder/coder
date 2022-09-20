@@ -43,7 +43,7 @@ type HTTPAuthorizer struct {
 //		return
 //	}
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
-	return api.httpAuth.Authorize(r, action, object)
+	return api.HTTPAuth.Authorize(r, action, object)
 }
 
 // Authorize will return false if the user is not authorized to do the action.

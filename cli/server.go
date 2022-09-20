@@ -68,7 +68,7 @@ import (
 )
 
 // nolint:gocyclo
-func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
+func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
 	var (
 		accessURL             string
 		address               string
@@ -161,7 +161,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			)
 
 			if traceEnable || telemetryEnable {
-				sdkTracerProvider, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 					Default: traceEnable,
 					Coder:   telemetryEnable && !isTest(),
 				})
@@ -170,7 +170,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				} else {
 					// allow time for traces to flush even if command context is canceled
 					defer func() {
-						_ = shutdownWithTimeout(sdkTracerProvider, 5*time.Second)
+						_ = shutdownWithTimeout(closeTracing, 5*time.Second)
 					}()
 
 					d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
@@ -489,7 +489,10 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				), promAddress, "prometheus")()
 			}
 
-			coderAPI := newAPI(options)
+			coderAPI, err := newAPI(ctx, options)
+			if err != nil {
+				return err
+			}
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
@@ -536,13 +539,13 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 				// These errors are typically noise like "TLS: EOF". Vault does similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
 				ErrorLog: log.New(io.Discard, "", 0),
-				Handler:  coderAPI.Handler,
+				Handler:  coderAPI.RootHandler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
 			}
 			defer func() {
-				_ = shutdownWithTimeout(server, 5*time.Second)
+				_ = shutdownWithTimeout(server.Shutdown, 5*time.Second)
 			}()
 
 			eg := errgroup.Group{}
@@ -630,7 +633,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cmd.Println("Shutting down API server...")
-			err = shutdownWithTimeout(server, 5*time.Second)
+			err = shutdownWithTimeout(server.Shutdown, 5*time.Second)
 			if err != nil {
 				cmd.Printf("API server shutdown took longer than 5s: %s", err)
 			} else {
@@ -652,7 +655,7 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 					if verbose {
 						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
 					}
-					err := shutdownWithTimeout(provisionerDaemon, 5*time.Second)
+					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
 						cmd.PrintErrf("Failed to shutdown provisioner daemon %d: %s\n", id, err)
 						return
@@ -687,6 +690,9 @@ func Server(newAPI func(*coderd.Options) *coderd.API) *cobra.Command {
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
+			if xerrors.Is(exitErr, context.Canceled) {
+				return nil
+			}
 			return exitErr
 		},
 	}
@@ -900,10 +906,10 @@ func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
 	return false, nil
 }
 
-func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout time.Duration) error {
+func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return s.Shutdown(ctx)
+	return shutdown(ctx)
 }
 
 // nolint:revive

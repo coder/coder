@@ -12,14 +12,13 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/features"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
 )
 
 type RequestParams struct {
-	Features features.Service
-	Log      slog.Logger
+	Audit Auditor
+	Log   slog.Logger
 
 	Request *http.Request
 	Action  database.AuditAction
@@ -102,15 +101,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		params: p,
 	}
 
-	feats := struct {
-		Audit Auditor
-	}{}
-	err := p.Features.Get(&feats)
-	if err != nil {
-		p.Log.Error(p.Request.Context(), "unable to get auditor interface", slog.Error(err))
-		return req, func() {}
-	}
-
 	return req, func() {
 		ctx := context.Background()
 		logCtx := p.Request.Context()
@@ -120,7 +110,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 
-		diff := Diff(feats.Audit, req.Old, req.New)
+		diff := Diff(p.Audit, req.Old, req.New)
 		diffRaw, _ := json.Marshal(diff)
 
 		ip, err := parseIP(p.Request.RemoteAddr)
@@ -128,7 +118,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			p.Log.Warn(logCtx, "parse ip", slog.Error(err))
 		}
 
-		err = feats.Audit.Export(ctx, database.AuditLog{
+		err = p.Audit.Export(ctx, database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
 			UserID:           httpmw.APIKey(p.Request).UserID,

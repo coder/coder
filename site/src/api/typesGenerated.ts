@@ -180,6 +180,7 @@ export interface CreateTemplateVersionRequest {
 export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
+  readonly resource_id?: string
 }
 
 // From codersdk/users.go

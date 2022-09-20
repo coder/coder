@@ -91,12 +91,13 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
-		features(),
 	}
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(coderd.New))
+	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+		return coderd.New(o), nil
+	}))
 	return all
 }
 
@@ -164,6 +165,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	}
 
 	cmd.AddCommand(subcommands...)
+	fixUnknownSubcommandError(cmd.Commands())
 
 	cmd.SetUsageTemplate(usageTemplate())
 
@@ -184,6 +186,35 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
 
 	return cmd
+}
+
+// fixUnknownSubcommandError modifies the provided commands so that the
+// ones with subcommands output the correct error message when an
+// unknown subcommand is invoked.
+//
+// Example:
+//
+//	unknown command "bad" for "coder templates"
+func fixUnknownSubcommandError(commands []*cobra.Command) {
+	for _, sc := range commands {
+		if sc.HasSubCommands() {
+			if sc.Run == nil && sc.RunE == nil {
+				if sc.Args != nil {
+					// In case the developer does not know about this
+					// behavior in Cobra they must verify correct
+					// behavior. For instance, settings Args to
+					// `cobra.ExactArgs(0)` will not give the same
+					// message as `cobra.NoArgs`. Likewise, omitting the
+					// run function will not give the wanted error.
+					panic("developer error: subcommand has subcommands and Args but no Run or RunE")
+				}
+				sc.Args = cobra.NoArgs
+				sc.Run = func(*cobra.Command, []string) {}
+			}
+
+			fixUnknownSubcommandError(sc.Commands())
+		}
+	}
 }
 
 // versionCmd prints the coder version
@@ -548,13 +579,11 @@ func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
 	defer cancel()
 
 	entitlements, err := client.Entitlements(ctx)
-	if err != nil {
-		return xerrors.Errorf("get entitlements to show warnings: %w", err)
+	if err == nil {
+		for _, w := range entitlements.Warnings {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
+		}
 	}
-	for _, w := range entitlements.Warnings {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
-	}
-
 	return nil
 }
 

@@ -80,7 +80,6 @@ type Options struct {
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
-	APIBuilder                  func(*coderd.Options) *coderd.API
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 }
@@ -112,14 +111,11 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
 func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
-	client, closer, _ := newWithAPI(t, options)
+	client, closer, _ := NewWithAPI(t, options)
 	return client, closer
 }
 
-// newWithAPI constructs an in-memory API instance and returns a client to talk to it.
-// Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
-// Do not expose the API or wrath shall descend upon thee.
-func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.CancelFunc, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -139,9 +135,6 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		t.Cleanup(func() {
 			close(options.AutobuildStats)
 		})
-	}
-	if options.APIBuilder == nil {
-		options.APIBuilder = coderd.New
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -166,8 +159,6 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
-
 	lifecycleExecutor := executor.New(
 		ctx,
 		db,
@@ -201,13 +192,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
-	features := coderd.DisabledImplementations
-	if options.Auditor != nil {
-		features.Auditor = options.Auditor
-	}
-
-	// We set the handler after server creation for the access URL.
-	coderAPI := options.APIBuilder(&coderd.Options{
+	return srv, cancelFunc, &coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
@@ -218,6 +203,7 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		Database:                       db,
 		Pubsub:                         pubsub,
 
+		Auditor:              options.Auditor,
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
 		GithubOAuth2Config:   options.GithubOAuth2Config,
@@ -248,22 +234,30 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-		FeaturesService:             coderd.NewMockFeaturesService(features),
-	})
-	t.Cleanup(func() {
-		_ = coderAPI.Close()
-	})
-	srv.Config.Handler = coderAPI.Handler
+	}
+}
 
+// NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
+// Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
+// Do not expose the API or wrath shall descend upon thee.
+func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+	if options == nil {
+		options = &Options{}
+	}
+	srv, cancelFunc, newOptions := NewOptions(t, options)
+	// We set the handler after server creation for the access URL.
+	coderAPI := coderd.New(newOptions)
+	srv.Config.Handler = coderAPI.RootHandler
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	t.Cleanup(func() {
+		cancelFunc()
 		_ = provisionerCloser.Close()
+		_ = coderAPI.Close()
 	})
-
-	return codersdk.New(serverURL), provisionerCloser, coderAPI
+	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
