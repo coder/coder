@@ -55,6 +55,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me":                        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
