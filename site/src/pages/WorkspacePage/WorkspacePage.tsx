@@ -14,10 +14,12 @@ import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
 import { canExtendDeadline, canReduceDeadline, maxDeadline, minDeadline } from "../../util/schedule"
 import { getFaviconByStatus } from "../../util/workspace"
+import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
+import { FeatureNames } from "api/types"
 
 dayjs.extend(minMax)
 
@@ -30,6 +32,7 @@ export const WorkspacePage: FC = () => {
 
   const xServices = useContext(XServiceContext)
   const me = useSelector(xServices.authXService, selectUser)
+  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
     context: {
@@ -131,6 +134,7 @@ export const WorkspacePage: FC = () => {
           resources={resources}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
+          hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
           workspaceErrors={{
             [WorkspaceErrors.GET_RESOURCES_ERROR]: getResourcesError,
             [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,

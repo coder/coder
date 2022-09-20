@@ -41,6 +41,7 @@ interface ResourcesProps {
   workspace: Workspace
   canUpdateWorkspace: boolean
   buildInfo?: BuildInfoResponse | undefined
+  hideSSHButton?: boolean
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -49,6 +50,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   workspace,
   canUpdateWorkspace,
   buildInfo,
+  hideSSHButton,
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
@@ -149,7 +151,12 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                           <div className={styles.accessLinks}>
                             {canUpdateWorkspace && agent.status === "connected" && (
                               <>
-                                <SSHButton workspaceName={workspace.name} agentName={agent.name} />
+                                {!hideSSHButton && (
+                                  <SSHButton
+                                    workspaceName={workspace.name}
+                                    agentName={agent.name}
+                                  />
+                                )}
                                 <TerminalLink
                                   workspaceName={workspace.name}
                                   agentName={agent.name}

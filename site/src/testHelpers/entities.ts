@@ -768,6 +768,10 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
       enabled: true,
       entitlement: "entitled",
     },
+    browser_only: {
+      enabled: true,
+      entitlement: "entitled",
+    },
   },
 }
 
