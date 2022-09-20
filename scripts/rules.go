@@ -188,13 +188,13 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 	}
 
 	m.Match(`
-	httpapi.Write(ctx, $_, $s, httpapi.Response{
+	httpapi.Write($_, $_, $s, httpapi.Response{
 		$*_,
 		Message: $m,
 		$*_,
 	})
 	`, `
-	httpapi.Write(ctx, $_, $s, httpapi.Response{
+	httpapi.Write($_, $_, $s, httpapi.Response{
 		$*_,
 		Message: fmt.$f($m, $*_),
 		$*_,
@@ -214,7 +214,7 @@ func HttpAPIReturn(m dsl.Matcher) {
 	// as this is a bit more efficient.
 	m.Match(`
 	if $*_ {
-		httpapi.Write(ctx, $*a)
+		httpapi.Write($*a)
 	}
 	`, `
 	if $*_ {
