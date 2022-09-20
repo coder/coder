@@ -59,9 +59,9 @@ OFFSET
 
 -- name: GetAuditLogCount :one
 SELECT
-    COUNT(*) as count
+  COUNT(*) as count
 FROM
-    audit_logs
+	audit_logs
 WHERE
     -- Filter resource_type
 	CASE
@@ -90,13 +90,13 @@ WHERE
 	-- Filter by username
 	AND CASE
 		WHEN @username :: text != '' THEN
-			user_username = @username
+			user_id = (SELECT id from users WHERE users.username = @username )
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
 		WHEN @email :: text != '' THEN
-			user_email = @email
+			user_id = (SELECT id from users WHERE users.email = @email )
 		ELSE true
 	END;
 
