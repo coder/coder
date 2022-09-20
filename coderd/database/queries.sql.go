@@ -420,13 +420,13 @@ WHERE
 	-- Filter by username
 	AND CASE
 		WHEN $7 :: text != '' THEN
-			user_username = $7
+			users.username = $7
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
 		WHEN $8 :: text != '' THEN
-			user_email = $8
+			users.email = $8
 		ELSE true
 	END
 ORDER BY

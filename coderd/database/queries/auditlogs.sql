@@ -41,13 +41,13 @@ WHERE
 	-- Filter by username
 	AND CASE
 		WHEN @username :: text != '' THEN
-			user_username = @username
+			users.username = @username
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
 		WHEN @email :: text != '' THEN
-			user_email = @email
+			users.email = @email
 		ELSE true
 	END
 ORDER BY
