@@ -23,7 +23,7 @@ INSERT INTO
         relative_path,
         healthcheck_enabled,
         healthcheck_url,
-        healthcheck_period,
+        healthcheck_interval,
         healthcheck_threshold,
         health
     )
@@ -34,7 +34,6 @@ VALUES
 UPDATE
 	workspace_apps
 SET
-	updated_at = $2,
-	health = $3
+	health = $2
 WHERE
 	id = $1;

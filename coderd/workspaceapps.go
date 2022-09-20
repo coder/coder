@@ -7,7 +7,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
@@ -325,9 +324,8 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 
 	for _, app := range newApps {
 		err = api.Database.UpdateWorkspaceAppHealthByID(r.Context(), database.UpdateWorkspaceAppHealthByIDParams{
-			ID:        app.ID,
-			UpdatedAt: time.Now(),
-			Health:    app.Health,
+			ID:     app.ID,
+			Health: app.Health,
 		})
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{

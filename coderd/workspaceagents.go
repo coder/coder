@@ -440,8 +440,8 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 			Command:              dbApp.Command.String,
 			Icon:                 dbApp.Icon,
 			HealthcheckEnabled:   dbApp.HealthcheckEnabled,
-			HealthcheckURL:       dbApp.HealthcheckUrl,
-			HealthcheckInterval:  dbApp.HealthcheckPeriod,
+			HealthcheckUrl:       dbApp.HealthcheckUrl,
+			HealthcheckInterval:  dbApp.HealthcheckInterval,
 			HealthcheckThreshold: dbApp.HealthcheckThreshold,
 			Health:               codersdk.WorkspaceAppHealth(dbApp.Health),
 		})

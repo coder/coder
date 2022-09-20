@@ -2029,7 +2029,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		RelativePath:         arg.RelativePath,
 		HealthcheckEnabled:   arg.HealthcheckEnabled,
 		HealthcheckUrl:       arg.HealthcheckUrl,
-		HealthcheckPeriod:    arg.HealthcheckPeriod,
+		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
 		Health:               arg.Health,
 	}
@@ -2045,7 +2045,6 @@ func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg databa
 		if app.ID != arg.ID {
 			continue
 		}
-		app.UpdatedAt = arg.UpdatedAt
 		app.Health = arg.Health
 		q.workspaceApps[index] = app
 		return nil

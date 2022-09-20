@@ -74,11 +74,23 @@ func TestWorkspaceResource(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		app := &proto.App{
-			Name:    "code-server",
-			Command: "some-command",
-			Url:     "http://localhost:3000",
-			Icon:    "/code.svg",
+		apps := []*proto.App{
+			{
+				Name:    "code-server",
+				Command: "some-command",
+				Url:     "http://localhost:3000",
+				Icon:    "/code.svg",
+			},
+			{
+				Name:                 "code-server",
+				Command:              "some-command",
+				Url:                  "http://localhost:3000",
+				Icon:                 "/code.svg",
+				HealthcheckEnabled:   true,
+				HealthcheckUrl:       "http://localhost:3000",
+				HealthcheckInterval:  5,
+				HealthcheckThreshold: 6,
+			},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -91,7 +103,7 @@ func TestWorkspaceResource(t *testing.T) {
 							Agents: []*proto.Agent{{
 								Id:   "something",
 								Auth: &proto.Agent_Token{},
-								Apps: []*proto.App{app},
+								Apps: apps,
 							}},
 						}},
 					},
@@ -112,18 +124,27 @@ func TestWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, resource.Agents, 1)
 		agent := resource.Agents[0]
-		require.Len(t, agent.Apps, 1)
+		require.Len(t, agent.Apps, 2)
 		got := agent.Apps[0]
-		require.Equal(t, app.Command, got.Command)
-		require.Equal(t, app.Icon, got.Icon)
-		require.Equal(t, app.Name, got.Name)
-
-		// ensure these are returned as disabled until we enable on the terraform side
+		app := apps[0]
+		require.EqualValues(t, app.Command, got.Command)
+		require.EqualValues(t, app.Icon, got.Icon)
+		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
-		require.EqualValues(t, false, got.HealthcheckEnabled)
-		require.EqualValues(t, "", got.HealthcheckURL)
-		require.EqualValues(t, 0, got.HealthcheckInterval)
-		require.EqualValues(t, 0, got.HealthcheckThreshold)
+		require.EqualValues(t, app.HealthcheckEnabled, got.HealthcheckEnabled)
+		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckUrl)
+		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
+		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
+		got = agent.Apps[1]
+		app = apps[1]
+		require.EqualValues(t, app.Command, got.Command)
+		require.EqualValues(t, app.Icon, got.Icon)
+		require.EqualValues(t, app.Name, got.Name)
+		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
+		require.EqualValues(t, app.HealthcheckEnabled, got.HealthcheckEnabled)
+		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckUrl)
+		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
+		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
 	})
 
 	t.Run("Metadata", func(t *testing.T) {
