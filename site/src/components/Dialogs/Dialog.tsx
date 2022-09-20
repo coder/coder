@@ -72,6 +72,8 @@ export interface DialogActionButtonsProps {
   confirmLoading?: boolean
   /** Whether or not this is a confirm dialog */
   confirmDialog?: boolean
+  /** Whether or not the submit button is disabled */
+  disabled?: boolean
   /** Called when cancel is clicked */
   onCancel?: () => void
   /** Called when confirm is clicked */
@@ -94,6 +96,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   confirmText = "Confirm",
   confirmLoading = false,
   confirmDialog,
+  disabled = false,
   onCancel,
   onConfirm,
   type = "info",
@@ -122,6 +125,7 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           onClick={onConfirm}
           color={typeToColor(type)}
           loading={confirmLoading}
+          disabled={disabled}
           type="submit"
           className={combineClasses({
             [styles.dialogButton]: true,
