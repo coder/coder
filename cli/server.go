@@ -690,6 +690,9 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
+			if xerrors.Is(exitErr, context.Canceled) {
+				return nil
+			}
 			return exitErr
 		},
 	}
