@@ -628,6 +628,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 				return nil
 			}), nil
 		},
+		WorkspaceAppHealthReporter: func(ctx context.Context) {},
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()

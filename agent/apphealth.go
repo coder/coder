@@ -22,6 +22,9 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 			err := func() error {
 				apps, err := client.WorkspaceAgentApps(ctx)
 				if err != nil {
+					if xerrors.Is(err, context.Canceled) {
+						return nil
+					}
 					return xerrors.Errorf("getting workspace apps: %w", err)
 				}
 
@@ -125,8 +128,9 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 			if err != nil {
 				logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))
 				// continue loop with backoff on non-nil errors
-				r.Wait(ctx)
-				continue
+				if r.Wait(ctx) {
+					continue
+				}
 			}
 
 			return
