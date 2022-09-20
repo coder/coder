@@ -63,7 +63,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 	})
 
-	if len(options.ScimAPIKey) != 0 {
+	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
 			r.Use(api.scimEnabledMW)
 			r.Post("/Users", api.scimPostUser)
@@ -89,7 +89,7 @@ type Options struct {
 	*coderd.Options
 
 	AuditLogging               bool
-	ScimAPIKey                 []byte
+	SCIMAPIKey                 []byte
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }

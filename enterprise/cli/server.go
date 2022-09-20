@@ -20,7 +20,7 @@ func server() *cobra.Command {
 	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
 		api, err := coderd.New(ctx, &coderd.Options{
 			AuditLogging: auditLogging,
-			ScimAPIKey:   []byte(scimAuthHeader),
+			SCIMAPIKey:   []byte(scimAuthHeader),
 			Options:      options,
 		})
 		if err != nil {

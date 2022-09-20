@@ -3,7 +3,6 @@ package coderd
 import (
 	"crypto/subtle"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -37,7 +36,7 @@ func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 	hdr := []byte(r.Header.Get("Authorization"))
 
-	return len(api.ScimAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, api.ScimAPIKey) == 1
+	return len(api.SCIMAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, api.SCIMAPIKey) == 1
 }
 
 // getUsers intentionally always returns no users. This is done to always force
@@ -181,7 +180,6 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		status = database.UserStatusSuspended
 	}
 
-	fmt.Println("status", status)
 	_, err = api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
 		ID:        dbUser.ID,
 		Status:    status,
