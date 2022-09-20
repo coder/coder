@@ -32,7 +32,6 @@ func workspaceAgent() *cobra.Command {
 		pprofEnabled bool
 		pprofAddress string
 		noReap       bool
-		wireguard    bool
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -184,7 +183,6 @@ func workspaceAgent() *cobra.Command {
 
 			closer := agent.New(agent.Options{
 				FetchMetadata: client.WorkspaceAgentMetadata,
-				WebRTCDialer:  client.ListenWorkspaceAgent,
 				Logger:        logger,
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
@@ -203,6 +201,5 @@ func workspaceAgent() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_AGENT_WIREGUARD", true, "Whether to start the Wireguard interface.")
 	return cmd
 }

@@ -103,7 +103,6 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
 	t.Cleanup(func() {

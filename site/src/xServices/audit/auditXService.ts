@@ -4,13 +4,21 @@ import { AuditLog } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 
+interface AuditContext {
+  auditLogs?: AuditLog[]
+  count?: number
+  page: number
+  limit: number
+  filter: string
+}
+
 export const auditMachine = createMachine(
   {
     id: "auditMachine",
     predictableActionArguments: true,
     tsTypes: {} as import("./auditXService.typegen").Typegen0,
     schema: {
-      context: {} as { auditLogs?: AuditLog[]; count?: number; page: number; limit: number },
+      context: {} as AuditContext,
       services: {} as {
         loadAuditLogsAndCount: {
           data: {
@@ -29,6 +37,10 @@ export const auditMachine = createMachine(
         | {
             type: "GO_TO_PAGE"
             page: number
+          }
+        | {
+            type: "FILTER"
+            filter: string
           },
     },
     initial: "loading",
@@ -65,6 +77,10 @@ export const auditMachine = createMachine(
             actions: ["assignPage", "onPageChange"],
             target: "loading",
           },
+          FILTER: {
+            actions: ["assignFilter"],
+            target: "loading",
+          },
         },
       },
       error: {
@@ -90,20 +106,26 @@ export const auditMachine = createMachine(
       assignPage: assign({
         page: (_, { page }) => page,
       }),
+      assignFilter: assign({
+        filter: (_, { filter }) => filter,
+      }),
       displayApiError: (_, event) => {
         const message = getErrorMessage(event.data, "Error on loading audit logs.")
         displayError(message)
       },
     },
     services: {
-      loadAuditLogsAndCount: async ({ page, limit }, _) => {
+      loadAuditLogsAndCount: async ({ page, limit, filter }, _) => {
         const [auditLogs, count] = await Promise.all([
           getAuditLogs({
             // The page in the API starts at 0
             offset: (page - 1) * limit,
             limit,
+            q: filter,
           }).then((data) => data.audit_logs),
-          getAuditLogsCount().then((data) => data.count),
+          getAuditLogsCount({
+            q: filter,
+          }).then((data) => data.count),
         ])
 
         return {

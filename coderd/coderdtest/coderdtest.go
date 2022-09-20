@@ -54,7 +54,6 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -195,12 +194,6 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
-	turnServer, err := turnconn.New(nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = turnServer.Close()
-	})
-
 	return srv, &coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
@@ -219,7 +212,6 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 		OIDCConfig:           options.OIDCConfig,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
