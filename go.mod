@@ -58,9 +58,6 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20220914175845-85b8
 // makes importing it directly a bit messy.
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
 
-// Fixes a deadlock on close in devtunnel.
-replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20220916170123-16ba3aa34246
-
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.9.0
@@ -153,7 +150,7 @@ require (
 	golang.org/x/text v0.3.8-0.20211105212822-18b340fc7af2
 	golang.org/x/tools v0.1.11
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
-	golang.zx2c4.com/wireguard v0.0.0-20220904105730-b51010ba13f0
+	golang.zx2c4.com/wireguard v0.0.0-20220920152132-bb719d3a6e2c
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
 	google.golang.org/api v0.95.0
 	google.golang.org/protobuf v1.28.1
