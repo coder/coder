@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -259,6 +260,10 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// Get the current API key.
+		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken, "-")[0])
+		require.NoError(t, err)
+
 		u, err := url.Parse(fmt.Sprintf("http://app--agent--workspace--user.%s/test", proxyTestSubdomain))
 		require.NoError(t, err)
 		qp := codersdk.AddQueryParams(map[string]string{
@@ -277,10 +282,16 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		u.RawQuery = got.RawQuery
 		require.Equal(t, u, got)
 
-		// Verify the API key permissions
+		// Verify the API key details
 		apiKey := got.Query().Get("coder_api_key")
 		require.NotEmpty(t, apiKey)
+		apiKeyInfo, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
+		require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
+		require.Equal(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
 
+		// Verify the API key permissions
 		appClient := codersdk.New(client.URL)
 		appClient.SessionToken = apiKey
 		appClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
