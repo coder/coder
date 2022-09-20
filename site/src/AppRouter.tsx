@@ -1,6 +1,7 @@
 import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
+import { OIDCSettingsPage } from "pages/DeploySettingsPage/OIDCSettingsPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import { FC, lazy, Suspense, useContext } from "react"
@@ -151,6 +152,17 @@ export const AppRouter: FC = () => {
             }
           />
         </Route>
+
+        <Route
+          path="settings/deployment/oidc"
+          element={
+            <RequireAuth>
+              <AuthAndFrame>
+                <OIDCSettingsPage />
+              </AuthAndFrame>
+            </RequireAuth>
+          }
+        />
 
         <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />
