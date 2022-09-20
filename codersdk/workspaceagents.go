@@ -362,6 +362,18 @@ func (c *Client) MyWorkspaceAgent(ctx context.Context) (WorkspaceAgent, error) {
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+// WorkspaceAgent returns the requesting agent.
+func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorkspaceAppHealthsRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", req)
+	if err != nil {
+		return readBodyAsError(res)
+	}
+	// Discord the response
+	_, _ = io.Copy(io.Discard, res.Body)
+	_ = res.Body.Close()
+	return nil
+}
+
 func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
 	// Phone home and tell the mothership what version we're on.
 	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
