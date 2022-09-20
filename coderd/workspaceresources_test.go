@@ -132,7 +132,7 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
 		require.EqualValues(t, app.HealthcheckEnabled, got.HealthcheckEnabled)
-		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckUrl)
+		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckURL)
 		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
 		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
 		got = agent.Apps[1]
@@ -142,7 +142,7 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
 		require.EqualValues(t, app.HealthcheckEnabled, got.HealthcheckEnabled)
-		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckUrl)
+		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckURL)
 		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
 		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
 	})
