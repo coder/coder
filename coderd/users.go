@@ -85,7 +85,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.createUser(ctx, api.Database, createUserRequest{
+	user, organizationID, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -321,7 +321,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.createUser(ctx, api.Database, createUserRequest{
+	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: req,
 		LoginType:         database.LoginTypePassword,
 	})
@@ -1120,12 +1120,12 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 	}, nil
 }
 
-type createUserRequest struct {
+type CreateUserRequest struct {
 	codersdk.CreateUserRequest
 	LoginType database.LoginType
 }
 
-func (api *API) createUser(ctx context.Context, store database.Store, req createUserRequest) (database.User, uuid.UUID, error) {
+func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)

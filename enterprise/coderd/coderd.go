@@ -63,6 +63,19 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 	})
 
+	if len(options.SCIMAPIKey) != 0 {
+		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
+			r.Use(api.scimEnabledMW)
+			r.Post("/Users", api.scimPostUser)
+			r.Route("/Users", func(r chi.Router) {
+				r.Get("/", api.scimGetUsers)
+				r.Post("/", api.scimPostUser)
+				r.Get("/{id}", api.scimGetUser)
+				r.Patch("/{id}", api.scimPatchUser)
+			})
+		})
+	}
+
 	err := api.updateEntitlements(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
@@ -76,6 +89,7 @@ type Options struct {
 	*coderd.Options
 
 	AuditLogging               bool
+	SCIMAPIKey                 []byte
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }
@@ -93,6 +107,7 @@ type entitlements struct {
 	hasLicense  bool
 	activeUsers codersdk.Feature
 	auditLogs   codersdk.Entitlement
+	scim        codersdk.Entitlement
 }
 
 func (api *API) Close() error {
@@ -117,6 +132,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			Entitlement: codersdk.EntitlementNotEntitled,
 		},
 		auditLogs: codersdk.EntitlementNotEntitled,
+		scim:      codersdk.EntitlementNotEntitled,
 	}
 
 	// Here we loop through licenses to detect enabled features.
@@ -148,6 +164,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 		if claims.Features.AuditLog > 0 {
 			entitlements.auditLogs = entitlement
+		}
+		if claims.Features.SCIM > 0 {
+			entitlements.scim = entitlement
 		}
 	}
 

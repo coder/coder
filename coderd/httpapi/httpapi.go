@@ -76,6 +76,12 @@ func InternalServerError(rw http.ResponseWriter, err error) {
 	})
 }
 
+func RouteNotFound(rw http.ResponseWriter) {
+	Write(rw, http.StatusNotFound, codersdk.Response{
+		Message: "Route not found.",
+	})
+}
+
 // Write outputs a standardized format to an HTTP response body.
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)

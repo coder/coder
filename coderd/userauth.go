@@ -378,7 +378,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
-			user, _, err = api.createUser(ctx, tx, createUserRequest{
+			user, _, err = api.CreateUser(ctx, tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
