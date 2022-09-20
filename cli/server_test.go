@@ -73,7 +73,7 @@ func TestServer(t *testing.T) {
 		})
 		require.NoError(t, err)
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
@@ -144,7 +144,7 @@ func TestServer(t *testing.T) {
 		pty.ExpectMatch("View the Web UI: http://localhost:3000/")
 
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
@@ -176,7 +176,7 @@ func TestServer(t *testing.T) {
 		pty.ExpectMatch("View the Web UI: https://foobarbaz.mydomain")
 
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -205,7 +205,7 @@ func TestServer(t *testing.T) {
 		pty.ExpectMatch("View the Web UI: https://google.com")
 
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
@@ -291,7 +291,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 	// This cannot be ran in parallel because it uses a signal.
 	//nolint:paralleltest
@@ -322,7 +322,7 @@ func TestServer(t *testing.T) {
 		// We cannot send more signals here, because it's possible Coder
 		// has already exited, which could cause the test to fail due to interrupt.
 		err = <-serverErr
-		require.ErrorIs(t, err, context.Canceled)
+		require.NoError(t, err)
 	})
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
