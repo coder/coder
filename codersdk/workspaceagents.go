@@ -14,9 +14,6 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
-	"github.com/pion/webrtc/v3"
-	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
@@ -25,11 +22,6 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/turnconn"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
-	"github.com/coder/coder/peerbroker/proto"
-	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
@@ -206,69 +198,6 @@ func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (agent.Metadata, er
 	return agentMetadata, json.NewDecoder(res.Body).Decode(&agentMetadata)
 }
 
-// ListenWorkspaceAgent connects as a workspace agent identifying with the session token.
-// On each inbound connection request, connection info is fetched.
-func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/listen")
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  SessionTokenKey,
-		Value: c.SessionToken,
-	}})
-	httpClient := &http.Client{
-		Jar: jar,
-	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, readBodyAsError(res)
-	}
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
-	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
-	}
-	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
-		// This can be cached if it adds to latency too much.
-		res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
-		if err != nil {
-			return nil, nil, err
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			return nil, nil, readBodyAsError(res)
-		}
-		var iceServers []webrtc.ICEServer
-		err = json.NewDecoder(res.Body).Decode(&iceServers)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		options := webrtc.SettingEngine{}
-		options.SetSrflxAcceptanceMinWait(0)
-		options.SetRelayAcceptanceMinWait(0)
-		options.SetICEProxyDialer(c.turnProxyDialer(ctx, httpClient, "/api/v2/workspaceagents/me/turn"))
-		iceServers = append(iceServers, turnconn.Proxy)
-		return iceServers, &peer.ConnOptions{
-			SettingEngine: options,
-			Logger:        logger,
-		}, nil
-	})
-}
-
 func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
 	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
@@ -286,17 +215,20 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 		Jar: jar,
 	}
 	// nolint:bodyclose
-	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 	})
 	if err != nil {
-		return nil, err
+		if res == nil {
+			return nil, err
+		}
+		return nil, readBodyAsError(res)
 	}
 
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (agent.Conn, error) {
+func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (*agent.Conn, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
 		return nil, err
@@ -349,10 +281,12 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if errors.Is(err, context.Canceled) {
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				return
 			}
 			if err != nil {
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
@@ -362,92 +296,23 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 			logger.Debug(ctx, "serving coordinator")
 			err = <-errChan
 			if errors.Is(err, context.Canceled) {
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				return
 			}
 			if err != nil {
 				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
+				_ = ws.Close(websocket.StatusAbnormalClosure, "")
 				continue
 			}
+			_ = ws.Close(websocket.StatusAbnormalClosure, "")
 		}
 	}()
-	return &agent.TailnetConn{
+	return &agent.Conn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
 			<-closed
 		},
-	}, nil
-}
-
-// DialWorkspaceAgent creates a connection to the specified resource.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (agent.Conn, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/dial", agentID.String()))
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  SessionTokenKey,
-		Value: c.SessionToken,
-	}})
-	httpClient := &http.Client{
-		Jar: jar,
-	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, readBodyAsError(res)
-	}
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
-	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
-	}
-	client := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session))
-	stream, err := client.NegotiateConnection(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("negotiate connection: %w", err)
-	}
-
-	res, err = c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/iceservers", agentID.String()), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var iceServers []webrtc.ICEServer
-	err = json.NewDecoder(res.Body).Decode(&iceServers)
-	if err != nil {
-		return nil, err
-	}
-
-	if options == nil {
-		options = &peer.ConnOptions{}
-	}
-	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
-	options.SettingEngine.SetRelayAcceptanceMinWait(0)
-	options.SettingEngine.SetICEProxyDialer(c.turnProxyDialer(ctx, httpClient, fmt.Sprintf("/api/v2/workspaceagents/%s/turn", agentID.String())))
-	iceServers = append(iceServers, turnconn.Proxy)
-
-	peerConn, err := peerbroker.Dial(stream, iceServers, options)
-	if err != nil {
-		return nil, xerrors.Errorf("dial peer: %w", err)
-	}
-	return &agent.WebRTCConn{
-		Negotiator: client,
-		Conn:       peerConn,
 	}, nil
 }
 
@@ -509,27 +374,6 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, path string) proxy.Dialer {
-	return turnconn.ProxyDialer(func() (net.Conn, error) {
-		turnURL, err := c.URL.Parse(path)
-		if err != nil {
-			return nil, xerrors.Errorf("parse url: %w", err)
-		}
-		conn, res, err := websocket.Dial(ctx, turnURL.String(), &websocket.DialOptions{
-			HTTPClient: httpClient,
-			// Need to disable compression to avoid a data-race.
-			CompressionMode: websocket.CompressionDisabled,
-		})
-		if err != nil {
-			if res == nil {
-				return nil, err
-			}
-			return nil, readBodyAsError(res)
-		}
-		return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
-	})
-}
-
 // AgentReportStats begins a stat streaming connection with the Coder server.
 // It is resilient to network failures and intermittent coderd issues.
 func (c *Client) AgentReportStats(
@@ -584,6 +428,7 @@ func (c *Client) AgentReportStats(
 					var req AgentStatsReportRequest
 					err := wsjson.Read(ctx, conn, &req)
 					if err != nil {
+						_ = conn.Close(websocket.StatusAbnormalClosure, "")
 						return err
 					}
 
@@ -597,6 +442,7 @@ func (c *Client) AgentReportStats(
 
 					err = wsjson.Write(ctx, conn, resp)
 					if err != nil {
+						_ = conn.Close(websocket.StatusAbnormalClosure, "")
 						return err
 					}
 				}

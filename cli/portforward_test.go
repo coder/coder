@@ -377,7 +377,7 @@ func setupTestListener(t *testing.T, l net.Listener) string {
 
 	addr := l.Addr().String()
 	_, port, err := net.SplitHostPort(addr)
-	require.NoErrorf(t, err, "split listen path %q", addr)
+	require.NoErrorf(t, err, "split non-Unix listen path %q", addr)
 	addr = port
 
 	return addr

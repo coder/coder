@@ -12,7 +12,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -73,8 +72,7 @@ func speedtest() *cobra.Command {
 				if err != nil {
 					continue
 				}
-				tc, _ := conn.(*agent.TailnetConn)
-				status := tc.Status()
+				status := conn.Status()
 				if len(status.Peers()) != 1 {
 					continue
 				}
