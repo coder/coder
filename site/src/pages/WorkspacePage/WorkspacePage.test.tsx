@@ -76,13 +76,12 @@ beforeEach(() => {
 describe("WorkspacePage", () => {
   it("shows a workspace", async () => {
     await renderWorkspacePage()
-    const workspaceName = screen.getByText(MockWorkspace.name)
+    const workspaceName = await screen.findByText(MockWorkspace.name)
     expect(workspaceName).toBeDefined()
-  })
-  it("shows the status of the workspace", async () => {
-    await renderWorkspacePage()
-    const status = screen.getByRole("status")
+    const status = await screen.findByRole("status")
     expect(status).toHaveTextContent("Running")
+    // wait for workspace page to finish loading
+    await screen.findByText("stop")
   })
   it("requests a stop job when the user presses Stop", async () => {
     const stopWorkspaceMock = jest
@@ -92,6 +91,7 @@ describe("WorkspacePage", () => {
   })
 
   it("requests a delete job when the user presses Delete and confirms", async () => {
+    const user = userEvent.setup()
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
@@ -99,16 +99,16 @@ describe("WorkspacePage", () => {
 
     // open the workspace action popover so we have access to all available ctas
     const trigger = await screen.findByTestId("workspace-actions-button")
-    fireEvent.click(trigger)
+    await user.click(trigger)
 
     const button = await screen.findByText(Language.delete)
-    fireEvent.click(button)
+    await user.click(button)
 
     const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "workspace" })
-    const textField = screen.getByLabelText(labelText)
-    await userEvent.type(textField, MockWorkspace.name)
-    const confirmButton = screen.getByRole("button", { name: "Delete" })
-    fireEvent.click(confirmButton)
+    const textField = await screen.findByLabelText(labelText)
+    await user.type(textField, MockWorkspace.name)
+    const confirmButton = await screen.findByRole("button", { name: "Delete" })
+    await user.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
   })
 
