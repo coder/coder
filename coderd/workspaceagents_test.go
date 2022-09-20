@@ -324,7 +324,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 	// First attempt to resize the TTY.
 	// The websocket will close if it fails!
-	data, err := json.Marshal(agent.ReconnectingPTYRequest{
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
 		Height: 250,
 		Width:  250,
 	})
@@ -337,7 +337,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	// the shell is simultaneously sending a prompt.
 	time.Sleep(100 * time.Millisecond)
 
-	data, err = json.Marshal(agent.ReconnectingPTYRequest{
+	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
 		Data: "echo test\r\n",
 	})
 	require.NoError(t, err)

@@ -1,4 +1,4 @@
-package agent
+package codersdk
 
 import (
 	"context"
@@ -18,6 +18,16 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
+var (
+	// TailnetIP is a static IPv6 address with the Tailscale prefix that is used to route
+	// connections from clients to this node. A dynamic address is not required because a Tailnet
+	// client only dials a single agent at a time.
+	TailnetIP                  = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+	TailnetSSHPort             = 1
+	TailnetReconnectingPTYPort = 2
+	TailnetSpeedtestPort       = 3
+)
+
 // ReconnectingPTYRequest is sent from the client to the server
 // to pipe data to a PTY.
 type ReconnectingPTYRequest struct {
@@ -26,15 +36,15 @@ type ReconnectingPTYRequest struct {
 	Width  uint16 `json:"width"`
 }
 
-type Conn struct {
+type AgentConn struct {
 	*tailnet.Conn
 	CloseFunc func()
 }
 
-func (c *Conn) Ping() (time.Duration, error) {
+func (c *AgentConn) Ping() (time.Duration, error) {
 	errCh := make(chan error, 1)
 	durCh := make(chan time.Duration, 1)
-	c.Conn.Ping(tailnetIP, tailcfg.PingICMP, func(pr *ipnstate.PingResult) {
+	c.Conn.Ping(TailnetIP, tailcfg.PingICMP, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
 			errCh <- xerrors.New(pr.Err)
 			return
@@ -49,30 +59,30 @@ func (c *Conn) Ping() (time.Duration, error) {
 	}
 }
 
-func (c *Conn) CloseWithError(_ error) error {
+func (c *AgentConn) CloseWithError(_ error) error {
 	return c.Close()
 }
 
-func (c *Conn) Close() error {
+func (c *AgentConn) Close() error {
 	if c.CloseFunc != nil {
 		c.CloseFunc()
 	}
 	return c.Conn.Close()
 }
 
-type reconnectingPTYInit struct {
+type ReconnectingPTYInit struct {
 	ID      string
 	Height  uint16
 	Width   uint16
 	Command string
 }
 
-func (c *Conn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
-	conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetReconnectingPTYPort)))
+func (c *AgentConn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
+	conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetReconnectingPTYPort)))
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(reconnectingPTYInit{
+	data, err := json.Marshal(ReconnectingPTYInit{
 		ID:      id,
 		Height:  height,
 		Width:   width,
@@ -93,13 +103,13 @@ func (c *Conn) ReconnectingPTY(id string, height, width uint16, command string) 
 	return conn, nil
 }
 
-func (c *Conn) SSH() (net.Conn, error) {
-	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetSSHPort)))
+func (c *AgentConn) SSH() (net.Conn, error) {
+	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetSSHPort)))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
 // for high throughput.
-func (c *Conn) SSHClient() (*ssh.Client, error) {
+func (c *AgentConn) SSHClient() (*ssh.Client, error) {
 	netConn, err := c.SSH()
 	if err != nil {
 		return nil, xerrors.Errorf("ssh: %w", err)
@@ -116,8 +126,8 @@ func (c *Conn) SSHClient() (*ssh.Client, error) {
 	return ssh.NewClient(sshConn, channels, requests), nil
 }
 
-func (c *Conn) Speedtest(direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
-	speedConn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(tailnetIP, uint16(tailnetSpeedtestPort)))
+func (c *AgentConn) Speedtest(direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
+	speedConn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetSpeedtestPort)))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -128,13 +138,13 @@ func (c *Conn) Speedtest(direction speedtest.Direction, duration time.Duration) 
 	return results, err
 }
 
-func (c *Conn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+func (c *AgentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	if network == "unix" {
 		return nil, xerrors.New("network must be tcp or udp")
 	}
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.Atoi(rawPort)
-	ipp := netip.AddrPortFrom(tailnetIP, uint16(port))
+	ipp := netip.AddrPortFrom(TailnetIP, uint16(port))
 	if network == "udp" {
 		return c.Conn.DialContextUDP(ctx, ipp)
 	}

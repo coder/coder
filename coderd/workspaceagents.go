@@ -23,7 +23,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -61,26 +60,18 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 
-func (api *API) myWorkspaceAgent(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceAgentApps(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent applications.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
-	httpapi.Write(rw, http.StatusOK, apiAgent)
+	httpapi.Write(r.Context(), rw, http.StatusOK, convertApps(dbApps))
 }
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
@@ -95,7 +86,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, agent.Metadata{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentMetadata{
 		DERPMap:              api.DERPMap,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
@@ -227,7 +218,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.AgentConn, error) {
 	clientConn, serverConn := net.Pipe()
 	go func() {
 		<-r.Context().Done()
@@ -254,7 +245,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 			_ = conn.Close()
 		}
 	}()
-	return &agent.Conn{
+	return &codersdk.AgentConn{
 		Conn: conn,
 	}, nil
 }

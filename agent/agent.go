@@ -33,6 +33,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
@@ -49,39 +50,26 @@ const (
 	MagicSessionErrorCode = 229
 )
 
-var (
-	// tailnetIP is a static IPv6 address with the Tailscale prefix that is used to route
-	// connections from clients to this node. A dynamic address is not required because a Tailnet
-	// client only dials a single agent at a time.
-	tailnetIP                  = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-	tailnetSSHPort             = 1
-	tailnetReconnectingPTYPort = 2
-	tailnetSpeedtestPort       = 3
-)
-
 type Options struct {
-	CoordinatorDialer CoordinatorDialer
-	FetchMetadata     FetchMetadata
-
+	CoordinatorDialer      CoordinatorDialer
+	FetchMetadata          FetchMetadata
+	FetchWorkspaceApps     FetchWorkspaceApps
+	PostWorkspaceAppHealth PostWorkspaceAppHealth
 	StatsReporter          StatsReporter
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
 
-type Metadata struct {
-	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script"`
-	Directory            string            `json:"directory"`
-}
-
 // CoordinatorDialer is a function that constructs a new broker.
 // A dialer must be passed in to allow for reconnects.
-type CoordinatorDialer func(ctx context.Context) (net.Conn, error)
+type CoordinatorDialer func(context.Context) (net.Conn, error)
 
 // FetchMetadata is a function to obtain metadata for the agent.
-type FetchMetadata func(ctx context.Context) (Metadata, error)
+type FetchMetadata func(context.Context) (codersdk.WorkspaceAgentMetadata, error)
+
+type FetchWorkspaceApps func(context.Context) ([]codersdk.WorkspaceApp, error)
+type PostWorkspaceAppHealth func(context.Context, map[string]codersdk.WorkspaceAppHealth) error
 
 func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
@@ -98,6 +86,8 @@ func New(options Options) io.Closer {
 		fetchMetadata:          options.FetchMetadata,
 		stats:                  &Stats{},
 		statsReporter:          options.StatsReporter,
+		fetchWorkspaceApps:     options.FetchWorkspaceApps,
+		postWorkspaceAppHealth: options.PostWorkspaceAppHealth,
 	}
 	server.init(ctx)
 	return server
@@ -120,14 +110,16 @@ type agent struct {
 	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	network           *tailnet.Conn
-	coordinatorDialer CoordinatorDialer
-	stats             *Stats
-	statsReporter     StatsReporter
+	network                *tailnet.Conn
+	coordinatorDialer      CoordinatorDialer
+	stats                  *Stats
+	statsReporter          StatsReporter
+	fetchWorkspaceApps     FetchWorkspaceApps
+	postWorkspaceAppHealth PostWorkspaceAppHealth
 }
 
 func (a *agent) run(ctx context.Context) {
-	var metadata Metadata
+	var metadata codersdk.WorkspaceAgentMetadata
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
@@ -168,6 +160,8 @@ func (a *agent) run(ctx context.Context) {
 	if metadata.DERPMap != nil {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
+
+	go reportAppHealth(ctx, a.logger, a.fetchWorkspaceApps, a.postWorkspaceAppHealth)
 }
 
 func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
@@ -182,7 +176,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	}
 	var err error
 	a.network, err = tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnetIP, 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
@@ -199,7 +193,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	})
 	go a.runCoordinator(ctx)
 
-	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSSHPort))
+	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for ssh", slog.Error(err))
 		return
@@ -213,7 +207,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
 		}
 	}()
-	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetReconnectingPTYPort))
+	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for reconnecting pty", slog.Error(err))
 		return
@@ -239,7 +233,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				continue
 			}
-			var msg reconnectingPTYInit
+			var msg codersdk.ReconnectingPTYInit
 			err = json.Unmarshal(data, &msg)
 			if err != nil {
 				continue
@@ -247,7 +241,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
 	}()
-	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSpeedtestPort))
+	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for speedtest", slog.Error(err))
 		return
@@ -434,7 +428,7 @@ func (a *agent) init(ctx context.Context) {
 
 	go a.run(ctx)
 	if a.statsReporter != nil {
-		cl, err := a.statsReporter(ctx, a.logger, func() *Stats {
+		cl, err := a.statsReporter(ctx, a.logger, func() *codersdk.AgentStats {
 			return a.stats.Copy()
 		})
 		if err != nil {
@@ -469,7 +463,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if rawMetadata == nil {
 		return nil, xerrors.Errorf("no metadata was provided: %w", err)
 	}
-	metadata, valid := rawMetadata.(Metadata)
+	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
 	if !valid {
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
@@ -625,7 +619,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYInit, conn net.Conn) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
 	var rpty *reconnectingPTY
@@ -766,7 +760,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 		rpty.activeConnsMutex.Unlock()
 	}()
 	decoder := json.NewDecoder(conn)
-	var req ReconnectingPTYRequest
+	var req codersdk.ReconnectingPTYRequest
 	for {
 		err = decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
