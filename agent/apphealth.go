@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -65,19 +64,16 @@ func reportAppHealth(ctx context.Context, logger slog.Logger, fetchApps FetchWor
 								Timeout: time.Duration(app.HealthcheckInterval),
 							}
 							err := func() error {
-								u, err := url.Parse(app.HealthcheckURL)
+								req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.HealthcheckURL, nil)
 								if err != nil {
 									return err
 								}
-								res, err := client.Do(&http.Request{
-									Method: http.MethodGet,
-									URL:    u,
-								})
+								res, err := client.Do(req)
 								if err != nil {
 									return err
 								}
 								res.Body.Close()
-								if res.StatusCode > 499 {
+								if res.StatusCode >= http.StatusInternalServerError {
 									return xerrors.Errorf("error status code: %d", res.StatusCode)
 								}
 
@@ -110,7 +106,7 @@ func reportAppHealth(ctx context.Context, logger slog.Logger, fetchApps FetchWor
 				case <-reportTicker.C:
 					mu.RLock()
 					changed := healthChanged(lastHealth, health)
-					mu.Unlock()
+					mu.RUnlock()
 					if changed {
 						lastHealth = health
 						err := reportHealth(ctx, health)
