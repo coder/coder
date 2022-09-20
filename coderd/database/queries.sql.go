@@ -314,9 +314,9 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAuditLogCount = `-- name: GetAuditLogCount :one
 SELECT
-    COUNT(*) as count
+  COUNT(*) as count
 FROM
-    audit_logs
+	audit_logs
 WHERE
     -- Filter resource_type
 	CASE
@@ -345,13 +345,13 @@ WHERE
 	-- Filter by username
 	AND CASE
 		WHEN $5 :: text != '' THEN
-			user_username = $5
+			user_id = (SELECT id from users WHERE users.username = $5 )
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
 		WHEN $6 :: text != '' THEN
-			user_email = $6
+			user_id = (SELECT id from users WHERE users.email = $6 )
 		ELSE true
 	END
 `
