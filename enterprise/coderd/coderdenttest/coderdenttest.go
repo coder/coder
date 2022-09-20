@@ -52,7 +52,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
-	srv, oop := coderdtest.NewOptions(t, options.Options)
+	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		AuditLogging:               true,
 		Options:                    oop,
@@ -68,6 +68,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
 	}
 	t.Cleanup(func() {
+		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
 	})

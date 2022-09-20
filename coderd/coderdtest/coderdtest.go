@@ -115,7 +115,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Options) {
+func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.CancelFunc, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -159,8 +159,6 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
-
 	lifecycleExecutor := executor.New(
 		ctx,
 		db,
@@ -194,7 +192,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, *coderd.Optio
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
-	return srv, &coderd.Options{
+	return srv, cancelFunc, &coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
@@ -246,19 +244,18 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options == nil {
 		options = &Options{}
 	}
-	srv, newOptions := NewOptions(t, options)
+	srv, cancelFunc, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
-	t.Cleanup(func() {
-		_ = coderAPI.Close()
-	})
 	srv.Config.Handler = coderAPI.RootHandler
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	t.Cleanup(func() {
+		cancelFunc()
 		_ = provisionerCloser.Close()
+		_ = coderAPI.Close()
 	})
 	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
 }
