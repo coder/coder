@@ -37,7 +37,7 @@ func init() {
 type Options struct {
 	*coderdtest.Options
 	EntitlementsUpdateInterval time.Duration
-	ScimAPIKey                 []byte
+	SCIMAPIKey                 []byte
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -56,7 +56,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		AuditLogging:               true,
-		SCIMAPIKey:                 options.ScimAPIKey,
+		SCIMAPIKey:                 options.SCIMAPIKey,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys: map[string]ed25519.PublicKey{

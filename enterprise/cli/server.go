@@ -30,7 +30,7 @@ func server() *cobra.Command {
 	})
 	cliflag.BoolVarP(cmd.Flags(), &auditLogging, "audit-logging", "", "CODER_AUDIT_LOGGING", true,
 		"Specifies whether audit logging is enabled.")
-	cliflag.StringVarP(cmd.Flags(), &scimAuthHeader, "scim-auth-header", "", "CODER_SCIM_API_KEY", "", "Enables and sets the authentication header for the built-in SCIM server.")
+	cliflag.StringVarP(cmd.Flags(), &scimAuthHeader, "scim-auth-header", "", "CODER_SCIM_API_KEY", "", "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.")
 
 	return cmd
 }

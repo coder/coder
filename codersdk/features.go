@@ -20,7 +20,7 @@ const (
 	FeatureSCIM      = "scim"
 )
 
-var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog}
+var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog, FeatureSCIM}
 
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`

@@ -39,7 +39,7 @@ func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 	return len(api.SCIMAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, api.SCIMAPIKey) == 1
 }
 
-// getUsers intentionally always returns no users. This is done to always force
+// scimGetUsers intentionally always returns no users. This is done to always force
 // Okta to try and create each user individually, this way we don't need to
 // implement fetching users twice.
 //
@@ -76,7 +76,7 @@ func (api *API) scimGetUser(rw http.ResponseWriter, r *http.Request) {
 // done mostly because the SCIM package was almost impossible to use. We only
 // need these fields, so it was much simpler to use our own struct. This was
 // tested only with Okta.
-type ScimUser struct {
+type SCIMUser struct {
 	Schemas  []string `json:"schemas"`
 	ID       string   `json:"id"`
 	UserName string   `json:"userName"`
@@ -105,7 +105,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sUser ScimUser
+	var sUser SCIMUser
 	err := json.NewDecoder(r.Body).Decode(&sUser)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)
@@ -153,7 +153,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
 
-	var sUser ScimUser
+	var sUser SCIMUser
 	err := json.NewDecoder(r.Body).Decode(&sUser)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)

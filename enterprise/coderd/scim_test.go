@@ -19,11 +19,11 @@ import (
 )
 
 //nolint:revive
-func makeScimUser(t testing.TB) coderd.ScimUser {
+func makeScimUser(t testing.TB) coderd.SCIMUser {
 	rstr, err := cryptorand.String(10)
 	require.NoError(t, err)
 
-	return coderd.ScimUser{
+	return coderd.SCIMUser{
 		UserName: rstr,
 		Name: struct {
 			GivenName  string "json:\"givenName\""
@@ -62,7 +62,7 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{ScimAPIKey: []byte("hi")})
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
@@ -81,7 +81,7 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{ScimAPIKey: []byte("hi")})
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
@@ -101,7 +101,7 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
-			client := coderdenttest.New(t, &coderdenttest.Options{ScimAPIKey: scimAPIKey})
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
@@ -132,7 +132,7 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{ScimAPIKey: []byte("hi")})
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
@@ -151,7 +151,7 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{ScimAPIKey: []byte("hi")})
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
@@ -171,7 +171,7 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
-			client := coderdenttest.New(t, &coderdenttest.Options{ScimAPIKey: scimAPIKey})
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
