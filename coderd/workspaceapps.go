@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -254,87 +253,4 @@ func (api *API) applicationCookie(authCookie *http.Cookie) *http.Cookie {
 	// another hostname.
 	appCookie.Domain = "." + api.AccessURL.Hostname()
 	return &appCookie
-}
-
-func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-	var req codersdk.PostWorkspaceAppHealthsRequest
-	if !httpapi.Read(rw, r, &req) {
-		return
-	}
-
-	apps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error getting agent apps",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	var newApps []database.WorkspaceApp
-	for name, health := range req.Healths {
-		found := func() *database.WorkspaceApp {
-			for _, app := range apps {
-				if app.Name == name {
-					return &app
-				}
-			}
-
-			return nil
-		}()
-		if found == nil {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("workspace app name %s not found", name).Error(),
-			})
-			return
-		}
-
-		if !found.HealthcheckEnabled {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
-				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", name).Error(),
-			})
-			return
-		}
-
-		switch health {
-		case codersdk.WorkspaceAppHealthInitializing:
-			found.Health = database.WorkspaceAppHealthInitializing
-		case codersdk.WorkspaceAppHealthHealthy:
-			found.Health = database.WorkspaceAppHealthHealthy
-		case codersdk.WorkspaceAppHealthUnhealthy:
-			found.Health = database.WorkspaceAppHealthUnhealthy
-		default:
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", health).Error(),
-			})
-			return
-		}
-
-		// don't save if the value hasn't changed
-		if found.Health == database.WorkspaceAppHealth(health) {
-			continue
-		}
-
-		newApps = append(newApps, *found)
-	}
-
-	for _, app := range newApps {
-		err = api.Database.UpdateWorkspaceAppHealthByID(r.Context(), database.UpdateWorkspaceAppHealthByIDParams{
-			ID:     app.ID,
-			Health: app.Health,
-		})
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error setting workspace app health",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
-	httpapi.Write(rw, http.StatusOK, nil)
 }

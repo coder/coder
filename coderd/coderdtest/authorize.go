@@ -60,6 +60,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/version":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/app-health":            {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/apps":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/report-stats":           {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!

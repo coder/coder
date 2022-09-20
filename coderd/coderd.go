@@ -413,6 +413,7 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
+				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Get("/report-stats", api.workspaceAgentReportStats)
