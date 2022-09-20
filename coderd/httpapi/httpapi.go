@@ -77,7 +77,7 @@ func InternalServerError(rw http.ResponseWriter, err error) {
 }
 
 func RouteNotFound(rw http.ResponseWriter) {
-	Write(rw, http.StatusNotFound, codersdk.Response{
+	Write(context.Background(), rw, http.StatusNotFound, codersdk.Response{
 		Message: "Route not found.",
 	})
 }
