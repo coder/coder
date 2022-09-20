@@ -36,7 +36,7 @@ const (
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
 // codersdk client, the workspace, and the port number the test listener is
 // running on.
-func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspace, uint16) {
+func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (*codersdk.Client, uuid.UUID, codersdk.Workspace, uint16) {
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, workspaceMutators...)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
@@ -191,6 +191,21 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		loc, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, proxyTestAppQuery, loc.RawQuery)
+	})
+
+	t.Run("Proxies", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?"+proxyTestAppQuery, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, proxyTestAppBody, string(body))
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
 	t.Run("Proxies", func(t *testing.T) {
