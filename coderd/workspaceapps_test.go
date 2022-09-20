@@ -103,10 +103,11 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent"),
-		StatsReporter:     agentClient.AgentReportStats,
+		FetchMetadata:              agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
+		Logger:                     slogtest.Make(t, nil).Named("agent"),
+		StatsReporter:              agentClient.AgentReportStats,
+		WorkspaceAppHealthReporter: func(context.Context) {},
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

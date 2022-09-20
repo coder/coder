@@ -602,10 +602,11 @@ func TestTemplateDAUs(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		Logger:            slogtest.Make(t, nil),
-		StatsReporter:     agentClient.AgentReportStats,
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:                     slogtest.Make(t, nil),
+		StatsReporter:              agentClient.AgentReportStats,
+		FetchMetadata:              agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
+		WorkspaceAppHealthReporter: func(context.Context) {},
 	})
 	defer func() {
 		_ = agentCloser.Close()

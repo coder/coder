@@ -107,9 +107,10 @@ func TestConfigSSH(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent"),
+		FetchMetadata:              agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
+		Logger:                     slogtest.Make(t, nil).Named("agent"),
+		WorkspaceAppHealthReporter: func(context.Context) {},
 	})
 	defer func() {
 		_ = agentCloser.Close()

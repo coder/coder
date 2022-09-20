@@ -51,14 +51,13 @@ const (
 )
 
 type Options struct {
-	CoordinatorDialer      CoordinatorDialer
-	FetchMetadata          FetchMetadata
-	FetchWorkspaceApps     FetchWorkspaceApps
-	PostWorkspaceAppHealth PostWorkspaceAppHealth
-	StatsReporter          StatsReporter
-	ReconnectingPTYTimeout time.Duration
-	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
+	CoordinatorDialer          CoordinatorDialer
+	FetchMetadata              FetchMetadata
+	StatsReporter              StatsReporter
+	WorkspaceAppHealthReporter WorkspaceAppHealthReporter
+	ReconnectingPTYTimeout     time.Duration
+	EnvironmentVariables       map[string]string
+	Logger                     slog.Logger
 }
 
 // CoordinatorDialer is a function that constructs a new broker.
@@ -69,7 +68,7 @@ type CoordinatorDialer func(context.Context) (net.Conn, error)
 type FetchMetadata func(context.Context) (codersdk.WorkspaceAgentMetadata, error)
 
 type FetchWorkspaceApps func(context.Context) ([]codersdk.WorkspaceApp, error)
-type PostWorkspaceAppHealth func(context.Context, map[string]codersdk.WorkspaceAppHealth) error
+type PostWorkspaceAppHealth func(context.Context, codersdk.PostWorkspaceAppHealthsRequest) error
 
 func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
@@ -77,17 +76,16 @@ func New(options Options) io.Closer {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
-		logger:                 options.Logger,
-		closeCancel:            cancelFunc,
-		closed:                 make(chan struct{}),
-		envVars:                options.EnvironmentVariables,
-		coordinatorDialer:      options.CoordinatorDialer,
-		fetchMetadata:          options.FetchMetadata,
-		stats:                  &Stats{},
-		statsReporter:          options.StatsReporter,
-		fetchWorkspaceApps:     options.FetchWorkspaceApps,
-		postWorkspaceAppHealth: options.PostWorkspaceAppHealth,
+		reconnectingPTYTimeout:     options.ReconnectingPTYTimeout,
+		logger:                     options.Logger,
+		closeCancel:                cancelFunc,
+		closed:                     make(chan struct{}),
+		envVars:                    options.EnvironmentVariables,
+		coordinatorDialer:          options.CoordinatorDialer,
+		fetchMetadata:              options.FetchMetadata,
+		stats:                      &Stats{},
+		statsReporter:              options.StatsReporter,
+		workspaceAppHealthReporter: options.WorkspaceAppHealthReporter,
 	}
 	server.init(ctx)
 	return server
@@ -110,12 +108,11 @@ type agent struct {
 	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	network                *tailnet.Conn
-	coordinatorDialer      CoordinatorDialer
-	stats                  *Stats
-	statsReporter          StatsReporter
-	fetchWorkspaceApps     FetchWorkspaceApps
-	postWorkspaceAppHealth PostWorkspaceAppHealth
+	network                    *tailnet.Conn
+	coordinatorDialer          CoordinatorDialer
+	stats                      *Stats
+	statsReporter              StatsReporter
+	workspaceAppHealthReporter WorkspaceAppHealthReporter
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -161,7 +158,7 @@ func (a *agent) run(ctx context.Context) {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
 
-	go reportAppHealth(ctx, a.logger, a.fetchWorkspaceApps, a.postWorkspaceAppHealth)
+	go a.workspaceAppHealthReporter(ctx)
 }
 
 func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
