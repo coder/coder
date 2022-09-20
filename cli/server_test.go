@@ -101,7 +101,7 @@ func TestServer(t *testing.T) {
 			return err == nil && rawURL != ""
 		}, 3*time.Minute, testutil.IntervalFast, "failed to get access URL")
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
@@ -341,7 +341,7 @@ func TestServer(t *testing.T) {
 			errC <- root.ExecuteContext(ctx)
 		}()
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 		require.Error(t, goleak.Find())
 	})
 	t.Run("Telemetry", func(t *testing.T) {
