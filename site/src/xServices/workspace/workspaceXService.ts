@@ -624,28 +624,28 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot cancel workspace without build id")
         }
       },
-      listenForEvents: (context) => (callback) => {
+      listenForEvents: (context) => (send) => {
         if (!context.sse) {
-          callback({ type: "SSE_ERROR", error: "error initializing sse" })
+          send({ type: "SSE_ERROR", error: "error initializing sse" })
           return
         }
 
         context.sse.addEventListener("data", (event) => {
           // update our data objects (workspace, resources) with each SSE that comes back from the server
-          callback({ type: "UPDATE_EVENT", data: JSON.parse(event.data) })
+          send({ type: "UPDATE_EVENT", data: JSON.parse(event.data) })
           // refresh our timeline
-          callback({ type: "CHECK_REFRESH_TIMELINE", data: JSON.parse(event.data) })
+          send({ type: "CHECK_REFRESH_TIMELINE", data: JSON.parse(event.data) })
         })
 
         // handle any error events returned by our sse
         context.sse.addEventListener("error", (event) => {
-          callback({ type: "SSE_ERROR", error: event })
+          send({ type: "SSE_ERROR", error: event })
         })
 
         // handle any sse implementation exceptions
         context.sse.onerror = () => {
           context.sse && context.sse.close();
-          callback({ type: "SSE_ERROR", error: "sse error" })
+          send({ type: "SSE_ERROR", error: "sse error" })
         }
 
       },
