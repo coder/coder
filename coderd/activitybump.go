@@ -22,7 +22,6 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspace databas
 
 	err := db.InTx(func(s database.Store) error {
 		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-		log.Debug(ctx, "build", slog.F("build", build))
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		} else if err != nil {

@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -57,7 +58,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				"deadline %v never updated", firstDeadline,
 			)
 
-			require.WithinDuration(t, time.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Second)
+			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Second)
 		}
 	}
 
