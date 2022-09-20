@@ -314,9 +314,9 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAuditLogCount = `-- name: GetAuditLogCount :one
 SELECT
-    COUNT(*) as count
+  COUNT(*) as count
 FROM
-    audit_logs
+	audit_logs
 WHERE
     -- Filter resource_type
 	CASE
@@ -324,21 +324,56 @@ WHERE
 			resource_type = $1 :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = $2
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $3 :: text != '' THEN
+			resource_target = $3
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
-		WHEN $2 :: text != '' THEN
-			action = $2 :: audit_action
+		WHEN $4 :: text != '' THEN
+			action = $4 :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			user_id = (SELECT id from users WHERE users.username = $5 )
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			user_id = (SELECT id from users WHERE users.email = $6 )
 		ELSE true
 	END
 `
 
 type GetAuditLogCountParams struct {
-	ResourceType string `db:"resource_type" json:"resource_type"`
-	Action       string `db:"action" json:"action"`
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
 }
 
 func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getAuditLogCount, arg.ResourceType, arg.Action)
+	row := q.db.QueryRowContext(ctx, getAuditLogCount,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.ResourceTarget,
+		arg.Action,
+		arg.Username,
+		arg.Email,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -364,10 +399,34 @@ WHERE
 			resource_type = $3 :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $4 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = $4
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			resource_target = $5
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			action = $4 :: audit_action
+		WHEN $6 :: text != '' THEN
+			action = $6 :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			users.username = $7
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
 		ELSE true
 	END
 ORDER BY
@@ -379,10 +438,14 @@ OFFSET
 `
 
 type GetAuditLogsOffsetParams struct {
-	Limit        int32  `db:"limit" json:"limit"`
-	Offset       int32  `db:"offset" json:"offset"`
-	ResourceType string `db:"resource_type" json:"resource_type"`
-	Action       string `db:"action" json:"action"`
+	Limit          int32     `db:"limit" json:"limit"`
+	Offset         int32     `db:"offset" json:"offset"`
+	ResourceType   string    `db:"resource_type" json:"resource_type"`
+	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	ResourceTarget string    `db:"resource_target" json:"resource_target"`
+	Action         string    `db:"action" json:"action"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -416,7 +479,11 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Limit,
 		arg.Offset,
 		arg.ResourceType,
+		arg.ResourceID,
+		arg.ResourceTarget,
 		arg.Action,
+		arg.Username,
+		arg.Email,
 	)
 	if err != nil {
 		return nil, err
