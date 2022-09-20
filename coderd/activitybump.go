@@ -66,7 +66,11 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspace databas
 		return nil
 	})
 	if err != nil {
-		log.Error(ctx, "bump failed", slog.Error(err))
+		log.Error(
+			ctx, "bump failed",
+			slog.Error(err),
+			slog.F("workspace_id", workspace.ID),
+		)
 	} else {
 		log.Debug(
 			ctx, "bumped deadline from activity",
