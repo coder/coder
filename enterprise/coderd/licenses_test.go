@@ -80,6 +80,7 @@ func TestGetLicense(t *testing.T) {
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing",
 			AuditLog:  true,
+			SCIM:      true,
 		})
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
