@@ -349,7 +349,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 
 		templates, err = client2.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, templates, 2, "user should not be able to read any templates")
+		require.Len(t, templates, 2, "user should be able to read both templates")
 	})
 }
 
