@@ -165,6 +165,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	}
 
 	cmd.AddCommand(subcommands...)
+	fixUnknownSubcommandError(cmd.Commands())
 
 	cmd.SetUsageTemplate(usageTemplate())
 
@@ -185,6 +186,35 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
 
 	return cmd
+}
+
+// fixUnknownSubcommandError modifies the provided commands so that the
+// ones with subcommands output the correct error message when an
+// unknown subcommand is invoked.
+//
+// Example:
+//
+//	unknown command "bad" for "coder templates"
+func fixUnknownSubcommandError(commands []*cobra.Command) {
+	for _, sc := range commands {
+		if sc.HasSubCommands() {
+			if sc.Run == nil && sc.RunE == nil {
+				if sc.Args != nil {
+					// In case the developer does not know about this
+					// behavior in Cobra they must verify correct
+					// behavior. For instance, settings Args to
+					// `cobra.ExactArgs(0)` will not give the same
+					// message as `cobra.NoArgs`. Likewise, omitting the
+					// run function will not give the wanted error.
+					panic("developer error: subcommand has subcommands and Args but no Run or RunE")
+				}
+				sc.Args = cobra.NoArgs
+				sc.Run = func(*cobra.Command, []string) {}
+			}
+
+			fixUnknownSubcommandError(sc.Commands())
+		}
+	}
 }
 
 // versionCmd prints the coder version
