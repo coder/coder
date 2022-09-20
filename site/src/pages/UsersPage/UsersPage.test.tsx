@@ -47,7 +47,9 @@ const suspendUser = async (setupActionSpies: () => void) => {
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = await within(confirmDialog).findByText(UsersPageLanguage.suspendDialogAction)
+  const confirmButton = await within(confirmDialog).findByText(
+    UsersPageLanguage.suspendDialogAction,
+  )
   await user.click(confirmButton)
 }
 
@@ -214,9 +216,7 @@ describe("UsersPage", () => {
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest
-            .spyOn(API, "getUsers")
-            .mockResolvedValueOnce([SuspendedMockUser, MockUser2])
+          jest.spyOn(API, "getUsers").mockResolvedValueOnce([SuspendedMockUser, MockUser2])
         })
 
         // Check if the success message is displayed
@@ -265,9 +265,7 @@ describe("UsersPage", () => {
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
-          jest
-            .spyOn(API, "getUsers")
-            .mockResolvedValueOnce([MockUser, SuspendedMockUser])
+          jest.spyOn(API, "getUsers").mockResolvedValueOnce([MockUser, SuspendedMockUser])
         })
 
         // Check if the success message is displayed
