@@ -78,9 +78,9 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 ## SCIM
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
-authentication. Upon deactivation, users are deactivated within the platform but
-are not deleted. Configure your SCIM application with an auth key and supply it
-to Coder.
+authentication. Upon deactivation, users are [suspended](userd.md#suspend-a-user)
+[suspended](userd.md#suspend-a-user) are not deleted. [Configure](./configure.md)
+your SCIM application with an auth key and supply it the Coder server.
 
 ```console
 CODER_SCIM_API_KEY="your-api-key"
