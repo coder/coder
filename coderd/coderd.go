@@ -201,7 +201,6 @@ func New(options *Options) *API {
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
-			// httpmw.ActivityBumpWorkspace(api.Logger, api.Database),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}

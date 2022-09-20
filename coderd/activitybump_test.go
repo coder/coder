@@ -83,7 +83,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		client, workspace, assertBumped := setupActivityTest(t)
 
-		// Doing some inactive operation like retrieving resources must not
+		// Benign operations like retrieving resources must not
 		// bump the deadline.
 		_, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)

@@ -15,8 +15,6 @@ import (
 // activityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon.
 func activityBumpWorkspace(log slog.Logger, db database.Store, workspace database.Workspace) {
-	// We cannot use the Request context since the goroutine
-	// may be around after the request terminates.
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
