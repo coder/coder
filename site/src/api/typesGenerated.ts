@@ -159,6 +159,7 @@ export interface CreateTemplateRequest {
   readonly parameter_values?: CreateParameterRequest[]
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
+  readonly is_private: boolean
 }
 
 // From codersdk/templateversions.go
@@ -408,11 +409,18 @@ export interface Template {
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly user_roles: Record<string, TemplateRole>
+  readonly is_private: boolean
 }
 
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/templates.go
+export interface TemplateUser extends User {
+  readonly role: TemplateRole
 }
 
 // From codersdk/templateversions.go
@@ -451,6 +459,8 @@ export interface UpdateTemplateMeta {
   readonly icon?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
+  readonly user_perms?: Record<string, TemplateRole>
+  readonly is_private?: boolean
 }
 
 // From codersdk/users.go
@@ -730,6 +740,9 @@ export type ResourceType =
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"
+
+// From codersdk/templates.go
+export type TemplateRole = "" | "admin" | "read" | "write"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

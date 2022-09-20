@@ -40,7 +40,7 @@ type UpdateActiveTemplateVersion struct {
 
 type TemplateRole string
 
-var (
+const (
 	TemplateRoleAdmin   TemplateRole = "admin"
 	TemplateRoleWrite   TemplateRole = "write"
 	TemplateRoleRead    TemplateRole = "read"
