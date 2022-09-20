@@ -46,3 +46,4 @@ site/out/
 **/*.swp
 .coderv2/*
 **/__debug_bin
+*.test
