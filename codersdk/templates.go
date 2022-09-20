@@ -38,8 +38,6 @@ type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
 }
 
-type TemplateUserACL map[string]TemplateRole
-
 type TemplateRole string
 
 var (
@@ -48,6 +46,11 @@ var (
 	TemplateRoleRead    TemplateRole = "read"
 	TemplateRoleDeleted TemplateRole = ""
 )
+
+type TemplateUser struct {
+	User
+	Role TemplateRole `json:"role"`
+}
 
 type UpdateTemplateMeta struct {
 	Name                       string                  `json:"name,omitempty" validate:"omitempty,username"`
@@ -99,6 +102,19 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	var updated Template
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
+}
+
+func (c *Client) TemplateUserRoles(ctx context.Context, templateID uuid.UUID) ([]TemplateUser, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/user-roles", templateID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var users []TemplateUser
+	return users, json.NewDecoder(res.Body).Decode(&users)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.

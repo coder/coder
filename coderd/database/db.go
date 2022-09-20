@@ -31,13 +31,16 @@ type DBTX interface {
 	PrepareContext(context.Context, string) (*sql.Stmt, error)
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
 // New creates a new database store using a SQL database connection.
 func New(sdb *sql.DB) Store {
+	dbx := sqlx.NewDb(sdb, "postgres")
 	return &sqlQuerier{
-		db:  sdb,
-		sdb: sqlx.NewDb(sdb, "postgres"),
+		db:  dbx,
+		sdb: dbx,
 	}
 }
 
@@ -66,7 +69,7 @@ func (q *sqlQuerier) InTx(function func(Store) error) error {
 		return nil
 	}
 
-	transaction, err := q.sdb.Begin()
+	transaction, err := q.sdb.BeginTxx(context.Background(), nil)
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}

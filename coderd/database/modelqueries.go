@@ -17,6 +17,7 @@ type customQuerier interface {
 
 type templateQuerier interface {
 	UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl UserACL) error
+	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
 }
 
 type TemplateUser struct {
@@ -44,4 +45,39 @@ WHERE
 	}
 
 	return nil
+}
+
+func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error) {
+	const query = `
+	SELECT
+		perms.value as role, users.*
+	FROM
+		users
+	JOIN
+		(
+			SELECT
+				*
+			FROM
+				jsonb_each_text(
+					(
+						SELECT
+							templates.user_acl
+						FROM
+							templates
+						WHERE
+							id = $1
+					)
+				)
+		) AS perms
+	ON
+		users.id::text = perms.key;
+	`
+
+	var tus []TemplateUser
+	err := q.db.SelectContext(ctx, &tus, query, id.String())
+	if err != nil {
+		return nil, xerrors.Errorf("select context: %w", err)
+	}
+
+	return tus, nil
 }

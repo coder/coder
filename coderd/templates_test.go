@@ -897,6 +897,52 @@ func TestDeleteTemplate(t *testing.T) {
 	})
 }
 
+func TestTemplateUserRoles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+			func(r *codersdk.CreateTemplateRequest) {
+				r.IsPrivate = true
+			},
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user2.ID.String(): codersdk.TemplateRoleRead,
+				user3.ID.String(): codersdk.TemplateRoleWrite,
+			},
+		})
+		require.NoError(t, err)
+
+		users, err := client.TemplateUserRoles(ctx, template.ID)
+		require.NoError(t, err)
+
+		templateUser2 := codersdk.TemplateUser{
+			User: user2,
+			Role: codersdk.TemplateRoleRead,
+		}
+
+		templateUser3 := codersdk.TemplateUser{
+			User: user3,
+			Role: codersdk.TemplateRoleWrite,
+		}
+
+		require.Len(t, users, 2)
+		require.Contains(t, users, templateUser2)
+		require.Contains(t, users, templateUser3)
+	})
+}
+
 func TestTemplateDAUs(t *testing.T) {
 	t.Parallel()
 

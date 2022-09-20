@@ -12,6 +12,7 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
@@ -1242,6 +1243,45 @@ func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID,
 		}
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var template database.Template
+	for _, t := range q.templates {
+		if t.ID == id {
+			template = t
+			break
+		}
+	}
+
+	if template.ID == uuid.Nil {
+		return nil, sql.ErrNoRows
+	}
+
+	acl := template.UserACL()
+
+	users := make([]database.TemplateUser, 0, len(acl))
+	for k, v := range acl {
+		user, err := q.GetUserByID(context.Background(), uuid.MustParse(k))
+		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get user by ID: %w", err)
+		}
+		// We don't delete users from the map if they
+		// get deleted so just skip.
+		if xerrors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+
+		users = append(users, database.TemplateUser{
+			User: user,
+			Role: v,
+		})
+	}
+
+	return users, nil
 }
 
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {

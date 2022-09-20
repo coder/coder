@@ -625,6 +625,47 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, resp)
 }
 
+func (api *API) templateUserRoles(rw http.ResponseWriter, r *http.Request) {
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	users, err := api.Database.GetTemplateUserRoles(r.Context(), template.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	users, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, users)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+
+	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
+	for _, organizationIDsByMemberIDsRow := range orgIDsByMemberIDsRows {
+		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplateUsers(users, organizationIDsByUserID))
+}
+
 type autoImportTemplateOpts struct {
 	name    string
 	archive []byte
@@ -828,8 +869,8 @@ func (api *API) convertTemplate(
 	}
 }
 
-func convertTemplateACL(acl database.UserACL) codersdk.TemplateUserACL {
-	userACL := make(codersdk.TemplateUserACL, len(acl))
+func convertTemplateACL(acl database.UserACL) map[string]codersdk.TemplateRole {
+	userACL := make(map[string]codersdk.TemplateRole, len(acl))
 	for k, v := range acl {
 		userACL[k] = convertDatabaseTemplateRole(v)
 	}
@@ -870,4 +911,17 @@ func validateTemplateRole(role codersdk.TemplateRole) error {
 	}
 
 	return nil
+}
+
+func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.UUID][]uuid.UUID) []codersdk.TemplateUser {
+	users := make([]codersdk.TemplateUser, 0, len(tus))
+
+	for _, tu := range tus {
+		users = append(users, codersdk.TemplateUser{
+			User: convertUser(tu.User, orgIDsByUserIDs[tu.User.ID]),
+			Role: codersdk.TemplateRole(tu.Role),
+		})
+	}
+
+	return users
 }
