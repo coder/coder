@@ -45,7 +45,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen)
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
-  const userAgent = userAgentParser(auditLog.user_agent)
+  const { os, browser } = userAgentParser(auditLog.user_agent)
+  const notAvailableLabel = "Not available"
+  const displayBrowserInfo = browser.name ? `${browser.name} ${browser.version}` : notAvailableLabel
 
   const toggle = () => {
     if (shouldDisplayDiff) {
@@ -101,13 +103,13 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               />
               <Stack direction="row" alignItems="center" className={styles.auditLogExtraInfo}>
                 <div>
-                  <strong>IP</strong> {auditLog.ip}
+                  <strong>IP</strong> {auditLog.ip ?? notAvailableLabel}
                 </div>
                 <div>
-                  <strong>OS</strong> {userAgent.os.name}
+                  <strong>OS</strong> {os.name ?? notAvailableLabel}
                 </div>
                 <div>
-                  <strong>Browser</strong> {userAgent.browser.name} {userAgent.browser.version}
+                  <strong>Browser</strong> {displayBrowserInfo}
                 </div>
               </Stack>
             </Stack>

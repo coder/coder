@@ -32,7 +32,11 @@ func TestFirstUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{})
+		has, err := client.HasFirstUser(context.Background())
+		require.NoError(t, err)
+		require.False(t, has)
+
+		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{})
 		require.Error(t, err)
 	})
 
