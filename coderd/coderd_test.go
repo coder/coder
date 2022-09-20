@@ -43,7 +43,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	a := coderdtest.NewAuthTester(ctx, t, nil)
+	a := coderdtest.NewAuthTester(ctx, t, &coderdtest.Options{
+		AppHostname: "test.coder.com",
+	})
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
 	a.Test(ctx, assertRoute, skipRoutes)
 }

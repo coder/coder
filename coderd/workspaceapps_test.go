@@ -227,6 +227,98 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	})
 }
 
+func TestWorkspaceApplicationAuth(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T, appHostname string) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
+		client := coderdtest.New(t, &coderdtest.Options{
+			AppHostname: proxyTestSubdomain,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Configure the HTTP client to not follow redirects and to route all
+		// requests regardless of hostname to the coderd test server.
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		require.True(t, ok)
+		transport := defaultTransport.Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+		}
+		client.HTTPClient.Transport = transport
+
+		return client, firstUser
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client, firstUser := setup(t, proxyTestSubdomain)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u, err := url.Parse(fmt.Sprintf("http://app--agent--workspace--user.%s/test", proxyTestSubdomain))
+		require.NoError(t, err)
+		qp := codersdk.AddQueryParams(map[string]string{
+			"redirect_uri": u.String(),
+		})
+
+		resp, err := client.Request(ctx, http.MethodGet, "/api/v2/authorization/application-auth", nil, qp)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		got, err := resp.Location()
+		require.NoError(t, err)
+
+		// Copy the query parameters and then check equality.
+		u.RawQuery = got.RawQuery
+		require.Equal(t, u, got)
+
+		// Verify the API key permissions
+		apiKey := got.Query().Get("coder_api_key")
+		require.NotEmpty(t, apiKey)
+
+		appClient := codersdk.New(client.URL)
+		appClient.SessionToken = apiKey
+		appClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		appClient.HTTPClient.Transport = client.HTTPClient.Transport
+
+		var (
+			canCreateApplicationConnect = "can-create-application_connect"
+			canReadUserMe               = "can-read-user-me"
+		)
+		authRes, err := appClient.CheckAuthorization(ctx, codersdk.AuthorizationRequest{
+			Checks: map[string]codersdk.AuthorizationCheck{
+				canCreateApplicationConnect: {
+					Object: codersdk.AuthorizationObject{
+						ResourceType:   "application_connect",
+						OwnerID:        "me",
+						OrganizationID: firstUser.OrganizationID.String(),
+						ResourceID:     uuid.NewString(),
+					},
+					Action: "create",
+				},
+				canReadUserMe: {
+					Object: codersdk.AuthorizationObject{
+						ResourceType: "user",
+						OwnerID:      "me",
+						ResourceID:   firstUser.UserID.String(),
+					},
+					Action: "read",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		require.True(t, authRes[canCreateApplicationConnect])
+		require.False(t, authRes[canReadUserMe])
+	})
+}
+
 // This test ensures that the subdomain handler does nothing if --app-hostname
 // is not set by the admin.
 func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {

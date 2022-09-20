@@ -174,14 +174,15 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 
 	assertRoute := map[string]RouteCheck{
 		// These endpoints do not require auth
-		"GET:/api/v2":                   {NoAuthorize: true},
-		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
-		"GET:/api/v2/users/first":       {NoAuthorize: true},
-		"POST:/api/v2/users/first":      {NoAuthorize: true},
-		"POST:/api/v2/users/login":      {NoAuthorize: true},
-		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
-		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
-		"GET:/api/v2/entitlements":      {NoAuthorize: true},
+		"GET:/api/v2":                      {NoAuthorize: true},
+		"GET:/api/v2/buildinfo":            {NoAuthorize: true},
+		"GET:/api/v2/users/first":          {NoAuthorize: true},
+		"POST:/api/v2/users/first":         {NoAuthorize: true},
+		"POST:/api/v2/users/login":         {NoAuthorize: true},
+		"GET:/api/v2/users/authmethods":    {NoAuthorize: true},
+		"POST:/api/v2/csp/reports":         {NoAuthorize: true},
+		"GET:/api/v2/entitlements":         {NoAuthorize: true},
+		"POST:/api/v2/authorization/can-i": {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -386,7 +387,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/users": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
+		"GET:/api/v2/users":                          {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
+		"GET:/api/v2/authorization/application-auth": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},

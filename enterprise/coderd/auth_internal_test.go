@@ -34,7 +34,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	a := coderdtest.NewAuthTester(ctx, t, &coderdtest.Options{APIBuilder: NewEnterprise})
+	a := coderdtest.NewAuthTester(ctx, t, &coderdtest.Options{
+		AppHostname: "test.coder.com",
+		APIBuilder:  NewEnterprise,
+	})
 
 	// We need a license in the DB, so that when we call GET api/v2/licenses there is one in the
 	// list to check authz on.

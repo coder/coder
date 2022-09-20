@@ -390,7 +390,7 @@ func New(options *Options) *API {
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
 
-					r.Post("/authorization", api.checkPermissions)
+					r.Post("/authorization", api.checkUserPermissions)
 
 					r.Route("/keys", func(r chi.Router) {
 						r.Post("/", api.postAPIKey)
@@ -496,6 +496,21 @@ func New(options *Options) *API {
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Mount("/", options.LicenseHandler)
+		})
+		r.Route("/authorization", func(r chi.Router) {
+			r.Route("/can-i", func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Post("/", api.checkAuthorization)
+			})
+
+			r.Route("/application-auth", func(r chi.Router) {
+				// We do want to redirect back on success.
+				r.Use(httpmw.ExtractAPIKey(options.Database, oauthConfigs, true))
+
+				// This is a GET request as it's redirected to by the subdomain app
+				// handler and the login page.
+				r.Get("/", api.workspaceApplicationAuth)
+			})
 		})
 	})
 

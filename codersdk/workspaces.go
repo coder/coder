@@ -51,7 +51,7 @@ type WorkspaceOptions struct {
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (o WorkspaceOptions) asRequestOption() requestOption {
+func (o WorkspaceOptions) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		if o.IncludeDeleted {
@@ -74,7 +74,7 @@ func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace,
 	return c.getWorkspace(ctx, id, o.asRequestOption())
 }
 
-func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...RequestOption) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
@@ -254,7 +254,7 @@ type WorkspaceFilter struct {
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (f WorkspaceFilter) asRequestOption() requestOption {
+func (f WorkspaceFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		var params []string
 		// Make sure all user input is quoted to ensure it's parsed as a single

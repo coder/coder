@@ -1032,6 +1032,7 @@ type createAPIKeyParams struct {
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
+	Scope           database.APIKeyScope
 }
 
 func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.Cookie, error) {
@@ -1056,6 +1057,12 @@ func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.
 		ip = net.IPv4(0, 0, 0, 0)
 	}
 	bitlen := len(ip) * 8
+
+	scope := database.APIKeyScopeAll
+	if params.Scope != "" {
+		scope = params.Scope
+	}
+
 	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
@@ -1073,7 +1080,7 @@ func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scope:        database.APIKeyScopeAll,
+		Scope:        scope,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert API key: %w", err)

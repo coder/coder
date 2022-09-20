@@ -28,7 +28,7 @@ type Pagination struct {
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (p Pagination) asRequestOption() requestOption {
+func (p Pagination) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		if p.AfterID != uuid.Nil {

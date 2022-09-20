@@ -7,6 +7,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
@@ -195,6 +196,91 @@ func parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, 
 	}
 
 	return app, true
+}
+
+func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
+	if api.AppHostname == "" {
+		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			Message: "The server does not accept subdomain-based application requests.",
+		})
+		return
+	}
+
+	apiKey := httpmw.APIKey(r)
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(apiKey.UserID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Get the redirect URI from the query parameters and parse it.
+	redirectURI := r.URL.Query().Get("redirect_uri")
+	if redirectURI == "" {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing redirect_uri query parameter.",
+		})
+		return
+	}
+	u, err := url.Parse(redirectURI)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid redirect_uri query parameter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Ensure that the redirect URI is a subdomain of api.AppHostname and is a
+	// valid app subdomain.
+	subdomain, rest := httpapi.SplitSubdomain(u.Hostname())
+	if !httpapi.HostnamesMatch(api.AppHostname, rest) {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The redirect_uri query parameter must be a valid app subdomain.",
+		})
+		return
+	}
+	_, err = httpapi.ParseSubdomainAppURL(subdomain)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The redirect_uri query parameter must be a valid app subdomain.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Create the application_connect-scoped API key with the same lifetime as
+	// the current session (defaulting to 1 day, capped to 1 week).
+	exp := apiKey.ExpiresAt
+	if exp.IsZero() {
+		exp = database.Now().Add(time.Hour * 24)
+	}
+	if time.Until(exp) > time.Hour*24*7 {
+		exp = database.Now().Add(time.Hour * 24 * 7)
+	}
+	lifetime := apiKey.LifetimeSeconds
+	if lifetime > int64((time.Hour * 24 * 7).Seconds()) {
+		lifetime = int64((time.Hour * 24 * 7).Seconds())
+	}
+
+	cookie, err := api.createAPIKey(r, createAPIKeyParams{
+		UserID:          apiKey.UserID,
+		LoginType:       database.LoginTypePassword,
+		ExpiresAt:       exp,
+		LifetimeSeconds: lifetime,
+		Scope:           database.APIKeyScopeApplicationConnect,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Redirect to the redirect URI with the API key in the query parameters.
+	q := u.Query()
+	q.Set("coder_api_key", cookie.Value)
+	u.RawQuery = q.Encode()
+	http.Redirect(rw, r, u.String(), http.StatusFound)
 }
 
 // proxyApplication are the required fields to proxy a workspace application.
