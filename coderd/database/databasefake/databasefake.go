@@ -2403,9 +2403,9 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
-		if arg.UserEmail != "" {
+		if arg.Email != "" {
 			user, err := q.GetUserByID(context.Background(), alog.UserID)
-			if err == nil && !strings.EqualFold(arg.UserEmail, user.Email) {
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
 				continue
 			}
 		}
@@ -2465,9 +2465,9 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 				continue
 			}
 		}
-		if arg.UserEmail != "" {
+		if arg.Email != "" {
 			user, err := q.GetUserByID(context.Background(), alog.UserID)
-			if err == nil && !strings.EqualFold(arg.UserEmail, user.Email) {
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
 				continue
 			}
 		}

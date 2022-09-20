@@ -46,8 +46,8 @@ WHERE
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN @user_email :: text != '' THEN
-			user_email = @user_email
+		WHEN @email :: text != '' THEN
+			user_email = @email
 		ELSE true
 	END
 ORDER BY
@@ -95,8 +95,8 @@ WHERE
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN @user_email :: text != '' THEN
-			user_email = @user_email
+		WHEN @email :: text != '' THEN
+			user_email = @email
 		ELSE true
 	END;
 

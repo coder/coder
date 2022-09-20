@@ -49,7 +49,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
 		Username:     filter.Username,
-		UserEmail:    filter.UserEmail,
+		Email:        filter.Email,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -83,7 +83,7 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
 		Username:     filter.Username,
-		UserEmail:    filter.UserEmail,
+		Email:        filter.Email,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -263,7 +263,7 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
 		Action:       parser.String(searchParams, "", "action"),
 		Username:     parser.String(searchParams, "", "username"),
-		UserEmail:    parser.String(searchParams, "", "user_email"),
+		Email:        parser.String(searchParams, "", "email"),
 	}
 
 	return filter, parser.Errors

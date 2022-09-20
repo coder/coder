@@ -362,7 +362,7 @@ type GetAuditLogCountParams struct {
 	ResourceTarget string    `db:"resource_target" json:"resource_target"`
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
-	UserEmail      string    `db:"user_email" json:"user_email"`
+	Email          string    `db:"email" json:"email"`
 }
 
 func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
@@ -372,7 +372,7 @@ func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountP
 		arg.ResourceTarget,
 		arg.Action,
 		arg.Username,
-		arg.UserEmail,
+		arg.Email,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -445,7 +445,7 @@ type GetAuditLogsOffsetParams struct {
 	ResourceTarget string    `db:"resource_target" json:"resource_target"`
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
-	UserEmail      string    `db:"user_email" json:"user_email"`
+	Email          string    `db:"email" json:"email"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -483,7 +483,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.ResourceTarget,
 		arg.Action,
 		arg.Username,
-		arg.UserEmail,
+		arg.Email,
 	)
 	if err != nil {
 		return nil, err

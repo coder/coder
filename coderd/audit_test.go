@@ -98,8 +98,8 @@ func TestAuditLogsFilter(t *testing.T) {
 				ExpectedResult: 1,
 			},
 			{
-				Name:           "FilterByUserEmail",
-				SearchQuery:    "user_email:" + coderdtest.FirstUserParams.Email,
+				Name:           "FilterByEmail",
+				SearchQuery:    "email:" + coderdtest.FirstUserParams.Email,
 				ExpectedResult: 3,
 			},
 			{
