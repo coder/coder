@@ -6,7 +6,7 @@ Add a Markdown button to your project's `README.md` to get your developers up an
 
 A basic example looks like this:
 
-```text
+```markdown
 [![Open in Coder](https://cdn.coder.com/embed-button.svg)](https://<deployment-url>/templates/<template-name>)
 ```
 
