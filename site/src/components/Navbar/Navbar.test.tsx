@@ -47,7 +47,7 @@ describe("Navbar", () => {
   it("does not show Audit Log link when not permitted via role", async () => {
     // set permissions to Member (can't audit)
     server.use(
-      rest.post(`/api/v2/users/${MockUser.id}/authorization`, async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockMemberPermissions))
       }),
     )

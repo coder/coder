@@ -21,7 +21,7 @@ describe("TemplatesPage", () => {
       rest.get("/api/v2/organizations/:organizationId/templates", (req, res, ctx) => {
         return res(ctx.status(200), ctx.json([]))
       }),
-      rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({
@@ -51,7 +51,7 @@ describe("TemplatesPage", () => {
       rest.get("/api/v2/organizations/:organizationId/templates", (req, res, ctx) => {
         return res(ctx.status(200), ctx.json([]))
       }),
-      rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({

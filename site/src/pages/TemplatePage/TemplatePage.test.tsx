@@ -47,7 +47,7 @@ describe("TemplatePage", () => {
   it("does not allow a member to delete a template", () => {
     // get member-level permissions
     server.use(
-      rest.post(`/api/v2/users/${MockUser.id}/authorization`, async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockMemberPermissions))
       }),
     )
