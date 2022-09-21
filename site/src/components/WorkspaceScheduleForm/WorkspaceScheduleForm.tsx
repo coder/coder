@@ -219,10 +219,10 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
     form.handleChange(e)
     if (form.values.autoStopEnabled) {
       // disable autostop, set TTL 0
-      await form.setFieldValue("ttl", 0)
+      await form.setValues({ ...form.values, autoStopEnabled: false, ttl: 0 })
     } else {
       // enable autostop, fill with default TTL
-      await form.setFieldValue("ttl", defaultTTL)
+      await form.setValues({ ...form.values, autoStopEnabled: true, ttl: defaultTTL })
     }
   }
 
