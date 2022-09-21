@@ -493,11 +493,9 @@ func New(options *Options) *API {
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
-		r.Route("/authorization", func(r chi.Router) {
-			r.Route("/can-i", func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				r.Post("/", api.checkAuthorization)
-			})
+		r.Route("/authcheck", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/", api.checkAuthorization)
 		})
 		r.Route("/applications", func(r chi.Router) {
 			r.Route("/host", func(r chi.Router) {

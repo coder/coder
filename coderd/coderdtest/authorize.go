@@ -37,15 +37,15 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 
 	assertRoute := map[string]RouteCheck{
 		// These endpoints do not require auth
-		"GET:/api/v2":                      {NoAuthorize: true},
-		"GET:/api/v2/buildinfo":            {NoAuthorize: true},
-		"GET:/api/v2/users/first":          {NoAuthorize: true},
-		"POST:/api/v2/users/first":         {NoAuthorize: true},
-		"POST:/api/v2/users/login":         {NoAuthorize: true},
-		"GET:/api/v2/users/authmethods":    {NoAuthorize: true},
-		"POST:/api/v2/csp/reports":         {NoAuthorize: true},
-		"POST:/api/v2/authorization/can-i": {NoAuthorize: true},
-		"GET:/api/v2/applications/host":    {NoAuthorize: true},
+		"GET:/api/v2":                   {NoAuthorize: true},
+		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
+		"GET:/api/v2/users/first":       {NoAuthorize: true},
+		"POST:/api/v2/users/first":      {NoAuthorize: true},
+		"POST:/api/v2/users/login":      {NoAuthorize: true},
+		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
+		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
+		"POST:/api/v2/authcheck":        {NoAuthorize: true},
+		"GET:/api/v2/applications/host": {NoAuthorize: true},
 		// This is a dummy endpoint for compatibility with older CLI versions.
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {NoAuthorize: true},
 

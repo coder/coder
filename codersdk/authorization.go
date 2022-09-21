@@ -60,7 +60,7 @@ type AuthorizationObject struct {
 }
 
 func (c *Client) CheckAuthorization(ctx context.Context, req AuthorizationRequest) (AuthorizationResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/authorization/can-i", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/authcheck", req)
 	if err != nil {
 		return nil, err
 	}
