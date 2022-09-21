@@ -21,8 +21,6 @@ export interface WorkspaceScheduleContext {
    * machine is partially influenced by workspaceXService.
    */
   workspace?: TypesGen.Workspace
-  // permissions
-  userId?: string
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
   submitScheduleError?: Error | unknown
@@ -178,8 +176,8 @@ export const workspaceSchedule = createMachine(
         return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
       },
       checkPermissions: async (context) => {
-        if (context.workspace && context.userId) {
-          return await API.checkUserPermissions(context.userId, {
+        if (context.workspace) {
+          return await API.checkAuthorization({
             checks: permissionsToCheck(context.workspace),
           })
         } else {

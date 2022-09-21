@@ -3,10 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 type AuthorizationResponse map[string]bool
@@ -70,17 +67,4 @@ func (c *Client) CheckAuthorization(ctx context.Context, req AuthorizationReques
 	}
 	var resp AuthorizationResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-func (c *Client) CheckUserPermissions(ctx context.Context, user uuid.UUID, checks AuthorizationRequest) (AuthorizationResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", user.String()), checks)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var roles AuthorizationResponse
-	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }

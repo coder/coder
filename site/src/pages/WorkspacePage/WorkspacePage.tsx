@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useActor, useMachine, useSelector } from "@xstate/react"
+import { useActor, useMachine } from "@xstate/react"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
@@ -14,7 +14,6 @@ import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
 import { canExtendDeadline, canReduceDeadline, maxDeadline, minDeadline } from "../../util/schedule"
 import { getFaviconByStatus } from "../../util/workspace"
-import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
@@ -25,17 +24,10 @@ export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-
   const { t } = useTranslation("workspacePage")
-
   const xServices = useContext(XServiceContext)
-  const me = useSelector(xServices.authXService, selectUser)
 
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
-    context: {
-      userId: me?.id,
-    },
-  })
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
     getWorkspaceError,

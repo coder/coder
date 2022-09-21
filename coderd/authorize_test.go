@@ -110,17 +110,6 @@ func TestCheckPermissions(t *testing.T) {
 	for _, c := range testCases {
 		c := c
 
-		t.Run("CheckUserPermissions/"+c.Name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			t.Cleanup(cancel)
-
-			resp, err := adminClient.CheckUserPermissions(ctx, c.UserID, codersdk.AuthorizationRequest{Checks: params})
-			require.NoError(t, err, "check perms")
-			require.Equal(t, c.Check, resp)
-		})
-
 		t.Run("CheckAuthorization/"+c.Name, func(t *testing.T) {
 			t.Parallel()
 
