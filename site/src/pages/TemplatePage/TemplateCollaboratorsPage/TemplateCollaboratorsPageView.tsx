@@ -12,13 +12,17 @@ import TableRow from "@material-ui/core/TableRow"
 import TextField from "@material-ui/core/TextField"
 import PersonAdd from "@material-ui/icons/PersonAdd"
 import Autocomplete from "@material-ui/lab/Autocomplete"
-import { TemplateUser } from "api/typesGenerated"
+import { useMachine } from "@xstate/react"
+import { TemplateUser, User } from "api/typesGenerated"
+import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
-import { FC, useState } from "react"
+import debounce from "just-debounce-it"
+import { ChangeEvent, FC, useState } from "react"
+import { searchUserMachine } from "xServices/users/searchUserXService"
 
 export interface TemplateCollaboratorsPageViewProps {
   deleteTemplateError: Error | unknown
@@ -29,12 +33,16 @@ export const TemplateCollaboratorsPageView: FC<
   React.PropsWithChildren<TemplateCollaboratorsPageViewProps>
 > = ({ deleteTemplateError, templateUsers }) => {
   const styles = useStyles()
-  const [open, setOpen] = useState(false)
-  const [options, setOptions] = useState([])
-  const isLoading = false
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
+  const [searchState, sendSearch] = useMachine(searchUserMachine)
+  const { searchResults } = searchState.context
   const deleteError = deleteTemplateError ? (
     <ErrorSummary error={deleteTemplateError} dismissible />
   ) : null
+
+  const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
+    sendSearch("SEARCH", { query: event.target.value })
+  }, 1000)
 
   return (
     <Stack spacing={2.5}>
@@ -43,17 +51,33 @@ export const TemplateCollaboratorsPageView: FC<
         <Autocomplete
           id="asynchronous-demo"
           style={{ width: 300 }}
-          open={open}
+          open={isAutocompleteOpen}
           onOpen={() => {
-            setOpen(true)
+            setIsAutocompleteOpen(true)
           }}
           onClose={() => {
-            setOpen(false)
+            setIsAutocompleteOpen(false)
           }}
-          getOptionSelected={(option: any, value: any) => option.name === value.name}
-          getOptionLabel={(option) => option.name}
-          options={options}
-          loading={isLoading}
+          getOptionSelected={(option: User, value: User) => option.username === value.username}
+          getOptionLabel={(option) => option.email}
+          renderOption={(option: User) => (
+            <AvatarData
+              title={option.username}
+              subtitle={option.email}
+              highlightTitle
+              avatar={
+                option.avatar_url ? (
+                  <img
+                    className={styles.avatar}
+                    alt={`${option.username}'s Avatar`}
+                    src={option.avatar_url}
+                  />
+                ) : null
+              }
+            />
+          )}
+          options={searchResults}
+          loading={searchState.matches("searching")}
           className={styles.autocomplete}
           renderInput={(params) => (
             <TextField
@@ -63,9 +87,10 @@ export const TemplateCollaboratorsPageView: FC<
               placeholder="User email or username"
               InputProps={{
                 ...params.InputProps,
+                onChange: handleFilterChange,
                 endAdornment: (
                   <>
-                    {isLoading ? <CircularProgress size={16} /> : null}
+                    {searchState.matches("searching") ? <CircularProgress size={16} /> : null}
                     {params.InputProps.endAdornment}
                   </>
                 ),
@@ -148,6 +173,12 @@ export const useStyles = makeStyles((theme) => {
       height: 36,
       fontSize: 14,
       width: 100,
+    },
+
+    avatar: {
+      width: theme.spacing(4.5),
+      height: theme.spacing(4.5),
+      borderRadius: "100%",
     },
   }
 })
