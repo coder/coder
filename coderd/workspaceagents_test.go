@@ -363,3 +363,111 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	expectLine(matchEchoCommand)
 	expectLine(matchEchoOutput)
 }
+
+func TestWorkspaceAgentAppHealth(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	apps := []*proto.App{
+		{
+			Name:    "code-server",
+			Command: "some-command",
+			Url:     "http://localhost:3000",
+			Icon:    "/code.svg",
+		},
+		{
+			Name:                 "code-server-2",
+			Command:              "some-command",
+			Url:                  "http://localhost:3000",
+			Icon:                 "/code.svg",
+			HealthcheckEnabled:   true,
+			HealthcheckUrl:       "http://localhost:3000",
+			HealthcheckInterval:  5,
+			HealthcheckThreshold: 6,
+		},
+	}
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+							Apps: apps,
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+
+	apiApps, err := agentClient.WorkspaceAgentApps(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, apiApps[0].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, apiApps[1].Health)
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{})
+	require.Error(t, err)
+	// empty
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{})
+	require.Error(t, err)
+	// invalid name
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"bad-name": codersdk.WorkspaceAppHealthDisabled,
+		},
+	})
+	require.Error(t, err)
+	// app.HealthEnabled == false
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server": codersdk.WorkspaceAppHealthInitializing,
+		},
+	})
+	require.Error(t, err)
+	// invalid value
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server-2": codersdk.WorkspaceAppHealth("bad-value"),
+		},
+	})
+	require.Error(t, err)
+	// update to healthy
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server-2": codersdk.WorkspaceAppHealthHealthy,
+		},
+	})
+	require.NoError(t, err)
+	apiApps, err = agentClient.WorkspaceAgentApps(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, apiApps[1].Health)
+	// update to unhealthy
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server-2": codersdk.WorkspaceAppHealthUnhealthy,
+		},
+	})
+	require.NoError(t, err)
+	apiApps, err = agentClient.WorkspaceAgentApps(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, apiApps[1].Health)
+}

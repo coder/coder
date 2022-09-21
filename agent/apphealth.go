@@ -54,7 +54,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 					}
 				}
 				var mu sync.RWMutex
-				var failures map[string]int
+				failures := make(map[string]int, 0)
 				go func() {
 					for {
 						select {

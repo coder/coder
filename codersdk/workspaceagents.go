@@ -363,7 +363,7 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 
 // MyWorkspaceAgent returns the requesting agent.
 func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/apps", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -377,13 +377,15 @@ func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error)
 
 // PostWorkspaceAgentAppHealth updates the workspace agent app health status.
 func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorkspaceAppHealthsRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/app-health", req)
 	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		return readBodyAsError(res)
 	}
-	// Discord the response
-	_, _ = io.Copy(io.Discard, res.Body)
-	_ = res.Body.Close()
+
 	return nil
 }
 

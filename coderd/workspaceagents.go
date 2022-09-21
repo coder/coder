@@ -701,6 +701,13 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if req.Healths == nil || len(req.Healths) == 0 {
+		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Health field is empty",
+		})
+		return
+	}
+
 	apps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
@@ -711,8 +718,8 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	var newApps []database.WorkspaceApp
-	for name, health := range req.Healths {
-		found := func() *database.WorkspaceApp {
+	for name, newHealth := range req.Healths {
+		old := func() *database.WorkspaceApp {
 			for _, app := range apps {
 				if app.Name == name {
 					return &app
@@ -721,7 +728,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 
 			return nil
 		}()
-		if found == nil {
+		if old == nil {
 			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
 				Detail:  xerrors.Errorf("workspace app name %s not found", name).Error(),
@@ -729,7 +736,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if !found.HealthcheckEnabled {
+		if !old.HealthcheckEnabled {
 			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
 				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", name).Error(),
@@ -737,27 +744,25 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		switch health {
+		switch newHealth {
 		case codersdk.WorkspaceAppHealthInitializing:
-			found.Health = database.WorkspaceAppHealthInitializing
 		case codersdk.WorkspaceAppHealthHealthy:
-			found.Health = database.WorkspaceAppHealthHealthy
 		case codersdk.WorkspaceAppHealthUnhealthy:
-			found.Health = database.WorkspaceAppHealthUnhealthy
 		default:
 			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", health).Error(),
+				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", newHealth).Error(),
 			})
 			return
 		}
 
 		// don't save if the value hasn't changed
-		if found.Health == database.WorkspaceAppHealth(health) {
+		if old.Health == database.WorkspaceAppHealth(newHealth) {
 			continue
 		}
+		old.Health = database.WorkspaceAppHealth(newHealth)
 
-		newApps = append(newApps, *found)
+		newApps = append(newApps, *old)
 	}
 
 	for _, app := range newApps {
