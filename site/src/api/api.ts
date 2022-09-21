@@ -110,9 +110,9 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
 
 export const checkUserPermissions = async (
   userId: string,
-  params: TypesGen.UserAuthorizationRequest,
-): Promise<TypesGen.UserAuthorizationResponse> => {
-  const response = await axios.post<TypesGen.UserAuthorizationResponse>(
+  params: TypesGen.AuthorizationRequest,
+): Promise<TypesGen.AuthorizationResponse> => {
+  const response = await axios.post<TypesGen.AuthorizationResponse>(
     `/api/v2/users/${userId}/authorization`,
     params,
   )

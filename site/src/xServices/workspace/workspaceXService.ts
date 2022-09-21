@@ -122,7 +122,7 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild[]
         }
         checkPermissions: {
-          data: TypesGen.UserAuthorizationResponse
+          data: TypesGen.AuthorizationResponse
         }
       },
     },

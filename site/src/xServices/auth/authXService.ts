@@ -114,7 +114,7 @@ export const authMachine =
             data: undefined
           }
           checkPermissions: {
-            data: TypesGen.UserAuthorizationResponse
+            data: TypesGen.AuthorizationResponse
           }
           getSSHKey: {
             data: TypesGen.GitSSHKey
