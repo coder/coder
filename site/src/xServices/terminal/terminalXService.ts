@@ -152,7 +152,7 @@ export const terminalMachine =
 
           const agent = resources
             .map((resource) => {
-              if (!resource.agents || resource.agents.length < 1) {
+              if (!resource.agents || resource.agents.length === 0) {
                 return
               }
               if (!context.agentName) {
