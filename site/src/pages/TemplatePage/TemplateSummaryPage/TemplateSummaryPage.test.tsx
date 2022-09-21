@@ -1,8 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react"
 import { rest } from "msw"
 import { ResizeObserver } from "resize-observer"
-import { server } from "testHelpers/server"
-import * as CreateDayString from "util/createDayString"
 import {
   MockMemberPermissions,
   MockTemplate,
@@ -10,8 +8,10 @@ import {
   MockUser,
   MockWorkspaceResource,
   renderWithAuth,
-} from "../../testHelpers/renderHelpers"
-import { TemplatePage } from "./TemplatePage"
+} from "testHelpers/renderHelpers"
+import { server } from "testHelpers/server"
+import * as CreateDayString from "util/createDayString"
+import { TemplateSummaryPage } from "./TemplateSummaryPage"
 
 jest.mock("remark-gfm", () => jest.fn())
 
@@ -19,13 +19,13 @@ Object.defineProperty(window, "ResizeObserver", {
   value: ResizeObserver,
 })
 
-describe("TemplatePage", () => {
+describe("TemplateSummaryPage", () => {
   it("shows the template name, readme and resources", async () => {
     // Mocking the dayjs module within the createDayString file
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
 
-    renderWithAuth(<TemplatePage />, {
+    renderWithAuth(<TemplateSummaryPage />, {
       route: `/templates/${MockTemplate.id}`,
       path: "/templates/:template",
     })
@@ -35,7 +35,7 @@ describe("TemplatePage", () => {
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
   })
   it("allows an admin to delete a template", async () => {
-    renderWithAuth(<TemplatePage />, {
+    renderWithAuth(<TemplateSummaryPage />, {
       route: `/templates/${MockTemplate.id}`,
       path: "/templates/:template",
     })
@@ -51,7 +51,7 @@ describe("TemplatePage", () => {
         return res(ctx.status(200), ctx.json(MockMemberPermissions))
       }),
     )
-    renderWithAuth(<TemplatePage />, {
+    renderWithAuth(<TemplateSummaryPage />, {
       route: `/templates/${MockTemplate.id}`,
       path: "/templates/:template",
     })
