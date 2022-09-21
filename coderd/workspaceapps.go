@@ -37,7 +37,7 @@ const (
 	redirectURIQueryParam     = "redirect_uri"
 )
 
-func (api *API) getAppHost(rw http.ResponseWriter, r *http.Request) {
+func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, codersdk.GetAppHostResponse{
 		Host: api.AppHostname,
 	})

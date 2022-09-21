@@ -503,7 +503,7 @@ func New(options *Options) *API {
 			r.Route("/host", func(r chi.Router) {
 				// Don't leak the hostname to unauthenticated users.
 				r.Use(apiKeyMiddleware)
-				r.Get("/", api.getAppHost)
+				r.Get("/", api.appHost)
 			})
 			r.Route("/auth-redirect", func(r chi.Router) {
 				// We want to redirect to login if they are not authenticated.
