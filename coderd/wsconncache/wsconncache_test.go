@@ -158,9 +158,8 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 			go coordinator.ServeAgent(serverConn, agentID)
 			return clientConn, nil
 		},
-		Logger:                     slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
-		ReconnectingPTYTimeout:     ptyTimeout,
-		WorkspaceAppHealthReporter: func(context.Context) {},
+		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
+		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()

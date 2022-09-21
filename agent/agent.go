@@ -67,9 +67,6 @@ type CoordinatorDialer func(context.Context) (net.Conn, error)
 // FetchMetadata is a function to obtain metadata for the agent.
 type FetchMetadata func(context.Context) (codersdk.WorkspaceAgentMetadata, error)
 
-type FetchWorkspaceApps func(context.Context) ([]codersdk.WorkspaceApp, error)
-type PostWorkspaceAppHealth func(context.Context, codersdk.PostWorkspaceAppHealthsRequest) error
-
 func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
@@ -158,7 +155,9 @@ func (a *agent) run(ctx context.Context) {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
 
-	go a.workspaceAppHealthReporter(ctx)
+	if a.workspaceAppHealthReporter != nil {
+		go a.workspaceAppHealthReporter(ctx)
+	}
 }
 
 func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {

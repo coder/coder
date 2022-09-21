@@ -108,10 +108,9 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 		agentCloser := agent.New(agent.Options{
-			FetchMetadata:              agentClient.WorkspaceAgentMetadata,
-			CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
-			Logger:                     slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-			WorkspaceAppHealthReporter: func(context.Context) {},
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -242,10 +241,9 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:              agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
-		Logger:                     slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-		WorkspaceAppHealthReporter: func(context.Context) {},
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer agentCloser.Close()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
@@ -308,10 +306,9 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:              agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
-		Logger:                     slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-		WorkspaceAppHealthReporter: func(context.Context) {},
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
 		_ = agentCloser.Close()

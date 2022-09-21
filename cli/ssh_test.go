@@ -89,10 +89,9 @@ func TestSSH(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agent.Options{
-			FetchMetadata:              agentClient.WorkspaceAgentMetadata,
-			CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
-			Logger:                     slogtest.Make(t, nil).Named("agent"),
-			WorkspaceAppHealthReporter: func(context.Context) {},
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent"),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -111,10 +110,9 @@ func TestSSH(t *testing.T) {
 			agentClient := codersdk.New(client.URL)
 			agentClient.SessionToken = agentToken
 			agentCloser := agent.New(agent.Options{
-				FetchMetadata:              agentClient.WorkspaceAgentMetadata,
-				CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
-				Logger:                     slogtest.Make(t, nil).Named("agent"),
-				WorkspaceAppHealthReporter: func(context.Context) {},
+				FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+				CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+				Logger:            slogtest.Make(t, nil).Named("agent"),
 			})
 			<-ctx.Done()
 			_ = agentCloser.Close()
@@ -180,10 +178,9 @@ func TestSSH(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agent.Options{
-			FetchMetadata:              agentClient.WorkspaceAgentMetadata,
-			CoordinatorDialer:          agentClient.ListenWorkspaceAgentTailnet,
-			Logger:                     slogtest.Make(t, nil).Named("agent"),
-			WorkspaceAppHealthReporter: func(context.Context) {},
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent"),
 		})
 		defer agentCloser.Close()
 
