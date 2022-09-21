@@ -6,6 +6,7 @@ import { TemplateContext } from "xServices/template/templateXService"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
 
 export const TemplateSummaryPage: FC<React.PropsWithChildren<unknown>> = () => {
+  const { templateContext } = useOutletContext<{ templateContext: TemplateContext }>()
   const {
     template,
     activeTemplateVersion,
@@ -13,7 +14,7 @@ export const TemplateSummaryPage: FC<React.PropsWithChildren<unknown>> = () => {
     templateVersions,
     deleteTemplateError,
     templateDAUs,
-  } = useOutletContext<TemplateContext>()
+  } = templateContext
 
   if (!template || !activeTemplateVersion || !templateResources) {
     throw new Error(

@@ -14,10 +14,9 @@ export const TemplateCollaboratorsPage: FC<React.PropsWithChildren<unknown>> = (
     templateContext: TemplateContext
     permissions: Permissions
   }>()
-  const { template, activeTemplateVersion, templateResources, deleteTemplateError } =
-    templateContext
+  const { template, deleteTemplateError } = templateContext
 
-  if (!template || !activeTemplateVersion || !templateResources) {
+  if (!template) {
     throw new Error(
       "This page should not be displayed until template, activeTemplateVersion or templateResources being loaded.",
     )
