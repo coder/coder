@@ -2,7 +2,7 @@
 
 > WARNING: this feature in Alpha and the API is subject to change.
 
-Add a markdown button to your project's `README.md` to get your developers up and running with Coder with a few clicks.
+Add a Markdown button to your project's `README.md` to get your developers up and running with Coder with a few clicks.
 
 A basic example looks like this:
 
