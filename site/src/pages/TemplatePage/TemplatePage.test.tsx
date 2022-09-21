@@ -7,7 +7,6 @@ import {
   MockMemberPermissions,
   MockTemplate,
   MockTemplateVersion,
-  MockUser,
   MockWorkspaceResource,
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
