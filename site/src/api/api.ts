@@ -486,3 +486,10 @@ export const getTemplateDAUs = async (
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }
+
+export const getTemplateUserRoles = async (
+  templateId: string,
+): Promise<TypesGen.TemplateUser[]> => {
+  const response = await axios.get(`/api/v2/templates/${templateId}/user-roles`)
+  return response.data
+}

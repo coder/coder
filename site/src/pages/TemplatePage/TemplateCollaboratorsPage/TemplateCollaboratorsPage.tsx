@@ -1,7 +1,9 @@
+import { useMachine } from "@xstate/react"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useOutletContext } from "react-router-dom"
 import { pageTitle } from "util/page"
+import { templateUsersMachine } from "xServices/template/templateUsersXService"
 import { TemplateContext } from "xServices/template/templateXService"
 import { TemplateCollaboratorsPageView } from "./TemplateCollaboratorsPageView"
 
@@ -15,12 +17,18 @@ export const TemplateCollaboratorsPage: FC<React.PropsWithChildren<unknown>> = (
     )
   }
 
+  const [state] = useMachine(templateUsersMachine, { context: { templateId: template.id } })
+  const { templateUsers } = state.context
+
   return (
     <>
       <Helmet>
         <title>{pageTitle(`${template.name} · Collaborators`)}</title>
       </Helmet>
-      <TemplateCollaboratorsPageView deleteTemplateError={deleteTemplateError} />
+      <TemplateCollaboratorsPageView
+        templateUsers={templateUsers}
+        deleteTemplateError={deleteTemplateError}
+      />
     </>
   )
 }
