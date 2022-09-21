@@ -248,9 +248,10 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 			return false
 		}
 
-		// Set the cookie for all subdomains of api.AppHostname.
+		// Set the app cookie for all subdomains of api.AppHostname. This cookie
+		// is handled properly by the ExtractAPIKey middleware.
 		http.SetCookie(rw, &http.Cookie{
-			Name:     codersdk.SessionTokenKey,
+			Name:     httpmw.DevURLSessionTokenCookie,
 			Value:    apiKey,
 			Domain:   "." + api.AppHostname,
 			Path:     "/",
