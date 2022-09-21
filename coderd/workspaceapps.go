@@ -1,8 +1,12 @@
 package coderd
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -11,6 +15,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
+	jose "gopkg.in/square/go-jose.v2"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -19,6 +25,16 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
+)
+
+const (
+	// This needs to be a super unique query parameter because we don't want to
+	// conflict with query parameters that users may use.
+	// TODO: this will make dogfooding harder so come up with a more unique
+	// solution
+	//nolint:gosec
+	subdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
+	redirectURIQueryParam     = "redirect_uri"
 )
 
 // workspaceAppsProxyPath proxies requests to a workspace application
@@ -215,13 +231,56 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 			return false
 		}
 
-		// Request should be all good to go.
+		// Request should be all good to go!
 		return true
 	}
 
-	// Request needs to be authenticated.
-	// TODO: redirect logic
-	httpapi.Forbidden(rw)
+	// If the request has the special query param then we need to set a cookie
+	// and strip that query parameter.
+	if encryptedAPIKey := r.URL.Query().Get(subdomainProxyAPIKeyParam); encryptedAPIKey != "" {
+		// Exchange the encoded API key for a real one.
+		_, apiKey, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Could not decrypt API key. Please remove the query parameter and try again.",
+				Detail:  err.Error(),
+			})
+			return false
+		}
+
+		// Set the cookie for all subdomains of api.AppHostname.
+		http.SetCookie(rw, &http.Cookie{
+			Name:     codersdk.SessionTokenKey,
+			Value:    apiKey,
+			Domain:   "." + api.AppHostname,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   api.SecureAuthCookie,
+		})
+
+		// Strip the query parameter.
+		q := r.URL.Query()
+		q.Del(subdomainProxyAPIKeyParam)
+		r.URL.RawQuery = q.Encode()
+
+		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+		return false
+	}
+
+	// If the user doesn't have a session key, redirect them to the API endpoint
+	// for application auth.
+	redirectURI := *r.URL
+	redirectURI.Scheme = api.AccessURL.Scheme
+	redirectURI.Host = host
+
+	u := *api.AccessURL
+	u.Path = "/api/v2/authorization/application-auth"
+	q := u.Query()
+	q.Add(redirectURIQueryParam, redirectURI.String())
+	u.RawQuery = q.Encode()
+
+	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 	return false
 }
 
@@ -242,7 +301,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	}
 
 	// Get the redirect URI from the query parameters and parse it.
-	redirectURI := r.URL.Query().Get("redirect_uri")
+	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
 	if redirectURI == "" {
 		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing redirect_uri query parameter.",
@@ -289,7 +348,6 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	if lifetime > int64((time.Hour * 24 * 7).Seconds()) {
 		lifetime = int64((time.Hour * 24 * 7).Seconds())
 	}
-
 	cookie, err := api.createAPIKey(r, createAPIKeyParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
@@ -305,11 +363,24 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Redirect to the redirect URI with the API key in the query parameters.
+	// Encrypt the API key.
+	encryptedAPIKey, err := encryptAPIKey(encryptedAPIKeyPayload{
+		APIKey: cookie.Value,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to encrypt API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Redirect to the redirect URI with the encrypted API key in the query
+	// parameters.
 	q := u.Query()
-	q.Set("coder_api_key", cookie.Value)
+	q.Set(subdomainProxyAPIKeyParam, encryptedAPIKey)
 	u.RawQuery = q.Encode()
-	http.Redirect(rw, r, u.String(), http.StatusFound)
+	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 }
 
 // proxyApplication are the required fields to proxy a workspace application.
@@ -439,22 +510,111 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	proxy.ServeHTTP(rw, r)
 }
 
-// applicationCookie is a helper function to copy the auth cookie to also
-// support subdomains. Until we support creating authentication cookies that can
-// only do application authentication, we will just reuse the original token.
-// This code should be temporary and be replaced with something that creates
-// a unique session_token.
-//
-// Returns nil if the access URL isn't a hostname.
-func (api *API) applicationCookie(authCookie *http.Cookie) *http.Cookie {
-	if net.ParseIP(api.AccessURL.Hostname()) != nil {
-		return nil
+type encryptedAPIKeyPayload struct {
+	APIKey    string    `json:"api_key"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
+	if data.APIKey == "" {
+		return "", xerrors.New("API key is empty")
+	}
+	if data.ExpiresAt.IsZero() {
+		// Very short expiry as these keys are only used once as part of an
+		// automatic redirection flow.
+		data.ExpiresAt = database.Now().Add(time.Minute)
 	}
 
-	appCookie := *authCookie
-	// We only support setting this cookie on the access URL subdomains. This is
-	// to ensure we don't accidentally leak the auth cookie to subdomains on
-	// another hostname.
-	appCookie.Domain = "." + api.AccessURL.Hostname()
-	return &appCookie
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return "", xerrors.Errorf("marshal payload: %w", err)
+	}
+
+	// We use the hashed key secret as the encryption key. The hashed secret is
+	// stored in the API keys table.
+	//
+	// We chose to use the key secret as the private key for encryption instead
+	// of a shared key for a few reasons:
+	//   1. A shared key would also be stored in the database, which means that
+	//      the risk factor is similar.
+	//   2. The secret essentially rotates for each key (for free!), since each
+	//      key has a different secret. This means that if someone acquires an
+	//      old database dump they can't decrypt new API keys.
+	//   3. These tokens are scoped only for application_connect access.
+	keyID, keySecret, err := httpmw.SplitAPIToken(data.APIKey)
+	if err != nil {
+		return "", xerrors.Errorf("split API key: %w", err)
+	}
+	privateKey := sha256.Sum256([]byte(keySecret))
+
+	// JWEs seem to apply a nonce themselves.
+	encrypter, err := jose.NewEncrypter(
+		jose.A256GCM,
+		jose.Recipient{
+			Algorithm: jose.A256GCMKW,
+			KeyID:     keyID,
+			Key:       privateKey[:],
+		},
+		&jose.EncrypterOptions{
+			Compression: jose.DEFLATE,
+		},
+	)
+	if err != nil {
+		return "", xerrors.Errorf("initializer jose encrypter: %w", err)
+	}
+	encryptedObject, err := encrypter.Encrypt(payload)
+	if err != nil {
+		return "", xerrors.Errorf("encrypt jwe: %w", err)
+	}
+
+	encrypted := encryptedObject.FullSerialize()
+	return base64.RawURLEncoding.EncodeToString([]byte(encrypted)), nil
+}
+
+func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey string) (database.APIKey, string, error) {
+	encrypted, err := base64.RawURLEncoding.DecodeString(encryptedAPIKey)
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("base64 decode encrypted API key: %w", err)
+	}
+
+	object, err := jose.ParseEncrypted(string(encrypted))
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("parse encrypted API key: %w", err)
+	}
+
+	// Lookup the API key so we can decrypt it.
+	keyID := object.Header.KeyID
+	key, err := db.GetAPIKeyByID(ctx, keyID)
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("get API key by key ID: %w", err)
+	}
+
+	// Decrypt using the hashed secret.
+	decrypted, err := object.Decrypt(key.HashedSecret)
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("decrypt API key: %w", err)
+	}
+
+	// Unmarshal the payload.
+	var payload encryptedAPIKeyPayload
+	if err := json.Unmarshal(decrypted, &payload); err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("unmarshal decrypted payload: %w", err)
+	}
+
+	// Validate expiry.
+	if payload.ExpiresAt.Before(database.Now()) {
+		return database.APIKey{}, "", xerrors.New("encrypted API key expired")
+	}
+
+	// Validate that the key matches the one we got from the DB.
+	gotKeyID, gotKeySecret, err := httpmw.SplitAPIToken(payload.APIKey)
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("split API key: %w", err)
+	}
+	gotHashedSecret := sha256.Sum256([]byte(gotKeySecret))
+	if gotKeyID != key.ID || !bytes.Equal(key.HashedSecret, gotHashedSecret[:]) {
+		return database.APIKey{}, "", xerrors.New("encrypted API key does not match key in database")
+	}
+
+	return key, payload.APIKey, nil
 }

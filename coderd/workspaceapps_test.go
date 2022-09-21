@@ -38,9 +38,9 @@ const (
 )
 
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
-// codersdk client, the workspace, and the port number the test listener is
-// running on.
-func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspace, uint16) {
+// codersdk client, the first user, the workspace, and the port number the test
+// listener is running on.
+func setupProxyTest(t *testing.T) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -128,12 +128,12 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 	}
 	client.HTTPClient.Transport = transport
 
-	return client, user.OrganizationID, workspace, uint16(tcpAddr.Port)
+	return client, user, workspace, uint16(tcpAddr.Port)
 }
 
 func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Parallel()
-	client, orgID, workspace, _ := setupProxyTest(t)
+	client, firstUser, workspace, _ := setupProxyTest(t)
 
 	t.Run("LoginWithoutAuth", func(t *testing.T) {
 		t.Parallel()
@@ -159,7 +159,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Run("NoAccessShould404", func(t *testing.T) {
 		t.Parallel()
 
-		userClient := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleMember())
+		userClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 		userClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		userClient.HTTPClient.Transport = client.HTTPClient.Transport
 
@@ -231,66 +231,84 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 func TestWorkspaceApplicationAuth(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T, appHostname string) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
-		client := coderdtest.New(t, &coderdtest.Options{
-			AppHostname: proxyTestSubdomain,
-		})
-		firstUser := coderdtest.CreateFirstUser(t, client)
-
-		// Configure the HTTP client to not follow redirects and to route all
-		// requests regardless of hostname to the coderd test server.
-		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-		require.True(t, ok)
-		transport := defaultTransport.Clone()
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
-		}
-		client.HTTPClient.Transport = transport
-
-		return client, firstUser
-	}
-
-	t.Run("OK", func(t *testing.T) {
+	// The OK test checks the entire end-to-end flow of authentication.
+	t.Run("End-to-End", func(t *testing.T) {
 		t.Parallel()
 
-		client, firstUser := setup(t, proxyTestSubdomain)
+		client, firstUser, workspace, _ := setupProxyTest(t)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Get the current API key.
+		// Get the current user and API key.
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
 		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken, "-")[0])
 		require.NoError(t, err)
 
-		u, err := url.Parse(fmt.Sprintf("http://app--agent--workspace--user.%s/test", proxyTestSubdomain))
+		// Try to load the application without authentication.
+		subdomain := fmt.Sprintf("%s--%s--%s--%s", proxyTestAppName, proxyTestAgentName, workspace.Name, user.Username)
+		u, err := url.Parse(fmt.Sprintf("http://%s.%s/test", subdomain, proxyTestSubdomain))
 		require.NoError(t, err)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		// Check that the Location is correct.
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		gotLocation, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, client.URL.Host, gotLocation.Host)
+		require.Equal(t, "/api/v2/authorization/application-auth", gotLocation.Path)
+		require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
+
+		// Load the application-auth endpoint.
 		qp := codersdk.AddQueryParams(map[string]string{
 			"redirect_uri": u.String(),
 		})
-
-		resp, err := client.Request(ctx, http.MethodGet, "/api/v2/authorization/application-auth", nil, qp)
+		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/authorization/application-auth", nil, qp)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Equal(t, http.StatusFound, resp.StatusCode)
-		got, err := resp.Location()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		gotLocation, err = resp.Location()
 		require.NoError(t, err)
 
 		// Copy the query parameters and then check equality.
-		u.RawQuery = got.RawQuery
-		require.Equal(t, u, got)
+		u.RawQuery = gotLocation.RawQuery
+		require.Equal(t, u, gotLocation)
 
-		// Verify the API key details
-		apiKey := got.Query().Get("coder_api_key")
-		require.NotEmpty(t, apiKey)
+		// Verify the API key is set.
+		var encryptedAPIKey string
+		for k, v := range gotLocation.Query() {
+			// The query parameter may change dynamically in the future and is
+			// not exported, so we just use a fuzzy check instead.
+			if strings.Contains(k, "api_key") {
+				encryptedAPIKey = v[0]
+			}
+		}
+		require.NotEmpty(t, encryptedAPIKey, "no API key was set in the query parameters")
+
+		// Decrypt the API key by following the request.
+		t.Log("navigating to: ", gotLocation.String())
+		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+		require.NoError(t, err)
+		resp, err = client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		cookies := resp.Cookies()
+		require.Len(t, cookies, 1)
+		apiKey := cookies[0].Value
+
+		// Fetch the API key.
 		apiKeyInfo, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
 		require.NoError(t, err)
+		require.Equal(t, user.ID, apiKeyInfo.UserID)
 		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
 		require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
-		require.Equal(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
 
 		// Verify the API key permissions
 		appClient := codersdk.New(client.URL)
@@ -327,6 +345,75 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 
 		require.True(t, authRes[canCreateApplicationConnect])
 		require.False(t, authRes[canReadUserMe])
+
+		// Load the application page with the API key set.
+		gotLocation, err = resp.Location()
+		require.NoError(t, err)
+		t.Log("navigating to: ", gotLocation.String())
+		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
+		resp, err = client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("VerifyRedirectURI", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, _, _ := setupProxyTest(t)
+
+		cases := []struct {
+			name            string
+			redirectURI     string
+			status          int
+			messageContains string
+		}{
+			{
+				name:            "NoRedirectURI",
+				redirectURI:     "",
+				status:          http.StatusBadRequest,
+				messageContains: "Missing redirect_uri query parameter",
+			},
+			{
+				name:            "InvalidURI",
+				redirectURI:     "not a url",
+				status:          http.StatusBadRequest,
+				messageContains: "Invalid redirect_uri query parameter",
+			},
+			{
+				name:            "NotMatchAppHostname",
+				redirectURI:     "https://app--agent--workspace--user.not-a-match.com",
+				status:          http.StatusBadRequest,
+				messageContains: "The redirect_uri query parameter must be a valid app subdomain",
+			},
+			{
+				name:            "InvalidAppURL",
+				redirectURI:     "https://not-an-app." + proxyTestSubdomain,
+				status:          http.StatusBadRequest,
+				messageContains: "The redirect_uri query parameter must be a valid app subdomain",
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+				qp := map[string]string{}
+				if c.redirectURI != "" {
+					qp["redirect_uri"] = c.redirectURI
+				}
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/authorization/application-auth", nil, codersdk.AddQueryParams(qp))
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			})
+		}
 	})
 }
 
@@ -436,7 +523,7 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 
 func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Parallel()
-	client, orgID, workspace, port := setupProxyTest(t)
+	client, firstUser, workspace, port := setupProxyTest(t)
 
 	// proxyURL generates a URL for the proxy subdomain. The default path is a
 	// slash.
@@ -482,38 +569,10 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		}).String()
 	}
 
-	// TODO: reimplement this test with the new subdomain auth redirect logic
-	/*
-		t.Run("LoginWithoutAuth", func(t *testing.T) {
-			t.Parallel()
-			unauthedClient := codersdk.New(client.URL)
-			unauthedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-			unauthedClient.HTTPClient.Transport = client.HTTPClient.Transport
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			resp, err := unauthedClient.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppName), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-			loc, err := resp.Location()
-			require.NoError(t, err)
-			require.True(t, loc.Query().Has("message"))
-			require.False(t, loc.Query().Has("redirect"))
-
-			expectedURL := *client.URL
-			expectedURL.Path = "/login"
-			loc.RawQuery = ""
-			require.Equal(t, &expectedURL, loc)
-		})
-	*/
-
 	t.Run("NoAccessShould401", func(t *testing.T) {
 		t.Parallel()
 
-		userClient := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleMember())
+		userClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 		userClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		userClient.HTTPClient.Transport = client.HTTPClient.Transport
 

@@ -154,7 +154,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			keyID, keySecret, err := splitAPIToken(token)
+			keyID, keySecret, err := SplitAPIToken(token)
 			if err != nil {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: signedOutErrorMessage,
@@ -377,11 +377,11 @@ func apiTokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-// splitAPIToken verifies the format of an API key and returns the split ID and
+// SplitAPIToken verifies the format of an API key and returns the split ID and
 // secret.
 //
 // APIKeys are formatted: ${ID}-${SECRET}
-func splitAPIToken(token string) (id string, secret string, err error) {
+func SplitAPIToken(token string) (id string, secret string, err error) {
 	parts := strings.Split(token, "-")
 	if len(parts) != 2 {
 		return "", "", xerrors.Errorf("incorrect amount of API key parts, expected 2 got %d", len(parts))
