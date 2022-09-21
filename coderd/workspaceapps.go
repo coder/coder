@@ -569,6 +569,8 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	if err != nil {
 		return "", xerrors.Errorf("split API key: %w", err)
 	}
+	// SHA256 the key secret so it matches the hashed secret in the database.
+	// The key length doesn't matter to the jose.Encrypter.
 	privateKey := sha256.Sum256([]byte(keySecret))
 
 	// JWEs seem to apply a nonce themselves.
