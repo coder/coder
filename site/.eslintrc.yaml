@@ -30,6 +30,7 @@ plugins:
   - react-hooks
   - jest
   - no-storage
+  - unicorn
 root: true
 rules:
   "@typescript-eslint/brace-style":
@@ -119,6 +120,7 @@ rules:
   react/jsx-key: error
   react/jsx-uses-react: "off"
   react/react-in-jsx-scope: "off"
+  "unicorn/explicit-length-check": "error"
 settings:
   react:
     version: detect

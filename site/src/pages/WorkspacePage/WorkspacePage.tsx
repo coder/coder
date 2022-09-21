@@ -43,9 +43,8 @@ export const WorkspacePage: FC = () => {
     workspace,
     getWorkspaceError,
     template,
-    refreshTemplateError,
-    resources,
-    getResourcesError,
+    refreshTemplateWarning,
+    refreshWorkspaceWarning,
     builds,
     getBuildsError,
     permissions,
@@ -73,7 +72,7 @@ export const WorkspacePage: FC = () => {
     return (
       <div className={styles.error}>
         {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-        {Boolean(refreshTemplateError) && <ErrorSummary error={refreshTemplateError} />}
+        {Boolean(refreshTemplateWarning) && <ErrorSummary error={refreshTemplateWarning} />}
         {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
@@ -131,12 +130,12 @@ export const WorkspacePage: FC = () => {
           handleDelete={() => workspaceSend("ASK_DELETE")}
           handleUpdate={() => workspaceSend("UPDATE")}
           handleCancel={() => workspaceSend("CANCEL")}
-          resources={resources}
+          resources={workspace.latest_build.resources}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
           hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
           workspaceErrors={{
-            [WorkspaceErrors.GET_RESOURCES_ERROR]: getResourcesError,
+            [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
             [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
             [WorkspaceErrors.BUILD_ERROR]: buildError,
             [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,

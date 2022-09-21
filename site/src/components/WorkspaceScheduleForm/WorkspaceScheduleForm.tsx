@@ -17,7 +17,7 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FormikTouched, useFormik } from "formik"
-import { defaultSchedule } from "pages/WorkspaceSchedulePage/schedule"
+import { defaultSchedule, emptySchedule } from "pages/WorkspaceSchedulePage/schedule"
 import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
@@ -52,6 +52,7 @@ export const Language = {
   daySaturdayLabel: "Saturday",
   startTimeLabel: "Start time",
   startTimeHelperText: "Your workspace will automatically start at this time.",
+  noStartTimeHelperText: "Your workspace will not automatically start.",
   timezoneLabel: "Timezone",
   ttlLabel: "Time until shutdown (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
@@ -205,17 +206,23 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
 
   const handleToggleAutoStart = async (e: ChangeEvent) => {
     form.handleChange(e)
-    // if enabling from empty values, fill with defaults
-    if (!form.values.autoStartEnabled && !form.values.startTime) {
+    if (form.values.autoStartEnabled) {
+      // disable autostart, clear values
+      await form.setValues({ ...form.values, autoStartEnabled: false, ...emptySchedule })
+    } else {
+      // enable autostart, fill with defaults
       await form.setValues({ ...form.values, autoStartEnabled: true, ...defaultSchedule() })
     }
   }
 
   const handleToggleAutoStop = async (e: ChangeEvent) => {
     form.handleChange(e)
-    // if enabling from empty values, fill with defaults
-    if (!form.values.autoStopEnabled && !form.values.ttl) {
-      await form.setFieldValue("ttl", defaultTTL)
+    if (form.values.autoStopEnabled) {
+      // disable autostop, set TTL 0
+      await form.setValues({ ...form.values, autoStopEnabled: false, ttl: 0 })
+    } else {
+      // enable autostop, fill with default TTL
+      await form.setValues({ ...form.values, autoStopEnabled: true, ttl: defaultTTL })
     }
   }
 
@@ -237,7 +244,12 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
               label={Language.startSwitch}
             />
             <TextField
-              {...formHelpers("startTime", Language.startTimeHelperText)}
+              {...formHelpers(
+                "startTime",
+                form.values.autoStartEnabled
+                  ? Language.startTimeHelperText
+                  : Language.noStartTimeHelperText,
+              )}
               disabled={isLoading || !form.values.autoStartEnabled}
               InputLabelProps={{
                 shrink: true,
