@@ -538,6 +538,9 @@ type encryptedAPIKeyPayload struct {
 // encryptAPIKey encrypts an API key with it's own hashed secret. This is used
 // for smuggling (application_connect scoped) API keys securely to app
 // hostnames.
+//
+// We encrypt API keys when smuggling them in query parameters to avoid them
+// getting accidentally logged in access logs or stored in browser history.
 func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	if data.APIKey == "" {
 		return "", xerrors.New("API key is empty")
@@ -559,8 +562,8 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	//
 	// We chose to use the key secret as the private key for encryption instead
 	// of a shared key for a few reasons:
-	//   1. A shared key would also be stored in the database, which means that
-	//      the risk factor is similar.
+	//   1. A single private key used to encrypt every API key would also be
+	//      stored in the database, which means that the risk factor is similar.
 	//   2. The secret essentially rotates for each key (for free!), since each
 	//      key has a different secret. This means that if someone acquires an
 	//      old database dump they can't decrypt new API keys.
