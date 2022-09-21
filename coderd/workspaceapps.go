@@ -269,11 +269,18 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 		})
 
 		// Strip the query parameter.
+		path := r.URL.Path
+		if path == "" {
+			path = "/"
+		}
 		q := r.URL.Query()
 		q.Del(subdomainProxyAPIKeyParam)
-		r.URL.RawQuery = q.Encode()
+		rawQuery := q.Encode()
+		if rawQuery != "" {
+			path += "?" + q.Encode()
+		}
 
-		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+		http.Redirect(rw, r, path, http.StatusTemporaryRedirect)
 		return false
 	}
 
@@ -326,6 +333,9 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	// Force the redirect URI to use the same scheme as the access URL for
+	// security purposes.
+	u.Scheme = api.AccessURL.Scheme
 
 	// Ensure that the redirect URI is a subdomain of api.AppHostname and is a
 	// valid app subdomain.
