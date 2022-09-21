@@ -264,6 +264,11 @@ export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
+// From codersdk/workspaces.go
+export interface GetAppHostResponse {
+  readonly host: string
+}
+
 // From codersdk/gitsshkey.go
 export interface GitSSHKey {
   readonly user_id: string
