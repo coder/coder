@@ -36,7 +36,7 @@ const (
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
 // codersdk client, the workspace, and the port number the test listener is
 // running on.
-func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspace, uint16) {
+func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (*codersdk.Client, uuid.UUID, codersdk.Workspace, uint16) {
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -58,7 +58,9 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 	require.True(t, ok)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+		IncludeProvisionerDaemon:    true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
@@ -95,7 +97,7 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, workspaceMutators...)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
@@ -104,6 +106,7 @@ func setupProxyTest(t *testing.T) (*codersdk.Client, uuid.UUID, codersdk.Workspa
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
+		StatsReporter:     agentClient.AgentReportStats,
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

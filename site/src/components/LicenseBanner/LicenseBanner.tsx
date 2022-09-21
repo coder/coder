@@ -13,7 +13,7 @@ export const LicenseBanner: React.FC = () => {
     entitlementsSend("GET_ENTITLEMENTS")
   }, [entitlementsSend])
 
-  if (warnings.length) {
+  if (warnings.length > 0) {
     return <LicenseBannerView warnings={warnings} />
   } else {
     return null

@@ -45,7 +45,7 @@ export const EnterpriseSnackbar: FC<React.PropsWithChildren<EnterpriseSnackbarPr
         <div className={styles.actionWrapper}>
           {action}
           <IconButton onClick={onClose} className={styles.iconButton}>
-            <CloseIcon className={styles.closeIcon} />
+            <CloseIcon className={styles.closeIcon} aria-label="close" />
           </IconButton>
         </div>
       }
