@@ -84,7 +84,7 @@ export const entitlementsMachine = createMachine(
       }),
     },
     services: {
-      getEntitlements: () => API.getEntitlements(),
+      getEntitlements: API.getEntitlements,
     },
   },
 )

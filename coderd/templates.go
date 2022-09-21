@@ -85,11 +85,12 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionDelete,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
 		})
 	)
 	defer commitAudit()
@@ -139,17 +140,18 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		createTemplate                     codersdk.CreateTemplateRequest
 		organization                       = httpmw.OrganizationParam(r)
 		apiKey                             = httpmw.APIKey(r)
+		auditor                            = *api.Auditor.Load()
 		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionCreate,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
 		})
 		templateVersionAudit, commitTemplateVersionAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitTemplateAudit()
@@ -340,7 +342,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Filter templates based on rbac permissions
-	templates, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, templates)
+	templates, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, templates)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching templates.",
@@ -435,11 +437,12 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		template          = httpmw.TemplateParam(r)
+		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Features: api.FeaturesService,
-			Log:      api.Logger,
-			Request:  r,
-			Action:   database.AuditActionWrite,
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()

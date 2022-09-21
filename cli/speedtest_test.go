@@ -25,7 +25,6 @@ func TestSpeedtest(t *testing.T) {
 	agentClient.SessionToken = agentToken
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})

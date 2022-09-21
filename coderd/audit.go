@@ -46,7 +46,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Offset:       int32(page.Offset),
 		Limit:        int32(page.Limit),
 		ResourceType: filter.ResourceType,
+		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
+		Username:     filter.Username,
+		Email:        filter.Email,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -77,7 +80,10 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 
 	count, err := api.Database.GetAuditLogCount(ctx, database.GetAuditLogCountParams{
 		ResourceType: filter.ResourceType,
+		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
+		Username:     filter.Username,
+		Email:        filter.Email,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -134,6 +140,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if params.ResourceType == "" {
 		params.ResourceType = codersdk.ResourceTypeUser
 	}
+	if params.ResourceID == uuid.Nil {
+		params.ResourceID = uuid.New()
+	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
@@ -142,7 +151,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Ip:               ipNet,
 		UserAgent:        r.UserAgent(),
 		ResourceType:     database.ResourceType(params.ResourceType),
-		ResourceID:       user.ID,
+		ResourceID:       params.ResourceID,
 		ResourceTarget:   user.Username,
 		Action:           database.AuditAction(params.Action),
 		Diff:             diff,
@@ -251,7 +260,10 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
 		ResourceType: parser.String(searchParams, "", "resource_type"),
+		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
 		Action:       parser.String(searchParams, "", "action"),
+		Username:     parser.String(searchParams, "", "username"),
+		Email:        parser.String(searchParams, "", "email"),
 	}
 
 	return filter, parser.Errors

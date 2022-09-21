@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -47,6 +48,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		ctx := context.Background()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		userResourceID := uuid.New()
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
@@ -57,6 +59,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeUser,
+			ResourceID:   userResourceID,
 		})
 		require.NoError(t, err)
 
@@ -64,6 +67,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionDelete,
 			ResourceType: codersdk.ResourceTypeUser,
+			ResourceID:   userResourceID,
 		})
 		require.NoError(t, err)
 
@@ -93,9 +97,25 @@ func TestAuditLogsFilter(t *testing.T) {
 				SearchQuery:    "resource_type:template",
 				ExpectedResult: 1,
 			},
+			{
+				Name:           "FilterByEmail",
+				SearchQuery:    "email:" + coderdtest.FirstUserParams.Email,
+				ExpectedResult: 3,
+			},
+			{
+				Name:           "FilterByUsername",
+				SearchQuery:    "username:" + coderdtest.FirstUserParams.Username,
+				ExpectedResult: 3,
+			},
+			{
+				Name:           "FilterByResourceID",
+				SearchQuery:    "resource_id:" + userResourceID.String(),
+				ExpectedResult: 2,
+			},
 		}
 
 		for _, testCase := range testCases {
+			// Test filtering
 			t.Run(testCase.Name, func(t *testing.T) {
 				t.Parallel()
 				auditLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
@@ -107,75 +127,15 @@ func TestAuditLogsFilter(t *testing.T) {
 				require.NoError(t, err, "fetch audit logs")
 				require.Len(t, auditLogs.AuditLogs, testCase.ExpectedResult, "expected audit logs returned")
 			})
-		}
-	})
-}
 
-func TestAuditLogCountFilter(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Filter", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		// Create two logs with "Create"
-		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:       codersdk.AuditActionCreate,
-			ResourceType: codersdk.ResourceTypeTemplate,
-		})
-		require.NoError(t, err)
-		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:       codersdk.AuditActionCreate,
-			ResourceType: codersdk.ResourceTypeUser,
-		})
-		require.NoError(t, err)
-
-		// Create one log with "Delete"
-		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:       codersdk.AuditActionDelete,
-			ResourceType: codersdk.ResourceTypeUser,
-		})
-		require.NoError(t, err)
-
-		// Test cases
-		testCases := []struct {
-			Name           string
-			SearchQuery    string
-			ExpectedResult int64
-		}{
-			{
-				Name:           "FilterByCreateAction",
-				SearchQuery:    "action:create",
-				ExpectedResult: 2,
-			},
-			{
-				Name:           "FilterByDeleteAction",
-				SearchQuery:    "action:delete",
-				ExpectedResult: 1,
-			},
-			{
-				Name:           "FilterByUserResourceType",
-				SearchQuery:    "resource_type:user",
-				ExpectedResult: 2,
-			},
-			{
-				Name:           "FilterByTemplateResourceType",
-				SearchQuery:    "resource_type:template",
-				ExpectedResult: 1,
-			},
-		}
-
-		for _, testCase := range testCases {
-			t.Run(testCase.Name, func(t *testing.T) {
+			// Test count filtering
+			t.Run("GetCount"+testCase.Name, func(t *testing.T) {
 				t.Parallel()
 				response, err := client.AuditLogCount(ctx, codersdk.AuditLogCountRequest{
 					SearchQuery: testCase.SearchQuery,
 				})
 				require.NoError(t, err, "fetch audit logs count")
-				require.Equal(t, response.Count, testCase.ExpectedResult, "expected audit logs count returned")
+				require.Equal(t, int(response.Count), testCase.ExpectedResult, "expected audit logs count returned")
 			})
 		}
 	})

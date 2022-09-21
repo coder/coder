@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"net/netip"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -34,8 +33,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
@@ -64,7 +61,6 @@ var (
 
 type Options struct {
 	CoordinatorDialer CoordinatorDialer
-	WebRTCDialer      WebRTCDialer
 	FetchMetadata     FetchMetadata
 
 	StatsReporter          StatsReporter
@@ -80,8 +76,6 @@ type Metadata struct {
 	Directory            string            `json:"directory"`
 }
 
-type WebRTCDialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error)
-
 // CoordinatorDialer is a function that constructs a new broker.
 // A dialer must be passed in to allow for reconnects.
 type CoordinatorDialer func(ctx context.Context) (net.Conn, error)
@@ -95,7 +89,6 @@ func New(options Options) io.Closer {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		webrtcDialer:           options.WebRTCDialer,
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
 		logger:                 options.Logger,
 		closeCancel:            cancelFunc,
@@ -111,8 +104,7 @@ func New(options Options) io.Closer {
 }
 
 type agent struct {
-	webrtcDialer WebRTCDialer
-	logger       slog.Logger
+	logger slog.Logger
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -173,9 +165,6 @@ func (a *agent) run(ctx context.Context) {
 		}
 	}()
 
-	if a.webrtcDialer != nil {
-		go a.runWebRTCNetworking(ctx)
-	}
 	if metadata.DERPMap != nil {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
@@ -326,49 +315,6 @@ func (a *agent) runCoordinator(ctx context.Context) {
 	}
 }
 
-func (a *agent) runWebRTCNetworking(ctx context.Context) {
-	var peerListener *peerbroker.Listener
-	var err error
-	// An exponential back-off occurs when the connection is failing to dial.
-	// This is to prevent server spam in case of a coderd outage.
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = a.webrtcDialer(ctx, a.logger)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if a.isClosed() {
-				return
-			}
-			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
-			continue
-		}
-		a.logger.Info(context.Background(), "connected to webrtc broker")
-		break
-	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
-	for {
-		conn, err := peerListener.Accept()
-		if err != nil {
-			if a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
-			a.runWebRTCNetworking(ctx)
-			return
-		}
-		a.closeMutex.Lock()
-		a.connCloseWait.Add(1)
-		a.closeMutex.Unlock()
-		go a.handlePeerConn(ctx, conn)
-	}
-}
-
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	if script == "" {
 		return nil
@@ -399,74 +345,6 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	return nil
-}
-
-func (a *agent) handlePeerConn(ctx context.Context, peerConn *peer.Conn) {
-	go func() {
-		select {
-		case <-a.closed:
-		case <-peerConn.Closed():
-		}
-		_ = peerConn.Close()
-		a.connCloseWait.Done()
-	}()
-	for {
-		channel, err := peerConn.Accept(ctx)
-		if err != nil {
-			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
-			return
-		}
-
-		conn := channel.NetConn()
-
-		switch channel.Protocol() {
-		case ProtocolSSH:
-			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
-		case ProtocolReconnectingPTY:
-			rawID := channel.Label()
-			// The ID format is referenced in conn.go.
-			// <uuid>:<height>:<width>
-			idParts := strings.SplitN(rawID, ":", 4)
-			if len(idParts) != 4 {
-				a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
-				continue
-			}
-			id := idParts[0]
-			// Enforce a consistent format for IDs.
-			_, err := uuid.Parse(id)
-			if err != nil {
-				a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
-				continue
-			}
-			// Parse the initial terminal dimensions.
-			height, err := strconv.Atoi(idParts[1])
-			if err != nil {
-				a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
-				continue
-			}
-			width, err := strconv.Atoi(idParts[2])
-			if err != nil {
-				a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
-				continue
-			}
-			go a.handleReconnectingPTY(ctx, reconnectingPTYInit{
-				ID:      id,
-				Height:  uint16(height),
-				Width:   uint16(width),
-				Command: idParts[3],
-			}, a.stats.wrapConn(conn))
-		case ProtocolDial:
-			go a.handleDial(ctx, channel.Label(), a.stats.wrapConn(conn))
-		default:
-			a.logger.Warn(ctx, "unhandled protocol from channel",
-				slog.F("protocol", channel.Protocol()),
-				slog.F("label", channel.Label()),
-			)
-		}
-	}
 }
 
 func (a *agent) init(ctx context.Context) {
@@ -913,70 +791,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 		}
 	}
-}
-
-// dialResponse is written to datachannels with protocol "dial" by the agent as
-// the first packet to signify whether the dial succeeded or failed.
-type dialResponse struct {
-	Error string `json:"error,omitempty"`
-}
-
-func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
-	defer conn.Close()
-
-	writeError := func(responseError error) error {
-		msg := ""
-		if responseError != nil {
-			msg = responseError.Error()
-			if !xerrors.Is(responseError, io.EOF) {
-				a.logger.Warn(ctx, "handle dial", slog.F("label", label), slog.Error(responseError))
-			}
-		}
-		b, err := json.Marshal(dialResponse{
-			Error: msg,
-		})
-		if err != nil {
-			a.logger.Warn(ctx, "write dial response", slog.F("label", label), slog.Error(err))
-			return xerrors.Errorf("marshal agent webrtc dial response: %w", err)
-		}
-
-		_, err = conn.Write(b)
-		return err
-	}
-
-	u, err := url.Parse(label)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("parse URL %q: %w", label, err))
-		return
-	}
-
-	network := u.Scheme
-	addr := u.Host + u.Path
-	if strings.HasPrefix(network, "unix") {
-		if runtime.GOOS == "windows" {
-			_ = writeError(xerrors.New("Unix forwarding is not supported from Windows workspaces"))
-			return
-		}
-		addr, err = ExpandRelativeHomePath(addr)
-		if err != nil {
-			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
-			return
-		}
-	}
-
-	d := net.Dialer{Timeout: 3 * time.Second}
-	nconn, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
-		return
-	}
-
-	err = writeError(nil)
-	if err != nil {
-		return
-	}
-
-	Bicopy(ctx, conn, nconn)
 }
 
 // isClosed returns whether the API is closed or not.

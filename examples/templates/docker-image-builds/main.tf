@@ -22,8 +22,8 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
   startup_script = <<EOT
     #!/bin/bash
 
