@@ -94,7 +94,6 @@ message App {
     string url = 3;
     string icon = 4;
     bool relative_path = 5;
-    bool healthcheck_enabled = 6;
     string healthcheck_url = 7;
     int32 healthcheck_interval = 8;
     int32 healthcheck_threshold = 9;

@@ -3849,7 +3849,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg Up
 }
 
 const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_enabled, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 AND name = $2
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 AND name = $2
 `
 
 type GetWorkspaceAppByAgentIDAndNameParams struct {
@@ -3869,7 +3869,6 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg Ge
 		&i.Command,
 		&i.Url,
 		&i.RelativePath,
-		&i.HealthcheckEnabled,
 		&i.HealthcheckUrl,
 		&i.HealthcheckInterval,
 		&i.HealthcheckThreshold,
@@ -3879,7 +3878,7 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg Ge
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_enabled, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -3900,7 +3899,6 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Command,
 			&i.Url,
 			&i.RelativePath,
-			&i.HealthcheckEnabled,
 			&i.HealthcheckUrl,
 			&i.HealthcheckInterval,
 			&i.HealthcheckThreshold,
@@ -3920,7 +3918,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_enabled, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -3941,7 +3939,6 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Command,
 			&i.Url,
 			&i.RelativePath,
-			&i.HealthcheckEnabled,
 			&i.HealthcheckUrl,
 			&i.HealthcheckInterval,
 			&i.HealthcheckThreshold,
@@ -3961,7 +3958,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_enabled, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -3982,7 +3979,6 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.Command,
 			&i.Url,
 			&i.RelativePath,
-			&i.HealthcheckEnabled,
 			&i.HealthcheckUrl,
 			&i.HealthcheckInterval,
 			&i.HealthcheckThreshold,
@@ -4012,14 +4008,13 @@ INSERT INTO
         command,
         url,
         relative_path,
-        healthcheck_enabled,
         healthcheck_url,
         healthcheck_interval,
         healthcheck_threshold,
         health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_enabled, healthcheck_url, healthcheck_interval, healthcheck_threshold, health
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health
 `
 
 type InsertWorkspaceAppParams struct {
@@ -4031,7 +4026,6 @@ type InsertWorkspaceAppParams struct {
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
 	RelativePath         bool               `db:"relative_path" json:"relative_path"`
-	HealthcheckEnabled   bool               `db:"healthcheck_enabled" json:"healthcheck_enabled"`
 	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
 	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
@@ -4048,7 +4042,6 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.Command,
 		arg.Url,
 		arg.RelativePath,
-		arg.HealthcheckEnabled,
 		arg.HealthcheckUrl,
 		arg.HealthcheckInterval,
 		arg.HealthcheckThreshold,
@@ -4064,7 +4057,6 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.Command,
 		&i.Url,
 		&i.RelativePath,
-		&i.HealthcheckEnabled,
 		&i.HealthcheckUrl,
 		&i.HealthcheckInterval,
 		&i.HealthcheckThreshold,

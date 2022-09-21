@@ -813,7 +813,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 		for _, app := range prAgent.Apps {
 			health := database.WorkspaceAppHealthDisabled
-			if app.HealthcheckEnabled {
+			if app.HealthcheckUrl != "" {
 				health = database.WorkspaceAppHealthInitializing
 			}
 
@@ -832,7 +832,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					Valid:  app.Url != "",
 				},
 				RelativePath:         app.RelativePath,
-				HealthcheckEnabled:   app.HealthcheckEnabled,
 				HealthcheckUrl:       app.HealthcheckUrl,
 				HealthcheckInterval:  app.HealthcheckInterval,
 				HealthcheckThreshold: app.HealthcheckThreshold,

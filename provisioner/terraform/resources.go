@@ -31,7 +31,6 @@ type agentAppAttributes struct {
 	URL                  string `mapstructure:"url"`
 	Command              string `mapstructure:"command"`
 	RelativePath         bool   `mapstructure:"relative_path"`
-	HealthcheckEnabled   bool   `mapstructure:"healthcheck_enabled"`
 	HealthcheckURL       string `mapstructure:"healthcheck_url"`
 	HealthcheckInterval  int32  `mapstructure:"healthcheck_interval"`
 	HealthcheckThreshold int32  `mapstructure:"healthcheck_threshold"`
@@ -234,7 +233,6 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Url:                  attrs.URL,
 					Icon:                 attrs.Icon,
 					RelativePath:         attrs.RelativePath,
-					HealthcheckEnabled:   attrs.HealthcheckEnabled,
 					HealthcheckUrl:       attrs.HealthcheckURL,
 					HealthcheckInterval:  attrs.HealthcheckInterval,
 					HealthcheckThreshold: attrs.HealthcheckThreshold,

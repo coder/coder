@@ -2027,7 +2027,6 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Command:              arg.Command,
 		Url:                  arg.Url,
 		RelativePath:         arg.RelativePath,
-		HealthcheckEnabled:   arg.HealthcheckEnabled,
 		HealthcheckUrl:       arg.HealthcheckUrl,
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,

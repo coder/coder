@@ -383,7 +383,6 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			Command:              "some-command",
 			Url:                  "http://localhost:3000",
 			Icon:                 "/code.svg",
-			HealthcheckEnabled:   true,
 			HealthcheckUrl:       "http://localhost:3000",
 			HealthcheckInterval:  5,
 			HealthcheckThreshold: 6,

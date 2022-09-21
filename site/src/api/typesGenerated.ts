@@ -588,7 +588,6 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
-  readonly healthcheck_enabled: boolean
   readonly healthcheck_url: string
   readonly healthcheck_interval: number
   readonly healthcheck_threshold: number

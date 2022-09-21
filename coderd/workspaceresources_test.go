@@ -86,7 +86,6 @@ func TestWorkspaceResource(t *testing.T) {
 				Command:              "some-command",
 				Url:                  "http://localhost:3000",
 				Icon:                 "/code.svg",
-				HealthcheckEnabled:   true,
 				HealthcheckUrl:       "http://localhost:3000",
 				HealthcheckInterval:  5,
 				HealthcheckThreshold: 6,
@@ -131,7 +130,6 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Icon, got.Icon)
 		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
-		require.EqualValues(t, app.HealthcheckEnabled, got.HealthcheckEnabled)
 		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckURL)
 		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
 		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
@@ -141,7 +139,6 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Icon, got.Icon)
 		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
-		require.EqualValues(t, app.HealthcheckEnabled, got.HealthcheckEnabled)
 		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckURL)
 		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
 		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)

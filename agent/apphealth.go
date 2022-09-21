@@ -139,7 +139,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 }
 
 func shouldStartTicker(app codersdk.WorkspaceApp) bool {
-	return app.HealthcheckEnabled && app.HealthcheckInterval > 0 && app.HealthcheckThreshold > 0 && app.HealthcheckURL != ""
+	return app.HealthcheckURL != "" && app.HealthcheckInterval > 0 && app.HealthcheckThreshold > 0
 }
 
 func healthChanged(old map[string]codersdk.WorkspaceAppHealth, new map[string]codersdk.WorkspaceAppHealth) bool {
