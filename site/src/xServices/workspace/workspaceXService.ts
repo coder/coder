@@ -207,6 +207,7 @@ export const workspaceMachine = createMachine(
                 exit: "closeEventSource",
                 invoke: {
                   src: "listening",
+                  id: "listening",
                 },
                 on: {
                   REFRESH_WORKSPACE: {
@@ -628,7 +629,7 @@ export const workspaceMachine = createMachine(
 
         context.eventSource.addEventListener("data", (event) => {
           // refresh our workspace with each SSE
-          send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) }) // i wonder if this is problematic
+          send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) })
           // refresh our timeline
           send({ type: "CHECK_REFRESH_TIMELINE", data: JSON.parse(event.data) })
         })
@@ -640,7 +641,6 @@ export const workspaceMachine = createMachine(
 
         // handle any sse implementation exceptions
         context.eventSource.onerror = () => {
-          context.eventSource && context.eventSource.close()
           send({ type: "EVENT_SOURCE_ERROR", error: "sse error" })
         }
       },
