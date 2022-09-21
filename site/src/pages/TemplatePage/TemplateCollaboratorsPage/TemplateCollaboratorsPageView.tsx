@@ -20,6 +20,7 @@ import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
+import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
 import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
@@ -150,11 +151,24 @@ export interface TemplateCollaboratorsPageViewProps {
   templateUsers: TemplateUser[] | undefined
   onAddUser: (user: User, role: TemplateRole, reset: () => void) => void
   isAddingUser: boolean
+  canUpdateUsers: boolean
+  onUpdateUser: (user: User, role: TemplateRole) => void
+  updatingUser: TemplateUser | undefined
+  onRemoveUser: (user: User) => void
 }
 
 export const TemplateCollaboratorsPageView: FC<
   React.PropsWithChildren<TemplateCollaboratorsPageViewProps>
-> = ({ deleteTemplateError, templateUsers, onAddUser, isAddingUser }) => {
+> = ({
+  deleteTemplateError,
+  templateUsers,
+  onAddUser,
+  isAddingUser,
+  updatingUser,
+  onUpdateUser,
+  canUpdateUsers,
+  onRemoveUser,
+}) => {
   const styles = useStyles()
   const deleteError = deleteTemplateError ? (
     <ErrorSummary error={deleteTemplateError} dismissible />
@@ -168,8 +182,9 @@ export const TemplateCollaboratorsPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell>Role</TableCell>
+              <TableCell width="60%">User</TableCell>
+              <TableCell width="40%">Role</TableCell>
+              <TableCell width="1%" />
             </TableRow>
           </TableHead>
           <TableBody>
@@ -206,7 +221,45 @@ export const TemplateCollaboratorsPageView: FC<
                         }
                       />
                     </TableCell>
-                    <TableCell>{user.role}</TableCell>
+                    <TableCell>
+                      {canUpdateUsers ? (
+                        <Select
+                          value={user.role}
+                          variant="outlined"
+                          className={styles.updateSelect}
+                          disabled={updatingUser && updatingUser.id === user.id}
+                          onChange={(event) => {
+                            onUpdateUser(user, event.target.value as TemplateRole)
+                          }}
+                        >
+                          <MenuItem key="read" value="read">
+                            Read
+                          </MenuItem>
+                          <MenuItem key="write" value="write">
+                            Write
+                          </MenuItem>
+                          <MenuItem key="admin" value="admin">
+                            Admin
+                          </MenuItem>
+                        </Select>
+                      ) : (
+                        user.role
+                      )}
+                    </TableCell>
+
+                    {canUpdateUsers && (
+                      <TableCell>
+                        <TableRowMenu
+                          data={user}
+                          menuItems={[
+                            {
+                              label: "Remove",
+                              onClick: () => onRemoveUser(user),
+                            },
+                          ]}
+                        />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </Cond>
@@ -244,6 +297,18 @@ export const useStyles = makeStyles((theme) => {
       width: theme.spacing(4.5),
       height: theme.spacing(4.5),
       borderRadius: "100%",
+    },
+
+    updateSelect: {
+      margin: 0,
+      // Set a fixed width for the select. It avoids selects having different sizes
+      // depending on how many roles they have selected.
+      width: theme.spacing(25),
+      "& .MuiSelect-root": {
+        // Adjusting padding because it does not have label
+        paddingTop: theme.spacing(1.5),
+        paddingBottom: theme.spacing(1.5),
+      },
     },
   }
 })

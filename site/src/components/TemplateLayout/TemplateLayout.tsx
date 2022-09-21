@@ -155,7 +155,7 @@ export const TemplateLayout: FC = () => {
       </div>
 
       <Margins>
-        <Outlet context={templateState.context} />
+        <Outlet context={{ templateContext: templateState.context, permissions }} />
       </Margins>
 
       <DeleteDialog
