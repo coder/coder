@@ -204,13 +204,14 @@ export const getWorkspace = async (
 }
 
 /**
- * 
- * @param workspaceId 
+ *
+ * @param workspaceId
  * @returns An EventSource that emits workspace event objects (ServerSentEvent)
  */
 export const watchWorkspace = (workspaceId: string): EventSource => {
-  return new EventSource(`${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
-    { withCredentials: true }
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
+    { withCredentials: true },
   )
 }
 

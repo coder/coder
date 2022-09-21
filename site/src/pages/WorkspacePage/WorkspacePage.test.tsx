@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import EventSource from "eventsourcemock"
 import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
@@ -22,6 +23,7 @@ import {
   MockWorkspaceAgentConnecting,
   MockWorkspaceAgentDisconnected,
   MockWorkspaceBuild,
+  MockWorkspaceResource2,
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
@@ -70,6 +72,11 @@ const testStatus = async (ws: Workspace, label: string) => {
 
 beforeEach(() => {
   jest.resetAllMocks()
+
+  // mocking out EventSource for SSE
+  Object.defineProperty(window, "EventSource", {
+    value: EventSource,
+  })
 })
 
 describe("WorkspacePage", () => {
@@ -194,18 +201,43 @@ describe("WorkspacePage", () => {
   describe("Resources", () => {
     it("shows the status of each agent in each resource", async () => {
       const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
+
+      const workspaceWithResources = {
+        ...MockWorkspace,
+        latest_build: {
+          ...MockWorkspaceBuild,
+          resources: [
+            {
+              ...MockWorkspaceResource2,
+              agents: [
+                MockWorkspaceAgent,
+                MockWorkspaceAgentDisconnected,
+                MockWorkspaceAgentConnecting,
+              ],
+            },
+          ],
+        },
+      }
+
+      server.use(
+        rest.get(`/api/v2/users/:username/workspace/:workspaceName`, (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json(workspaceWithResources))
+        }),
+      )
+
       renderWithAuth(<WorkspacePage />, {
         route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
         path: "/@:username/:workspace",
       })
+
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
-      expect(agent1Names.length).toEqual(2)
+      expect(agent1Names.length).toEqual(1)
       const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)
       expect(agent2Names.length).toEqual(2)
       const agent1Status = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
       )
-      expect(agent1Status.length).toEqual(4)
+      expect(agent1Status.length).toEqual(1)
       const agentDisconnected = await screen.findAllByText(
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )

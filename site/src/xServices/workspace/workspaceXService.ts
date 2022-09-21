@@ -21,7 +21,7 @@ type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceContext {
   // our server side events instance
-  eventSource?: EventSource,
+  eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
   build?: TypesGen.WorkspaceBuild
@@ -40,12 +40,12 @@ export interface WorkspaceContext {
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  userId?: string,
+  userId?: string
 }
 
 export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceName: string; username: string }
-  | { type: "REFRESH_WORKSPACE", data: TypesGen.ServerSentEvent["data"] }
+  | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START" }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
@@ -54,9 +54,9 @@ export type WorkspaceEvent =
   | { type: "UPDATE" }
   | { type: "CANCEL" }
   | { type: "LOAD_MORE_BUILDS" }
-  | { type: "CHECK_REFRESH_TIMELINE", data: TypesGen.ServerSentEvent["data"] }
+  | { type: "CHECK_REFRESH_TIMELINE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "REFRESH_TIMELINE" }
-  | { type: "EVENT_SOURCE_ERROR", error: Error | unknown }
+  | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -114,7 +114,7 @@ export const workspaceMachine = createMachine(
         }
         listening: {
           data: TypesGen.ServerSentEvent
-        },
+        }
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
         }
@@ -203,32 +203,32 @@ export const workspaceMachine = createMachine(
             initial: "gettingEvents",
             states: {
               gettingEvents: {
-                entry: ['clearRefreshWorkspaceWarning', 'initializeEventSource'],
+                entry: ["clearRefreshWorkspaceWarning", "initializeEventSource"],
                 exit: "closeEventSource",
                 invoke: {
                   src: "listening",
                 },
                 on: {
                   REFRESH_WORKSPACE: {
-                    actions: ["refreshWorkspace"]
+                    actions: ["refreshWorkspace"],
                   },
                   EVENT_SOURCE_ERROR: {
-                    target: "error"
+                    target: "error",
                   },
                   CHECK_REFRESH_TIMELINE: {
-                    actions: ["refreshTimeline"]
-                  }
+                    actions: ["refreshTimeline"],
+                  },
                 },
               },
               error: {
                 entry: "assignRefreshWorkspaceWarning",
                 after: {
                   "1000": {
-                    target: 'gettingEvents'
-                  }
-                }
-              }
-            }
+                    target: "gettingEvents",
+                  },
+                },
+              },
+            },
           },
           build: {
             initial: "idle",
@@ -498,7 +498,7 @@ export const workspaceMachine = createMachine(
       // SSE related actions
       // open a new EventSource so we can stream SSE
       initializeEventSource: assign({
-        eventSource: (context) => context.workspace && API.watchWorkspace(context.workspace.id)
+        eventSource: (context) => context.workspace && API.watchWorkspace(context.workspace.id),
       }),
       closeEventSource: (context) => context.eventSource && context.eventSource.close(),
       refreshWorkspace: assign({
@@ -640,10 +640,9 @@ export const workspaceMachine = createMachine(
 
         // handle any sse implementation exceptions
         context.eventSource.onerror = () => {
-          context.eventSource && context.eventSource.close();
+          context.eventSource && context.eventSource.close()
           send({ type: "EVENT_SOURCE_ERROR", error: "sse error" })
         }
-
       },
       getBuilds: async (context) => {
         if (context.workspace) {
