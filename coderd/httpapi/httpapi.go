@@ -50,6 +50,9 @@ func init() {
 	}
 }
 
+// Convenience error functions don't take contexts since their responses are
+// static, it doesn't make much sense to trace them.
+
 // ResourceNotFound is intentionally vague. All 404 responses should be identical
 // to prevent leaking existence of resources.
 func ResourceNotFound(rw http.ResponseWriter) {
@@ -82,7 +85,13 @@ func RouteNotFound(rw http.ResponseWriter) {
 	})
 }
 
-// Write outputs a standardized format to an HTTP response body.
+// Write outputs a standardized format to an HTTP response body. ctx is used for
+// tracing and can be nil for tracing to be disabled. Tracing this function is
+// helpful because JSON marshaling can sometimes take a non-insignificant amount
+// of time, and could help us catch outliers. Additionally, we can enrich span
+// data a bit more since we have access to the actual interface{} we're
+// marshaling, such as the number of elements in an array, which could help us
+// spot routes that need to be paginated.
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
@@ -104,8 +113,10 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	}
 }
 
-// Read decodes JSON from the HTTP request into the value provided.
-// It uses go-validator to validate the incoming request body.
+// Read decodes JSON from the HTTP request into the value provided. It uses
+// go-validator to validate the incoming request body. ctx is used for tracing
+// and can be nil. Although tracing this function isn't likely too helpful, it
+// was done to be consistent with Write.
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
