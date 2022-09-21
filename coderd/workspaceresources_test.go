@@ -82,7 +82,7 @@ func TestWorkspaceResource(t *testing.T) {
 				Icon:    "/code.svg",
 			},
 			{
-				Name:                 "code-server",
+				Name:                 "code-server-2",
 				Command:              "some-command",
 				Url:                  "http://localhost:3000",
 				Icon:                 "/code.svg",
