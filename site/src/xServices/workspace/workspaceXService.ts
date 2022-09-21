@@ -522,8 +522,6 @@ export const workspaceMachine = createMachine(
         }
       }),
     },
-    guards: {
-    },
     services: {
       getWorkspace: async (_, event) => {
         return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, {
