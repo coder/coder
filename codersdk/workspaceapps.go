@@ -24,7 +24,7 @@ type WorkspaceApp struct {
 	HealthcheckEnabled bool   `json:"healthcheck_enabled"`
 	HealthcheckURL     string `json:"healthcheck_url"`
 	// HealthcheckInterval specifies the seconds between each health check.
-	HealthcheckInterval int32 `json:"healthcheck_period"`
+	HealthcheckInterval int32 `json:"healthcheck_interval"`
 	// HealthcheckThreshold specifies the number of consecutive failed health checks before returning "unhealthy".
 	HealthcheckThreshold int32              `json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `json:"health"`
