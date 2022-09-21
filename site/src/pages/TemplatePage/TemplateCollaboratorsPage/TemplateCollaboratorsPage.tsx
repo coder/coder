@@ -17,7 +17,7 @@ export const TemplateCollaboratorsPage: FC<React.PropsWithChildren<unknown>> = (
     )
   }
 
-  const [state] = useMachine(templateUsersMachine, { context: { templateId: template.id } })
+  const [state, send] = useMachine(templateUsersMachine, { context: { templateId: template.id } })
   const { templateUsers } = state.context
 
   return (
@@ -28,6 +28,10 @@ export const TemplateCollaboratorsPage: FC<React.PropsWithChildren<unknown>> = (
       <TemplateCollaboratorsPageView
         templateUsers={templateUsers}
         deleteTemplateError={deleteTemplateError}
+        onAddUser={(user, role, reset) => {
+          send("ADD_USER", { user, role, onDone: reset })
+        }}
+        isAddingUser={state.matches("addingUser")}
       />
     </>
   )

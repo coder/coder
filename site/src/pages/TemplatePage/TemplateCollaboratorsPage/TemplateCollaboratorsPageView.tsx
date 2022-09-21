@@ -1,4 +1,3 @@
-import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import MenuItem from "@material-ui/core/MenuItem"
 import Select from "@material-ui/core/Select"
@@ -13,42 +12,52 @@ import TextField from "@material-ui/core/TextField"
 import PersonAdd from "@material-ui/icons/PersonAdd"
 import Autocomplete from "@material-ui/lab/Autocomplete"
 import { useMachine } from "@xstate/react"
-import { TemplateUser, User } from "api/typesGenerated"
+import { TemplateRole, TemplateUser, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 
-export interface TemplateCollaboratorsPageViewProps {
-  deleteTemplateError: Error | unknown
-  templateUsers: TemplateUser[] | undefined
-}
-
-export const TemplateCollaboratorsPageView: FC<
-  React.PropsWithChildren<TemplateCollaboratorsPageViewProps>
-> = ({ deleteTemplateError, templateUsers }) => {
+const AddTemplateUser: React.FC<{
+  isLoading: boolean
+  onSubmit: (user: User, role: TemplateRole, reset: () => void) => void
+}> = ({ isLoading, onSubmit }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
-  const deleteError = deleteTemplateError ? (
-    <ErrorSummary error={deleteTemplateError} dismissible />
-  ) : null
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedRole, setSelectedRole] = useState<TemplateRole>("read")
 
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
   }, 1000)
 
+  const resetValues = () => {
+    setSelectedUser(null)
+    setSelectedRole("read")
+  }
+
   return (
-    <Stack spacing={2.5}>
-      {deleteError}
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+
+        if (selectedUser && selectedRole) {
+          onSubmit(selectedUser, selectedRole, resetValues)
+        }
+      }}
+    >
       <Stack direction="row" alignItems="center" spacing={1}>
         <Autocomplete
+          value={selectedUser}
+          disabled={isLoading}
           id="asynchronous-demo"
           style={{ width: 300 }}
           open={isAutocompleteOpen}
@@ -57,6 +66,9 @@ export const TemplateCollaboratorsPageView: FC<
           }}
           onClose={() => {
             setIsAutocompleteOpen(false)
+          }}
+          onChange={(event, newValue) => {
+            setSelectedUser(newValue)
           }}
           getOptionSelected={(option: User, value: User) => option.username === value.username}
           getOptionLabel={(option) => option.email}
@@ -99,7 +111,15 @@ export const TemplateCollaboratorsPageView: FC<
           )}
         />
 
-        <Select defaultValue="read" variant="outlined" className={styles.select}>
+        <Select
+          defaultValue="read"
+          variant="outlined"
+          className={styles.select}
+          disabled={isLoading}
+          onChange={(event) => {
+            setSelectedRole(event.target.value as TemplateRole)
+          }}
+        >
           <MenuItem key="read" value="read">
             Read
           </MenuItem>
@@ -111,11 +131,39 @@ export const TemplateCollaboratorsPageView: FC<
           </MenuItem>
         </Select>
 
-        <Button size="small" startIcon={<PersonAdd />}>
+        <LoadingButton
+          disabled={!selectedRole || !selectedUser}
+          type="submit"
+          size="small"
+          startIcon={<PersonAdd />}
+          loading={isLoading}
+        >
           Add collaborator
-        </Button>
+        </LoadingButton>
       </Stack>
+    </form>
+  )
+}
 
+export interface TemplateCollaboratorsPageViewProps {
+  deleteTemplateError: Error | unknown
+  templateUsers: TemplateUser[] | undefined
+  onAddUser: (user: User, role: TemplateRole, reset: () => void) => void
+  isAddingUser: boolean
+}
+
+export const TemplateCollaboratorsPageView: FC<
+  React.PropsWithChildren<TemplateCollaboratorsPageViewProps>
+> = ({ deleteTemplateError, templateUsers, onAddUser, isAddingUser }) => {
+  const styles = useStyles()
+  const deleteError = deleteTemplateError ? (
+    <ErrorSummary error={deleteTemplateError} dismissible />
+  ) : null
+
+  return (
+    <Stack spacing={2.5}>
+      {deleteError}
+      <AddTemplateUser isLoading={isAddingUser} onSubmit={onAddUser} />
       <TableContainer>
         <Table>
           <TableHead>
@@ -140,10 +188,27 @@ export const TemplateCollaboratorsPageView: FC<
                 </TableRow>
               </Cond>
               <Cond condition={Boolean(templateUsers && templateUsers.length > 0)}>
-                <TableRow>
-                  <TableCell>Kyle</TableCell>
-                  <TableCell>Admin</TableCell>
-                </TableRow>
+                {templateUsers?.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <AvatarData
+                        title={user.username}
+                        subtitle={user.email}
+                        highlightTitle
+                        avatar={
+                          user.avatar_url ? (
+                            <img
+                              className={styles.avatar}
+                              alt={`${user.username}'s Avatar`}
+                              src={user.avatar_url}
+                            />
+                          ) : null
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>{user.role}</TableCell>
+                  </TableRow>
+                ))}
               </Cond>
             </ChooseOne>
           </TableBody>
