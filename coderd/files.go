@@ -19,6 +19,7 @@ import (
 )
 
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	// This requires the site wide action to create files.
 	// Once created, a user can read their own files uploaded
@@ -32,7 +33,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	switch contentType {
 	case "application/x-tar":
 	default:
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),
 		})
 		return
@@ -41,7 +42,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(rw, r.Body, 10*(10<<20))
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read file from request.",
 			Detail:  err.Error(),
 		})
@@ -49,15 +50,15 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	}
 	hashBytes := sha256.Sum256(data)
 	hash := hex.EncodeToString(hashBytes[:])
-	file, err := api.Database.GetFileByHash(r.Context(), hash)
+	file, err := api.Database.GetFileByHash(ctx, hash)
 	if err == nil {
 		// The file already exists!
-		httpapi.Write(rw, http.StatusOK, codersdk.UploadResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.UploadResponse{
 			Hash: file.Hash,
 		})
 		return
 	}
-	file, err = api.Database.InsertFile(r.Context(), database.InsertFileParams{
+	file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
 		Hash:      hash,
 		CreatedBy: apiKey.UserID,
 		CreatedAt: database.Now(),
@@ -65,33 +66,34 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		Data:      data,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error saving file.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, codersdk.UploadResponse{
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UploadResponse{
 		Hash: file.Hash,
 	})
 }
 
 func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File hash must be provided in url.",
 		})
 		return
 	}
-	file, err := api.Database.GetFileByHash(r.Context(), hash)
+	file, err := api.Database.GetFileByHash(ctx, hash)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching file.",
 			Detail:  err.Error(),
 		})

@@ -13,6 +13,7 @@ import (
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r)
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceRoleAssignment) {
 		httpapi.Forbidden(rw)
@@ -20,11 +21,12 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
-	httpapi.Write(rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 	actorRoles := httpmw.UserAuthorization(r)
 
@@ -34,10 +36,11 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
 func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	user := httpmw.UserParam(r)
 	apiKey := httpmw.APIKey(r)
 
@@ -47,21 +50,21 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// use the roles of the user specified, not the person making the request.
-	roles, err := api.Database.GetAuthorizationUserRoles(r.Context(), user.ID)
+	roles, err := api.Database.GetAuthorizationUserRoles(ctx, user.ID)
 	if err != nil {
 		httpapi.Forbidden(rw)
 		return
 	}
 
 	var params codersdk.UserAuthorizationRequest
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
 	response := make(codersdk.UserAuthorizationResponse)
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q.", k),
 			})
 			return
@@ -70,7 +73,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		if v.Object.OwnerID == "me" {
 			v.Object.OwnerID = roles.ID.String()
 		}
-		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, apiKey.Scope.ToRBAC(), rbac.Action(v.Action),
+		err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, apiKey.Scope.ToRBAC(), rbac.Action(v.Action),
 			rbac.Object{
 				Owner: v.Object.OwnerID,
 				OrgID: v.Object.OrganizationID,
@@ -79,7 +82,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		response[k] = err == nil
 	}
 
-	httpapi.Write(rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 func convertRole(role rbac.Role) codersdk.Role {

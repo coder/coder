@@ -91,6 +91,7 @@ func UseLoginURL(loginURL *url.URL) func(http.Handler) http.Handler {
 func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			// Write wraps writing a response to redirect if the handler
 			// specified it should. This redirect is used for user-facing
 			// pages like workspace applications.
@@ -127,7 +128,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 					return
 				}
 
-				httpapi.Write(rw, code, response)
+				httpapi.Write(ctx, rw, code, response)
 			}
 
 			cookieValue := apiTokenFromRequest(r)
@@ -329,7 +330,6 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 				return
 			}
 
-			ctx := r.Context()
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
 			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
 				ID:       key.UserID,
