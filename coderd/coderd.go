@@ -498,10 +498,15 @@ func New(options *Options) *API {
 				r.Use(apiKeyMiddleware)
 				r.Post("/", api.checkAuthorization)
 			})
-
-			r.Route("/application-auth", func(r chi.Router) {
-				// We do want to redirect to login if they are not
-				// authenticated.
+		})
+		r.Route("/applications", func(r chi.Router) {
+			r.Route("/host", func(r chi.Router) {
+				// Don't leak the hostname to unauthenticated users.
+				r.Use(apiKeyMiddleware)
+				r.Get("/", api.getAppHost)
+			})
+			r.Route("/auth-redirect", func(r chi.Router) {
+				// We want to redirect to login if they are not authenticated.
 				r.Use(apiKeyMiddlewareRedirect)
 
 				// This is a GET request as it's redirected to by the subdomain app

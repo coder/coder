@@ -37,6 +37,12 @@ const (
 	redirectURIQueryParam     = "redirect_uri"
 )
 
+func (api *API) getAppHost(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(rw, http.StatusOK, codersdk.GetAppHostResponse{
+		Host: api.AppHostname,
+	})
+}
+
 // workspaceAppsProxyPath proxies requests to a workspace application
 // through a relative URL path.
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
@@ -276,7 +282,7 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 	redirectURI.Host = host
 
 	u := *api.AccessURL
-	u.Path = "/api/v2/authorization/application-auth"
+	u.Path = "/api/v2/applications/auth-redirect"
 	q := u.Query()
 	q.Add(redirectURIQueryParam, redirectURI.String())
 	u.RawQuery = q.Encode()
@@ -516,6 +522,9 @@ type encryptedAPIKeyPayload struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// encryptAPIKey encrypts an API key with it's own hashed secret. This is used
+// for smuggling (application_connect scoped) API keys securely to app
+// hostnames.
 func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	if data.APIKey == "" {
 		return "", xerrors.New("API key is empty")
@@ -532,7 +541,8 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	}
 
 	// We use the hashed key secret as the encryption key. The hashed secret is
-	// stored in the API keys table.
+	// stored in the API keys table. The HashedSecret is NEVER returned from the
+	// API.
 	//
 	// We chose to use the key secret as the private key for encryption instead
 	// of a shared key for a few reasons:
@@ -572,6 +582,7 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	return base64.RawURLEncoding.EncodeToString([]byte(encrypted)), nil
 }
 
+// decryptAPIKey undoes encryptAPIKey and is used in the subdomain app handler.
 func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey string) (database.APIKey, string, error) {
 	encrypted, err := base64.RawURLEncoding.DecodeString(encryptedAPIKey)
 	if err != nil {

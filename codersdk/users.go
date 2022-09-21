@@ -54,7 +54,8 @@ type User struct {
 }
 
 type APIKey struct {
-	ID              string    `json:"id" validate:"required"`
+	ID string `json:"id" validate:"required"`
+	// NOTE: do not ever return the HashedSecret
 	UserID          uuid.UUID `json:"user_id" validate:"required"`
 	LastUsed        time.Time `json:"last_used" validate:"required"`
 	ExpiresAt       time.Time `json:"expires_at" validate:"required"`

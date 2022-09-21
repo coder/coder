@@ -45,6 +45,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/users/authmethods":    {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":         {NoAuthorize: true},
 		"POST:/api/v2/authorization/can-i": {NoAuthorize: true},
+		"GET:/api/v2/applications/host":    {NoAuthorize: true},
 		// This is a dummy endpoint for compatibility with older CLI versions.
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {NoAuthorize: true},
 
@@ -239,8 +240,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/users":                          {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
-		"GET:/api/v2/authorization/application-auth": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
+		"GET:/api/v2/users":                      {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
+		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},

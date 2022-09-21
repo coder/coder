@@ -44,7 +44,7 @@ type Client struct {
 
 type RequestOption func(*http.Request)
 
-func AddQueryParams(params map[string]string) RequestOption {
+func WithQueryParams(params map[string]string) RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		for k, v := range params {

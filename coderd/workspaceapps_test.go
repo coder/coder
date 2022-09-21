@@ -37,6 +37,38 @@ const (
 	proxyTestSubdomain = "test.coder.com"
 )
 
+func TestGetAppHost(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{"", "test.coder.com"}
+	for _, c := range cases {
+		c := c
+		name := c
+		if name == "" {
+			name = "Empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{
+				AppHostname: c,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Should not leak to unauthenticated users.
+			host, err := client.GetAppHost(ctx)
+			require.Error(t, err)
+			require.Equal(t, "", host.Host)
+
+			_ = coderdtest.CreateFirstUser(t, client)
+			host, err = client.GetAppHost(ctx)
+			require.NoError(t, err)
+			require.Equal(t, c, host.Host)
+		})
+	}
+}
+
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
 // codersdk client, the first user, the workspace, and the port number the test
 // listener is running on.
@@ -264,14 +296,14 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		gotLocation, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, client.URL.Host, gotLocation.Host)
-		require.Equal(t, "/api/v2/authorization/application-auth", gotLocation.Path)
+		require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
 		require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
 
-		// Load the application-auth endpoint.
-		qp := codersdk.AddQueryParams(map[string]string{
+		// Load the application auth-redirect endpoint.
+		qp := codersdk.WithQueryParams(map[string]string{
 			"redirect_uri": u.String(),
 		})
-		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/authorization/application-auth", nil, qp)
+		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, qp)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -411,7 +443,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/authorization/application-auth", nil, codersdk.AddQueryParams(qp))
+				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParams(qp))
 				require.NoError(t, err)
 				defer resp.Body.Close()
 				require.Equal(t, http.StatusBadRequest, resp.StatusCode)

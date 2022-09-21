@@ -26,6 +26,8 @@ import (
 // The special cookie name used for subdomain-based application proxying.
 // TODO: this will make dogfooding harder so come up with a more unique
 // solution
+//
+//nolint:gosec
 const DevURLSessionTokenCookie = "coder_devurl_session_token"
 
 type apiKeyContextKey struct{}
@@ -362,11 +364,6 @@ func apiTokenFromRequest(r *http.Request) string {
 		return cookie.Value
 	}
 
-	cookie, err = r.Cookie(DevURLSessionTokenCookie)
-	if err == nil && cookie.Value != "" {
-		return cookie.Value
-	}
-
 	// TODO: @emyrk in October 2022, remove this oldCookie check.
 	//	This is just to support the old cli for 1 release. Then everyone
 	//	must update.
@@ -383,6 +380,11 @@ func apiTokenFromRequest(r *http.Request) string {
 	headerValue := r.Header.Get(codersdk.SessionCustomHeader)
 	if headerValue != "" {
 		return headerValue
+	}
+
+	cookie, err = r.Cookie(DevURLSessionTokenCookie)
+	if err == nil && cookie.Value != "" {
+		return cookie.Value
 	}
 
 	return ""
