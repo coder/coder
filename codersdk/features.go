@@ -17,9 +17,10 @@ const (
 const (
 	FeatureUserLimit = "user_limit"
 	FeatureAuditLog  = "audit_log"
+	FeatureSCIM      = "scim"
 )
 
-var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog}
+var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog, FeatureSCIM}
 
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`

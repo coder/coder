@@ -15,12 +15,14 @@ export default {
       control: "boolean",
       defaultValue: true,
     },
-    title: {
-      defaultValue: "Delete Something",
+    entity: {
+      defaultValue: "foo",
     },
-    description: {
-      defaultValue:
-        "This is irreversible. To confirm, type the name of the thing you want to delete.",
+    name: {
+      defaultValue: "MyFoo",
+    },
+    info: {
+      defaultValue: "Here's some info about the foo so you know you're deleting the right one.",
     },
   },
 } as ComponentMeta<typeof DeleteDialog>

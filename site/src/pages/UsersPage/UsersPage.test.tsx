@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { i18n } from "i18n"
 import { rest } from "msw"
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService"
 import * as API from "../../api/api"
@@ -20,23 +22,20 @@ import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 import { Language as UsersViewLanguage } from "./UsersPageView"
 
+const { t } = i18n
+
 const suspendUser = async (setupActionSpies: () => void) => {
+  const user = userEvent.setup()
   // Get the first user in the table
-  const users = await screen.findAllByText(/.*@coder.com/)
-  const firstUserRow = users[0].closest("tr")
-  if (!firstUserRow) {
-    throw new Error("Error on get the first user row")
-  }
+  const moreButtons = await screen.findAllByLabelText("more")
+  const firstMoreButton = moreButtons[0]
 
-  // Click on the "more" button to display the "Suspend" option
-  const moreButton = within(firstUserRow).getByLabelText("more")
-
-  fireEvent.click(moreButton)
+  await user.click(firstMoreButton)
 
   const menu = await screen.findByRole("menu")
   const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
 
-  fireEvent.click(suspendButton)
+  await user.click(suspendButton)
 
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog")
@@ -48,53 +47,51 @@ const suspendUser = async (setupActionSpies: () => void) => {
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.suspendDialogAction)
-  fireEvent.click(confirmButton)
+  const confirmButton = await within(confirmDialog).findByText(
+    UsersPageLanguage.suspendDialogAction,
+  )
+  await user.click(confirmButton)
 }
 
 const deleteUser = async (setupActionSpies: () => void) => {
-  // Get the first user in the table
-  const users = await screen.findAllByText(/.*@coder.com/)
-  const firstUserRow = users[0].closest("tr")
-  if (!firstUserRow) {
-    throw new Error("Error on get the first user row")
-  }
+  const user = userEvent.setup()
+  // Click on the "more" button to display the "Delete" option
+  // Needs to await fetching users and fetching permissions, because they're needed to see the more button
+  const moreButtons = await screen.findAllByLabelText("more")
+  // get MockUser2
+  const selectedMoreButton = moreButtons[1]
 
-  // Click on the "more" button to display the "Suspend" option
-  const moreButton = within(firstUserRow).getByLabelText("more")
-
-  fireEvent.click(moreButton)
+  await user.click(selectedMoreButton)
 
   const menu = await screen.findByRole("menu")
-  const suspendButton = within(menu).getByText(UsersTableBodyLanguage.deleteMenuItem)
+  const deleteButton = within(menu).getByText(UsersTableBodyLanguage.deleteMenuItem)
 
-  fireEvent.click(suspendButton)
+  await user.click(deleteButton)
 
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog")
   expect(confirmDialog).toHaveTextContent(
-    `${UsersPageLanguage.deleteDialogMessagePrefix} ${MockUser.username}?`,
+    t("deleteDialog.confirm", { ns: "common", entity: "user" }),
   )
+
+  // Confirm with text input
+  const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "user" })
+  const textField = screen.getByLabelText(labelText)
+  const dialog = screen.getByRole("dialog")
+  await user.type(textField, MockUser2.username)
 
   // Setup spies to check the actions after
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.deleteDialogAction)
-  fireEvent.click(confirmButton)
+  const confirmButton = within(dialog).getByRole("button", { name: "Delete" })
+  await user.click(confirmButton)
 }
 
 const activateUser = async (setupActionSpies: () => void) => {
-  // Get the first user in the table
-  const users = await screen.findAllByText(/.*@coder.com/)
-  const firstUserRow = users[2].closest("tr")
-  if (!firstUserRow) {
-    throw new Error("Error on get the first user row")
-  }
-
-  // Click on the "more" button to display the "Activate" option
-  const moreButton = within(firstUserRow).getByLabelText("more")
-  fireEvent.click(moreButton)
+  const moreButtons = await screen.findAllByLabelText("more")
+  const suspendedMoreButton = moreButtons[2]
+  fireEvent.click(suspendedMoreButton)
 
   const menu = screen.getByRole("menu")
   const activateButton = within(menu).getByText(UsersTableBodyLanguage.activateMenuItem)
@@ -115,17 +112,10 @@ const activateUser = async (setupActionSpies: () => void) => {
 }
 
 const resetUserPassword = async (setupActionSpies: () => void) => {
-  // Get the first user in the table
-  const users = await screen.findAllByText(/.*@coder.com/)
-  const firstUserRow = users[0].closest("tr")
-  if (!firstUserRow) {
-    throw new Error("Error on get the first user row")
-  }
+  const moreButtons = await screen.findAllByLabelText("more")
+  const firstMoreButton = moreButtons[0]
 
-  // Click on the "more" button to display the "Suspend" option
-  const moreButton = within(firstUserRow).getByLabelText("more")
-
-  fireEvent.click(moreButton)
+  fireEvent.click(firstMoreButton)
 
   const menu = screen.getByRole("menu")
   const resetPasswordButton = within(menu).getByText(UsersTableBodyLanguage.resetPasswordMenuItem)
@@ -184,13 +174,15 @@ describe("UsersPage", () => {
     expect(users.length).toEqual(3)
   })
 
-  it("shows 'Create user' button to an authorized user", () => {
+  it("shows 'Create user' button to an authorized user", async () => {
     render(<UsersPage />)
-    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
+    const createUserButton = await screen.findByText(UsersViewLanguage.createButton)
+    // wait for users page to finish loading
+    await screen.findAllByLabelText("more")
     expect(createUserButton).toBeDefined()
   })
 
-  it("does not show 'Create user' button to unauthorized user", () => {
+  it("does not show 'Create user' button to unauthorized user", async () => {
     server.use(
       rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
         const permissions = Object.keys(permissionsToCheck)
@@ -207,6 +199,8 @@ describe("UsersPage", () => {
     )
     render(<UsersPage />)
     const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
+    // wait for users page to finish loading
+    await screen.findAllByLabelText("more")
     expect(createUserButton).toBeNull()
   })
 
@@ -222,13 +216,11 @@ describe("UsersPage", () => {
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest
-            .spyOn(API, "getUsers")
-            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
+          jest.spyOn(API, "getUsers").mockResolvedValueOnce([SuspendedMockUser, MockUser2])
         })
 
         // Check if the success message is displayed
-        screen.findByText(usersXServiceLanguage.suspendUserSuccess)
+        await screen.findByText(usersXServiceLanguage.suspendUserSuccess)
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1)
@@ -252,7 +244,7 @@ describe("UsersPage", () => {
         })
 
         // Check if the error message is displayed
-        screen.findByText(usersXServiceLanguage.suspendUserError)
+        await screen.findByText(usersXServiceLanguage.suspendUserError)
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1)
@@ -273,20 +265,21 @@ describe("UsersPage", () => {
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
-          jest
-            .spyOn(API, "getUsers")
-            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2]))
+          jest.spyOn(API, "getUsers").mockResolvedValueOnce([MockUser, SuspendedMockUser])
         })
 
         // Check if the success message is displayed
-        screen.findByText(usersXServiceLanguage.deleteUserSuccess)
+        await screen.findByText(usersXServiceLanguage.deleteUserSuccess)
 
         // Check if the API was called correctly
         expect(API.deleteUser).toBeCalledTimes(1)
-        expect(API.deleteUser).toBeCalledWith(MockUser.id)
+        expect(API.deleteUser).toBeCalledWith(MockUser2.id)
 
-        // Check if the users list was reload
-        await waitFor(() => expect(API.getUsers).toBeCalledTimes(1))
+        // Check if the users list was reloaded
+        await waitFor(() => {
+          const users = screen.getAllByLabelText("more")
+          expect(users.length).toEqual(2)
+        })
       })
     })
     describe("when it fails", () => {
@@ -303,11 +296,11 @@ describe("UsersPage", () => {
         })
 
         // Check if the error message is displayed
-        screen.findByText(usersXServiceLanguage.deleteUserError)
+        await screen.findByText(usersXServiceLanguage.deleteUserError)
 
         // Check if the API was called correctly
         expect(API.deleteUser).toBeCalledTimes(1)
-        expect(API.deleteUser).toBeCalledWith(MockUser.id)
+        expect(API.deleteUser).toBeCalledWith(MockUser2.id)
       })
     })
   })
@@ -330,7 +323,7 @@ describe("UsersPage", () => {
         })
 
         // Check if the success message is displayed
-        screen.findByText(usersXServiceLanguage.activateUserSuccess)
+        await screen.findByText(usersXServiceLanguage.activateUserSuccess)
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1)
@@ -351,7 +344,7 @@ describe("UsersPage", () => {
         })
 
         // Check if the error message is displayed
-        screen.findByText(usersXServiceLanguage.activateUserError)
+        await screen.findByText(usersXServiceLanguage.activateUserError)
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1)
@@ -375,7 +368,7 @@ describe("UsersPage", () => {
         })
 
         // Check if the success message is displayed
-        screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess)
+        await screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess)
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
@@ -399,7 +392,7 @@ describe("UsersPage", () => {
         })
 
         // Check if the error message is displayed
-        screen.findByText(usersXServiceLanguage.resetUserPasswordError)
+        await screen.findByText(usersXServiceLanguage.resetUserPasswordError)
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
@@ -455,7 +448,7 @@ describe("UsersPage", () => {
         }, MockAuditorRole)
 
         // Check if the error message is displayed
-        const errorMessage = screen.findByText(usersXServiceLanguage.updateUserRolesError)
+        const errorMessage = await screen.findByText(usersXServiceLanguage.updateUserRolesError)
         await waitFor(() => expect(errorMessage).toBeDefined())
 
         // Check if the API was called correctly
@@ -485,8 +478,8 @@ describe("UsersPage", () => {
         await updateUserRole(() => {}, MockAuditorRole)
 
         // Check if the error message is displayed
-        const errorMessage = screen.findByText("message from the backend")
-        await waitFor(() => expect(errorMessage).toBeDefined())
+        const errorMessage = await screen.findByText("message from the backend")
+        expect(errorMessage).toBeDefined()
       })
     })
   })

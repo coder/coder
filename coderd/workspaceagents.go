@@ -616,6 +616,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		)
 
 		if updateDB {
+			go activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace)
+
 			lastReport = rep
 
 			_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
