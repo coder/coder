@@ -262,7 +262,7 @@ func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
 	hijacker := ctx.GetInterface(`net/http.Hijacker`)
 	writer := ctx.GetInterface(`net/http.ResponseWriter`)
 	p := types.NewPointer(ctx.Type)
-	return !(types.Implements(types.NewPointer(ctx.Type), writer) || types.Implements(ctx.Type, writer)) ||
-		!(types.Implements(types.NewPointer(ctx.Type), flusher) || types.Implements(ctx.Type, flusher)) ||
+	return !(types.Implements(p, writer) || types.Implements(ctx.Type, writer)) ||
+		!(types.Implements(p, flusher) || types.Implements(ctx.Type, flusher)) ||
 		!(types.Implements(p, hijacker) || types.Implements(ctx.Type, hijacker))
 }
