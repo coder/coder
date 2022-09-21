@@ -24,11 +24,12 @@ func RequestID(r *http.Request) uuid.UUID {
 func AttachRequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rid := uuid.New()
+		ridString := rid.String()
 
 		ctx := context.WithValue(r.Context(), requestIDContextKey{}, rid)
 		ctx = slog.With(ctx, slog.F("request_id", rid))
 
-		rw.Header().Set("X-Coder-Request-Id", rid.String())
+		rw.Header().Set("X-Coder-Request-Id", ridString)
 		next.ServeHTTP(rw, r.WithContext(ctx))
 	})
 }

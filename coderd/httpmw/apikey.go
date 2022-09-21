@@ -112,6 +112,7 @@ type ExtractAPIKeyConfig struct {
 func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			// Write wraps writing a response to redirect if the handler
 			// specified it should. This redirect is used for user-facing pages
 			// like workspace applications.
@@ -135,7 +136,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 					return
 				}
 
-				httpapi.Write(rw, code, response)
+				httpapi.Write(ctx, rw, code, response)
 			}
 
 			// optionalWrite wraps write, but will pass the request on to the
@@ -337,7 +338,6 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := r.Context()
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
 			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
 				ID:       key.UserID,

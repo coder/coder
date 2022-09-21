@@ -80,19 +80,20 @@ var (
 //     period on the license, features will continue to work from the old license until its grace
 //     period, then the users will get a warning allowing them to gracefully stop using the feature.
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
 	var addLicense codersdk.AddLicenseRequest
-	if !httpapi.Read(rw, r, &addLicense) {
+	if !httpapi.Read(ctx, rw, r, &addLicense) {
 		return
 	}
 
 	claims, err := parseLicense(addLicense.License, api.Keys)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
 			Detail:  err.Error(),
 		})
@@ -100,7 +101,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	exp, ok := claims["exp"].(float64)
 	if !ok {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
 			Detail:  "exp claim missing or not parsable",
 		})
@@ -108,21 +109,21 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	expTime := time.Unix(int64(exp), 0)
 
-	dl, err := api.Database.InsertLicense(r.Context(), database.InsertLicenseParams{
+	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: database.Now(),
 		JWT:        addLicense.License,
 		Exp:        expTime,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to add license to database",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	err = api.updateEntitlements(r.Context())
+	err = api.updateEntitlements(ctx)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update entitlements",
 			Detail:  err.Error(),
 		})
@@ -134,17 +135,18 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		// don't fail the HTTP request, since we did write it successfully to the database
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertLicense(dl, claims))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, claims))
 }
 
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
-	licenses, err := api.Database.GetLicenses(r.Context())
+	ctx := r.Context()
+	licenses, err := api.Database.GetLicenses(ctx)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusOK, []codersdk.License{})
+		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.License{})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching licenses.",
 			Detail:  err.Error(),
 		})
@@ -153,7 +155,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 
 	licenses, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, licenses)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching licenses.",
 			Detail:  err.Error(),
 		})
@@ -161,16 +163,17 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	}
 	sdkLicenses, err := convertLicenses(licenses)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error parsing licenses.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, sdkLicenses)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkLicenses)
 }
 
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
@@ -179,29 +182,29 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 32)
 	if err != nil {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "License ID must be an integer",
 		})
 		return
 	}
 
-	_, err = api.Database.DeleteLicense(r.Context(), int32(id))
+	_, err = api.Database.DeleteLicense(ctx, int32(id))
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Unknown license ID",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting license",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	err = api.updateEntitlements(r.Context())
+	err = api.updateEntitlements(ctx)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update entitlements",
 			Detail:  err.Error(),
 		})

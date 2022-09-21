@@ -88,14 +88,15 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 // checkAuthorization returns if the current API key can use the given
 // permissions, factoring in the current user's roles and the API key scopes.
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	auth := httpmw.UserAuthorization(r)
 
 	var params codersdk.AuthorizationRequest
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
-	api.Logger.Warn(r.Context(), "check-auth",
+	api.Logger.Warn(ctx, "check-auth",
 		slog.F("my_id", httpmw.APIKey(r).UserID),
 		slog.F("got_id", auth.ID),
 		slog.F("name", auth.Username),
@@ -105,7 +106,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	response := make(codersdk.AuthorizationResponse)
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q.", k),
 			})
 			return
@@ -123,5 +124,5 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 		response[k] = err == nil
 	}
 
-	httpapi.Write(rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }

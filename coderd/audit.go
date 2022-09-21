@@ -21,12 +21,12 @@ import (
 )
 
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	ctx := r.Context()
 	page, ok := parsePagination(rw, r)
 	if !ok {
 		return
@@ -35,7 +35,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
 	if len(errs) > 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
 			Validations: errs,
 		})
@@ -56,7 +56,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.AuditLogResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: convertAuditLogs(dblogs),
 	})
 }
@@ -71,7 +71,7 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
 	if len(errs) > 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
 			Validations: errs,
 		})
@@ -90,7 +90,7 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.AuditLogCountResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogCountResponse{
 		Count: count,
 	})
 }
@@ -131,7 +131,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var params codersdk.CreateTestAuditLogRequest
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 	if params.Action == "" {

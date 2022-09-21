@@ -15,7 +15,7 @@ import (
 func parseUUID(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
 	rawID := chi.URLParam(r, param)
 	if rawID == "" {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing UUID in URL.",
 			// Url params mean nothing to a user
 			Detail: fmt.Sprintf("%q URL param missing", param),
@@ -25,7 +25,7 @@ func parseUUID(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID
 
 	parsed, err := uuid.Parse(rawID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid UUID %q.", param),
 			Detail:  err.Error(),
 		})

@@ -37,8 +37,8 @@ const (
 	redirectURIQueryParam     = "redirect_uri"
 )
 
-func (api *API) appHost(rw http.ResponseWriter, _ *http.Request) {
-	httpapi.Write(rw, http.StatusOK, codersdk.GetAppHostResponse{
+func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.GetAppHostResponse{
 		Host: api.AppHostname,
 	})
 }
@@ -132,7 +132,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 					return
 				}
 
-				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Could not determine request Host.",
 				})
 				return
@@ -175,6 +175,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 }
 
 func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, host string) (httpapi.ApplicationURL, bool) {
+	ctx := r.Context()
 	// Check if the hostname matches the access URL. If it does, the
 	// user was definitely trying to connect to the dashboard/API.
 	if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
@@ -204,7 +205,7 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 			return httpapi.ApplicationURL{}, false
 		}
 
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Could not parse subdomain application URL.",
 			Detail:  err.Error(),
 		})
@@ -215,7 +216,7 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 	// valid application URL, so the base hostname should match the
 	// configured app hostname.
 	if !matchingBaseHostname {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "The server does not accept application requests on this hostname.",
 		})
 		return httpapi.ApplicationURL{}, false
@@ -229,6 +230,7 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 // they will be redirected to the route below. If the user does have a session
 // key but insufficient permissions a static error page will be rendered.
 func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, host string) bool {
+	ctx := r.Context()
 	_, ok := httpmw.APIKeyOptional(r)
 	if ok {
 		if !api.Authorize(r, rbac.ActionCreate, workspace.ApplicationConnectRBAC()) {
@@ -247,7 +249,7 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 		// Exchange the encoded API key for a real one.
 		_, apiKey, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Could not decrypt API key. Please remove the query parameter and try again.",
 				Detail:  err.Error(),
 			})
@@ -294,8 +296,9 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 // workspaceApplicationAuth is an endpoint on the main router that handles
 // redirects from the subdomain handler.
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if api.AppHostname == "" {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "The server does not accept subdomain-based application requests.",
 		})
 		return
@@ -310,14 +313,14 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// Get the redirect URI from the query parameters and parse it.
 	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
 	if redirectURI == "" {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing redirect_uri query parameter.",
 		})
 		return
 	}
 	u, err := url.Parse(redirectURI)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid redirect_uri query parameter.",
 			Detail:  err.Error(),
 		})
@@ -328,14 +331,14 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// valid app subdomain.
 	subdomain, rest := httpapi.SplitSubdomain(u.Hostname())
 	if !httpapi.HostnamesMatch(api.AppHostname, rest) {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The redirect_uri query parameter must be a valid app subdomain.",
 		})
 		return
 	}
 	_, err = httpapi.ParseSubdomainAppURL(subdomain)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The redirect_uri query parameter must be a valid app subdomain.",
 			Detail:  err.Error(),
 		})
@@ -355,7 +358,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	if lifetime > int64((time.Hour * 24 * 7).Seconds()) {
 		lifetime = int64((time.Hour * 24 * 7).Seconds())
 	}
-	cookie, err := api.createAPIKey(r, createAPIKeyParams{
+	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
 		ExpiresAt:       exp,
@@ -363,7 +366,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		Scope:           database.APIKeyScopeApplicationConnect,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
 		})
@@ -375,7 +378,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		APIKey: cookie.Value,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to encrypt API key.",
 			Detail:  err.Error(),
 		})
@@ -427,7 +430,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			Name:    proxyApp.AppName,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching workspace application.",
 				Detail:  err.Error(),
 			})
@@ -435,7 +438,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		}
 
 		if !app.Url.Valid {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
 			})
 			return
@@ -445,7 +448,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	appURL, err := url.Parse(internalURL)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("App URL %q is invalid.", internalURL),
 			Detail:  err.Error(),
 		})
@@ -487,7 +490,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			return
 		}
 
-		httpapi.Write(w, http.StatusBadGateway, codersdk.Response{
+		httpapi.Write(ctx, w, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to proxy request to application.",
 			Detail:  err.Error(),
 		})
@@ -495,7 +498,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",
 			Detail:  err.Error(),
 		})

@@ -12,6 +12,7 @@ import (
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r)
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceRoleAssignment) {
 		httpapi.Forbidden(rw)
@@ -19,11 +20,12 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
-	httpapi.Write(rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 	actorRoles := httpmw.UserAuthorization(r)
 
@@ -33,7 +35,7 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
 func convertRole(role rbac.Role) codersdk.Role {

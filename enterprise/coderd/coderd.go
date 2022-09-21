@@ -194,6 +194,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 }
 
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	api.entitlementsMu.RLock()
 	entitlements := api.entitlements
 	api.entitlementsMu.RUnlock()
@@ -205,9 +206,9 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if entitlements.activeUsers.Limit != nil {
-		activeUserCount, err := api.Database.GetActiveUserCount(r.Context())
+		activeUserCount, err := api.Database.GetActiveUserCount(ctx)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Unable to query database",
 				Detail:  err.Error(),
 			})
@@ -233,7 +234,7 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 			"Audit logging is enabled but your license for this feature is expired.")
 	}
 
-	httpapi.Write(rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 func (api *API) runEntitlementsLoop(ctx context.Context) {

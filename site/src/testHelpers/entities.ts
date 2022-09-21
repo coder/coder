@@ -380,7 +380,7 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   ...MockWorkspaceAgent,
-  id: "test-workspace-agent-2",
+  id: "test-workspace-agent-connecting",
   name: "another-workspace-agent",
   status: "connecting",
   version: "",
