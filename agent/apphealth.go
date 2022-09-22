@@ -67,7 +67,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 								}
 
 								client := &http.Client{
-									Timeout: time.Duration(time.Duration(app.Healthcheck.Interval) * time.Second),
+									Timeout: time.Duration(app.Healthcheck.Interval) * time.Second,
 								}
 								err := func() error {
 									req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.Healthcheck.URL, nil)
