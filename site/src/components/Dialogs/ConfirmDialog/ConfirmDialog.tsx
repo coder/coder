@@ -1,5 +1,5 @@
 import DialogActions from "@material-ui/core/DialogActions"
-import { fade, makeStyles } from "@material-ui/core/styles"
+import { alpha, makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React, { ReactNode } from "react"
 import { Dialog, DialogActionButtons, DialogActionButtonsProps } from "../Dialog"
@@ -65,11 +65,11 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(3),
   },
   description: {
-    color: fade(theme.palette.text.secondary, 0.75),
+    color: alpha(theme.palette.text.secondary, 0.75),
     lineHeight: "160%",
 
     "& strong": {
-      color: fade(theme.palette.text.secondary, 0.95),
+      color: alpha(theme.palette.text.secondary, 0.95),
     },
   },
 }))
