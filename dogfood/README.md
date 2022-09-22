@@ -1,5 +1,7 @@
 # dogfood template
 
+[![Open in Coder](https://cdn.coder.com/embed-button.svg)](https://dev.coder.com/templates/coder)
+
 Ammar is this template's admin.
 
 ## Personalization
