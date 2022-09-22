@@ -403,6 +403,11 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	// This is used by Enterprise code to control the functionality of this route.
+	override := api.WorkspaceClientCoordinateOverride.Load()
+	if override != nil && (*override)(rw) {
+		return
+	}
 
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)

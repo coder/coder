@@ -489,8 +489,9 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
-	Auditor  atomic.Pointer[audit.Auditor]
-	HTTPAuth *HTTPAuthorizer
+	Auditor                           atomic.Pointer[audit.Auditor]
+	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
+	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
