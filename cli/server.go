@@ -170,7 +170,6 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				shouldCoderTrace = telemetryTraceEnable
 			}
 
-			fmt.Println("shouldCoder", shouldCoderTrace)
 			if traceEnable || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 					Default: traceEnable,
