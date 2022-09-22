@@ -41,6 +41,7 @@ type Authorization struct {
 	ID       uuid.UUID
 	Username string
 	Roles    []string
+	Groups   []string
 	Scope    database.APIKeyScope
 }
 
@@ -336,6 +337,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs, redirectToLogin bool
 				Username: roles.Username,
 				Roles:    roles.Roles,
 				Scope:    key.Scope,
+				Groups:   roles.Groups,
 			})
 
 			next.ServeHTTP(rw, r.WithContext(ctx))

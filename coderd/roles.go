@@ -70,7 +70,7 @@ func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		if v.Object.OwnerID == "me" {
 			v.Object.OwnerID = roles.ID.String()
 		}
-		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, apiKey.Scope.ToRBAC(), rbac.Action(v.Action),
+		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Groups, apiKey.Scope.ToRBAC(), rbac.Action(v.Action),
 			rbac.Object{
 				Owner: v.Object.OwnerID,
 				OrgID: v.Object.OrganizationID,

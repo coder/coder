@@ -19,7 +19,8 @@ type subject struct {
 	// For the unit test we want to pass in the roles directly, instead of just
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
-	Roles []Role `json:"roles"`
+	Roles  []Role   `json:"roles"`
+	Groups []string `json:"groups"`
 }
 
 type fakeObject struct {
@@ -162,7 +163,7 @@ func TestFilter(t *testing.T) {
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, ActionRead, obj.RBACObject())
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, []string{}, scope, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -171,7 +172,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, scope, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, []string{}, scope, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -714,7 +715,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
 
-					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
+					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, subject.Groups, a, c.resource)
 
 					// Logging only
 					if authError != nil {
@@ -739,7 +740,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, ScopeAll, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, subject.Groups, ScopeAll, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.

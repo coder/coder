@@ -13,8 +13,8 @@ import (
 )
 
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error)
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, groups []string, scope Scope, action Action, object Object) error
+	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, groups []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -25,7 +25,7 @@ type PreparedAuthorized interface {
 // the elements the subject does not have permission for. This function slows
 // down if the list contains objects of multiple types. Attempt to only
 // filter objects of the same type for faster performance.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, groups []string, scope Scope, action Action, objects []O) ([]O, error) {
 	ctx, span := tracing.StartSpan(ctx, trace.WithAttributes(
 		attribute.String("subject_id", subjID),
 		attribute.StringSlice("subject_roles", subjRoles),
@@ -48,7 +48,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 		objectAuth, ok := prepared[object.RBACObject().Type]
 		if !ok {
 			var err error
-			objectAuth, err = auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, action, objectType)
+			objectAuth, err = auth.PrepareByRoleName(ctx, subjID, subjRoles, groups, scope, action, objectType)
 			if err != nil {
 				return nil, xerrors.Errorf("prepare: %w", err)
 			}
@@ -158,11 +158,11 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, groups []string, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, action, objectType)
+	auth, err := newPartialAuthorizer(ctx, subjectID, roles, groups, scope, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
@@ -170,7 +170,7 @@ func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Rol
 	return auth, nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, groups []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -179,5 +179,5 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		return nil, err
 	}
 
-	return a.Prepare(ctx, subjectID, roles, scope, action, objectType)
+	return a.Prepare(ctx, subjectID, roles, groups, scope, action, objectType)
 }

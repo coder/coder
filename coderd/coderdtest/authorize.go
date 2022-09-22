@@ -498,6 +498,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 type authCall struct {
 	SubjectID string
 	Roles     []string
+	Groups    []string
 	Scope     rbac.Scope
 	Action    rbac.Action
 	Object    rbac.Object
@@ -510,10 +511,11 @@ type RecordingAuthorizer struct {
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, groups []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
+		Groups:    groups,
 		Scope:     scope,
 		Action:    action,
 		Object:    object,
@@ -521,13 +523,14 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, groups []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:  r,
 		SubjectID: subjectID,
 		Roles:     roles,
 		Scope:     scope,
 		Action:    action,
+		Groups:    groups,
 	}, nil
 }
 
@@ -539,10 +542,11 @@ type fakePreparedAuthorizer struct {
 	Original  *RecordingAuthorizer
 	SubjectID string
 	Roles     []string
+	Groups    []string
 	Scope     rbac.Scope
 	Action    rbac.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Groups, f.Scope, f.Action, object)
 }

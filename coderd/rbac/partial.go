@@ -35,11 +35,11 @@ func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error
 	return nil
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, groups []string, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	pAuth, err := newSubPartialAuthorizer(ctx, subjectID, roles, action, objectType)
+	pAuth, err := newSubPartialAuthorizer(ctx, subjectID, roles, groups, action, objectType)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 			return nil, xerrors.Errorf("unknown scope %q", scope)
 		}
 
-		scopeAuth, err = newSubPartialAuthorizer(ctx, subjectID, []Role{scopeRole}, action, objectType)
+		scopeAuth, err = newSubPartialAuthorizer(ctx, subjectID, []Role{scopeRole}, groups, action, objectType)
 		if err != nil {
 			return nil, err
 		}
@@ -78,14 +78,15 @@ type subPartialAuthorizer struct {
 	alwaysTrue bool
 }
 
-func newSubPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*subPartialAuthorizer, error) {
+func newSubPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, groups []string, action Action, objectType string) (*subPartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:    subjectID,
-			Roles: roles,
+			ID:     subjectID,
+			Roles:  roles,
+			Groups: groups,
 		},
 		"object": map[string]string{
 			"type": objectType,

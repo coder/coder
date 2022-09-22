@@ -12,7 +12,7 @@ import (
 
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r)
-	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objects)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Groups, roles.Scope.ToRBAC(), action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
 		h.Logger.Error(r.Context(), "filter failed",
@@ -57,7 +57,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserAuthorization(r)
-	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, object.RBACObject())
+	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Groups, roles.Scope.ToRBAC(), action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
