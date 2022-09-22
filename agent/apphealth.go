@@ -40,7 +40,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 				tickers := make(chan string)
 				for _, app := range apps {
 					if shouldStartTicker(app) {
-						t := time.NewTicker(time.Duration(app.HealthcheckInterval) * time.Second)
+						t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
 						go func() {
 							for {
 								select {
@@ -67,10 +67,10 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 								}
 
 								client := &http.Client{
-									Timeout: time.Duration(app.HealthcheckInterval),
+									Timeout: time.Duration(app.Healthcheck.Interval),
 								}
 								err := func() error {
-									req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.HealthcheckURL, nil)
+									req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.Healthcheck.URL, nil)
 									if err != nil {
 										return err
 									}
@@ -88,7 +88,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 								if err == nil {
 									mu.Lock()
 									failures[app.Name]++
-									if failures[app.Name] > int(app.HealthcheckThreshold) {
+									if failures[app.Name] > int(app.Healthcheck.Threshold) {
 										health[app.Name] = codersdk.WorkspaceAppHealthUnhealthy
 									}
 									mu.Unlock()
@@ -139,7 +139,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 }
 
 func shouldStartTicker(app codersdk.WorkspaceApp) bool {
-	return app.HealthcheckURL != "" && app.HealthcheckInterval > 0 && app.HealthcheckThreshold > 0
+	return app.Healthcheck.URL != "" && app.Healthcheck.Interval > 0 && app.Healthcheck.Threshold > 0
 }
 
 func healthChanged(old map[string]codersdk.WorkspaceAppHealth, new map[string]codersdk.WorkspaceAppHealth) bool {

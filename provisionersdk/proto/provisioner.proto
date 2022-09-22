@@ -94,9 +94,14 @@ message App {
     string url = 3;
     string icon = 4;
     bool relative_path = 5;
-    string healthcheck_url = 7;
-    int32 healthcheck_interval = 8;
-    int32 healthcheck_threshold = 9;
+    Healthcheck healthcheck = 6;
+}
+
+// Healthcheck represents configuration for checking for app readiness.
+message Healthcheck {
+	string url = 1;
+    int32 interval = 2;
+    int32 threshold = 3;
 }
 
 // Resource represents created infrastructure.

@@ -228,14 +228,16 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:                 attrs.Name,
-					Command:              attrs.Command,
-					Url:                  attrs.URL,
-					Icon:                 attrs.Icon,
-					RelativePath:         attrs.RelativePath,
-					HealthcheckUrl:       attrs.HealthcheckURL,
-					HealthcheckInterval:  attrs.HealthcheckInterval,
-					HealthcheckThreshold: attrs.HealthcheckThreshold,
+					Name:         attrs.Name,
+					Command:      attrs.Command,
+					Url:          attrs.URL,
+					Icon:         attrs.Icon,
+					RelativePath: attrs.RelativePath,
+					Healthcheck: &proto.Healthcheck{
+						Url:       attrs.HealthcheckURL,
+						Interval:  attrs.HealthcheckInterval,
+						Threshold: attrs.HealthcheckThreshold,
+					},
 				})
 			}
 		}

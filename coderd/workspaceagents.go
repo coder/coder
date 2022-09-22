@@ -448,14 +448,16 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{
-			ID:                   dbApp.ID,
-			Name:                 dbApp.Name,
-			Command:              dbApp.Command.String,
-			Icon:                 dbApp.Icon,
-			HealthcheckURL:       dbApp.HealthcheckUrl,
-			HealthcheckInterval:  dbApp.HealthcheckInterval,
-			HealthcheckThreshold: dbApp.HealthcheckThreshold,
-			Health:               codersdk.WorkspaceAppHealth(dbApp.Health),
+			ID:      dbApp.ID,
+			Name:    dbApp.Name,
+			Command: dbApp.Command.String,
+			Icon:    dbApp.Icon,
+			Healthcheck: codersdk.Healthcheck{
+				URL:       dbApp.HealthcheckUrl,
+				Interval:  dbApp.HealthcheckInterval,
+				Threshold: dbApp.HealthcheckThreshold,
+			},
+			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
 		})
 	}
 	return apps

@@ -379,13 +379,15 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 			Icon:    "/code.svg",
 		},
 		{
-			Name:                 "code-server-2",
-			Command:              "some-command",
-			Url:                  "http://localhost:3000",
-			Icon:                 "/code.svg",
-			HealthcheckUrl:       "http://localhost:3000",
-			HealthcheckInterval:  5,
-			HealthcheckThreshold: 6,
+			Name:    "code-server-2",
+			Command: "some-command",
+			Url:     "http://localhost:3000",
+			Icon:    "/code.svg",
+			Healthcheck: &proto.Healthcheck{
+				Url:       "http://localhost:3000",
+				Interval:  5,
+				Threshold: 6,
+			},
 		},
 	}
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{

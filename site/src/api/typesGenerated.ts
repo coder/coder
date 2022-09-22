@@ -244,6 +244,13 @@ export interface GitSSHKey {
   readonly public_key: string
 }
 
+// From codersdk/workspaceapps.go
+export interface Healthcheck {
+  readonly url: string
+  readonly interval: number
+  readonly threshold: number
+}
+
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
@@ -588,9 +595,7 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
-  readonly healthcheck_url: string
-  readonly healthcheck_interval: number
-  readonly healthcheck_threshold: number
+  readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
 

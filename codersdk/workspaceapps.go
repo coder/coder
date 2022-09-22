@@ -21,14 +21,18 @@ type WorkspaceApp struct {
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon,omitempty"`
-	// HealthcheckURL specifies the url to check for the app health.
-	HealthcheckURL string `json:"healthcheck_url"`
-	// HealthcheckInterval specifies the seconds between each health check.
-	HealthcheckInterval int32 `json:"healthcheck_interval"`
-	// HealthcheckThreshold specifies the number of consecutive failed health checks before returning "unhealthy".
-	HealthcheckThreshold int32 `json:"healthcheck_threshold"`
-	// Health specifies the current status of the app's health.
-	Health WorkspaceAppHealth `json:"health"`
+	// Healthcheck specifies the configuration for checking app health.
+	Healthcheck Healthcheck        `json:"healthcheck"`
+	Health      WorkspaceAppHealth `json:"health"`
+}
+
+type Healthcheck struct {
+	// URL specifies the url to check for the app health.
+	URL string `json:"url"`
+	// Interval specifies the seconds between each health check.
+	Interval int32 `json:"interval"`
+	// Threshold specifies the number of consecutive failed health checks before returning "unhealthy".
+	Threshold int32 `json:"threshold"`
 }
 
 // @typescript-ignore PostWorkspaceAppHealthsRequest

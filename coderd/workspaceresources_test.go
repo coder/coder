@@ -82,13 +82,15 @@ func TestWorkspaceResource(t *testing.T) {
 				Icon:    "/code.svg",
 			},
 			{
-				Name:                 "code-server-2",
-				Command:              "some-command",
-				Url:                  "http://localhost:3000",
-				Icon:                 "/code.svg",
-				HealthcheckUrl:       "http://localhost:3000",
-				HealthcheckInterval:  5,
-				HealthcheckThreshold: 6,
+				Name:    "code-server-2",
+				Command: "some-command",
+				Url:     "http://localhost:3000",
+				Icon:    "/code.svg",
+				Healthcheck: &proto.Healthcheck{
+					Url:       "http://localhost:3000",
+					Interval:  5,
+					Threshold: 6,
+				},
 			},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -130,18 +132,18 @@ func TestWorkspaceResource(t *testing.T) {
 		require.EqualValues(t, app.Icon, got.Icon)
 		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
-		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckURL)
-		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
-		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
+		require.EqualValues(t, "", got.Healthcheck.URL)
+		require.EqualValues(t, 0, got.Healthcheck.Interval)
+		require.EqualValues(t, 0, got.Healthcheck.Threshold)
 		got = agent.Apps[1]
 		app = apps[1]
 		require.EqualValues(t, app.Command, got.Command)
 		require.EqualValues(t, app.Icon, got.Icon)
 		require.EqualValues(t, app.Name, got.Name)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
-		require.EqualValues(t, app.HealthcheckUrl, got.HealthcheckURL)
-		require.EqualValues(t, app.HealthcheckInterval, got.HealthcheckInterval)
-		require.EqualValues(t, app.HealthcheckThreshold, got.HealthcheckThreshold)
+		require.EqualValues(t, app.Healthcheck.Url, got.Healthcheck.URL)
+		require.EqualValues(t, app.Healthcheck.Interval, got.Healthcheck.Interval)
+		require.EqualValues(t, app.Healthcheck.Threshold, got.Healthcheck.Threshold)
 	})
 
 	t.Run("Metadata", func(t *testing.T) {
