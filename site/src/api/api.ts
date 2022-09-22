@@ -40,6 +40,8 @@ const token =
     ? document.head.querySelector('meta[property="csrf-token"]')
     : null
 
+console.log(process.env)
+
 if (token !== null && token.getAttribute("content") !== null) {
   if (process.env.NODE_ENV === "development") {
     // Development mode uses a hard-coded CSRF token
