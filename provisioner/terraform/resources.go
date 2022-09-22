@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -25,13 +27,13 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string                    `mapstructure:"agent_id"`
-	Name         string                    `mapstructure:"name"`
-	Icon         string                    `mapstructure:"icon"`
-	URL          string                    `mapstructure:"url"`
-	Command      string                    `mapstructure:"command"`
-	RelativePath bool                      `mapstructure:"relative_path"`
-	Healthcheck  *appHealthcheckAttributes `mapstructure:"healthcheck"`
+	AgentID      string                     `mapstructure:"agent_id"`
+	Name         string                     `mapstructure:"name"`
+	Icon         string                     `mapstructure:"icon"`
+	URL          string                     `mapstructure:"url"`
+	Command      string                     `mapstructure:"command"`
+	RelativePath bool                       `mapstructure:"relative_path"`
+	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -220,6 +222,8 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
+			d, _ := json.MarshalIndent(resource.AttributeValues, "", "    ")
+			fmt.Print(string(d))
 			return nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
 		if attrs.Name == "" {
@@ -227,11 +231,11 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			attrs.Name = resource.Name
 		}
 		var healthcheck *proto.Healthcheck
-		if attrs.Healthcheck != nil {
+		if len(attrs.Healthcheck) != 0 {
 			healthcheck = &proto.Healthcheck{
-				Url:       attrs.Healthcheck.URL,
-				Interval:  attrs.Healthcheck.Interval,
-				Threshold: attrs.Healthcheck.Threshold,
+				Url:       attrs.Healthcheck[0].URL,
+				Interval:  attrs.Healthcheck[0].Interval,
+				Threshold: attrs.Healthcheck[0].Threshold,
 			}
 		}
 		for _, agents := range resourceAgents {
