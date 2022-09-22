@@ -6,7 +6,6 @@ import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import React, { ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
 
 const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
@@ -48,24 +47,13 @@ const SidebarCaption: React.FC<PropsWithChildren> = ({ children }) => {
 export const SettingsHeader: React.FC<{
   title: string
   description: string | JSX.Element
-  isEnterprise?: boolean
-  isEnabled?: boolean
   docsHref: string
-}> = ({ title, description, isEnterprise, docsHref, isEnabled }) => {
+}> = ({ title, description, docsHref }) => {
   const styles = useStyles()
 
   return (
     <Stack alignItems="baseline" direction="row" justifyContent="space-between">
       <div className={styles.headingGroup}>
-        <Stack direction="row" alignItems="center" className={styles.badges} spacing={1}>
-          {isEnabled ? (
-            <span className={styles.enabledBadge}>Enabled</span>
-          ) : (
-            <span className={styles.disabledBadge}>Enabled</span>
-          )}
-          {isEnterprise ? <span className={styles.enterpriseBadge}>Enterprise</span> : null}
-        </Stack>
-
         <h1 className={styles.title}>{title}</h1>
         <span className={styles.description}>{description}</span>
       </div>
@@ -84,60 +72,21 @@ export const SettingsHeader: React.FC<{
   )
 }
 
-export const SettingsList: React.FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-
-  return <div className={styles.settingsList}>{children}</div>
-}
-
-const SettingsValue: React.FC<{ label: string; value: string; type?: "primary" | "secondary" }> = ({
-  label,
-  value,
-  type = "primary",
+export const SettingsBadges: React.FC<{ isEnterprise?: boolean; isEnabled?: boolean }> = ({
+  isEnterprise,
+  isEnabled,
 }) => {
   const styles = useStyles()
 
   return (
-    <div>
-      <span className={styles.settingsValueLabel}>{label}</span>
-      <span
-        className={combineClasses([
-          styles.settingsValueValue,
-          type === "secondary" ? styles.settingsValueSecondary : undefined,
-        ])}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
-
-export const SettingsItem: React.FC<{
-  title: string
-  description: string | JSX.Element
-  values: { label: string; value: string }[]
-}> = ({ title, description, values }) => {
-  const styles = useStyles()
-
-  return (
-    <section className={styles.settingsItem}>
-      <div>
-        <h2 className={styles.settingsItemTitle}>{title}</h2>
-        <span className={styles.settingsItemDescription}>{description}</span>
-      </div>
-
-      <Stack alignItems="baseline" direction="row" className={styles.settingsValues} spacing={5}>
-        {values.map(({ value, label }, index) => (
-          <SettingsValue
-            key={label}
-            label={label}
-            value={value}
-            // The first value is primary and the other secondary
-            type={index === 0 ? "primary" : "secondary"}
-          />
-        ))}
-      </Stack>
-    </section>
+    <Stack direction="row" alignItems="center" className={styles.badges} spacing={1}>
+      {isEnabled ? (
+        <span className={styles.enabledBadge}>Enabled</span>
+      ) : (
+        <span className={styles.disabledBadge}>Enabled</span>
+      )}
+      {isEnterprise ? <span className={styles.enterpriseBadge}>Enterprise</span> : null}
+    </Stack>
   )
 }
 
@@ -235,7 +184,6 @@ const useStyles = makeStyles((theme) => ({
   },
 
   headingGroup: {
-    marginBottom: theme.spacing(3),
     maxWidth: 420,
   },
 
@@ -256,7 +204,8 @@ const useStyles = makeStyles((theme) => ({
   },
 
   badges: {
-    marginBottom: theme.spacing(2),
+    marginTop: theme.spacing(3),
+    marginBottom: theme.spacing(3),
   },
 
   enterpriseBadge: {
@@ -293,54 +242,5 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 9999,
     border: `1px solid ${theme.palette.divider}`,
     lineHeight: "160%",
-  },
-
-  settingsList: {
-    background: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
-    border: `1px solid ${theme.palette.divider}`,
-  },
-
-  settingsItem: {
-    padding: theme.spacing(4, 5),
-
-    "&:not(:last-child)": {
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-  },
-
-  settingsItemTitle: {
-    fontSize: 20,
-    fontWeight: 400,
-    lineHeight: "initial",
-    margin: 0,
-    marginBottom: theme.spacing(0.5),
-  },
-
-  settingsItemDescription: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-
-  settingsValues: {
-    marginTop: theme.spacing(3),
-  },
-
-  settingsValueLabel: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: theme.palette.text.secondary,
-    marginBottom: theme.spacing(0.5),
-    display: "block",
-  },
-
-  settingsValueValue: {
-    display: "block",
-    fontSize: 16,
-  },
-
-  settingsValueSecondary: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    color: theme.palette.text.secondary,
   },
 }))
