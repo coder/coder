@@ -8,13 +8,15 @@ WHERE
 LIMIT
 	1;
 
--- name: GetGroupByName :one
+-- name: GetGroupByOrgAndName :one
 SELECT
 	*
 FROM
 	groups
 WHERE
-	name = $1
+	organization_id = $1
+AND
+	name = $2
 LIMIT
 	1;
 
@@ -24,24 +26,24 @@ SELECT
 FROM
 	groups
 JOIN
-	group_users
+	group_members
 ON
-	groups.id = group_users.group_id
+	groups.id = group_members.group_id
 WHERE
-	group_users.user_id = $1;
+	group_members.user_id = $1;
 
 
 -- name: GetGroupMembers :many
 SELECT
-	*
+	users.*
 FROM
 	users
 JOIN
-	group_users
+	group_members
 ON
-	users.id = group_users.user_id
+	users.id = group_members.user_id
 WHERE
-	group_users.group_id = $1;
+	group_members.group_id = $1;
 
 -- name: GetGroupsByOrganizationID :many
 SELECT
@@ -50,3 +52,12 @@ FROM
 	groups
 WHERE
 	organization_id = $1;
+
+-- name: InsertGroup :one
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+VALUES
+	( $1, $2, $3) RETURNING *;

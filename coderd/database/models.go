@@ -417,7 +417,7 @@ type Group struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-type GroupUser struct {
+type GroupMember struct {
 	UserID  uuid.UUID `db:"user_id" json:"user_id"`
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }

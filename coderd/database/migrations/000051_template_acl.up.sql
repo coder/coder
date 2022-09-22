@@ -14,10 +14,10 @@ CREATE TABLE groups (
 	name text NOT NULL,
 	organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
 	PRIMARY KEY(id),
-	UNIQUE(name)
+	UNIQUE(name, organization_id)
 );
 
-CREATE TABLE group_users (
+CREATE TABLE group_members (
 	user_id uuid NOT NULL,
 	group_id uuid NOT NULL,
 	FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,

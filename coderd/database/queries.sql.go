@@ -719,110 +719,53 @@ func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, err
 	return i, err
 }
 
-const getGroups = `-- name: GetGroups :many
+const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
 SELECT
 	id, name, organization_id
 FROM
 	groups
-`
-
-func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroups)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByUserID = `-- name: GetGroupsByUserID :many
-SELECT
-	groups.id, groups.name, groups.organization_id
-FROM
-	groups
-JOIN
-	group_users
-ON
-	groups.id = group_users.group_id
 WHERE
-	group_users.user_id = $1
+	organization_id = $1
+AND
+	name = $2
+LIMIT
+	1
 `
 
-func (q *sqlQuerier) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type GetGroupByOrgAndNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
 }
 
-const getUsersByGroupID = `-- name: GetUsersByGroupID :many
+func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByOrgAndName, arg.OrganizationID, arg.Name)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, user_id, group_id
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted
 FROM
 	users
 JOIN
-	group_users
+	group_members
 ON
-	users.id = group_users.user_id
+	users.id = group_members.user_id
 WHERE
-	group_users.group_id = $1
+	group_members.group_id = $1
 `
 
-type GetUsersByGroupIDRow struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	Email          string         `db:"email" json:"email"`
-	Username       string         `db:"username" json:"username"`
-	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
-	Status         UserStatus     `db:"status" json:"status"`
-	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
-	LoginType      LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
-	Deleted        bool           `db:"deleted" json:"deleted"`
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	GroupID        uuid.UUID      `db:"group_id" json:"group_id"`
-}
-
-func (q *sqlQuerier) GetUsersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GetUsersByGroupIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUsersByGroupID, groupID)
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetUsersByGroupIDRow
+	var items []User
 	for rows.Next() {
-		var i GetUsersByGroupIDRow
+		var i User
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
@@ -835,8 +778,6 @@ func (q *sqlQuerier) GetUsersByGroupID(ctx context.Context, groupID uuid.UUID) (
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
-			&i.UserID,
-			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -849,6 +790,97 @@ func (q *sqlQuerier) GetUsersByGroupID(ctx context.Context, groupID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
+SELECT
+	id, name, organization_id
+FROM
+	groups
+WHERE
+	organization_id = $1
+`
+
+func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserGroups = `-- name: GetUserGroups :many
+SELECT
+	groups.id, groups.name, groups.organization_id
+FROM
+	groups
+JOIN
+	group_members
+ON
+	groups.id = group_members.group_id
+WHERE
+	group_members.user_id = $1
+`
+
+func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getUserGroups, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertGroup = `-- name: InsertGroup :one
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+VALUES
+	( $1, $2, $3) RETURNING id, name, organization_id
+`
+
+type InsertGroupParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, insertGroup, arg.ID, arg.Name, arg.OrganizationID)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
 }
 
 const deleteLicense = `-- name: DeleteLicense :one

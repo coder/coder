@@ -158,7 +158,7 @@ CREATE TABLE gitsshkeys (
     public_key text NOT NULL
 );
 
-CREATE TABLE group_users (
+CREATE TABLE group_members (
     user_id uuid NOT NULL,
     group_id uuid NOT NULL
 );
@@ -429,7 +429,7 @@ ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
 
 ALTER TABLE ONLY groups
-    ADD CONSTRAINT groups_name_key UNIQUE (name);
+    ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
@@ -553,11 +553,11 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
-ALTER TABLE ONLY group_users
-    ADD CONSTRAINT group_users_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY group_users
-    ADD CONSTRAINT group_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

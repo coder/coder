@@ -54,6 +54,14 @@ var (
 		Type: "template",
 	}
 
+	// ResourceGroup CRUD. Org admins only.
+	//	create/delete = Make or delete a new group.
+	//	update = Update the name or members of a group.
+	//	read = Read groups and their members.
+	ResourceGroup = Object{
+		Type: "group",
+	}
+
 	ResourceTemplatePrivate = Object{
 		Type: "template_private",
 	}

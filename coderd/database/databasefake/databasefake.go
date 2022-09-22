@@ -85,6 +85,7 @@ type data struct {
 	auditLogs                      []database.AuditLog
 	files                          []database.File
 	gitSSHKey                      []database.GitSSHKey
+	groups                         []database.Group
 	parameterSchemas               []database.ParameterSchema
 	parameterValues                []database.ParameterValue
 	provisionerDaemons             []database.ProvisionerDaemon
@@ -2667,4 +2668,67 @@ func (q *fakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 	}
 
 	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetGroupByID(_ context.Context, id uuid.UUID) (database.Group, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, group := range q.groups {
+		if group.ID == id {
+			return group, nil
+		}
+	}
+
+	return database.Group{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, group := range q.groups {
+		if group.OrganizationID == arg.OrganizationID &&
+			group.Name == arg.Name {
+			return group, nil
+		}
+	}
+
+	return database.Group{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupParams) (database.Group, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, group := range q.groups {
+		if group.OrganizationID.String() == arg.OrganizationID.String() &&
+			group.Name == arg.Name {
+			return database.Group{}, &pq.Error{
+				Code: "23505",
+			}
+		}
+	}
+
+	group := database.Group{
+		ID:             arg.ID,
+		Name:           arg.Name,
+		OrganizationID: arg.OrganizationID,
+	}
+
+	q.groups = append(q.groups, group)
+
+	return group, nil
+}
+
+func (q *fakeQuerier) GetUserGroups(_ context.Context, userID uuid.UUID) ([]database.Group, error) {
+	panic("not implemented")
+}
+
+func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
+	panic("not implemented")
+}
+
+func (q *fakeQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+	panic("not implemented")
 }
