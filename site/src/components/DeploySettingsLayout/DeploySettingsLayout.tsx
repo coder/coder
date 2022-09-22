@@ -49,17 +49,24 @@ export const SettingsHeader: React.FC<{
   title: string
   description: string | JSX.Element
   isEnterprise?: boolean
+  isEnabled?: boolean
   docsHref: string
-}> = ({ title, description, isEnterprise, docsHref }) => {
+}> = ({ title, description, isEnterprise, docsHref, isEnabled }) => {
   const styles = useStyles()
 
   return (
     <Stack alignItems="baseline" direction="row" justifyContent="space-between">
       <div className={styles.headingGroup}>
-        <h1 className={styles.title}>
-          {title}
+        <Stack direction="row" alignItems="center" className={styles.badges} spacing={1}>
+          {isEnabled ? (
+            <span className={styles.enabledBadge}>Enabled</span>
+          ) : (
+            <span className={styles.disabledBadge}>Enabled</span>
+          )}
           {isEnterprise ? <span className={styles.enterpriseBadge}>Enterprise</span> : null}
-        </h1>
+        </Stack>
+
+        <h1 className={styles.title}>{title}</h1>
         <span className={styles.description}>{description}</span>
       </div>
 
@@ -229,7 +236,7 @@ const useStyles = makeStyles((theme) => ({
 
   headingGroup: {
     marginBottom: theme.spacing(3),
-    maxWidth: 550,
+    maxWidth: 420,
   },
 
   title: {
@@ -239,7 +246,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     lineHeight: "initial",
     margin: 0,
-    marginBottom: theme.spacing(2),
+    marginBottom: theme.spacing(1),
   },
 
   description: {
@@ -248,16 +255,43 @@ const useStyles = makeStyles((theme) => ({
     lineHeight: "160%",
   },
 
+  badges: {
+    marginBottom: theme.spacing(2),
+  },
+
   enterpriseBadge: {
     fontSize: 10,
     fontWeight: 600,
     textTransform: "uppercase",
     letterSpacing: "0.085em",
-    marginLeft: theme.spacing(2),
+    backgroundColor: theme.palette.info.dark,
+    padding: theme.spacing(0.5, 2),
+    borderRadius: 9999,
+    border: `1px solid ${theme.palette.info.light}`,
+    lineHeight: "160%",
+  },
+
+  enabledBadge: {
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.085em",
     backgroundColor: theme.palette.success.dark,
     padding: theme.spacing(0.5, 2),
     borderRadius: 9999,
     border: `1px solid ${theme.palette.success.light}`,
+    lineHeight: "160%",
+  },
+
+  disabledBadge: {
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.085em",
+    backgroundColor: theme.palette.background.paper,
+    padding: theme.spacing(0.5, 2),
+    borderRadius: 9999,
+    border: `1px solid ${theme.palette.divider}`,
     lineHeight: "160%",
   },
 
