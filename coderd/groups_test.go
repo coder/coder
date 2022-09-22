@@ -221,3 +221,56 @@ func TestGroup(t *testing.T) {
 		require.Equal(t, group, ggroup)
 	})
 }
+
+// TODO: test auth.
+func TestGroups(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user4 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user5 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		ctx, _ := testutil.Context(t)
+		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		group2, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hey",
+		})
+		require.NoError(t, err)
+
+		group1, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user2.ID.String(), user3.ID.String()},
+		})
+		require.NoError(t, err)
+
+		group2, err = client.PatchGroup(ctx, group2.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user4.ID.String(), user5.ID.String()},
+		})
+		require.NoError(t, err)
+
+		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Contains(t, groups, group1)
+		require.Contains(t, groups, group2)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx, _ := testutil.Context(t)
+		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, groups, 0)
+	})
+}

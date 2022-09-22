@@ -48,11 +48,12 @@ func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]G
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var resp Group
-	return nil, json.NewDecoder(res.Body).Decode(&resp)
+
+	var groups []Group
+	return groups, json.NewDecoder(res.Body).Decode(&groups)
 }
 
 func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {

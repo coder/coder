@@ -80,6 +80,10 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
+func (g Group) RBACObject() rbac.Object {
+	return rbac.ResourceGroup.InOrg(g.OrganizationID)
+}
+
 func (w Workspace) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspace.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
 }

@@ -2791,5 +2791,15 @@ func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 }
 
 func (q *fakeQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var groups []database.Group
+	for _, group := range q.groups {
+		if group.OrganizationID == organizationID {
+			groups = append(groups, group)
+		}
+	}
+
+	return groups, nil
 }
