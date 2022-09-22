@@ -20,6 +20,7 @@ type subject struct {
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
 	Roles []Role `json:"roles"`
+	Scope Role   `json:"scope"`
 }
 
 type fakeObject struct {
@@ -231,6 +232,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{{
 			Name: "deny-all",
 			// List out deny permissions explicitly
@@ -271,6 +273,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOrgAdmin(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -304,6 +307,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
@@ -335,90 +339,108 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: true},
 	})
 
-	// In practice this is a token scope on a regular subject.
-	// So this unit test does not represent a practical role. It is just
-	// testing the capabilities of the RBAC system.
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeApplicationConnect)),
 		Roles: []Role{
-			{
-				Name: "WorkspaceToken",
-				// This is at the site level to prevent the token from losing access if the user
-				// is kicked from the org
-				Site: []Permission{
-					{
-						Negate:       false,
-						ResourceType: ResourceWorkspace.Type,
-						Action:       ActionRead,
-					},
-				},
-			},
+			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(RoleMember())),
 		},
 	}
 
 	testAuthorize(t, "WorkspaceToken", user,
-		// Read Actions
+		// Create (connect) Actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead}
+			c.actions = []Action{ActionCreate}
 			return c
 		}, []authTestCase{
 			// Org + me
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), allow: true},
-			{resource: ResourceWorkspace.InOrg(defOrg), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg), allow: true},
 
-			{resource: ResourceWorkspace.WithOwner(user.UserID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner(user.UserID), allow: true},
 
-			{resource: ResourceWorkspace.All(), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.All(), allow: false},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), allow: true},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID), allow: false},
 
 			// Other org + other user
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner("not-me"), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me"), allow: false},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), allow: true},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner("not-me"), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me"), allow: false},
 		}),
-		// Not read actions
+		// Not create actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
 			// Org + me
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
-			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg)},
 
-			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner(user.UserID)},
 
-			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspaceApplicationConnect.All()},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID)},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID)},
 
 			// Other org + other user
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me")},
 
-			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me")},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me")},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID)},
 
-			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me")},
+		}),
+		// Other Objects
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			// Org + me
+			{resource: ResourceTemplate.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceTemplate.InOrg(defOrg)},
+
+			{resource: ResourceTemplate.WithOwner(user.UserID)},
+
+			{resource: ResourceTemplate.All()},
+
+			// Other org + me
+			{resource: ResourceTemplate.InOrg(unuseID).WithOwner(user.UserID)},
+			{resource: ResourceTemplate.InOrg(unuseID)},
+
+			// Other org + other user
+			{resource: ResourceTemplate.InOrg(defOrg).WithOwner("not-me")},
+
+			{resource: ResourceTemplate.WithOwner("not-me")},
+
+			// Other org + other use
+			{resource: ResourceTemplate.InOrg(unuseID).WithOwner("not-me")},
+			{resource: ResourceTemplate.InOrg(unuseID)},
+
+			{resource: ResourceTemplate.WithOwner("not-me")},
 		}),
 	)
 
 	// In practice this is a token scope on a regular subject
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "ReadOnlyOrgAndUser",
@@ -511,6 +533,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			{
@@ -571,6 +594,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "site-noise",
@@ -634,22 +658,23 @@ func TestAuthorizeScope(t *testing.T) {
 	unusedID := uuid.New()
 	user := subject{
 		UserID: "me",
-		Roles:  []Role{},
+		Roles:  []Role{must(RoleByName(RoleOwner()))},
+		Scope:  must(ScopeRole(ScopeApplicationConnect)),
 	}
+	var _ = unusedID
 
-	user.Roles = []Role{must(ScopeRole(ScopeApplicationConnect))}
 	testAuthorize(t, "Admin_ScopeApplicationConnect", user, []authTestCase{
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+		//{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Allowed by scope:
 		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
@@ -691,7 +716,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
 
-					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
+					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, subject.Scope, a, c.resource)
 
 					// Logging only
 					if authError != nil {
@@ -722,29 +747,17 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					if len(partialAuthz.mainAuthorizer.partialQueries.Support) > 0 {
-						d, _ := json.Marshal(partialAuthz.mainAuthorizer.input)
+					if len(partialAuthz.partialQueries.Support) > 0 {
+						d, _ := json.Marshal(partialAuthz.input)
 						t.Logf("input: %s", string(d))
-						for _, q := range partialAuthz.mainAuthorizer.partialQueries.Queries {
+						for _, q := range partialAuthz.partialQueries.Queries {
 							t.Logf("query: %+v", q.String())
 						}
-						for _, s := range partialAuthz.mainAuthorizer.partialQueries.Support {
+						for _, s := range partialAuthz.partialQueries.Support {
 							t.Logf("support: %+v", s.String())
 						}
 					}
-					if partialAuthz.scopeAuthorizer != nil {
-						if len(partialAuthz.scopeAuthorizer.partialQueries.Support) > 0 {
-							d, _ := json.Marshal(partialAuthz.scopeAuthorizer.input)
-							t.Logf("scope input: %s", string(d))
-							for _, q := range partialAuthz.scopeAuthorizer.partialQueries.Queries {
-								t.Logf("scope query: %+v", q.String())
-							}
-							for _, s := range partialAuthz.scopeAuthorizer.partialQueries.Support {
-								t.Logf("scope support: %+v", s.String())
-							}
-						}
-						require.Equal(t, 0, len(partialAuthz.scopeAuthorizer.partialQueries.Support), "expected 0 support rules in scope authorizer")
-					}
+					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules in scope authorizer")
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {

@@ -75,7 +75,7 @@ func NewAuthorizer() (*RegoAuthorizer, error) {
 	query, err := rego.New(
 		// allowed is the `allow` field from the prepared query. This is the field to check if authorization is
 		// granted.
-		rego.Query("data.authz.allow"),
+		rego.Query("data.authz.role_allow data.authz.scope_allow"),
 		rego.Module("policy.rego", policy),
 	).PrepareForEval(ctx)
 
@@ -99,22 +99,14 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 		return err
 	}
 
-	err = a.Authorize(ctx, subjectID, roles, action, object)
+	scopeRole, err := ScopeRole(scope)
 	if err != nil {
 		return err
 	}
 
-	// If the scope isn't "any", we need to check with the scope's role as well.
-	if scope != ScopeAll {
-		scopeRole, err := ScopeRole(scope)
-		if err != nil {
-			return err
-		}
-
-		err = a.Authorize(ctx, subjectID, []Role{scopeRole}, action, object)
-		if err != nil {
-			return err
-		}
+	err = a.Authorize(ctx, subjectID, roles, scopeRole, action, object)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -122,7 +114,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 
 // Authorize allows passing in custom Roles.
 // This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, object Object) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -131,6 +123,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 			ID:    subjectID,
 			Roles: roles,
 		},
+		"scope":  scope,
 		"object": object,
 		"action": action,
 	}
@@ -140,11 +133,16 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
 	}
 
-	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+	if len(results) == 1 && len(results[0].Bindings) == 0 {
+		for _, exp := range results[0].Expressions {
+			// TODO: @emyrk check the exp.text for the exact query variable.
+			if b, ok := exp.Value.(bool); !ok || !b {
+				return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+			}
+		}
+		return nil
 	}
-
-	return nil
+	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
 }
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
