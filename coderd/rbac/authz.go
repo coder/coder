@@ -93,20 +93,21 @@ func NewAuthorizer() (*RegoAuthorizer, error) {
 }
 
 type authSubject struct {
-	ID    string `json:"id"`
-	Roles []Role `json:"roles"`
+	ID     string   `json:"id"`
+	Roles  []Role   `json:"roles"`
+	Groups []string `json:"groups"`
 }
 
 // ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, groups []string, scope Scope, action Action, object Object) error {
 	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return err
 	}
 
-	err = a.Authorize(ctx, subjectID, roles, action, object)
+	err = a.Authorize(ctx, subjectID, roles, groups, action, object)
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 			return err
 		}
 
-		err = a.Authorize(ctx, subjectID, []Role{scopeRole}, action, object)
+		err = a.Authorize(ctx, subjectID, []Role{scopeRole}, groups, action, object)
 		if err != nil {
 			return err
 		}
@@ -129,14 +130,15 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 
 // Authorize allows passing in custom Roles.
 // This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, groups []string, action Action, object Object) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:    subjectID,
-			Roles: roles,
+			ID:     subjectID,
+			Roles:  roles,
+			Groups: groups,
 		},
 		"object": object,
 		"action": action,
