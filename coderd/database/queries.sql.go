@@ -3224,22 +3224,14 @@ SELECT
 		array_append(users.rbac_roles, 'member'),
 		(
 			SELECT
-				array_agg(org_member_roles.values)
-			FROM (
-				 SELECT unnest(
-						array_agg(
-							array_append(
-								organization_members.roles,
-								-- All org_members get the org-member role for their orgs
-								'organization-member:' || organization_members.organization_id::text
-								)
-							)
-				) AS values
-				 FROM
-					 organization_members
-				 WHERE
-					 user_id = users.id
-			) AS org_member_roles
+				array_agg(org_roles)
+			FROM
+				organization_members,
+				unnest(
+					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
+				) AS org_roles
+			WHERE
+				user_id = users.id
 		)
 	) :: text[] AS roles,
 	-- All groups the user is in.
