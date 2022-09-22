@@ -348,7 +348,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 	}
 
-	testAuthorize(t, "WorkspaceToken", user,
+	testAuthorize(t, "ApplicationToken", user,
 		// Create (connect) Actions
 		cases(func(c authTestCase) authTestCase {
 			c.actions = []Action{ActionCreate}
@@ -356,7 +356,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		}, []authTestCase{
 			// Org + me
 			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), allow: true},
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg), allow: false},
 
 			{resource: ResourceWorkspaceApplicationConnect.WithOwner(user.UserID), allow: true},
 
@@ -664,17 +664,17 @@ func TestAuthorizeScope(t *testing.T) {
 	var _ = unusedID
 
 	testAuthorize(t, "Admin_ScopeApplicationConnect", user, []authTestCase{
-		//{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-		//{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Allowed by scope:
 		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
@@ -747,16 +747,15 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					if len(partialAuthz.partialQueries.Support) > 0 {
-						d, _ := json.Marshal(partialAuthz.input)
-						t.Logf("input: %s", string(d))
-						for _, q := range partialAuthz.partialQueries.Queries {
-							t.Logf("query: %+v", q.String())
-						}
-						for _, s := range partialAuthz.partialQueries.Support {
-							t.Logf("support: %+v", s.String())
-						}
+					d, _ := json.Marshal(partialAuthz.input)
+					t.Logf("input: %s", string(d))
+					for _, q := range partialAuthz.partialQueries.Queries {
+						t.Logf("query: %+v", q.String())
 					}
+					for _, s := range partialAuthz.partialQueries.Support {
+						t.Logf("support: %+v", s.String())
+					}
+
 					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules in scope authorizer")
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
