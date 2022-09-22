@@ -329,7 +329,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
     url: "",
     interval: 0,
     threshold: 0,
-  }
+  },
 }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {

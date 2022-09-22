@@ -19,8 +19,8 @@ resource "coder_app" "app1" {
 resource "coder_app" "app2" {
   agent_id = coder_agent.dev1.id
   healthcheck {
-    url = "http://localhost:13337/healthz"
-    interval = 5
+    url       = "http://localhost:13337/healthz"
+    interval  = 5
     threshold = 6
   }
 }
