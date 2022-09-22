@@ -270,7 +270,10 @@ func New(options *Options) *API {
 		})
 
 		r.Route("/groups/{group}", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGroupParam(api.Database),
+			)
 			r.Get("/", api.group)
 			r.Patch("/", api.patchGroup)
 			r.Delete("/", api.deleteGroup)

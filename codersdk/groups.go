@@ -72,13 +72,13 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-type PatchGroupUsersRequest struct {
+type PatchGroupRequest struct {
 	AddUsers    []string `json:"add_users"`
 	RemoveUsers []string `json:"remove_users"`
 	Name        string   `json:"name"`
 }
 
-func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroupUsersRequest) (Group, error) {
+func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroupRequest) (Group, error) {
 	res, err := c.Request(ctx, http.MethodPatch,
 		fmt.Sprintf("/api/v2/groups/%s", group.String()),
 		req,

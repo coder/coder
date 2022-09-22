@@ -21,6 +21,7 @@ type sqlcQuerier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
+	DeleteGroupMember(ctx context.Context, userID uuid.UUID) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOldAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
@@ -113,6 +114,7 @@ type sqlcQuerier interface {
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
+	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
@@ -135,6 +137,7 @@ type sqlcQuerier interface {
 	ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error
+	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
 	UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error

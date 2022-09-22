@@ -701,6 +701,18 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const deleteGroupMember = `-- name: DeleteGroupMember :exec
+DELETE FROM 
+	group_members 
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupMember, userID)
+	return err
+}
+
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT
 	id, name, organization_id
@@ -878,6 +890,46 @@ type InsertGroupParams struct {
 
 func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error) {
 	row := q.db.QueryRowContext(ctx, insertGroup, arg.ID, arg.Name, arg.OrganizationID)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const insertGroupMember = `-- name: InsertGroupMember :exec
+INSERT INTO group_members (
+	user_id,
+	group_id
+)
+VALUES ( $1, $2)
+`
+
+type InsertGroupMemberParams struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+func (q *sqlQuerier) InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error {
+	_, err := q.db.ExecContext(ctx, insertGroupMember, arg.UserID, arg.GroupID)
+	return err
+}
+
+const updateGroupByID = `-- name: UpdateGroupByID :one
+UPDATE
+	groups
+SET
+	name = $1
+WHERE
+	id = $2
+RETURNING id, name, organization_id
+`
+
+type UpdateGroupByIDParams struct {
+	Name string    `db:"name" json:"name"`
+	ID   uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, updateGroupByID, arg.Name, arg.ID)
 	var i Group
 	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
 	return i, err

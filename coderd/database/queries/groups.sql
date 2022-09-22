@@ -61,3 +61,26 @@ INSERT INTO groups (
 )
 VALUES
 	( $1, $2, $3) RETURNING *;
+
+-- name: UpdateGroupByID :one
+UPDATE
+	groups
+SET
+	name = $1
+WHERE
+	id = $2
+RETURNING *;
+
+-- name: InsertGroupMember :exec
+INSERT INTO group_members (
+	user_id,
+	group_id
+)
+VALUES ( $1, $2);
+
+-- name: DeleteGroupMember :exec
+DELETE FROM 
+	group_members 
+WHERE
+	user_id = $1;
+
