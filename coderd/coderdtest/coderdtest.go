@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -21,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,8 +47,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
@@ -137,26 +134,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		})
 	}
 
-	// This can be hotswapped for a live database instance.
-	db := databasefake.New()
-	pubsub := database.NewPubsubInMemory()
-	if os.Getenv("DB") != "" {
-		connectionURL, closePg, err := postgres.Open()
-		require.NoError(t, err)
-		t.Cleanup(closePg)
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		db = database.New(sqlDB)
-
-		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = pubsub.Close()
-		})
-	}
+	db, pubsub := dbtestutil.NewDB(t)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
