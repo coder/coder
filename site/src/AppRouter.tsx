@@ -1,5 +1,6 @@
 import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
@@ -11,21 +12,23 @@ import { XServiceContext } from "xServices/StateContext"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
-import { IndexPage } from "./pages"
-import { NotFoundPage } from "./pages/404Page/404Page"
-import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
-import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
-import { LoginPage } from "./pages/LoginPage/LoginPage"
-import { TemplatesPage } from "./pages/TemplatesPage/TemplatesPage"
-import { AccountPage } from "./pages/UserSettingsPage/AccountPage/AccountPage"
-import { SecurityPage } from "./pages/UserSettingsPage/SecurityPage/SecurityPage"
-import { SSHKeysPage } from "./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"
-import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
-import { UsersPage } from "./pages/UsersPage/UsersPage"
-import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPage"
-import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
-import { WorkspaceSchedulePage } from "./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"
 
+const IndexPage = lazy(() => import("./pages"))
+const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
+const CliAuthenticationPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"))
+const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
+const LoginPage = lazy(() => import("./pages/LoginPage/LoginPage"))
+const TemplatesPage = lazy(() => import("./pages/TemplatesPage/TemplatesPage"))
+const AccountPage = lazy(() => import("./pages/UserSettingsPage/AccountPage/AccountPage"))
+const SecurityPage = lazy(() => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"))
+const SSHKeysPage = lazy(() => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"))
+const CreateUserPage = lazy(() => import("./pages/UsersPage/CreateUserPage/CreateUserPage"))
+const UsersPage = lazy(() => import("./pages/UsersPage/UsersPage"))
+const WorkspaceBuildPage = lazy(() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"))
+const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
+const WorkspaceSchedulePage = lazy(
+  () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
+)
 const WorkspaceAppErrorPage = lazy(
   () => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"),
 )
@@ -41,7 +44,7 @@ export const AppRouter: FC = () => {
   const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
 
   return (
-    <Suspense fallback={<></>}>
+    <Suspense fallback={<FullScreenLoader />}>
       <Routes>
         <Route
           index
