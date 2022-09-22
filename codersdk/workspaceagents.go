@@ -20,7 +20,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"

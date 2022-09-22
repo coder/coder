@@ -74,7 +74,7 @@ type Options struct {
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 
-	TailnetCoordinator *tailnet.Coordinator
+	TailnetCoordinator tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
 
 	MetricsCacheRefreshInterval time.Duration
@@ -121,7 +121,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator()
+		options.TailnetCoordinator = tailnet.NewMemoryCoordinator()
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()

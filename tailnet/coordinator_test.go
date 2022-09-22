@@ -16,7 +16,7 @@ func TestCoordinator(t *testing.T) {
 	t.Parallel()
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		coordinator := tailnet.NewMemoryCoordinator()
 		client, server := net.Pipe()
 		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
@@ -32,15 +32,15 @@ func TestCoordinator(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return coordinator.Node(id) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.Close()
-		require.NoError(t, err)
+		require.NoError(t, client.Close())
+		require.NoError(t, server.Close())
 		<-errChan
 		<-closeChan
 	})
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		coordinator := tailnet.NewMemoryCoordinator()
 		client, server := net.Pipe()
 		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
@@ -64,7 +64,7 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
-		coordinator := tailnet.NewCoordinator()
+		coordinator := tailnet.NewMemoryCoordinator()
 
 		agentWS, agentServerWS := net.Pipe()
 		defer agentWS.Close()
