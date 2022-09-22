@@ -102,7 +102,7 @@ func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, 
 }
 
 // WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific time.
-func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
+func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), after)
 }
 
