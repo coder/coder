@@ -25,15 +25,20 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID              string `mapstructure:"agent_id"`
-	Name                 string `mapstructure:"name"`
-	Icon                 string `mapstructure:"icon"`
-	URL                  string `mapstructure:"url"`
-	Command              string `mapstructure:"command"`
-	RelativePath         bool   `mapstructure:"relative_path"`
-	HealthcheckURL       string `mapstructure:"healthcheck_url"`
-	HealthcheckInterval  int32  `mapstructure:"healthcheck_interval"`
-	HealthcheckThreshold int32  `mapstructure:"healthcheck_threshold"`
+	AgentID      string                    `mapstructure:"agent_id"`
+	Name         string                    `mapstructure:"name"`
+	Icon         string                    `mapstructure:"icon"`
+	URL          string                    `mapstructure:"url"`
+	Command      string                    `mapstructure:"command"`
+	RelativePath bool                      `mapstructure:"relative_path"`
+	Healthcheck  *appHealthcheckAttributes `mapstructure:"healthcheck"`
+}
+
+// A mapping of attributes on the "healthcheck" resource.
+type appHealthcheckAttributes struct {
+	URL       string `mapstructure:"url"`
+	Interval  int32  `mapstructure:"interval"`
+	Threshold int32  `mapstructure:"threshold"`
 }
 
 // A mapping of attributes on the "coder_metadata" resource.
@@ -221,6 +226,14 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			// Default to the resource name if none is set!
 			attrs.Name = resource.Name
 		}
+		var healthcheck *proto.Healthcheck
+		if attrs.Healthcheck != nil {
+			healthcheck = &proto.Healthcheck{
+				Url:       attrs.Healthcheck.URL,
+				Interval:  attrs.Healthcheck.Interval,
+				Threshold: attrs.Healthcheck.Threshold,
+			}
+		}
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -233,11 +246,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
 					RelativePath: attrs.RelativePath,
-					Healthcheck: &proto.Healthcheck{
-						Url:       attrs.HealthcheckURL,
-						Interval:  attrs.HealthcheckInterval,
-						Threshold: attrs.HealthcheckThreshold,
-					},
+					Healthcheck:  healthcheck,
 				})
 			}
 		}
