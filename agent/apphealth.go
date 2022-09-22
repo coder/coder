@@ -103,8 +103,18 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 					}
 				}()
 
+				copyHealth := func(h1 map[string]codersdk.WorkspaceAppHealth) map[string]codersdk.WorkspaceAppHealth {
+					h2 := make(map[string]codersdk.WorkspaceAppHealth, 0)
+					mu.RLock()
+					for k, v := range h1 {
+						h2[k] = v
+					}
+					mu.RUnlock()
+
+					return h2
+				}
+				lastHealth := copyHealth(health)
 				reportTicker := time.NewTicker(time.Second)
-				lastHealth := make(map[string]codersdk.WorkspaceAppHealth, 0)
 				for {
 					select {
 					case <-ctx.Done():
@@ -114,7 +124,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 						changed := healthChanged(lastHealth, health)
 						mu.RUnlock()
 						if changed {
-							lastHealth = health
+							lastHealth = copyHealth(health)
 							err := client.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
 								Healths: health,
 							})
