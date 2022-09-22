@@ -274,3 +274,29 @@ func TestGroups(t *testing.T) {
 		require.Len(t, groups, 0)
 	})
 }
+
+func TestDeleteGroup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, _ := testutil.Context(t)
+		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteGroup(ctx, group1.ID)
+		require.NoError(t, err)
+
+		_, err = client.Group(ctx, group1.ID)
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+}

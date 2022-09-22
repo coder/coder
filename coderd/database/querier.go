@@ -21,6 +21,7 @@ type sqlcQuerier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
+	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMember(ctx context.Context, userID uuid.UUID) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOldAgentStats(ctx context.Context) error

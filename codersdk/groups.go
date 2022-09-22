@@ -95,3 +95,19 @@ func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroup
 	var resp Group
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+func (c *Client) DeleteGroup(ctx context.Context, group uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/groups/%s", group.String()),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}

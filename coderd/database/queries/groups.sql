@@ -84,3 +84,10 @@ DELETE FROM
 WHERE
 	user_id = $1;
 
+-- name: DeleteGroupByID :exec
+DELETE FROM 
+	groups 
+WHERE
+	id = $1;
+
+

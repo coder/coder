@@ -157,7 +157,25 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		group = httpmw.GroupParam(r)
+	)
 
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceGroup) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	err := api.Database.DeleteGroupByID(ctx, group.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+		Message: "Successfully deleted group!",
+	})
 }
 
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {

@@ -2790,7 +2790,7 @@ func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *fakeQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2802,4 +2802,18 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(ctx context.Context, organizatio
 	}
 
 	return groups, nil
+}
+
+func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, group := range q.groups {
+		if group.ID == id {
+			q.groups = append(q.groups[:i], q.groups[i+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
 }
