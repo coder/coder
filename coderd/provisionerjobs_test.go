@@ -44,8 +44,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
+		defer closer.Close()
 		for {
 			log, ok := <-logs
 			t.Logf("got log: [%s] %s %s", log.Level, log.Stage, log.Output)
@@ -82,8 +83,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
+		defer closer.Close()
 		for {
 			_, ok := <-logs
 			if !ok {

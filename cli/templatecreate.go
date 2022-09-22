@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,7 +183,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		Cancel: func() error {
 			return client.CancelTemplateVersion(cmd.Context(), version.ID)
 		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
 			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, before)
 		},
 	})

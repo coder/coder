@@ -347,7 +347,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = updateConnectionTimes()
 	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		_ = conn.Close(websocket.StatusGoingAway, err.Error())
 		return
 	}
 
@@ -380,7 +380,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		}
 		err = updateConnectionTimes()
 		if err != nil {
-			_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
 		}
 		err := ensureLatestBuild()
@@ -402,6 +402,14 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+	// This is used by Enterprise code to control the functionality of this route.
+	override := api.WorkspaceClientCoordinateOverride.Load()
+	if override != nil {
+		overrideFunc := *override
+		if overrideFunc != nil && overrideFunc(rw) {
+			return
+		}
 	}
 
 	api.websocketWaitMutex.Lock()
@@ -563,7 +571,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	defer conn.Close(websocket.StatusAbnormalClosure, "")
+	defer conn.Close(websocket.StatusGoingAway, "")
 
 	var lastReport codersdk.AgentStatsReportResponse
 	latestStat, err := api.Database.GetLatestAgentStat(ctx, workspaceAgent.ID)

@@ -1,11 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useActor, useMachine } from "@xstate/react"
+import { useActor, useMachine, useSelector } from "@xstate/react"
+import { FeatureNames } from "api/types"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
+import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -26,6 +28,7 @@ export const WorkspacePage: FC = () => {
   const workspaceName = firstOrItem(workspaceQueryParam, null)
   const { t } = useTranslation("workspacePage")
   const xServices = useContext(XServiceContext)
+  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
@@ -122,6 +125,7 @@ export const WorkspacePage: FC = () => {
           resources={workspace.latest_build.resources}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
+          hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
           workspaceErrors={{
             [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
             [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
