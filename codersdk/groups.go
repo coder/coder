@@ -65,7 +65,7 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusOK {
 		return Group{}, readBodyAsError(res)
 	}
 	var resp Group

@@ -161,7 +161,23 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		group = httpmw.GroupParam(r)
+	)
 
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceTemplate) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	users, err := api.Database.GetGroupMembers(ctx, group.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertGroup(group, users))
 }
 
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
