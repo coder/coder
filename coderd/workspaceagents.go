@@ -698,12 +698,12 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	var req codersdk.PostWorkspaceAppHealthsRequest
-	if !httpapi.Read(rw, r, &req) {
+	if !httpapi.Read(r.Context(), rw, r, &req) {
 		return
 	}
 
 	if req.Healths == nil || len(req.Healths) == 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Health field is empty",
 		})
 		return
@@ -711,7 +711,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 
 	apps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error getting agent apps",
 			Detail:  err.Error(),
 		})
@@ -730,7 +730,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 			return nil
 		}()
 		if old == nil {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
 				Detail:  xerrors.Errorf("workspace app name %s not found", name).Error(),
 			})
@@ -738,7 +738,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		}
 
 		if old.HealthcheckUrl == "" {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
 				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", name).Error(),
 			})
@@ -750,7 +750,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		case codersdk.WorkspaceAppHealthHealthy:
 		case codersdk.WorkspaceAppHealthUnhealthy:
 		default:
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Error setting workspace app health",
 				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", newHealth).Error(),
 			})
@@ -772,7 +772,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 			Health: app.Health,
 		})
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Error setting workspace app health",
 				Detail:  err.Error(),
 			})
@@ -780,7 +780,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	httpapi.Write(rw, http.StatusOK, nil)
+	httpapi.Write(r.Context(), rw, http.StatusOK, nil)
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
