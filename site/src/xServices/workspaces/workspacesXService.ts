@@ -195,83 +195,82 @@ type WorkspacesEvent =
   | { type: "GET_WORKSPACES"; query?: string }
   | { type: "UPDATE_VERSION"; workspaceId: string }
 
-export const workspacesMachine =
-createMachine(
+export const workspacesMachine = createMachine(
   {
-  tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
-  schema: {
-    context: {} as WorkspacesContext,
-    events: {} as WorkspacesEvent,
-    services: {} as {
-      getWorkspaces: {
-        data: TypesGen.Workspace[]
-      }
-      updateWorkspaceRefs: {
-        data: {
-          refsToKeep: WorkspaceItemMachineRef[]
-          newWorkspaces: TypesGen.Workspace[]
+    tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
+    schema: {
+      context: {} as WorkspacesContext,
+      events: {} as WorkspacesEvent,
+      services: {} as {
+        getWorkspaces: {
+          data: TypesGen.Workspace[]
         }
-      }
-    },
-  },
-  predictableActionArguments: true,
-  id: "workspacesState",
-  on: {
-    GET_WORKSPACES: {
-      actions: "assignFilter",
-      target: ".gettingWorkspaces",
-      internal: false,
-    },
-    UPDATE_VERSION: {
-      actions: "triggerUpdateVersion",
-    },
-  },
-  initial: "gettingWorkspaces",
-  states: {
-    gettingWorkspaces: {
-      entry: "clearGetWorkspacesError",
-      invoke: {
-        src: "getWorkspaces",
-        id: "getWorkspaces",
-        onDone: [
-          {
-            actions: "assignWorkspaceRefs",
-            cond: "isEmpty",
-            target: "waitToRefreshWorkspaces",
-          },
-          {
-            target: "updatingWorkspaceRefs",
-          },
-        ],
-        onError: [
-          {
-            actions: "assignGetWorkspacesError",
-            target: "waitToRefreshWorkspaces",
-          },
-        ],
+        updateWorkspaceRefs: {
+          data: {
+            refsToKeep: WorkspaceItemMachineRef[]
+            newWorkspaces: TypesGen.Workspace[]
+          }
+        }
       },
     },
-    updatingWorkspaceRefs: {
-      invoke: {
-        src: "updateWorkspaceRefs",
-        id: "updateWorkspaceRefs",
-        onDone: [
-          {
-            actions: "assignUpdatedWorkspaceRefs",
-            target: "waitToRefreshWorkspaces",
-          },
-        ],
+    predictableActionArguments: true,
+    id: "workspacesState",
+    on: {
+      GET_WORKSPACES: {
+        actions: "assignFilter",
+        target: ".gettingWorkspaces",
+        internal: false,
+      },
+      UPDATE_VERSION: {
+        actions: "triggerUpdateVersion",
       },
     },
-    waitToRefreshWorkspaces: {
-      after: {
-        "5000": {
-          target: "gettingWorkspaces",
+    initial: "gettingWorkspaces",
+    states: {
+      gettingWorkspaces: {
+        entry: "clearGetWorkspacesError",
+        invoke: {
+          src: "getWorkspaces",
+          id: "getWorkspaces",
+          onDone: [
+            {
+              actions: "assignWorkspaceRefs",
+              cond: "isEmpty",
+              target: "waitToRefreshWorkspaces",
+            },
+            {
+              target: "updatingWorkspaceRefs",
+            },
+          ],
+          onError: [
+            {
+              actions: "assignGetWorkspacesError",
+              target: "waitToRefreshWorkspaces",
+            },
+          ],
+        },
+      },
+      updatingWorkspaceRefs: {
+        invoke: {
+          src: "updateWorkspaceRefs",
+          id: "updateWorkspaceRefs",
+          onDone: [
+            {
+              actions: "assignUpdatedWorkspaceRefs",
+              target: "waitToRefreshWorkspaces",
+            },
+          ],
+        },
+      },
+      waitToRefreshWorkspaces: {
+        after: {
+          "5000": {
+            target: "gettingWorkspaces",
+          },
         },
       },
     },
   },
-},
   {
     guards: {
       isEmpty: (context) => !context.workspaceRefs,
