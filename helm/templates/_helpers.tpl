@@ -37,7 +37,7 @@ Coder Docker image URI
 */}}
 {{- define "coder.image" -}}
 {{- if and (eq .Values.coder.image.tag "") (eq .Chart.AppVersion "0.1.0") -}}
-{{ fail "You must specify coder.image.tag if you're installing the Helm chart directly from Git." }}
+{{ fail "You must specify the coder.image.tag value if you're installing the Helm chart directly from Git." }}
 {{- end -}}
 {{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}
 {{- end }}
@@ -80,4 +80,74 @@ Scheme
 */}}
 {{- define "coder.scheme" }}
 {{- include "coder.portName" . | upper -}}
+{{- end }}
+
+{{/*
+Coder volume definitions.
+*/}}
+{{- define "coder.volumes" }}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
+volumes:
+{{ range $secretName := .Values.coder.tls.secretNames -}}
+- name: "tls-{{ $secretName }}"
+  secret:
+    secretName: {{ $secretName | quote }}
+{{ end -}}
+{{- if .Values.coder.tls.secretName -}}
+- name: "tls-{{ .Values.coder.tls.secretName }}"
+  secret:
+    secretName: {{ .Values.coder.tls.secretName | quote }}
+{{- end }}
+{{- else }}
+volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.secretName) }}[]{{ end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Coder volume mounts.
+*/}}
+{{- define "coder.volumeMounts" }}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
+volumeMounts:
+{{ range $secretName := .Values.coder.tls.secretNames -}}
+- name: "tls-{{ $secretName }}"
+  mountPath: "/etc/ssl/certs/coder/{{ $secretName }}"
+  readOnly: true
+{{ end }}
+{{- if .Values.coder.tls.secretName -}}
+- name: "tls-{{ .Values.coder.tls.secretName }}"
+  mountPath: "/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}"
+  readOnly: true
+{{- end }}
+{{- else }}
+volumeMounts: []
+{{- end }}
+{{- end }}
+
+{{/*
+Coder TLS environment variables.
+*/}}
+{{- define "coder.tlsEnv" }}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
+- name: CODER_TLS_ENABLE
+  value: "true"
+- name: CODER_TLS_CERT_FIlE
+  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.crt{{- end }}{{ if .Values.coder.tls.secretName -}}/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}/tls.crt{{- end }}"
+- name: CODER_TLS_KEY_FILE
+  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.key{{- end }}{{ if .Values.coder.tls.secretName -}}/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}/tls.key{{- end }}"
+{{- end }}
+{{- end }}
+
+{{/*
+Fail on fully deprecated values or deprecated value combinations. This is
+included at the top of coder.yaml.
+*/}}
+{{- define "coder.verifyDeprecated" }}
+{{/*
+Deprecated value coder.tls.secretName should not be used alongside new value
+coder.tls.secretName.
+*/}}
+{{- if and .Values.coder.tls.secretName .Values.coder.tls.secretNames }}
+{{ fail "You must specify either coder.tls.secretName or coder.tls.secretNames, not both." }}
+{{- end }}
 {{- end }}
