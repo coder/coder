@@ -741,7 +741,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, ScopeAll, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, must(ScopeRole(ScopeAll)), a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.

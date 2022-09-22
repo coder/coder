@@ -94,7 +94,7 @@ EachQueryLoop:
 	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, objectType string) (*PartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -102,6 +102,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 		"subject": authSubject{
 			ID:    subjectID,
 			Roles: roles,
+			Scope: scope,
 		},
 		"object": map[string]string{
 			"type": objectType,
@@ -112,7 +113,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 	// Run the rego policy with a few unknown fields. This should simplify our
 	// policy to a set of queries.
 	partialQueries, err := rego.New(
-		rego.Query("data.authz.scope_allow = true"),
+		rego.Query("data.authz.role_allow = true data.authz.scope_allow = true"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
 			"input.object.owner",

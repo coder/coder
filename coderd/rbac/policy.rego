@@ -66,7 +66,7 @@ number(set) = c {
 default site = 0
 site := site_allow(input.subject.roles)
 default scope_site := 0
-scope_site := site_allow([input.scope])
+scope_site := site_allow([input.subject.scope])
 
 site_allow(roles) := num {
 	# allow is a set of boolean values without duplicates.

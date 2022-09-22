@@ -88,6 +88,7 @@ func NewAuthorizer() (*RegoAuthorizer, error) {
 type authSubject struct {
 	ID    string `json:"id"`
 	Roles []Role `json:"roles"`
+	Scope Role   `json:"scope"`
 }
 
 // ByRoleName will expand all roleNames into roles before calling Authorize().
@@ -122,8 +123,8 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 		"subject": authSubject{
 			ID:    subjectID,
 			Roles: roles,
+			Scope: scope,
 		},
-		"scope":  scope,
 		"object": object,
 		"action": action,
 	}
@@ -147,7 +148,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, objectType string) (*PartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -168,5 +169,10 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		return nil, err
 	}
 
-	return a.Prepare(ctx, subjectID, roles, scope, action, objectType)
+	scopeRole, err := ScopeRole(scope)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Prepare(ctx, subjectID, roles, scopeRole, action, objectType)
 }
