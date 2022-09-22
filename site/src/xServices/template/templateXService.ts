@@ -16,7 +16,7 @@ import {
   WorkspaceResource,
 } from "../../api/typesGenerated"
 
-interface TemplateContext {
+export interface TemplateContext {
   organizationId: string
   templateName: string
   template?: Template

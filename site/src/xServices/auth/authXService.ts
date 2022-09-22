@@ -57,7 +57,7 @@ export const permissionsToCheck = {
   },
 } as const
 
-type Permissions = Record<keyof typeof permissionsToCheck, boolean>
+export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
   getUserError?: Error | unknown

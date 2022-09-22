@@ -1,7 +1,10 @@
 import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
+import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { SetupPage } from "pages/SetupPage/SetupPage"
+import TemplateCollaboratorsPage from "pages/TemplatePage/TemplateCollaboratorsPage/TemplateCollaboratorsPage"
+import TemplateSummaryPage from "pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import { FC, lazy, Suspense, useContext } from "react"
 import { Route, Routes } from "react-router-dom"
@@ -33,7 +36,6 @@ const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
-const TemplatePage = lazy(() => import("./pages/TemplatePage/TemplatePage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -87,11 +89,21 @@ export const AppRouter: FC = () => {
 
           <Route path=":template">
             <Route
-              index
               element={
                 <AuthAndFrame>
-                  <TemplatePage />
+                  <TemplateLayout />
                 </AuthAndFrame>
+              }
+            >
+              <Route index element={<TemplateSummaryPage />} />
+              <Route path="collaborators" element={<TemplateCollaboratorsPage />} />
+            </Route>
+            <Route
+              path="workspace"
+              element={
+                <RequireAuth>
+                  <CreateWorkspacePage />
+                </RequireAuth>
               }
             />
             <Route
