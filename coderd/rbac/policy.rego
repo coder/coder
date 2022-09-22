@@ -176,7 +176,7 @@ allow {
 	input.object.org_owner != ""
 	# Only people in the org can use the team access.
 	org_mem
-	group := input.subject.groups[input.object.org_owner][_]
+	group := input.subject.groups[_]
 	perms := input.object.acl_group_list[group]
 	# Either the input action or wildcard
 	[input.action, "*"][_] in perms

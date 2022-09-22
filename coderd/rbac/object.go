@@ -160,8 +160,8 @@ type Object struct {
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
 
-	// map[string][]Action
-	ACLUserList map[string][]Action ` json:"acl_user_list"`
+	ACLUserList  map[string][]Action ` json:"acl_user_list"`
+	ACLGroupList map[string][]Action ` json:"acl_group_list"`
 }
 
 func (z Object) RBACObject() Object {
@@ -171,36 +171,53 @@ func (z Object) RBACObject() Object {
 // All returns an object matching all resources of the same type.
 func (z Object) All() Object {
 	return Object{
-		Owner: "",
-		OrgID: "",
-		Type:  z.Type,
+		Owner:        "",
+		OrgID:        "",
+		Type:         z.Type,
+		ACLUserList:  map[string][]Action{},
+		ACLGroupList: map[string][]Action{},
 	}
 }
 
 // InOrg adds an org OwnerID to the resource
 func (z Object) InOrg(orgID uuid.UUID) Object {
 	return Object{
-		Owner: z.Owner,
-		OrgID: orgID.String(),
-		Type:  z.Type,
+		Owner:        z.Owner,
+		OrgID:        orgID.String(),
+		Type:         z.Type,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: z.ACLGroupList,
 	}
 }
 
 // WithOwner adds an OwnerID to the resource
 func (z Object) WithOwner(ownerID string) Object {
 	return Object{
-		Owner: ownerID,
-		OrgID: z.OrgID,
-		Type:  z.Type,
+		Owner:        ownerID,
+		OrgID:        z.OrgID,
+		Type:         z.Type,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: z.ACLGroupList,
 	}
 }
 
 // WithACLUserList adds an ACL list to a given object
 func (z Object) WithACLUserList(acl map[string][]Action) Object {
 	return Object{
-		Owner:       z.Owner,
-		OrgID:       z.OrgID,
-		Type:        z.Type,
-		ACLUserList: acl,
+		Owner:        z.Owner,
+		OrgID:        z.OrgID,
+		Type:         z.Type,
+		ACLUserList:  acl,
+		ACLGroupList: z.ACLGroupList,
+	}
+}
+
+func (z Object) WithGroups(groups map[string][]Action) Object {
+	return Object{
+		Owner:        z.Owner,
+		OrgID:        z.OrgID,
+		Type:         z.Type,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: groups,
 	}
 }
