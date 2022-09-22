@@ -192,64 +192,87 @@ interface WorkspacesContext {
 }
 
 type WorkspacesEvent =
-  | { type: "GET_WORKSPACES"; query: string }
+  | { type: "GET_WORKSPACES"; query?: string }
   | { type: "UPDATE_VERSION"; workspaceId: string }
 
-export const workspacesMachine = createMachine(
+export const workspacesMachine =
+/** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGM4BlAFz1LADoZTSBLAOygHUNt8jYBiCVR6kwBuqTNVpssuQnESgcqWPQb85IAB6IAbABYdVAIwB2AwE4ATAFYAzAA5TO+zoA0IAJ6ID1o1VN-Ttra6Olrm5gAMtgC+Ua5oUpwk5JQ0YHRMrOzSXNxg6OgYVDgANhQAZhgAtqmkkhwy8EggCkoqjGqaCMGGJhY2Tk6uHgjWOua+-lqBpuF+lg4xcVmJsGQU1ACuOBAUGXXZYABKYGU8fAJUwqKb2+v7icenai3K9KpNnd3GZlZ2DoPuRBjWwTPxaSxhHQGSwQxYgeL1LhrFLIPDKAAqqEe6DgAAt7g1uOpYMlqHgypR0AAKSzhOkASm4CIOq1JVFRGKxJxxsHxywaz0Ur3eoE6RhMVHBWms5ls1nCOiMplGQ0Q9lBc1Co0cszhzJWyLA3AA4gBRdEAfRYAHlDgBpYgABQAggBhU3EQWtN7tD6ISxGVUIMz6fwBcJacIGMILWLw-lI0ncACqjoAIs70aaLQA1U2HYgASWtADkvcLfaL-dGqDpTFoDHorOKjCEg5YtKYNVK7NDrNYYnHGKgILImvqGobLhBimBy20Op5IlQ5fNrAFwUZwt5zEHzDMNUZO6M7EEtHqE0l1jUGMwCVx5z7FwhzNLa62tA2xgrbBFLEGDF0DUZjpOsoyMSwLwSSc2S2HZb0yaCiEeRp5CFBc-RfPQegMewwk7aUjHMawgx0BVuwMRt+0A8woMRK8UTRUhMWxPF7zHNDvRFDREAsEEGyIpVwghIwTwAqMVzDeZP0VSxozollDUfbjOn7dtgLDTSB0HIA */
+createMachine(
   {
-    predictableActionArguments: true,
-    tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
-    schema: {
-      context: {} as WorkspacesContext,
-      events: {} as WorkspacesEvent,
-      services: {} as {
-        getWorkspaces: {
-          data: TypesGen.Workspace[]
+  tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
+  schema: {
+    context: {} as WorkspacesContext,
+    events: {} as WorkspacesEvent,
+    services: {} as {
+      getWorkspaces: {
+        data: TypesGen.Workspace[]
+      }
+      updateWorkspaceRefs: {
+        data: {
+          refsToKeep: WorkspaceItemMachineRef[]
+          newWorkspaces: TypesGen.Workspace[]
         }
-      },
+      }
     },
-    id: "workspacesState",
-    on: {
-      GET_WORKSPACES: {
-        actions: "assignFilter",
-        target: "gettingWorkspaces",
-      },
-      UPDATE_VERSION: {
-        actions: "triggerUpdateVersion",
-      },
+  },
+  predictableActionArguments: true,
+  id: "workspacesState",
+  on: {
+    GET_WORKSPACES: {
+      actions: "assignFilter",
+      target: ".gettingWorkspaces",
+      internal: false,
     },
-    initial: "idle",
-    states: {
-      idle: {},
-      gettingWorkspaces: {
-        entry: "clearGetWorkspacesError",
-        invoke: {
-          src: "getWorkspaces",
-          id: "getWorkspaces",
-          onDone: [
-            {
-              target: "waitToRefreshWorkspaces",
-              actions: ["assignWorkspaceRefs"],
-              cond: "isEmpty",
-            },
-            {
-              target: "waitToRefreshWorkspaces",
-              actions: ["updateWorkspaceRefs"],
-            },
-          ],
-          onError: {
+    UPDATE_VERSION: {
+      actions: "triggerUpdateVersion",
+    },
+  },
+  initial: "gettingWorkspaces",
+  states: {
+    gettingWorkspaces: {
+      entry: "clearGetWorkspacesError",
+      invoke: {
+        src: "getWorkspaces",
+        id: "getWorkspaces",
+        onDone: [
+          {
+            actions: "assignWorkspaceRefs",
+            cond: "isEmpty",
             target: "waitToRefreshWorkspaces",
-            actions: ["assignGetWorkspacesError"],
           },
-        },
+          {
+            target: "updatingWorkspaceRefs",
+          },
+        ],
+        onError: [
+          {
+            actions: "assignGetWorkspacesError",
+            target: "waitToRefreshWorkspaces",
+          },
+        ],
       },
-      waitToRefreshWorkspaces: {
-        after: {
-          5000: "gettingWorkspaces",
+    },
+    updatingWorkspaceRefs: {
+      invoke: {
+        src: "updateWorkspaceRefs",
+        id: "updateWorkspaceRefs",
+        onDone: [
+          {
+            actions: "assignUpdatedWorkspaceRefs",
+            target: "waitToRefreshWorkspaces",
+          },
+        ],
+      },
+    },
+    waitToRefreshWorkspaces: {
+      after: {
+        "5000": {
+          target: "gettingWorkspaces",
         },
       },
     },
   },
+},
   {
     guards: {
       isEmpty: (context) => !context.workspaceRefs,
@@ -262,7 +285,7 @@ export const workspacesMachine = createMachine(
           }),
       }),
       assignFilter: assign({
-        filter: (_, event) => event.query,
+        filter: (context, event) => event.query ?? context.filter,
       }),
       assignGetWorkspacesError: assign({
         getWorkspacesError: (_, event) => event.data,
@@ -277,48 +300,38 @@ export const workspacesMachine = createMachine(
 
         workspaceRef.send("UPDATE_VERSION")
       },
-      // Opened discussion on XState https://github.com/statelyai/xstate/discussions/3406
-      updateWorkspaceRefs: assign({
-        workspaceRefs: (context, event) => {
-          let workspaceRefs = context.workspaceRefs
-
-          if (!workspaceRefs) {
-            throw new Error("No workspaces loaded.")
-          }
-
-          // Update the existent workspaces or create the new ones
-          for (const data of event.data) {
-            const ref = workspaceRefs.find((ref) => ref.id === data.id)
-
-            if (!ref) {
-              workspaceRefs.push(spawn(workspaceItemMachine.withContext({ data }), data.id))
-            } else {
-              ref.send({ type: "UPDATE_DATA", data })
-            }
-          }
-
-          // Remove workspaces that were deleted
-          for (const ref of workspaceRefs) {
-            const refData = event.data.find((workspaceData) => workspaceData.id === ref.id)
-
-            // If there is no refData, it is because the workspace was deleted
-            if (!refData) {
-              // Stop the actor before remove it from the array
-              if (ref.stop) {
-                ref.stop()
-              }
-
-              // Remove ref from the array
-              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id !== ref.id)
-            }
-          }
-
-          return workspaceRefs
+      assignUpdatedWorkspaceRefs: assign({
+        workspaceRefs: (_, event) => {
+          const newWorkspaceRefs = event.data.newWorkspaces.map((workspace) =>
+            spawn(workspaceItemMachine.withContext({ data: workspace }), workspace.id),
+          )
+          return event.data.refsToKeep.concat(newWorkspaceRefs)
         },
       }),
     },
     services: {
       getWorkspaces: (context) => API.getWorkspaces(queryToFilter(context.filter)),
+      updateWorkspaceRefs: (context, event) => {
+        const refsToKeep: WorkspaceItemMachineRef[] = []
+        context.workspaceRefs?.forEach((ref) => {
+          const matchingWorkspace = event.data.find((workspace) => ref.id === workspace.id)
+          if (matchingWorkspace) {
+            ref.send({ type: "UPDATE_DATA", data: matchingWorkspace })
+            refsToKeep.push(ref)
+          } else {
+            ref.stop && ref.stop()
+          }
+        })
+
+        const newWorkspaces = event.data.filter(
+          (workspace) => !context.workspaceRefs?.find((ref) => ref.id === workspace.id),
+        )
+
+        return Promise.resolve({
+          refsToKeep,
+          newWorkspaces,
+        })
+      },
     },
   },
 )
