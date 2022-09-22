@@ -103,6 +103,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		oidcScopes                       []string
 		tailscaleEnable                  bool
 		telemetryEnable                  bool
+		telemetryTraceEnable             bool
 		telemetryURL                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
@@ -160,10 +161,19 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				sqlDriver      = "postgres"
 			)
 
-			if traceEnable || telemetryEnable {
+			// Coder tracing should be disabled if telemetry is disabled unless
+			// --telemetry-trace was explicitly provided.
+			shouldCoderTrace := telemetryEnable && !isTest()
+			// Only override if telemetryTraceEnable was specifically set.
+			// By default we want it to be controlled by telemetryEnable.
+			if cmd.Flags().Changed("telemetry-trace") {
+				shouldCoderTrace = telemetryTraceEnable
+			}
+
+			if traceEnable || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 					Default: traceEnable,
-					Coder:   telemetryEnable && !isTest(),
+					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
 					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
@@ -812,6 +822,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault,
 		"Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
+	cliflag.BoolVarP(root.Flags(), &telemetryTraceEnable, "telemetry-trace", "", "CODER_TELEMETRY_TRACE", enableTelemetryByDefault,
+		"Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com",
 		"URL to send telemetry.")
 	_ = root.Flags().MarkHidden("telemetry-url")

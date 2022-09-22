@@ -270,12 +270,14 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	closed := make(chan struct{})
+	first := make(chan error)
 	go func() {
 		defer close(closed)
+		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
-			ws, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 				HTTPClient: httpClient,
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
@@ -283,9 +285,21 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			if isFirst {
+				if res.StatusCode == http.StatusConflict {
+					first <- readBodyAsError(res)
+					return
+				}
+				isFirst = false
+				close(first)
+			}
 			if err != nil {
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
+			}
+			if isFirst {
+				isFirst = false
+				close(first)
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
 				return conn.UpdateNodes(node)
@@ -294,24 +308,30 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 			logger.Debug(ctx, "serving coordinator")
 			err = <-errChan
 			if errors.Is(err, context.Canceled) {
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
+				_ = ws.Close(websocket.StatusGoingAway, "")
 				return
 			}
 			if err != nil {
 				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
+				_ = ws.Close(websocket.StatusGoingAway, "")
 				continue
 			}
-			_ = ws.Close(websocket.StatusAbnormalClosure, "")
+			_ = ws.Close(websocket.StatusGoingAway, "")
 		}
 	}()
+	err = <-first
+	if err != nil {
+		cancelFunc()
+		_ = conn.Close()
+		return nil, err
+	}
 	return &agent.Conn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
 			<-closed
 		},
-	}, nil
+	}, err
 }
 
 // WorkspaceAgent returns an agent by ID.
@@ -426,7 +446,7 @@ func (c *Client) AgentReportStats(
 					var req AgentStatsReportRequest
 					err := wsjson.Read(ctx, conn, &req)
 					if err != nil {
-						_ = conn.Close(websocket.StatusAbnormalClosure, "")
+						_ = conn.Close(websocket.StatusGoingAway, "")
 						return err
 					}
 
@@ -440,7 +460,7 @@ func (c *Client) AgentReportStats(
 
 					err = wsjson.Write(ctx, conn, resp)
 					if err != nil {
-						_ = conn.Close(websocket.StatusAbnormalClosure, "")
+						_ = conn.Close(websocket.StatusGoingAway, "")
 						return err
 					}
 				}

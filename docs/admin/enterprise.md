@@ -6,6 +6,7 @@ Contact sales@coder.com to obtain a license.
 These features are:
 
  * Audit Logging
+ * Browser Only Connections
 
 ## Adding your license key
 

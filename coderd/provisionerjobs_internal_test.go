@@ -108,8 +108,9 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, buildID, time.Now())
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, buildID, time.Now())
 		require.NoError(t, err)
+		defer closer.Close()
 
 		// when the endpoint calls subscribe, we get the listener here.
 		fPubsub.cond.L.Lock()

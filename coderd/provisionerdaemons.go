@@ -34,12 +34,13 @@ import (
 )
 
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
+	ctx := r.Context()
+	daemons, err := api.Database.GetProvisionerDaemons(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
@@ -50,14 +51,14 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	daemons, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, daemons)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, daemons)
+	httpapi.Write(ctx, rw, http.StatusOK, daemons)
 }
 
 // ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd

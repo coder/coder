@@ -28,59 +28,60 @@ func WorkspaceAgentParam(r *http.Request) database.WorkspaceAgent {
 func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			agentUUID, parsed := parseUUID(rw, r, "workspaceagent")
 			if !parsed {
 				return
 			}
 
-			agent, err := db.GetWorkspaceAgentByID(r.Context(), agentUUID)
+			agent, err := db.GetWorkspaceAgentByID(ctx, agentUUID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 					Message: "Agent doesn't exist with that id.",
 				})
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			resource, err := db.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+			resource, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace resource.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
+			job, err := db.GetProvisionerJobByID(ctx, resource.JobID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching provisioner job.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 			if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Workspace agents can only be fetched for builds.",
 				})
 				return
 			}
-			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
+			build, err := db.GetWorkspaceBuildByJobID(ctx, job.ID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace build.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), workspaceAgentParamContextKey{}, agent)
+			ctx = context.WithValue(ctx, workspaceAgentParamContextKey{}, agent)
 			chi.RouteContext(ctx).URLParams.Add("workspace", build.WorkspaceID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

@@ -11,7 +11,14 @@ const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   })[0]
 }
 
-const moreBuildsAvailable = (context: WorkspaceContext, event: { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"] }) => {
+const moreBuildsAvailable = (
+  context: WorkspaceContext,
+  event: {
+    type: "REFRESH_TIMELINE"
+    checkRefresh?: boolean
+    data?: TypesGen.ServerSentEvent["data"]
+  },
+) => {
   // No need to refresh the timeline if it is not loaded
   if (!context.builds) {
     return false
@@ -67,7 +74,7 @@ export type WorkspaceEvent =
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
-  | { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"]  }
+  | { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"] }
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
 
 export const checks = {
@@ -338,10 +345,7 @@ export const workspaceMachine = createMachine(
                   id: "cancelWorkspace",
                   onDone: [
                     {
-                      actions: [
-                        "assignCancellationMessage",
-                        "displayCancellationMessage",
-                      ],
+                      actions: ["assignCancellationMessage", "displayCancellationMessage"],
                       target: "idle",
                     },
                   ],
@@ -404,8 +408,8 @@ export const workspaceMachine = createMachine(
                       REFRESH_TIMELINE: {
                         target: "#workspaceState.ready.timeline.gettingBuilds",
                         cond: {
-                          type: 'moreBuildsAvailable'
-                        }
+                          type: "moreBuildsAvailable",
+                        },
                       },
                     },
                   },
@@ -518,7 +522,7 @@ export const workspaceMachine = createMachine(
       }),
     },
     guards: {
-      moreBuildsAvailable
+      moreBuildsAvailable,
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -535,7 +539,10 @@ export const workspaceMachine = createMachine(
       },
       startWorkspaceWithLatestTemplate: (context) => async (send) => {
         if (context.workspace && context.template) {
-          const startWorkspacePromise = await API.startWorkspace(context.workspace.id, context.template.active_version_id)
+          const startWorkspacePromise = await API.startWorkspace(
+            context.workspace.id,
+            context.template.active_version_id,
+          )
           send({ type: "REFRESH_TIMELINE" })
           return startWorkspacePromise
         } else {
@@ -574,7 +581,9 @@ export const workspaceMachine = createMachine(
       },
       cancelWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          const cancelWorkspacePromise = await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
+          const cancelWorkspacePromise = await API.cancelWorkspaceBuild(
+            context.workspace.latest_build.id,
+          )
           send({ type: "REFRESH_TIMELINE" })
           return cancelWorkspacePromise
         } else {
@@ -599,7 +608,7 @@ export const workspaceMachine = createMachine(
           send({ type: "EVENT_SOURCE_ERROR", error: event })
         })
 
-        // handle any sse implementation exceptions 
+        // handle any sse implementation exceptions
         context.eventSource.onerror = () => {
           send({ type: "EVENT_SOURCE_ERROR", error: "sse error" })
         }

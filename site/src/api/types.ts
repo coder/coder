@@ -19,4 +19,5 @@ export type Message = { message: string }
 export enum FeatureNames {
   AuditLog = "audit_log",
   UserLimit = "user_limit",
+  BrowserOnly = "browser_only",
 }

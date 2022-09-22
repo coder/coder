@@ -25,6 +25,7 @@ interface TemplateContext {
   templateVersions?: TemplateVersion[]
   templateDAUs: TemplateDAUsResponse
   deleteTemplateError?: Error | unknown
+  getTemplateError?: Error | unknown
 }
 
 type TemplateEvent = { type: "DELETE" } | { type: "CONFIRM_DELETE" } | { type: "CANCEL_DELETE" }
@@ -69,6 +70,12 @@ export const templateMachine =
               {
                 actions: "assignTemplate",
                 target: "initialInfo",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignGetTemplateError",
+                target: "error",
               },
             ],
           },
@@ -211,6 +218,9 @@ export const templateMachine =
         deleted: {
           type: "final",
         },
+        error: {
+          type: "final",
+        },
       },
     },
     {
@@ -256,6 +266,9 @@ export const templateMachine =
         }),
         assignActiveTemplateVersion: assign({
           activeTemplateVersion: (_, event) => event.data,
+        }),
+        assignGetTemplateError: assign({
+          getTemplateError: (_, event) => event.data,
         }),
         assignTemplateResources: assign({
           templateResources: (_, event) => event.data,

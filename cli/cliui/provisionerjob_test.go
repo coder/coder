@@ -2,6 +2,7 @@ package cliui_test
 
 import (
 	"context"
+	"io"
 	"os"
 	"runtime"
 	"sync"
@@ -136,8 +137,10 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 				Cancel: func() error {
 					return nil
 				},
-				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-					return logs, nil
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
+					return logs, closeFunc(func() error {
+						return nil
+					}), nil
 				},
 			})
 		},
@@ -163,4 +166,10 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 		Logs:     logs,
 		PTY:      ptty,
 	}
+}
+
+type closeFunc func() error
+
+func (c closeFunc) Close() error {
+	return c()
 }

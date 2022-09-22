@@ -112,7 +112,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
           />
         </div>
 
-        {presetFilters && presetFilters.length ? (
+        {presetFilters && presetFilters.length > 0 ? (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}

@@ -32,7 +32,7 @@ func RateLimitPerMinute(count int) func(http.Handler) http.Handler {
 			return httprate.KeyByIP(r)
 		}, httprate.KeyByEndpoint),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusTooManyRequests, codersdk.Response{
+			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
 				Message: "You've been rate limited for sending too many requests!",
 			})
 		}),
