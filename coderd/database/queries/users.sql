@@ -166,15 +166,45 @@ SELECT
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
 	id, username, status,
+	-- Roles. The SQL is 2 nested sub queries because the innermost subquery returns a 2 dimensional array
+	-- of roles. 'unnest' is used to flatten the array into rows, and then 'array_agg' to convert the rows
+	-- into a 1 dimensional array. Unfortunately 'array_agg(unnest(...))' cannot be called, so we need to
+	-- do the inner call as a subquery.
 	array_cat(
 		-- All users are members
-			array_append(users.rbac_roles, 'member'),
-		-- All org_members get the org-member role for their orgs
-			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
-		AS roles
+		array_append(users.rbac_roles, 'member'),
+		(
+			SELECT
+				array_agg(org_member_roles.values)
+			FROM (
+				 SELECT unnest(
+						array_agg(
+							array_append(
+								organization_members.roles,
+								-- All org_members get the org-member role for their orgs
+								'organization-member:' || organization_members.organization_id::text
+								)
+							)
+				) AS values
+				 FROM
+					 organization_members
+				 WHERE
+					 user_id = users.id
+			) AS org_member_roles
+		)
+	) AS roles,
+	-- All groups the user is in.
+	(
+		SELECT
+			array_agg(
+				group_members.group_id :: text
+			)
+		FROM
+			group_members
+		WHERE
+			user_id = users.id
+	) AS groups
 FROM
 	users
-LEFT JOIN organization_members
-	ON id = user_id
 WHERE
 	id = @user_id;

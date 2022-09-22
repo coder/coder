@@ -3,7 +3,7 @@ import future.keywords
 # A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
 # opa eval --format=pretty 'data.authz.allow = true' -d policy.rego  -i input.json
-# opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list -i input.json
+# opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
 
 #
 # This policy is specifically constructed to compress to a set of queries if the
@@ -157,14 +157,29 @@ allow {
 	user = 1
 }
 
-# ACL Allow
+# ACL for users
 allow {
 	# Should you have to be a member of the org too?
 	perms := input.object.acl_user_list[input.subject.id]
-	input.action in perms
+	# Either the input action or wildcard
+	[input.action, "*"][_] in perms
 }
 
-# ACL wildcard allow
+# ACL for groups
 allow {
-	"*" in input.object.acl_user_list[input.subject.id]
+	# If there is no organization owner, the object cannot be owned by an
+	# org_scoped team.
+	# TODO: This line and 'org_mem' are similiar and should be combined.
+	# 	Currently the simplfied queries return extra queries that are always
+	# 	false. If these 2 lines are combined, we reduce the number of queries
+	# 	returned by partial execution.
+	input.object.org_owner != ""
+	# Only people in the org can use the team access.
+	org_mem
+	group := input.subject.groups[input.object.org_owner][_]
+	perms := input.object.acl_group_list[group]
+	# Either the input action or wildcard
+	[input.action, "*"][_] in perms
 }
+
+

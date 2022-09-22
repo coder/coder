@@ -2419,6 +2419,21 @@ func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitS
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) InsertGroupMember(ctx context.Context, arg database.InsertGroupMemberParams) error {
+	panic("not implemented")
+	return nil
+}
+
+func (q *fakeQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
+	panic("not implemented")
+	return nil
+}
+
+func (q *fakeQuerier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
+	panic("not implemented")
+	return database.Group{}, nil
+}
+
 func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
