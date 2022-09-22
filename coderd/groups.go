@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -20,10 +21,10 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		org = httpmw.OrganizationParam(r)
 	)
 
-	// if api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup.InOrg(org.ID)) {
-	// 	http.NotFound(rw, r)
-	// 	return
-	// }
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup.InOrg(org.ID)) {
+		http.NotFound(rw, r)
+		return
+	}
 
 	var req codersdk.CreateGroupRequest
 	if !httpapi.Read(rw, r, &req) {
@@ -46,7 +47,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, group)
+	httpapi.Write(rw, http.StatusCreated, convertGroup(group, nil))
 }
 
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
@@ -55,10 +56,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	// if api.Authorize(r, rbac.ActionUpdate, rbac.ResourceGroup.InOrg(group.OrganizationID)) {
-	// 	http.NotFound(rw, r)
-	// 	return
-	// }
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceGroup.InOrg(group.OrganizationID)) {
+		http.NotFound(rw, r)
+		return
+	}
 
 	var req codersdk.PatchGroupRequest
 	if !httpapi.Read(rw, r, &req) {
@@ -139,6 +140,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
 		})
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 

@@ -28,6 +28,7 @@ func TestCreateGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "hi", group.Name)
 		require.Empty(t, group.Members)
+		require.NotEqual(t, uuid.Nil.String(), group.ID.String())
 	})
 
 	t.Run("Conflict", func(t *testing.T) {

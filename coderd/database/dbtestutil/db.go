@@ -6,10 +6,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
-	"github.com/stretchr/testify/require"
 )
 
 func NewDB(t *testing.T) (database.Store, database.Pubsub) {

@@ -88,7 +88,7 @@ func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroup
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusOK {
 		return Group{}, readBodyAsError(res)
 	}
 	var resp Group

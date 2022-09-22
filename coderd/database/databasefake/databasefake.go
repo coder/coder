@@ -24,12 +24,13 @@ func New() database.Store {
 	return &fakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
-			apiKeys:             make([]database.APIKey, 0),
-			agentStats:          make([]database.AgentStat, 0),
-			organizationMembers: make([]database.OrganizationMember, 0),
-			organizations:       make([]database.Organization, 0),
-			users:               make([]database.User, 0),
-
+			apiKeys:                        make([]database.APIKey, 0),
+			agentStats:                     make([]database.AgentStat, 0),
+			organizationMembers:            make([]database.OrganizationMember, 0),
+			organizations:                  make([]database.Organization, 0),
+			users:                          make([]database.User, 0),
+			groups:                         make([]database.Group, 0),
+			groupMembers:                   make([]database.GroupMember, 0),
 			auditLogs:                      make([]database.AuditLog, 0),
 			files:                          make([]database.File, 0),
 			gitSSHKey:                      make([]database.GitSSHKey, 0),
@@ -86,6 +87,7 @@ type data struct {
 	files                          []database.File
 	gitSSHKey                      []database.GitSSHKey
 	groups                         []database.Group
+	groupMembers                   []database.GroupMember
 	parameterSchemas               []database.ParameterSchema
 	parameterValues                []database.ParameterValue
 	provisionerDaemons             []database.ProvisionerDaemon
@@ -2419,19 +2421,42 @@ func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitS
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) InsertGroupMember(ctx context.Context, arg database.InsertGroupMemberParams) error {
-	panic("not implemented")
+func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGroupMemberParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.groupMembers = append(q.groupMembers, database.GroupMember{
+		GroupID: arg.GroupID,
+		UserID:  arg.UserID,
+	})
+
 	return nil
 }
 
-func (q *fakeQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
-	panic("not implemented")
+func (q *fakeQuerier) DeleteGroupMember(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, member := range q.groupMembers {
+		if member.UserID == userID {
+			q.groupMembers = append(q.groupMembers[:i], q.groupMembers[i+1:]...)
+		}
+	}
 	return nil
 }
 
-func (q *fakeQuerier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
-	panic("not implemented")
-	return database.Group{}, nil
+func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, group := range q.groups {
+		if group.ID == arg.ID {
+			group.Name = arg.Name
+			q.groups[i] = group
+			return group, nil
+		}
+	}
+	return database.Group{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
@@ -2741,7 +2766,28 @@ func (q *fakeQuerier) GetUserGroups(_ context.Context, userID uuid.UUID) ([]data
 }
 
 func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var members []database.GroupMember
+	for _, member := range q.groupMembers {
+		if member.GroupID == groupID {
+			members = append(members, member)
+		}
+	}
+
+	users := make([]database.User, 0, len(members))
+
+	for _, member := range members {
+		for _, user := range q.users {
+			if user.ID == member.UserID {
+				users = append(users, user)
+				break
+			}
+		}
+	}
+
+	return users, nil
 }
 
 func (q *fakeQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
