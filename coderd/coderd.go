@@ -188,7 +188,7 @@ func New(options *Options) *API {
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Add("Build-Version", buildinfo.Version())
+				w.Header().Add("X-Coder-Build-Version", buildinfo.Version())
 				next.ServeHTTP(w, r)
 			})
 		},
@@ -229,7 +229,7 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, codersdk.Response{
+			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
 				//nolint:gocritic
 				Message: "👋",
 			})
@@ -239,7 +239,7 @@ func New(options *Options) *API {
 
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
+				httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
 					ExternalURL: buildinfo.ExternalURL(),
 					Version:     buildinfo.Version(),
 				})
@@ -430,7 +430,7 @@ func New(options *Options) *API {
 				// error message when transitioning from WebRTC to Tailscale. See:
 				// https://github.com/coder/coder/issues/4126
 				r.Get("/dial", func(w http.ResponseWriter, r *http.Request) {
-					httpapi.Write(w, http.StatusGone, codersdk.Response{
+					httpapi.Write(r.Context(), w, http.StatusGone, codersdk.Response{
 						Message: "Your Coder CLI is out of date, and requires v0.8.15+ to connect!",
 					})
 				})

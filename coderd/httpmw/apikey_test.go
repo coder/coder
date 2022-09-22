@@ -34,7 +34,7 @@ func TestAPIKey(t *testing.T) {
 
 	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Only called if the API key passes through the handler.
-		httpapi.Write(rw, http.StatusOK, codersdk.Response{
+		httpapi.Write(context.Background(), rw, http.StatusOK, codersdk.Response{
 			Message: "It worked!",
 		})
 	})
@@ -205,7 +205,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
 		})).ServeHTTP(rw, r)
@@ -249,7 +249,7 @@ func TestAPIKey(t *testing.T) {
 			apiKey := httpmw.APIKey(r)
 			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
 
-			httpapi.Write(rw, http.StatusOK, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 				Message: "it worked!",
 			})
 		})).ServeHTTP(rw, r)
@@ -285,7 +285,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
 		})).ServeHTTP(rw, r)

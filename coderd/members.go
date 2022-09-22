@@ -17,21 +17,24 @@ import (
 )
 
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-	organization := httpmw.OrganizationParam(r)
-	member := httpmw.OrganizationMemberParam(r)
-	apiKey := httpmw.APIKey(r)
-	actorRoles := httpmw.UserAuthorization(r)
+	var (
+		ctx          = r.Context()
+		user         = httpmw.UserParam(r)
+		organization = httpmw.OrganizationParam(r)
+		member       = httpmw.OrganizationMemberParam(r)
+		apiKey       = httpmw.APIKey(r)
+		actorRoles   = httpmw.UserAuthorization(r)
+	)
 
 	if apiKey.UserID == member.UserID {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
 		})
 		return
 	}
 
 	var params codersdk.UpdateRoles
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
@@ -59,19 +62,19 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updatedUser, err := api.updateOrganizationMemberRoles(r.Context(), database.UpdateMemberRolesParams{
+	updatedUser, err := api.updateOrganizationMemberRoles(ctx, database.UpdateMemberRolesParams{
 		GrantedRoles: params.Roles,
 		UserID:       user.ID,
 		OrgID:        organization.ID,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertOrganizationMember(updatedUser))
+	httpapi.Write(ctx, rw, http.StatusOK, convertOrganizationMember(updatedUser))
 }
 
 func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
