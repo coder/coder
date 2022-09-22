@@ -308,15 +308,15 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 			logger.Debug(ctx, "serving coordinator")
 			err = <-errChan
 			if errors.Is(err, context.Canceled) {
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
+				_ = ws.Close(websocket.StatusGoingAway, "")
 				return
 			}
 			if err != nil {
 				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
-				_ = ws.Close(websocket.StatusAbnormalClosure, "")
+				_ = ws.Close(websocket.StatusGoingAway, "")
 				continue
 			}
-			_ = ws.Close(websocket.StatusAbnormalClosure, "")
+			_ = ws.Close(websocket.StatusGoingAway, "")
 		}
 	}()
 	err = <-first
@@ -446,7 +446,7 @@ func (c *Client) AgentReportStats(
 					var req AgentStatsReportRequest
 					err := wsjson.Read(ctx, conn, &req)
 					if err != nil {
-						_ = conn.Close(websocket.StatusAbnormalClosure, "")
+						_ = conn.Close(websocket.StatusGoingAway, "")
 						return err
 					}
 
@@ -460,7 +460,7 @@ func (c *Client) AgentReportStats(
 
 					err = wsjson.Write(ctx, conn, resp)
 					if err != nil {
-						_ = conn.Close(websocket.StatusAbnormalClosure, "")
+						_ = conn.Close(websocket.StatusGoingAway, "")
 						return err
 					}
 				}
