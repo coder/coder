@@ -111,3 +111,5 @@ export const WorkspaceSchedulePage: React.FC = () => {
   console.error("WorkspaceSchedulePage: unknown state :: ", scheduleState)
   return <Navigate to="/" />
 }
+
+export default WorkspaceSchedulePage
