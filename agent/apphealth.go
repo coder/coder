@@ -67,7 +67,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 								}
 
 								client := &http.Client{
-									Timeout: time.Duration(app.Healthcheck.Interval),
+									Timeout: time.Duration(time.Duration(app.Healthcheck.Interval) * time.Second),
 								}
 								err := func() error {
 									req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.Healthcheck.URL, nil)
@@ -85,9 +85,11 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 
 									return nil
 								}()
-								if err == nil {
+								if err != nil {
+									logger.Debug(ctx, "failed healthcheck", slog.Error(err), slog.F("app", app))
 									mu.Lock()
 									failures[app.Name]++
+									logger.Debug(ctx, "failed healthcheck", slog.Error(err), slog.F("app", app), slog.F("failures", failures[app.Name]))
 									if failures[app.Name] > int(app.Healthcheck.Threshold) {
 										health[app.Name] = codersdk.WorkspaceAppHealthUnhealthy
 									}
