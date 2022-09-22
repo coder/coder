@@ -32,7 +32,6 @@ export interface WorkspaceContext {
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
-  loadMoreBuildsError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   cancellationMessage?: Types.Message
@@ -53,7 +52,6 @@ export type WorkspaceEvent =
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
-  | { type: "LOAD_MORE_BUILDS" }
   | { type: "CHECK_REFRESH_TIMELINE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "REFRESH_TIMELINE" }
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
@@ -116,9 +114,6 @@ export const workspaceMachine = createMachine(
           data: TypesGen.ServerSentEvent
         }
         getBuilds: {
-          data: TypesGen.WorkspaceBuild[]
-        }
-        loadMoreBuilds: {
           data: TypesGen.WorkspaceBuild[]
         }
         checkPermissions: {
@@ -396,31 +391,9 @@ export const workspaceMachine = createMachine(
                 states: {
                   idle: {
                     on: {
-                      LOAD_MORE_BUILDS: {
-                        cond: "hasMoreBuilds",
-                        target: "loadingMoreBuilds",
-                      },
                       REFRESH_TIMELINE: {
                         target: "#workspaceState.ready.timeline.gettingBuilds",
                       },
-                    },
-                  },
-                  loadingMoreBuilds: {
-                    entry: "clearLoadMoreBuildsError",
-                    invoke: {
-                      src: "loadMoreBuilds",
-                      onDone: [
-                        {
-                          actions: "assignNewBuilds",
-                          target: "idle",
-                        },
-                      ],
-                      onError: [
-                        {
-                          actions: "assignLoadMoreBuildsError",
-                          target: "idle",
-                        },
-                      ],
                     },
                   },
                 },
@@ -530,24 +503,6 @@ export const workspaceMachine = createMachine(
       clearGetBuildsError: assign({
         getBuildsError: (_) => undefined,
       }),
-      assignNewBuilds: assign({
-        builds: (context, event) => {
-          const oldBuilds = context.builds
-
-          if (!oldBuilds) {
-            // This state is theoretically impossible, but helps TS
-            throw new Error("workspaceXService: failed to load workspace builds")
-          }
-
-          return [...oldBuilds, ...event.data]
-        },
-      }),
-      assignLoadMoreBuildsError: assign({
-        loadMoreBuildsError: (_, event) => event.data,
-      }),
-      clearLoadMoreBuildsError: assign({
-        loadMoreBuildsError: (_) => undefined,
-      }),
       refreshTimeline: pure((context, event) => {
         // No need to refresh the timeline if it is not loaded
         if (!context.builds) {
@@ -566,9 +521,6 @@ export const workspaceMachine = createMachine(
           return send({ type: "REFRESH_TIMELINE" })
         }
       }),
-    },
-    guards: {
-      hasMoreBuilds: (_) => false,
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -649,13 +601,6 @@ export const workspaceMachine = createMachine(
           return await API.getWorkspaceBuilds(context.workspace.id)
         } else {
           throw Error("Cannot get builds without id")
-        }
-      },
-      loadMoreBuilds: async (context) => {
-        if (context.workspace) {
-          return await API.getWorkspaceBuilds(context.workspace.id)
-        } else {
-          throw Error("Cannot load more builds without id")
         }
       },
       checkPermissions: async (context) => {
