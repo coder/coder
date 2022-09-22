@@ -15,49 +15,42 @@ func TestSplitSubdomain(t *testing.T) {
 		Host              string
 		ExpectedSubdomain string
 		ExpectedRest      string
-		ExpectedErr       string
 	}{
 		{
 			Name:              "Empty",
 			Host:              "",
 			ExpectedSubdomain: "",
 			ExpectedRest:      "",
-			ExpectedErr:       "no subdomain",
 		},
 		{
 			Name:              "NoSubdomain",
 			Host:              "com",
-			ExpectedSubdomain: "",
+			ExpectedSubdomain: "com",
 			ExpectedRest:      "",
-			ExpectedErr:       "no subdomain",
 		},
 		{
 			Name:              "Domain",
 			Host:              "coder.com",
 			ExpectedSubdomain: "coder",
 			ExpectedRest:      "com",
-			ExpectedErr:       "",
 		},
 		{
 			Name:              "Subdomain",
 			Host:              "subdomain.coder.com",
 			ExpectedSubdomain: "subdomain",
 			ExpectedRest:      "coder.com",
-			ExpectedErr:       "",
 		},
 		{
 			Name:              "DoubleSubdomain",
 			Host:              "subdomain1.subdomain2.coder.com",
 			ExpectedSubdomain: "subdomain1",
 			ExpectedRest:      "subdomain2.coder.com",
-			ExpectedErr:       "",
 		},
 		{
 			Name:              "WithPort",
 			Host:              "subdomain.coder.com:8080",
 			ExpectedSubdomain: "subdomain",
 			ExpectedRest:      "coder.com:8080",
-			ExpectedErr:       "",
 		},
 	}
 
@@ -66,13 +59,7 @@ func TestSplitSubdomain(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			subdomain, rest, err := httpapi.SplitSubdomain(c.Host)
-			if c.ExpectedErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), c.ExpectedErr)
-			} else {
-				require.NoError(t, err)
-			}
+			subdomain, rest := httpapi.SplitSubdomain(c.Host)
 			require.Equal(t, c.ExpectedSubdomain, subdomain)
 			require.Equal(t, c.ExpectedRest, rest)
 		})
@@ -90,7 +77,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name:     "Empty",
 			URL:      httpapi.ApplicationURL{},
-			Expected: "------.",
+			Expected: "------",
 		},
 		{
 			Name: "AppName",
@@ -100,9 +87,8 @@ func TestApplicationURLString(t *testing.T) {
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
-				BaseHostname:  "coder.com",
 			},
-			Expected: "app--agent--workspace--user.coder.com",
+			Expected: "app--agent--workspace--user",
 		},
 		{
 			Name: "Port",
@@ -112,9 +98,8 @@ func TestApplicationURLString(t *testing.T) {
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
-				BaseHostname:  "coder.com",
 			},
-			Expected: "8080--agent--workspace--user.coder.com",
+			Expected: "8080--agent--workspace--user",
 		},
 		{
 			Name: "Both",
@@ -124,10 +109,9 @@ func TestApplicationURLString(t *testing.T) {
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
-				BaseHostname:  "coder.com",
 			},
 			// Prioritizes port over app name.
-			Expected: "8080--agent--workspace--user.coder.com",
+			Expected: "8080--agent--workspace--user",
 		},
 	}
 
@@ -145,93 +129,72 @@ func TestParseSubdomainAppURL(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		Name          string
-		Host          string
+		Subdomain     string
 		Expected      httpapi.ApplicationURL
 		ExpectedError string
 	}{
 		{
-			Name:          "Invalid_Split",
-			Host:          "com",
-			Expected:      httpapi.ApplicationURL{},
-			ExpectedError: "no subdomain",
-		},
-		{
 			Name:          "Invalid_Empty",
-			Host:          "example.com",
+			Subdomain:     "test",
 			Expected:      httpapi.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_Workspace.Agent--App",
-			Host:          "workspace.agent--app.coder.com",
+			Subdomain:     "workspace.agent--app",
 			Expected:      httpapi.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_Workspace--App",
-			Host:          "workspace--app.coder.com",
+			Subdomain:     "workspace--app",
 			Expected:      httpapi.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_App--Workspace--User",
-			Host:          "app--workspace--user.coder.com",
+			Subdomain:     "app--workspace--user",
 			Expected:      httpapi.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		{
 			Name:          "Invalid_TooManyComponents",
-			Host:          "1--2--3--4--5.coder.com",
+			Subdomain:     "1--2--3--4--5",
 			Expected:      httpapi.ApplicationURL{},
 			ExpectedError: "invalid application url format",
 		},
 		// Correct
 		{
-			Name: "AppName--Agent--Workspace--User",
-			Host: "app--agent--workspace--user.coder.com",
+			Name:      "AppName--Agent--Workspace--User",
+			Subdomain: "app--agent--workspace--user",
 			Expected: httpapi.ApplicationURL{
 				AppName:       "app",
 				Port:          0,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
-				BaseHostname:  "coder.com",
 			},
 		},
 		{
-			Name: "Port--Agent--Workspace--User",
-			Host: "8080--agent--workspace--user.coder.com",
+			Name:      "Port--Agent--Workspace--User",
+			Subdomain: "8080--agent--workspace--user",
 			Expected: httpapi.ApplicationURL{
 				AppName:       "",
 				Port:          8080,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
-				BaseHostname:  "coder.com",
 			},
 		},
 		{
-			Name: "DeepSubdomain",
-			Host: "app--agent--workspace--user.dev.dean-was-here.coder.com",
-			Expected: httpapi.ApplicationURL{
-				AppName:       "app",
-				Port:          0,
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-				BaseHostname:  "dev.dean-was-here.coder.com",
-			},
-		},
-		{
-			Name: "HyphenatedNames",
-			Host: "app-name--agent-name--workspace-name--user-name.coder.com",
+			Name:      "HyphenatedNames",
+			Subdomain: "app-name--agent-name--workspace-name--user-name",
 			Expected: httpapi.ApplicationURL{
 				AppName:       "app-name",
 				Port:          0,
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",
-				BaseHostname:  "coder.com",
 			},
 		},
 	}
@@ -241,7 +204,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			app, err := httpapi.ParseSubdomainAppURL(c.Host)
+			app, err := httpapi.ParseSubdomainAppURL(c.Subdomain)
 			if c.ExpectedError == "" {
 				require.NoError(t, err)
 				require.Equal(t, c.Expected, app, "expected app")

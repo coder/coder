@@ -53,7 +53,12 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
+	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: false,
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		r.Route("/licenses", func(r chi.Router) {

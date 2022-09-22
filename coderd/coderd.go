@@ -44,9 +44,12 @@ import (
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
-	Logger    slog.Logger
-	Database  database.Store
-	Pubsub    database.Pubsub
+	// AppHostname should be the wildcard hostname to use for workspace
+	// applications without the asterisk or leading dot. E.g. "apps.coder.com".
+	AppHostname string
+	Logger      slog.Logger
+	Database    database.Store
+	Pubsub      database.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -158,7 +161,20 @@ func New(options *Options) *API {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
+
+	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: false,
+		Optional:        false,
+	})
+	// Same as above but it redirects to the login page.
+	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: true,
+		Optional:        false,
+	})
 
 	r.Use(
 		httpmw.AttachRequestID,
@@ -170,18 +186,14 @@ func New(options *Options) *API {
 		api.handleSubdomainApplications(
 			// Middleware to impose on the served application.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			httpmw.UseLoginURL(func() *url.URL {
-				if options.AccessURL == nil {
-					return nil
-				}
-
-				u := *options.AccessURL
-				u.Path = "/login"
-				return &u
-			}()),
-			// This should extract the application specific API key when we
-			// implement a scoped token.
-			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
+			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				DB:            options.Database,
+				OAuth2Configs: oauthConfigs,
+				// The code handles the the case where the user is not
+				// authenticated automatically.
+				RedirectToLogin: false,
+				Optional:        true,
+			}),
 			httpmw.ExtractUserParam(api.Database),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		),
@@ -199,7 +211,7 @@ func New(options *Options) *API {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
+			apiKeyMiddlewareRedirect,
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
@@ -384,8 +396,6 @@ func New(options *Options) *API {
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
 
-					r.Post("/authorization", api.checkPermissions)
-
 					r.Route("/keys", func(r chi.Router) {
 						r.Post("/", api.postAPIKey)
 						r.Get("/{keyid}", api.apiKey)
@@ -480,6 +490,25 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
+		})
+		r.Route("/authcheck", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/", api.checkAuthorization)
+		})
+		r.Route("/applications", func(r chi.Router) {
+			r.Route("/host", func(r chi.Router) {
+				// Don't leak the hostname to unauthenticated users.
+				r.Use(apiKeyMiddleware)
+				r.Get("/", api.appHost)
+			})
+			r.Route("/auth-redirect", func(r chi.Router) {
+				// We want to redirect to login if they are not authenticated.
+				r.Use(apiKeyMiddlewareRedirect)
+
+				// This is a GET request as it's redirected to by the subdomain app
+				// handler and the login page.
+				r.Get("/", api.workspaceApplicationAuth)
+			})
 		})
 	})
 

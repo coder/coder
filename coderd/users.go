@@ -936,7 +936,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.setAuthCookie(rw, cookie)
+	http.SetCookie(rw, cookie)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
@@ -1016,7 +1016,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenKey,
 		Path:   "/",
 	}
-	api.setAuthCookie(rw, cookie)
+	http.SetCookie(rw, cookie)
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
@@ -1057,6 +1057,7 @@ type createAPIKeyParams struct {
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
+	Scope           database.APIKeyScope
 }
 
 func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, error) {
@@ -1081,6 +1082,12 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		ip = net.IPv4(0, 0, 0, 0)
 	}
 	bitlen := len(ip) * 8
+
+	scope := database.APIKeyScopeAll
+	if params.Scope != "" {
+		scope = params.Scope
+	}
+
 	key, err := api.Database.InsertAPIKey(ctx, database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
@@ -1098,7 +1105,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scope:        database.APIKeyScopeAll,
+		Scope:        scope,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert API key: %w", err)
@@ -1196,15 +1203,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		return nil
 	})
-}
-
-func (api *API) setAuthCookie(rw http.ResponseWriter, cookie *http.Cookie) {
-	http.SetCookie(rw, cookie)
-
-	appCookie := api.applicationCookie(cookie)
-	if appCookie != nil {
-		http.SetCookie(rw, appCookie)
-	}
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {

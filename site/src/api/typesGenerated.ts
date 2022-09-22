@@ -103,6 +103,28 @@ export interface AuthMethods {
   readonly oidc: boolean
 }
 
+// From codersdk/authorization.go
+export interface AuthorizationCheck {
+  readonly object: AuthorizationObject
+  readonly action: string
+}
+
+// From codersdk/authorization.go
+export interface AuthorizationObject {
+  readonly resource_type: string
+  readonly owner_id?: string
+  readonly organization_id?: string
+  readonly resource_id?: string
+}
+
+// From codersdk/authorization.go
+export interface AuthorizationRequest {
+  readonly checks: Record<string, AuthorizationCheck>
+}
+
+// From codersdk/authorization.go
+export type AuthorizationResponse = Record<string, boolean>
+
 // From codersdk/workspaceagents.go
 export interface AzureInstanceIdentityToken {
   readonly signature: string
@@ -240,6 +262,11 @@ export interface Feature {
 // From codersdk/users.go
 export interface GenerateAPIKeyResponse {
   readonly key: string
+}
+
+// From codersdk/workspaces.go
+export interface GetAppHostResponse {
+  readonly host: string
 }
 
 // From codersdk/gitsshkey.go
@@ -496,28 +523,6 @@ export interface User {
   readonly roles: Role[]
   readonly avatar_url: string
 }
-
-// From codersdk/users.go
-export interface UserAuthorization {
-  readonly object: UserAuthorizationObject
-  readonly action: string
-}
-
-// From codersdk/users.go
-export interface UserAuthorizationObject {
-  readonly resource_type: string
-  readonly owner_id?: string
-  readonly organization_id?: string
-  readonly resource_id?: string
-}
-
-// From codersdk/users.go
-export interface UserAuthorizationRequest {
-  readonly checks: Record<string, UserAuthorization>
-}
-
-// From codersdk/users.go
-export type UserAuthorizationResponse = Record<string, boolean>
 
 // From codersdk/users.go
 export interface UserRoles {

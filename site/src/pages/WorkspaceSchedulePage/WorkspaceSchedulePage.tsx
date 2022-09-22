@@ -1,15 +1,13 @@
-import { useMachine, useSelector } from "@xstate/react"
+import { useMachine } from "@xstate/react"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
-import React, { useContext, useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
-import { selectUser } from "../../xServices/auth/authSelectors"
-import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 import { formValuesToAutoStartRequest, formValuesToTTLRequest } from "./formToRequest"
 
@@ -24,15 +22,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   const navigate = useNavigate()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-
-  const xServices = useContext(XServiceContext)
-  const me = useSelector(xServices.authXService, selectUser)
-
-  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
-    context: {
-      userId: me?.id,
-    },
-  })
+  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule)
   const { checkPermissionsError, submitScheduleError, getWorkspaceError, permissions, workspace } =
     scheduleState.context
 

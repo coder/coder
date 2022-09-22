@@ -100,7 +100,10 @@ func TestWorkspaceParam(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil, false),
+			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				DB:              db,
+				RedirectToLogin: false,
+			}),
 			httpmw.ExtractWorkspaceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
@@ -298,7 +301,10 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 
 			rtr := chi.NewRouter()
 			rtr.Use(
-				httpmw.ExtractAPIKey(db, nil, true),
+				httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+					DB:              db,
+					RedirectToLogin: true,
+				}),
 				httpmw.ExtractUserParam(db),
 				httpmw.ExtractWorkspaceAndAgentParam(db),
 			)

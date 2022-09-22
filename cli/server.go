@@ -72,6 +72,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	var (
 		accessURL             string
 		address               string
+		wildcardAccessURL     string
 		autobuildPollInterval time.Duration
 		derpServerEnabled     bool
 		derpServerRegionID    int
@@ -347,8 +348,13 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
+			appHostname := strings.TrimPrefix(wildcardAccessURL, "http://")
+			appHostname = strings.TrimPrefix(appHostname, "https://")
+			appHostname = strings.TrimPrefix(appHostname, "*.")
+
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
+				AppHostname:                 appHostname,
 				Logger:                      logger.Named("coderd"),
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
@@ -755,6 +761,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"External URL to access your deployment. This must be accessible by all provisioned workspaces.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000",
 		"Bind address of the server.")
+	cliflag.StringVarP(root.Flags(), &wildcardAccessURL, "wildcard-access-url", "", "CODER_WILDCARD_ACCESS_URL", "", `Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".`)
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
 		"URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",

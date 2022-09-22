@@ -39,7 +39,6 @@ export interface WorkspaceContext {
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  userId?: string
 }
 
 export type WorkspaceEvent =
@@ -117,7 +116,7 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild[]
         }
         checkPermissions: {
-          data: TypesGen.UserAuthorizationResponse
+          data: TypesGen.AuthorizationResponse
         }
       },
     },
@@ -604,12 +603,12 @@ export const workspaceMachine = createMachine(
         }
       },
       checkPermissions: async (context) => {
-        if (context.workspace && context.userId) {
-          return await API.checkUserPermissions(context.userId, {
+        if (context.workspace) {
+          return await API.checkAuthorization({
             checks: permissionsToCheck(context.workspace),
           })
         } else {
-          throw Error("Cannot check permissions without both workspace and user id")
+          throw Error("Cannot check permissions workspace id")
         }
       },
     },
