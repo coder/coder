@@ -1,5 +1,4 @@
 import { assign, createMachine, send } from "xstate"
-import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
@@ -10,6 +9,22 @@ const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   return [...builds].sort((a, b) => {
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   })[0]
+}
+
+const moreBuildsAvailable = (context: WorkspaceContext, event: { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"] }) => {
+  // No need to refresh the timeline if it is not loaded
+  if (!context.builds) {
+    return false
+  }
+
+  if (!event.checkRefresh) {
+    return true
+  }
+
+  // After we refresh a workspace, we want to check if the latest
+  // build was updated before refreshing the timeline so as to not over fetch the builds
+  const latestBuildInTimeline = latestBuild(context.builds)
+  return event.data.latest_build.updated_at !== latestBuildInTimeline.updated_at
 }
 
 const Language = {
@@ -52,8 +67,7 @@ export type WorkspaceEvent =
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
-  | { type: "CHECK_REFRESH_TIMELINE"; data: TypesGen.ServerSentEvent["data"] }
-  | { type: "REFRESH_TIMELINE" }
+  | { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"]  }
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
 
 export const checks = {
@@ -211,9 +225,6 @@ export const workspaceMachine = createMachine(
                   EVENT_SOURCE_ERROR: {
                     target: "error",
                   },
-                  CHECK_REFRESH_TIMELINE: {
-                    actions: ["refreshTimeline"],
-                  },
                 },
               },
               error: {
@@ -255,7 +266,7 @@ export const workspaceMachine = createMachine(
                   src: "startWorkspaceWithLatestTemplate",
                   onDone: {
                     target: "idle",
-                    actions: ["assignBuild", "refreshTimeline"],
+                    actions: ["assignBuild"],
                   },
                   onError: {
                     target: "idle",
@@ -270,7 +281,7 @@ export const workspaceMachine = createMachine(
                   id: "startWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild", "refreshTimeline"],
+                      actions: ["assignBuild"],
                       target: "idle",
                     },
                   ],
@@ -289,7 +300,7 @@ export const workspaceMachine = createMachine(
                   id: "stopWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild", "refreshTimeline"],
+                      actions: ["assignBuild"],
                       target: "idle",
                     },
                   ],
@@ -308,7 +319,7 @@ export const workspaceMachine = createMachine(
                   id: "deleteWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild", "refreshTimeline"],
+                      actions: ["assignBuild"],
                       target: "idle",
                     },
                   ],
@@ -330,7 +341,6 @@ export const workspaceMachine = createMachine(
                       actions: [
                         "assignCancellationMessage",
                         "displayCancellationMessage",
-                        "refreshTimeline",
                       ],
                       target: "idle",
                     },
@@ -393,6 +403,9 @@ export const workspaceMachine = createMachine(
                     on: {
                       REFRESH_TIMELINE: {
                         target: "#workspaceState.ready.timeline.gettingBuilds",
+                        cond: {
+                          type: 'moreBuildsAvailable'
+                        }
                       },
                     },
                   },
@@ -503,24 +516,9 @@ export const workspaceMachine = createMachine(
       clearGetBuildsError: assign({
         getBuildsError: (_) => undefined,
       }),
-      refreshTimeline: pure((context, event) => {
-        // No need to refresh the timeline if it is not loaded
-        if (!context.builds) {
-          return
-        }
-
-        // When it is a CHECK_REFRESH_TIMELINE workspace event, we want to check if the latest
-        // build was updated to not over fetch the builds
-        if (event.type === "CHECK_REFRESH_TIMELINE") {
-          const latestBuildInTimeline = latestBuild(context.builds)
-          const isUpdated = event.data?.latest_build.updated_at !== latestBuildInTimeline.updated_at
-          if (isUpdated) {
-            return send({ type: "REFRESH_TIMELINE" })
-          }
-        } else {
-          return send({ type: "REFRESH_TIMELINE" })
-        }
-      }),
+    },
+    guards: {
+      moreBuildsAvailable
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -535,40 +533,50 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get template without workspace")
         }
       },
-      startWorkspaceWithLatestTemplate: async (context) => {
+      startWorkspaceWithLatestTemplate: (context) => async (send) => {
         if (context.workspace && context.template) {
-          return await API.startWorkspace(context.workspace.id, context.template.active_version_id)
+          const startWorkspacePromise = await API.startWorkspace(context.workspace.id, context.template.active_version_id)
+          send({ type: "REFRESH_TIMELINE" })
+          return startWorkspacePromise
         } else {
           throw Error("Cannot start workspace without workspace id")
         }
       },
-      startWorkspace: async (context) => {
+      startWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          return await API.startWorkspace(
+          const startWorkspacePromise = await API.startWorkspace(
             context.workspace.id,
             context.workspace.latest_build.template_version_id,
           )
+          send({ type: "REFRESH_TIMELINE" })
+          return startWorkspacePromise
         } else {
           throw Error("Cannot start workspace without workspace id")
         }
       },
-      stopWorkspace: async (context) => {
+      stopWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          return await API.stopWorkspace(context.workspace.id)
+          const stopWorkspacePromise = await API.stopWorkspace(context.workspace.id)
+          send({ type: "REFRESH_TIMELINE" })
+          return stopWorkspacePromise
         } else {
           throw Error("Cannot stop workspace without workspace id")
         }
       },
       deleteWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.deleteWorkspace(context.workspace.id)
+          const deleteWorkspacePromise = await API.deleteWorkspace(context.workspace.id)
+          send({ type: "REFRESH_TIMELINE" })
+          return deleteWorkspacePromise
         } else {
           throw Error("Cannot delete workspace without workspace id")
         }
       },
-      cancelWorkspace: async (context) => {
+      cancelWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          return await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
+          const cancelWorkspacePromise = await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
+          send({ type: "REFRESH_TIMELINE" })
+          return cancelWorkspacePromise
         } else {
           throw Error("Cannot cancel workspace without build id")
         }
@@ -583,7 +591,7 @@ export const workspaceMachine = createMachine(
           // refresh our workspace with each SSE
           send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) })
           // refresh our timeline
-          send({ type: "CHECK_REFRESH_TIMELINE", data: JSON.parse(event.data) })
+          send({ type: "REFRESH_TIMELINE", checkRefresh: true, data: JSON.parse(event.data) })
         })
 
         // handle any error events returned by our sse
@@ -591,7 +599,7 @@ export const workspaceMachine = createMachine(
           send({ type: "EVENT_SOURCE_ERROR", error: event })
         })
 
-        // handle any sse implementation exceptions
+        // handle any sse implementation exceptions 
         context.eventSource.onerror = () => {
           send({ type: "EVENT_SOURCE_ERROR", error: "sse error" })
         }
