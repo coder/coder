@@ -43,7 +43,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				Entitlement: codersdk.EntitlementNotEntitled,
 				Enabled:     false,
 			},
-			auditLogs: codersdk.EntitlementNotEntitled,
+			auditLogs:   codersdk.EntitlementNotEntitled,
+			browserOnly: codersdk.EntitlementNotEntitled,
+			scim:        codersdk.EntitlementNotEntitled,
 		},
 		cancelEntitlementsLoop: cancelFunc,
 	}
