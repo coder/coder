@@ -3,7 +3,6 @@ import path from "path"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  root: path.resolve(__dirname, "./src"),
   plugins: [react()],
   publicDir: path.resolve(__dirname, "./static"),
   build: {
