@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -100,7 +101,7 @@ func main() {
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					return job, nil
 				},
-				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
 					logs := make(chan codersdk.ProvisionerJobLog)
 					go func() {
 						defer close(logs)
@@ -143,7 +144,7 @@ func main() {
 							}
 						}
 					}()
-					return logs, nil
+					return logs, io.NopCloser(strings.NewReader("")), nil
 				},
 				Cancel: func() error {
 					job.Status = codersdk.ProvisionerJobCanceling

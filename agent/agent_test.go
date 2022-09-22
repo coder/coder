@@ -490,7 +490,7 @@ func TestAgent(t *testing.T) {
 		require.Eventually(t, func() bool {
 			_, err := conn.Ping()
 			return err == nil
-		}, testutil.WaitMedium, testutil.IntervalFast)
+		}, testutil.WaitLong, testutil.IntervalFast)
 	})
 
 	t.Run("Speedtest", func(t *testing.T) {
