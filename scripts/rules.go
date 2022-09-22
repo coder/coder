@@ -8,8 +8,10 @@
 // - https://pkg.go.dev/github.com/quasilyte/go-ruleguard/dsl
 //
 // You run one of the following commands to execute your go rules only:
-//   golangci-lint run
-//   golangci-lint run --disable-all --enable=gocritic
+//
+//	golangci-lint run
+//	golangci-lint run --disable-all --enable=gocritic
+//
 // Note: don't forget to run `golangci-lint cache clean`!
 package gorules
 
@@ -18,6 +20,7 @@ import (
 )
 
 // Use xerrors everywhere! It provides additional stacktrace info!
+//
 //nolint:unused,deadcode,varnamelen
 func xerrors(m dsl.Matcher) {
 	m.Import("errors")
@@ -35,6 +38,7 @@ func xerrors(m dsl.Matcher) {
 }
 
 // databaseImport enforces not importing any database types into /codersdk.
+//
 //nolint:unused,deadcode,varnamelen
 func databaseImport(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/coderd/database")
@@ -46,6 +50,7 @@ func databaseImport(m dsl.Matcher) {
 // doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
 // functions that may themselves call t.FailNow in goroutines outside
 // the main test goroutine. See testing.go:834 for why.
+//
 //nolint:unused,deadcode,varnamelen
 func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 	m.Import("testing")
@@ -84,6 +89,7 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 // useStandardTimeoutsAndDelaysInTests ensures all tests use common
 // constants for timeouts and delays in usual scenarios, this allows us
 // to tweak them based on platform (important to avoid CI flakes).
+//
 //nolint:unused,deadcode,varnamelen
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 	m.Import("github.com/stretchr/testify/require")
@@ -182,13 +188,13 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 	}
 
 	m.Match(`
-	httpapi.Write($_, $s, httpapi.Response{
+	httpapi.Write($_, $_, $s, httpapi.Response{
 		$*_,
 		Message: $m,
 		$*_,
 	})
 	`, `
-	httpapi.Write($_, $s, httpapi.Response{
+	httpapi.Write($_, $_, $s, httpapi.Response{
 		$*_,
 		Message: fmt.$f($m, $*_),
 		$*_,

@@ -38,5 +38,5 @@ export const combineClasses = (
     }
   }
 
-  return result.length ? result : undefined
+  return result.length > 0 ? result : undefined
 }

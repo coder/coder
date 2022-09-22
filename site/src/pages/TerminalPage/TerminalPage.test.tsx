@@ -38,7 +38,7 @@ const renderTerminal = () => {
 const expectTerminalText = (container: HTMLElement, text: string) => {
   return waitFor(() => {
     const elements = container.getElementsByClassName("xterm-rows")
-    if (elements.length < 1) {
+    if (elements.length === 0) {
       throw new Error("no xterm-rows")
     }
     const row = elements[0] as HTMLDivElement
