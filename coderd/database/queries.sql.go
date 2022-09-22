@@ -701,6 +701,156 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const getGroupByID = `-- name: GetGroupByID :one
+SELECT
+	id, name, organization_id
+FROM
+	groups
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByID, id)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const getGroups = `-- name: GetGroups :many
+SELECT
+	id, name, organization_id
+FROM
+	groups
+`
+
+func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupsByUserID = `-- name: GetGroupsByUserID :many
+SELECT
+	groups.id, groups.name, groups.organization_id
+FROM
+	groups
+JOIN
+	group_users
+ON
+	groups.id = group_users.group_id
+WHERE
+	group_users.user_id = $1
+`
+
+func (q *sqlQuerier) GetGroupsByUserID(ctx context.Context, userID uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUsersByGroupID = `-- name: GetUsersByGroupID :many
+SELECT
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, user_id, group_id
+FROM
+	users
+JOIN
+	group_users
+ON
+	users.id = group_users.user_id
+WHERE
+	group_users.group_id = $1
+`
+
+type GetUsersByGroupIDRow struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	Status         UserStatus     `db:"status" json:"status"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted        bool           `db:"deleted" json:"deleted"`
+	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
+	GroupID        uuid.UUID      `db:"group_id" json:"group_id"`
+}
+
+func (q *sqlQuerier) GetUsersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GetUsersByGroupIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersByGroupID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersByGroupIDRow
+	for rows.Next() {
+		var i GetUsersByGroupIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.RBACRoles,
+			&i.LoginType,
+			&i.AvatarURL,
+			&i.Deleted,
+			&i.UserID,
+			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses

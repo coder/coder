@@ -9,4 +9,19 @@ CREATE TYPE template_role AS ENUM (
 	'admin'
 );
 
+CREATE TABLE groups (
+	id uuid NOT NULL,
+	name text NOT NULL,
+	organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+	PRIMARY KEY(id),
+	UNIQUE(name)
+);
+
+CREATE TABLE group_users (
+	user_id uuid NOT NULL,
+	group_id uuid NOT NULL,
+	FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+	FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE
+);
+
 COMMIT;

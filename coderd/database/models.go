@@ -411,6 +411,17 @@ type GitSSHKey struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
+type Group struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GroupUser struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
 type License struct {
 	ID         int32     `db:"id" json:"id"`
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
