@@ -268,6 +268,14 @@ func New(options *Options) *API {
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
 		})
+
+		r.Route("/groups/{group}", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.group)
+			r.Patch("/", api.patchGroup)
+			r.Delete("/", api.deleteGroup)
+		})
+
 		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -289,6 +297,10 @@ func New(options *Options) *API {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
+				})
+				r.Route("/groups", func(r chi.Router) {
+					r.Post("/", api.postGroupByOrganization)
+					r.Get("/", api.groups)
 				})
 				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
