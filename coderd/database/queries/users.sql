@@ -192,7 +192,7 @@ SELECT
 					 user_id = users.id
 			) AS org_member_roles
 		)
-	) AS roles,
+	) :: text[] AS roles,
 	-- All groups the user is in.
 	(
 		SELECT
@@ -203,7 +203,7 @@ SELECT
 			group_members
 		WHERE
 			user_id = users.id
-	) AS groups
+	) :: text[] AS groups
 FROM
 	users
 WHERE
