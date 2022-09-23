@@ -148,16 +148,10 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 	return func(ctx context.Context) {
 		for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
 			err := runHealthcheckLoop(ctx)
-			if err != nil {
-				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-					return
-				}
-				logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))
-				// continue loop with backoff on non-nil errors
-				continue
+			if err == nil || xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				return
 			}
-
-			return
+			logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))
 		}
 	}
 }
