@@ -154,9 +154,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 				}
 				logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))
 				// continue loop with backoff on non-nil errors
-				if r.Wait(ctx) {
-					continue
-				}
+				continue
 			}
 
 			return
