@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -150,7 +149,7 @@ func (c *haCoordinator) writeNodeToAgent(agent uuid.UUID, node *agpl.Node) error
 	if !ok {
 		// If we don't own the agent locally, send it over pubsub to a node that
 		// owns the agent.
-		err := c.publishNodeToAgent(agent, node)
+		err := c.publishNodesToAgent(agent, []*agpl.Node{node})
 		if err != nil {
 			return xerrors.Errorf("publish node to agent")
 		}
@@ -178,18 +177,15 @@ func (c *haCoordinator) writeNodeToAgent(agent uuid.UUID, node *agpl.Node) error
 // incoming connections and publishes node updates.
 func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	c.mutex.Lock()
-	sockets, ok := c.agentToConnectionSockets[id]
-	if ok {
-		// Publish all nodes that want to connect to the
-		// desired agent ID.
-		nodes := make([]*agpl.Node, 0, len(sockets))
-		for targetID := range sockets {
-			node, ok := c.nodes[targetID]
-			if !ok {
-				continue
-			}
-			nodes = append(nodes, node)
-		}
+
+	// Tell clients on other instances to send a callmemaybe to us.
+	err := c.publishAgentHello(id)
+	if err != nil {
+		return xerrors.Errorf("publish agent hello: %w", err)
+	}
+
+	nodes := c.nodesSubscribedToAgent(id)
+	if len(nodes) > 0 {
 		data, err := json.Marshal(nodes)
 		if err != nil {
 			c.mutex.Unlock()
@@ -220,21 +216,46 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 
 	decoder := json.NewDecoder(conn)
 	for {
-		err := c.hangleAgentUpdate(id, decoder, false)
+		node, err := c.hangleAgentUpdate(id, decoder)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)
 		}
+
+		err = c.publishAgentToNodes(id, node)
+		if err != nil {
+			return xerrors.Errorf("publish agent to nodes: %w", err)
+		}
 	}
 }
 
-func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder, fromPubsub bool) error {
+func (c *haCoordinator) nodesSubscribedToAgent(agentID uuid.UUID) []*agpl.Node {
+	sockets, ok := c.agentToConnectionSockets[agentID]
+	if !ok {
+		return nil
+	}
+
+	// Publish all nodes that want to connect to the
+	// desired agent ID.
+	nodes := make([]*agpl.Node, 0, len(sockets))
+	for targetID := range sockets {
+		node, ok := c.nodes[targetID]
+		if !ok {
+			continue
+		}
+		nodes = append(nodes, node)
+	}
+
+	return nodes
+}
+
+func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (*agpl.Node, error) {
 	var node agpl.Node
 	err := decoder.Decode(&node)
 	if err != nil {
-		return xerrors.Errorf("read json: %w", err)
+		return nil, xerrors.Errorf("read json: %w", err)
 	}
 
 	c.mutex.Lock()
@@ -242,22 +263,14 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder, f
 
 	c.nodes[id] = &node
 
-	// Don't send the agent back over pubsub if that's where we received it from!
-	if !fromPubsub {
-		err = c.publishAgentToNodes(id, &node)
-		if err != nil {
-			return xerrors.Errorf("publish agent to nodes: %w", err)
-		}
-	}
-
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
-		return nil
+		return &node, nil
 	}
 
 	data, err := json.Marshal([]*agpl.Node{&node})
 	if err != nil {
-		return xerrors.Errorf("marshal nodes: %w", err)
+		return nil, xerrors.Errorf("marshal nodes: %w", err)
 	}
 
 	// Publish the new node to every listening socket.
@@ -273,7 +286,7 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder, f
 	}
 
 	wg.Wait()
-	return nil
+	return &node, nil
 }
 
 func (c *haCoordinator) Close() error {
@@ -281,13 +294,26 @@ func (c *haCoordinator) Close() error {
 	return nil
 }
 
-func (c *haCoordinator) publishNodeToAgent(recipient uuid.UUID, node *agpl.Node) error {
-	msg, err := c.formatCallMeMaybe(recipient, node)
+func (c *haCoordinator) publishNodesToAgent(recipient uuid.UUID, nodes []*agpl.Node) error {
+	msg, err := c.formatCallMeMaybe(recipient, nodes)
 	if err != nil {
 		return xerrors.Errorf("format publish message: %w", err)
 	}
 
-	fmt.Println("publishing callmemaybe", c.id.String())
+	err = c.pubsub.Publish("wireguard_peers", msg)
+	if err != nil {
+		return xerrors.Errorf("publish message: %w", err)
+	}
+
+	return nil
+}
+
+func (c *haCoordinator) publishAgentHello(id uuid.UUID) error {
+	msg, err := c.formatAgentHello(id)
+	if err != nil {
+		return xerrors.Errorf("format publish message: %w", err)
+	}
+
 	err = c.pubsub.Publish("wireguard_peers", msg)
 	if err != nil {
 		return xerrors.Errorf("publish message: %w", err)
@@ -302,7 +328,6 @@ func (c *haCoordinator) publishAgentToNodes(id uuid.UUID, node *agpl.Node) error
 		return xerrors.Errorf("format publish message: %w", err)
 	}
 
-	fmt.Println("publishing agentupdate", c.id.String())
 	err = c.pubsub.Publish("wireguard_peers", msg)
 	if err != nil {
 		return xerrors.Errorf("publish message: %w", err)
@@ -345,19 +370,16 @@ func (c *haCoordinator) runPubsub() error {
 				return
 			}
 
-			fmt.Println("got callmemaybe", agentUUID.String())
 			c.mutex.Lock()
 			defer c.mutex.Unlock()
 
-			fmt.Println("process callmemaybe", agentUUID.String())
 			agentSocket, ok := c.agentSockets[agentUUID]
 			if !ok {
-				fmt.Println("no socket")
 				return
 			}
 
 			// We get a single node over pubsub, so turn into an array.
-			_, err = agentSocket.Write(bytes.Join([][]byte{[]byte("["), nodeJSON, []byte("]")}, []byte{}))
+			_, err = agentSocket.Write(nodeJSON)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					return
@@ -365,18 +387,37 @@ func (c *haCoordinator) runPubsub() error {
 				c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
 				return
 			}
-			fmt.Println("success callmemaybe", agentUUID.String())
+
+		case "agenthello":
+			agentUUID, err := uuid.ParseBytes(agentID)
+			if err != nil {
+				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+				return
+			}
+
+			c.mutex.Lock()
+			nodes := c.nodesSubscribedToAgent(agentUUID)
+			c.mutex.Unlock()
+			if len(nodes) > 0 {
+				err := c.publishNodesToAgent(agentUUID, nodes)
+				if err != nil {
+					c.log.Error(ctx, "publish nodes to agent", slog.Error(err))
+					return
+				}
+			}
 
 		case "agentupdate":
 			agentUUID, err := uuid.ParseBytes(agentID)
 			if err != nil {
 				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+				return
 			}
 
 			decoder := json.NewDecoder(bytes.NewReader(nodeJSON))
-			err = c.hangleAgentUpdate(agentUUID, decoder, true)
+			_, err = c.hangleAgentUpdate(agentUUID, decoder)
 			if err != nil {
 				c.log.Error(ctx, "handle agent update", slog.Error(err))
+				return
 			}
 
 		default:
@@ -396,16 +437,27 @@ func (c *haCoordinator) runPubsub() error {
 }
 
 // format: <coordinator id>|callmemaybe|<recipient id>|<node json>
-func (c *haCoordinator) formatCallMeMaybe(recipient uuid.UUID, node *agpl.Node) ([]byte, error) {
+func (c *haCoordinator) formatCallMeMaybe(recipient uuid.UUID, nodes []*agpl.Node) ([]byte, error) {
 	buf := bytes.Buffer{}
 
 	buf.WriteString(c.id.String() + "|")
 	buf.WriteString("callmemaybe|")
 	buf.WriteString(recipient.String() + "|")
-	err := json.NewEncoder(&buf).Encode(node)
+	err := json.NewEncoder(&buf).Encode(nodes)
 	if err != nil {
 		return nil, xerrors.Errorf("encode node: %w", err)
 	}
+
+	return buf.Bytes(), nil
+}
+
+// format: <coordinator id>|agenthello|<node id>|
+func (c *haCoordinator) formatAgentHello(id uuid.UUID) ([]byte, error) {
+	buf := bytes.Buffer{}
+
+	buf.WriteString(c.id.String() + "|")
+	buf.WriteString("agenthello|")
+	buf.WriteString(id.String() + "|")
 
 	return buf.Bytes(), nil
 }
