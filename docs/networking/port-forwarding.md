@@ -30,6 +30,8 @@ For more examples, see `coder port-forward --help`.
 Use the "Port forward" button in the dashboard to access ports
 running on your workspace.
 
+![Port forwarding in the UI](../images/port-forward-dashboard.png)
+
 ## SSH
 
 First, [configure SSH](../ides.md#ssh-configuration) on your
