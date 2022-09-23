@@ -184,6 +184,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 		return xerrors.Errorf("publish agent hello: %w", err)
 	}
 
+	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)
 	if len(nodes) > 0 {
 		data, err := json.Marshal(nodes)
@@ -237,8 +238,6 @@ func (c *haCoordinator) nodesSubscribedToAgent(agentID uuid.UUID) []*agpl.Node {
 		return nil
 	}
 
-	// Publish all nodes that want to connect to the
-	// desired agent ID.
 	nodes := make([]*agpl.Node, 0, len(sockets))
 	for targetID := range sockets {
 		node, ok := c.nodes[targetID]
