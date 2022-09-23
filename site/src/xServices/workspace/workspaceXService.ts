@@ -1,3 +1,4 @@
+import { getErrorMessage } from "api/errors"
 import { assign, createMachine, send } from "xstate"
 import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
@@ -39,6 +40,8 @@ export interface WorkspaceContext {
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
+  // applications
+  applicationsHost?: string
 }
 
 export type WorkspaceEvent =
@@ -117,6 +120,9 @@ export const workspaceMachine = createMachine(
         }
         checkPermissions: {
           data: TypesGen.AuthorizationResponse
+        }
+        getApplicationsHost: {
+          data: TypesGen.GetAppHostResponse
         }
       },
     },
@@ -399,6 +405,30 @@ export const workspaceMachine = createMachine(
               },
             },
           },
+          applications: {
+            initial: "gettingApplicationsHost",
+            states: {
+              gettingApplicationsHost: {
+                invoke: {
+                  src: "getApplicationsHost",
+                  onDone: {
+                    target: "success",
+                    actions: ["assignApplicationsHost"],
+                  },
+                  onError: {
+                    target: "error",
+                    actions: ["displayApplicationsHostError"],
+                  },
+                },
+              },
+              error: {
+                type: "final",
+              },
+              success: {
+                type: "final",
+              },
+            },
+          },
         },
       },
       error: {
@@ -520,6 +550,14 @@ export const workspaceMachine = createMachine(
           return send({ type: "REFRESH_TIMELINE" })
         }
       }),
+      // Applications
+      assignApplicationsHost: assign({
+        applicationsHost: (_, { data }) => data.host,
+      }),
+      displayApplicationsHostError: (_, { data }) => {
+        const message = getErrorMessage(data, "Error getting the applications host.")
+        displayError(message)
+      },
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -610,6 +648,9 @@ export const workspaceMachine = createMachine(
         } else {
           throw Error("Cannot check permissions workspace id")
         }
+      },
+      getApplicationsHost: async () => {
+        return API.getApplicationsHost()
       },
     },
   },
