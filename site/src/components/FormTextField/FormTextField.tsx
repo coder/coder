@@ -44,7 +44,7 @@ export interface FormTextFieldProps<T>
       | "onChange"
       | "placeholder"
       | "required"
-      | "minRows"
+      | "rows"
       | "select"
       | "SelectProps"
       | "style"

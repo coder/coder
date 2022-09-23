@@ -104,7 +104,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           fullWidth
           label={Language.descriptionLabel}
           variant="outlined"
-          minRows={2}
+          rows={2}
         />
 
         <div className={styles.iconField}>
