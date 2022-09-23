@@ -35,7 +35,7 @@ const moreBuildsAvailable = (
 }
 
 const Language = {
-  refreshTemplateWarning: "Error updating workspace: latest template could not be fetched.",
+  getTemplateWarning: "Error updating workspace: latest template could not be fetched.",
   buildError: "Workspace action failed.",
 }
 
@@ -50,7 +50,7 @@ export interface WorkspaceContext {
   getWorkspaceError?: Error | unknown
   // these are labeled as warnings because they don't make the page unusable
   refreshWorkspaceWarning?: Error | unknown
-  refreshTemplateWarning: Error | unknown
+  getTemplateWarning: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
@@ -161,7 +161,7 @@ export const workspaceMachine = createMachine(
           onDone: [
             {
               actions: "assignWorkspace",
-              target: "refreshingTemplate",
+              target: "gettingTemplate",
             },
           ],
           onError: [
@@ -173,11 +173,11 @@ export const workspaceMachine = createMachine(
         },
         tags: "loading",
       },
-      refreshingTemplate: {
-        entry: "clearRefreshTemplateWarning",
+      gettingTemplate: {
+        entry: "clearGettingTemplateWarning",
         invoke: {
           src: "getTemplate",
-          id: "refreshTemplate",
+          id: "getTemplate",
           onDone: [
             {
               actions: "assignTemplate",
@@ -186,7 +186,7 @@ export const workspaceMachine = createMachine(
           ],
           onError: [
             {
-              actions: ["assignRefreshTemplateWarning", "displayRefreshTemplateWarning"],
+              actions: ["assignGetTemplateWarning", "displayGetTemplateWarning"],
               target: "error",
             },
           ],
@@ -357,25 +357,6 @@ export const workspaceMachine = createMachine(
                   ],
                 },
               },
-              refreshingTemplate: {
-                entry: "clearRefreshTemplateWarning",
-                invoke: {
-                  src: "getTemplate",
-                  id: "refreshTemplate",
-                  onDone: [
-                    {
-                      actions: "assignTemplate",
-                      target: "requestingStart",
-                    },
-                  ],
-                  onError: [
-                    {
-                      actions: ["assignRefreshTemplateWarning", "displayRefreshTemplateWarning"],
-                      target: "idle",
-                    },
-                  ],
-                },
-              },
             },
           },
           timeline: {
@@ -495,14 +476,14 @@ export const workspaceMachine = createMachine(
       clearRefreshWorkspaceWarning: assign({
         refreshWorkspaceWarning: (_) => undefined,
       }),
-      assignRefreshTemplateWarning: assign({
-        refreshTemplateWarning: (_, event) => event.data,
+      assignGetTemplateWarning: assign({
+        getTemplateWarning: (_, event) => event.data,
       }),
-      displayRefreshTemplateWarning: () => {
-        displayError(Language.refreshTemplateWarning)
+      displayGetTemplateWarning: () => {
+        displayError(Language.getTemplateWarning)
       },
-      clearRefreshTemplateWarning: assign({
-        refreshTemplateWarning: (_) => undefined,
+      clearGettingTemplateWarning: assign({
+        getTemplateWarning: (_) => undefined,
       }),
       // Timeline
       assignBuilds: assign({
