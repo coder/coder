@@ -36,7 +36,7 @@ func TestAppHealth(t *testing.T) {
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
 					Interval:  1,
-					Threshold: 3,
+					Threshold: 1,
 				},
 				Health: codersdk.WorkspaceAppHealthInitializing,
 			},
@@ -73,7 +73,7 @@ func TestAppHealth(t *testing.T) {
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
 					Interval:  1,
-					Threshold: 3,
+					Threshold: 1,
 				},
 				Health: codersdk.WorkspaceAppHealthInitializing,
 			},
@@ -106,7 +106,7 @@ func TestAppHealth(t *testing.T) {
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
 					Interval:  1,
-					Threshold: 3,
+					Threshold: 1,
 				},
 				Health: codersdk.WorkspaceAppHealthInitializing,
 			},
