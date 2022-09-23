@@ -21,7 +21,7 @@ import { defaultSchedule, emptySchedule } from "pages/WorkspaceSchedulePage/sche
 import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
-import { getFormHelpersWithError } from "../../util/formUtils"
+import { getFormHelpers } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
@@ -189,10 +189,7 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
     validationSchema,
     initialTouched,
   })
-  const formHelpers = getFormHelpersWithError<WorkspaceScheduleFormValues>(
-    form,
-    submitScheduleError,
-  )
+  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form, submitScheduleError)
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },
