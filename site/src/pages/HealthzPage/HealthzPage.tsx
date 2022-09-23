@@ -6,3 +6,5 @@ import { FC } from "react"
  * accessible by humans and services.
  */
 export const HealthzPage: FC = () => <div>ok</div>
+
+export default HealthzPage
