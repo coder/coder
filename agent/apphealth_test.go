@@ -113,7 +113,7 @@ func TestAppHealth(t *testing.T) {
 		}
 		handlers := []http.Handler{
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// sleep longer than the timeout to cause the health check to time out
+				// sleep longer than the interval to cause the health check to time out
 				time.Sleep(2 * time.Second)
 				httpapi.Write(r.Context(), w, http.StatusOK, nil)
 			}),

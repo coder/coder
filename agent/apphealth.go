@@ -56,17 +56,19 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 				}
 
 				// run a ticker for each app health check.
-				tickers := make(chan string)
+				tickers := make(map[string]*time.Ticker)
+				tickerC := make(chan codersdk.WorkspaceApp)
 				for _, app := range apps {
 					if shouldStartTicker(app) {
 						t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
+						tickers[app.Name] = t
 						go func() {
 							for {
 								select {
 								case <-ctx.Done():
 									return
 								case <-t.C:
-									tickers <- app.Name
+									tickerC <- app
 								}
 							}
 						}()
@@ -79,53 +81,49 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 						select {
 						case <-ctx.Done():
 							return
-						case name := <-tickers:
-							for _, app := range apps {
-								if app.Name != name {
-									continue
-								}
-
-								// we set the http timeout to the healthcheck interval to prevent getting too backed up.
-								client := &http.Client{
-									Timeout: time.Duration(app.Healthcheck.Interval) * time.Second,
-								}
-								err := func() error {
-									req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.Healthcheck.URL, nil)
-									if err != nil {
-										return err
-									}
-									res, err := client.Do(req)
-									if err != nil {
-										return err
-									}
-									// successful healthcheck is a non-5XX status code
-									res.Body.Close()
-									if res.StatusCode >= http.StatusInternalServerError {
-										return xerrors.Errorf("error status code: %d", res.StatusCode)
-									}
-
-									return nil
-								}()
-								if err != nil {
-									mu.Lock()
-									if failures[app.Name] < int(app.Healthcheck.Threshold) {
-										// increment the failure count and keep status the same.
-										// we will change it when we hit the threshold.
-										failures[app.Name]++
-									} else {
-										// set to unhealthy if we hit the failure threshold.
-										// we stop incrementing at the threshold to prevent the failure value from increasing forever.
-										health[app.Name] = codersdk.WorkspaceAppHealthUnhealthy
-									}
-									mu.Unlock()
-								} else {
-									mu.Lock()
-									// we only need one successful health check to be considered healthy.
-									health[app.Name] = codersdk.WorkspaceAppHealthHealthy
-									failures[app.Name] = 0
-									mu.Unlock()
-								}
+						case app := <-tickerC:
+							// we set the http timeout to the healthcheck interval to prevent getting too backed up.
+							client := &http.Client{
+								Timeout: time.Duration(app.Healthcheck.Interval) * time.Second,
 							}
+							err := func() error {
+								req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.Healthcheck.URL, nil)
+								if err != nil {
+									return err
+								}
+								res, err := client.Do(req)
+								if err != nil {
+									return err
+								}
+								// successful healthcheck is a non-5XX status code
+								res.Body.Close()
+								if res.StatusCode >= http.StatusInternalServerError {
+									return xerrors.Errorf("error status code: %d", res.StatusCode)
+								}
+
+								return nil
+							}()
+							if err != nil {
+								mu.Lock()
+								if failures[app.Name] < int(app.Healthcheck.Threshold) {
+									// increment the failure count and keep status the same.
+									// we will change it when we hit the threshold.
+									failures[app.Name]++
+								} else {
+									// set to unhealthy if we hit the failure threshold.
+									// we stop incrementing at the threshold to prevent the failure value from increasing forever.
+									health[app.Name] = codersdk.WorkspaceAppHealthUnhealthy
+								}
+								mu.Unlock()
+							} else {
+								mu.Lock()
+								// we only need one successful health check to be considered healthy.
+								health[app.Name] = codersdk.WorkspaceAppHealthHealthy
+								failures[app.Name] = 0
+								mu.Unlock()
+							}
+
+							tickers[app.Name].Reset(time.Duration(app.Healthcheck.Interval))
 						}
 					}
 				}()
@@ -159,6 +157,9 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 				}
 			}()
 			if err != nil {
+				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+					return
+				}
 				logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))
 				// continue loop with backoff on non-nil errors
 				if r.Wait(ctx) {
