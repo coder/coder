@@ -9,6 +9,8 @@ import (
 )
 
 func Test_parsePortForwards(t *testing.T) {
+	t.Parallel()
+
 	portForwardSpecToString := func(v []portForwardSpec) (out []string) {
 		for _, p := range v {
 			require.Equal(t, p.listenNetwork, p.dialNetwork)
