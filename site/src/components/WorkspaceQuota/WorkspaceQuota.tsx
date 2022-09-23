@@ -1,10 +1,10 @@
-import LinearProgress from '@material-ui/core/LinearProgress';
-import { FC } from "react"
+import Box from "@material-ui/core/Box"
+import LinearProgress from "@material-ui/core/LinearProgress"
 import { makeStyles } from "@material-ui/core/styles"
+import Skeleton from "@material-ui/lab/Skeleton"
+import { Stack } from "components/Stack/Stack"
+import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import Skeleton from '@material-ui/lab/Skeleton';
-import { Stack } from 'components/Stack/Stack';
-import Box from "@material-ui/core/Box";
 
 export const Language = {
   of: "of",
@@ -25,11 +25,9 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
     return (
       <Box>
         <Stack spacing={1} className={styles.stack}>
-          <LinearProgress
-              color="primary"
-          />
+          <LinearProgress color="primary" />
           <div className={styles.label}>
-            <Skeleton className={styles.skeleton}/>
+            <Skeleton className={styles.skeleton} />
           </div>
         </Stack>
       </Box>
@@ -45,13 +43,10 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
   return (
     <Box>
       <Stack spacing={1} className={styles.stack}>
-        <LinearProgress
-            value={value}
-            variant="determinate"
-            color="primary"
-        />
+        <LinearProgress value={value} variant="determinate" color="primary" />
         <div className={styles.label}>
-          {count} {Language.of} {limit} {limit === 1 ? Language.workspaceUsed : Language.workspacesUsed }
+          {count} {Language.of} {limit}{" "}
+          {limit === 1 ? Language.workspaceUsed : Language.workspacesUsed}
         </div>
       </Stack>
     </Box>
@@ -60,7 +55,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
 
 const useStyles = makeStyles((theme) => ({
   stack: {
-    display: 'inline-flex',
+    display: "inline-flex",
   },
   label: {
     fontFamily: MONOSPACE_FONT_FAMILY,

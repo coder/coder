@@ -43,9 +43,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				Entitlement: codersdk.EntitlementNotEntitled,
 				Enabled:     false,
 			},
-			auditLogs:   codersdk.EntitlementNotEntitled,
-			browserOnly: codersdk.EntitlementNotEntitled,
-			scim:        codersdk.EntitlementNotEntitled,
+			auditLogs:      codersdk.EntitlementNotEntitled,
+			browserOnly:    codersdk.EntitlementNotEntitled,
+			scim:           codersdk.EntitlementNotEntitled,
+			workspaceQuota: codersdk.EntitlementNotEntitled,
 		},
 		cancelEntitlementsLoop: cancelFunc,
 	}
@@ -96,8 +97,10 @@ type Options struct {
 
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly                bool
-	SCIMAPIKey                 []byte
+	BrowserOnly    bool
+	SCIMAPIKey     []byte
+	WorkspaceQuota int
+
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }
@@ -112,11 +115,12 @@ type API struct {
 }
 
 type entitlements struct {
-	hasLicense  bool
-	activeUsers codersdk.Feature
-	auditLogs   codersdk.Entitlement
-	browserOnly codersdk.Entitlement
-	scim        codersdk.Entitlement
+	hasLicense     bool
+	activeUsers    codersdk.Feature
+	auditLogs      codersdk.Entitlement
+	browserOnly    codersdk.Entitlement
+	scim           codersdk.Entitlement
+	workspaceQuota codersdk.Entitlement
 }
 
 func (api *API) Close() error {
@@ -140,9 +144,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			Enabled:     false,
 			Entitlement: codersdk.EntitlementNotEntitled,
 		},
-		auditLogs:   codersdk.EntitlementNotEntitled,
-		scim:        codersdk.EntitlementNotEntitled,
-		browserOnly: codersdk.EntitlementNotEntitled,
+		auditLogs:      codersdk.EntitlementNotEntitled,
+		scim:           codersdk.EntitlementNotEntitled,
+		browserOnly:    codersdk.EntitlementNotEntitled,
+		workspaceQuota: codersdk.EntitlementNotEntitled,
 	}
 
 	// Here we loop through licenses to detect enabled features.
@@ -181,6 +186,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if claims.Features.SCIM > 0 {
 			entitlements.scim = entitlement
 		}
+		if claims.Features.WorkspaceQuota > 0 {
+			entitlements.workspaceQuota = entitlement
+		}
 	}
 
 	if entitlements.auditLogs != api.entitlements.auditLogs {
@@ -203,6 +211,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			handler = api.shouldBlockNonBrowserConnections
 		}
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
+	}
+
+	// TODO(f0ssel)
+	if entitlements.workspaceQuota != api.entitlements.workspaceQuota {
+		// var handler func(rw http.ResponseWriter) bool
+		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.WorkspaceQuota > 0 {
+			// handler = api.shouldBlockNonBrowserConnections
+		}
+		// api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
 	api.entitlements = entitlements
@@ -258,6 +275,15 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	if entitlements.browserOnly == codersdk.EntitlementGracePeriod && api.BrowserOnly {
 		resp.Warnings = append(resp.Warnings,
 			"Browser only connections are enabled but your license for this feature is expired.")
+	}
+
+	resp.Features[codersdk.FeatureWorkspaceQuota] = codersdk.Feature{
+		Entitlement: entitlements.workspaceQuota,
+		Enabled:     api.WorkspaceQuota > 0,
+	}
+	if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod && api.WorkspaceQuota > 0 {
+		resp.Warnings = append(resp.Warnings,
+			"Workspace quotas are enabled but your license for this feature is expired.")
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

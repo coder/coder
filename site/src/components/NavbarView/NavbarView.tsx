@@ -108,13 +108,13 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         </div>
       </div>
       <Stack direction="row" className={styles.profileButton}>
-        <div className={styles.quota} >
-          <WorkspaceQuota count={1} limit={2}/>
+        <div className={styles.quota}>
+          <WorkspaceQuota count={1} limit={2} />
         </div>
 
-          <div className={styles.profileButton}>
-            {user && <UserDropdown user={user} onSignOut={onSignOut} />}
-          </div>
+        <div className={styles.profileButton}>
+          {user && <UserDropdown user={user} onSignOut={onSignOut} />}
+        </div>
       </Stack>
     </nav>
   )
@@ -126,7 +126,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    alignContent: 'center',
+    alignContent: "center",
     height: navHeight,
     background: theme.palette.background.paper,
     "@media (display-mode: standalone)": {

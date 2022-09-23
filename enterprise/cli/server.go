@@ -18,13 +18,15 @@ func server() *cobra.Command {
 		auditLogging   bool
 		browserOnly    bool
 		scimAuthHeader string
+		workspaceQuota int
 	)
 	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
 		api, err := coderd.New(ctx, &coderd.Options{
-			AuditLogging: auditLogging,
-			BrowserOnly:  browserOnly,
-			SCIMAPIKey:   []byte(scimAuthHeader),
-			Options:      options,
+			AuditLogging:   auditLogging,
+			BrowserOnly:    browserOnly,
+			SCIMAPIKey:     []byte(scimAuthHeader),
+			WorkspaceQuota: workspaceQuota,
+			Options:        options,
 		})
 		if err != nil {
 			return nil, err
@@ -39,6 +41,8 @@ func server() *cobra.Command {
 		"Whether Coder only allows connections to workspaces via the browser. "+enterpriseOnly)
 	cliflag.StringVarP(cmd.Flags(), &scimAuthHeader, "scim-auth-header", "", "CODER_SCIM_API_KEY", "",
 		"Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication. "+enterpriseOnly)
+	cliflag.IntVarP(cmd.Flags(), &workspaceQuota, "workspace-quota", "", "CODER_WORKSPACE_QUOTA", 0,
+		"Whether Coder applies a limit on how many workspaces each user can create. "+enterpriseOnly)
 
 	return cmd
 }
