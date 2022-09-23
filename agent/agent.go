@@ -272,6 +272,15 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 
 // runCoordinator listens for nodes and updates the self-node as it changes.
 func (a *agent) runCoordinator(ctx context.Context) {
+	for {
+		reconnect := a.runCoordinatorWithRetry(ctx)
+		if !reconnect {
+			return
+		}
+	}
+}
+
+func (a *agent) runCoordinatorWithRetry(ctx context.Context) (reconnect bool) {
 	var coordinator net.Conn
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
@@ -280,10 +289,10 @@ func (a *agent) runCoordinator(ctx context.Context) {
 		coordinator, err = a.coordinatorDialer(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				return
+				return false
 			}
 			if a.isClosed() {
-				return
+				return false
 			}
 			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
@@ -295,24 +304,23 @@ func (a *agent) runCoordinator(ctx context.Context) {
 	}
 	select {
 	case <-ctx.Done():
-		return
+		return false
 	default:
 	}
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
 	a.network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():
-		return
+		return false
 	case err := <-errChan:
 		if a.isClosed() {
-			return
+			return false
 		}
 		if errors.Is(err, context.Canceled) {
-			return
+			return false
 		}
 		a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
-		a.runCoordinator(ctx)
-		return
+		return true
 	}
 }
 
