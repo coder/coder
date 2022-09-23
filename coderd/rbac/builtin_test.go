@@ -82,10 +82,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		},
 	}
 
-	authorizer, err := rbac.NewAuthorizer()
-	if err != nil {
-		require.NoError(b, err)
-	}
+	authorizer := rbac.NewAuthorizer()
 	for _, c := range benchCases {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
@@ -119,8 +116,7 @@ type authSubject struct {
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
-	auth, err := rbac.NewAuthorizer()
-	require.NoError(t, err, "new rego authorizer")
+	auth := rbac.NewAuthorizer()
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()

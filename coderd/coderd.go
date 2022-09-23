@@ -109,13 +109,7 @@ func New(options *Options) *API {
 		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.Authorizer == nil {
-		var err error
-		options.Authorizer, err = rbac.NewAuthorizer()
-		if err != nil {
-			// This should never happen, as the unit tests would fail if the
-			// default built in authorizer failed.
-			panic(xerrors.Errorf("rego authorize panic: %w", err))
-		}
+		options.Authorizer = rbac.NewAuthorizer()
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
