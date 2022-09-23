@@ -136,7 +136,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 				lastHealth = copyHealth(health)
 				mu.Unlock()
 				err := postWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
-					Healths: health,
+					Healths: lastHealth,
 				})
 				if err != nil {
 					logger.Error(ctx, "failed to report workspace app stat", slog.Error(err))
