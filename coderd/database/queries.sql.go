@@ -3067,7 +3067,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 FROM
 	users
 WHERE
@@ -3098,13 +3098,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 FROM
 	users
 WHERE
@@ -3128,6 +3129,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3148,7 +3150,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 FROM
 	users
 WHERE
@@ -3246,6 +3248,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3261,7 +3264,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted FROM users WHERE id = ANY($1 :: uuid [ ]) AND deleted = $2
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at FROM users WHERE id = ANY($1 :: uuid [ ]) AND deleted = $2
 `
 
 type GetUsersByIDsParams struct {
@@ -3290,6 +3293,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, arg GetUsersByIDsParams)
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3317,7 +3321,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type InsertUserParams struct {
@@ -3355,6 +3359,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3397,6 +3402,42 @@ func (q *sqlQuerier) UpdateUserHashedPassword(ctx context.Context, arg UpdateUse
 	return err
 }
 
+const updateUserLastSeenAt = `-- name: UpdateUserLastSeenAt :one
+UPDATE
+	users
+SET
+	last_seen_at = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+`
+
+type UpdateUserLastSeenAtParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLastSeenAt, arg.ID, arg.LastSeenAt, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		pq.Array(&i.RBACRoles),
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE
 	users
@@ -3406,7 +3447,7 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserProfileParams struct {
@@ -3438,6 +3479,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3450,7 +3492,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserRolesParams struct {
@@ -3473,6 +3515,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3484,7 +3527,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserStatusParams struct {
@@ -3508,6 +3551,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
