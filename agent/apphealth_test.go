@@ -146,12 +146,14 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 
 	var mu sync.Mutex
 	workspaceAgentApps := func(context.Context) ([]codersdk.WorkspaceApp, error) {
+		mu.Lock()
+		defer mu.Unlock()
 		var newApps []codersdk.WorkspaceApp
 		return append(newApps, apps...), nil
 	}
 	postWorkspaceAgentAppHealth := func(_ context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error {
+		mu.Lock()
 		for name, health := range req.Healths {
-			mu.Lock()
 			for i, app := range apps {
 				if app.Name != name {
 					continue
@@ -159,8 +161,8 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 				app.Health = health
 				apps[i] = app
 			}
-			mu.Unlock()
 		}
+		mu.Unlock()
 
 		return nil
 	}
