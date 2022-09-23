@@ -1,4 +1,4 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { PaletteIndex } from "theme/palettes"
@@ -12,8 +12,9 @@ export interface PillProps {
   lightBorder?: boolean
 }
 
-export const Pill: FC<PillProps> = ({ className, icon, text, type, lightBorder = false }) => {
-  const styles = useStyles({ icon, type, lightBorder })
+export const Pill: FC<PillProps> = (props) => {
+  const { className, icon, text = false } = props
+  const styles = useStyles(props)
   return (
     <div className={combineClasses([styles.wrapper, styles.pillColor, className])} role="status">
       {icon && <div className={styles.iconWrapper}>{icon}</div>}
@@ -22,7 +23,7 @@ export const Pill: FC<PillProps> = ({ className, icon, text, type, lightBorder =
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles<Theme, PillProps>((theme) => ({
   wrapper: {
     fontFamily: MONOSPACE_FONT_FAMILY,
     display: "inline-flex",
@@ -34,16 +35,14 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 500,
     color: "#FFF",
     height: theme.spacing(3),
-    paddingLeft: ({ icon }: { icon?: React.ReactNode }) =>
-      icon ? theme.spacing(0.75) : theme.spacing(1.5),
+    paddingLeft: ({ icon }) => (icon ? theme.spacing(0.75) : theme.spacing(1.5)),
     paddingRight: theme.spacing(1.5),
     whiteSpace: "nowrap",
   },
 
   pillColor: {
-    backgroundColor: ({ type }: { type?: PaletteIndex }) =>
-      type ? theme.palette[type].dark : theme.palette.text.secondary,
-    borderColor: ({ type, lightBorder }: { type?: PaletteIndex; lightBorder?: boolean }) =>
+    backgroundColor: ({ type }) => (type ? theme.palette[type].dark : theme.palette.text.secondary),
+    borderColor: ({ type, lightBorder }) =>
       type
         ? lightBorder
           ? theme.palette[type].light

@@ -154,3 +154,5 @@ const useStyles = makeStyles((theme) => ({
     margin: theme.spacing(2),
   },
 }))
+
+export default WorkspacePage
