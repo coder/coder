@@ -97,7 +97,7 @@ func TestAppHealth(t *testing.T) {
 
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
