@@ -785,11 +785,16 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"Serve pprof metrics on the address defined by `pprof-address`.")
 	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060",
 		"The bind address to serve pprof.")
-	defaultCacheDir := filepath.Join(os.TempDir(), "coder-cache")
+
+	defaultCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		defaultCacheDir = os.TempDir()
+	}
 	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
 		// For compatibility with systemd.
 		defaultCacheDir = dir
 	}
+	defaultCacheDir = filepath.Join(defaultCacheDir, "coder")
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir,
 		"The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
 	cliflag.BoolVarP(root.Flags(), &inMemoryDatabase, "in-memory", "", "CODER_INMEMORY", false,
