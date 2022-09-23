@@ -126,7 +126,15 @@ cmd_path="./enterprise/cmd/coder"
 if [[ "$agpl" == 1 ]]; then
 	cmd_path="./cmd/coder"
 fi
-CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
+
+# The default system DNS resolver isn't used on macOS with CGO disabled.
+# See: https://github.com/coder/coder/issues/4097
+cgo_enabled="0"
+if [[ "$os" == "darwin" ]]; then
+	cgo_enabled="1"
+fi
+
+CGO_ENABLED="$cgo_enabled" GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"${build_args[@]}" \
 	"$cmd_path" 1>&2
 
