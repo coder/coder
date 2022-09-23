@@ -15,13 +15,14 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestAppHealth(t *testing.T) {
 	t.Parallel()
 	t.Run("Healthy", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
@@ -58,12 +59,12 @@ func TestAppHealth(t *testing.T) {
 			}
 
 			return apps[1].Health == codersdk.WorkspaceAppHealthHealthy
-		}, 5*time.Second, 1*time.Second)
+		}, testutil.WaitLong, testutil.IntervalSlow)
 	})
 
 	t.Run("500", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
@@ -91,7 +92,7 @@ func TestAppHealth(t *testing.T) {
 			}
 
 			return apps[0].Health == codersdk.WorkspaceAppHealthUnhealthy
-		}, 10*time.Second, 1*time.Second)
+		}, testutil.WaitLong, testutil.IntervalSlow)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
