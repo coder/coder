@@ -189,9 +189,10 @@ func workspaceAgent() *cobra.Command {
 					// shells so "gitssh" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
-				CoordinatorDialer:          client.ListenWorkspaceAgentTailnet,
-				StatsReporter:              client.AgentReportStats,
-				WorkspaceAppHealthReporter: agent.NewWorkspaceAppHealthReporter(logger, client),
+				CoordinatorDialer:           client.ListenWorkspaceAgentTailnet,
+				StatsReporter:               client.AgentReportStats,
+				WorkspaceAgentApps:          client.WorkspaceAgentApps,
+				PostWorkspaceAgentAppHealth: client.PostWorkspaceAgentAppHealth,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

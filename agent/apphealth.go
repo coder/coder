@@ -13,14 +13,22 @@ import (
 	"github.com/coder/retry"
 )
 
+// WorkspaceAgentApps fetches the workspace apps.
+type WorkspaceAgentApps func(context.Context) ([]codersdk.WorkspaceApp, error)
+
+// PostWorkspaceAgentAppHealth updates the workspace app health.
+type PostWorkspaceAgentAppHealth func(context.Context, codersdk.PostWorkspaceAppHealthsRequest) error
+
+// WorkspaceAppHealthReporter is a function that checks and reports the health of the workspace apps until the passed context is canceled.
 type WorkspaceAppHealthReporter func(ctx context.Context)
 
-func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) WorkspaceAppHealthReporter {
+// NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
+func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps WorkspaceAgentApps, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
 	return func(ctx context.Context) {
 		r := retry.New(time.Second, 30*time.Second)
 		for {
 			err := func() error {
-				apps, err := client.WorkspaceAgentApps(ctx)
+				apps, err := workspaceAgentApps(ctx)
 				if err != nil {
 					if xerrors.Is(err, context.Canceled) {
 						return nil
@@ -28,15 +36,26 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 					return xerrors.Errorf("getting workspace apps: %w", err)
 				}
 
+				// no need to run this loop if no apps for this workspace.
 				if len(apps) == 0 {
 					return nil
 				}
 
+				hasHealthchecksEnabled := false
 				health := make(map[string]codersdk.WorkspaceAppHealth, 0)
 				for _, app := range apps {
 					health[app.Name] = app.Health
+					if !hasHealthchecksEnabled && app.Health != codersdk.WorkspaceAppHealthDisabled {
+						hasHealthchecksEnabled = true
+					}
 				}
 
+				// no need to run this loop if no health checks are configured.
+				if !hasHealthchecksEnabled {
+					return nil
+				}
+
+				// run a ticker for each app health check.
 				tickers := make(chan string)
 				for _, app := range apps {
 					if shouldStartTicker(app) {
@@ -66,6 +85,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 									continue
 								}
 
+								// we set the http timeout to the healthcheck interval to prevent getting too backed up.
 								client := &http.Client{
 									Timeout: time.Duration(app.Healthcheck.Interval) * time.Second,
 								}
@@ -78,6 +98,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 									if err != nil {
 										return err
 									}
+									// successful healthcheck is a non-5XX status code
 									res.Body.Close()
 									if res.StatusCode >= http.StatusInternalServerError {
 										return xerrors.Errorf("error status code: %d", res.StatusCode)
@@ -86,18 +107,22 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 									return nil
 								}()
 								if err != nil {
-									logger.Debug(ctx, "failed healthcheck", slog.Error(err), slog.F("app", app))
 									mu.Lock()
-									failures[app.Name]++
-									logger.Debug(ctx, "failed healthcheck", slog.Error(err), slog.F("app", app), slog.F("failures", failures[app.Name]))
-									if failures[app.Name] > int(app.Healthcheck.Threshold) {
+									if failures[app.Name] < int(app.Healthcheck.Threshold) {
+										// increment the failure count and keep status the same.
+										// we will change it when we hit the threshold.
+										failures[app.Name]++
+									} else {
+										// set to unhealthy if we hit the failure threshold.
+										// we stop incrementing at the threshold to prevent the failure value from increasing forever.
 										health[app.Name] = codersdk.WorkspaceAppHealthUnhealthy
 									}
 									mu.Unlock()
 								} else {
 									mu.Lock()
-									failures[app.Name] = 0
+									// we only need one successful health check to be considered healthy.
 									health[app.Name] = codersdk.WorkspaceAppHealthHealthy
+									failures[app.Name] = 0
 									mu.Unlock()
 								}
 							}
@@ -105,18 +130,12 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 					}
 				}()
 
-				copyHealth := func(h1 map[string]codersdk.WorkspaceAppHealth) map[string]codersdk.WorkspaceAppHealth {
-					h2 := make(map[string]codersdk.WorkspaceAppHealth, 0)
-					mu.RLock()
-					for k, v := range h1 {
-						h2[k] = v
-					}
-					mu.RUnlock()
-
-					return h2
-				}
+				mu.Lock()
 				lastHealth := copyHealth(health)
+				mu.Unlock()
 				reportTicker := time.NewTicker(time.Second)
+				// every second we check if the health values of the apps have changed
+				// and if there is a change we will report the new values.
 				for {
 					select {
 					case <-ctx.Done():
@@ -126,8 +145,10 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, client *codersdk.Client) 
 						changed := healthChanged(lastHealth, health)
 						mu.RUnlock()
 						if changed {
+							mu.Lock()
 							lastHealth = copyHealth(health)
-							err := client.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+							mu.Unlock()
+							err := postWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
 								Healths: health,
 							})
 							if err != nil {
@@ -166,4 +187,13 @@ func healthChanged(old map[string]codersdk.WorkspaceAppHealth, new map[string]co
 	}
 
 	return false
+}
+
+func copyHealth(h1 map[string]codersdk.WorkspaceAppHealth) map[string]codersdk.WorkspaceAppHealth {
+	h2 := make(map[string]codersdk.WorkspaceAppHealth, 0)
+	for k, v := range h1 {
+		h2[k] = v
+	}
+
+	return h2
 }

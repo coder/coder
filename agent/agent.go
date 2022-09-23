@@ -51,13 +51,14 @@ const (
 )
 
 type Options struct {
-	CoordinatorDialer          CoordinatorDialer
-	FetchMetadata              FetchMetadata
-	StatsReporter              StatsReporter
-	WorkspaceAppHealthReporter WorkspaceAppHealthReporter
-	ReconnectingPTYTimeout     time.Duration
-	EnvironmentVariables       map[string]string
-	Logger                     slog.Logger
+	CoordinatorDialer           CoordinatorDialer
+	FetchMetadata               FetchMetadata
+	StatsReporter               StatsReporter
+	WorkspaceAgentApps          WorkspaceAgentApps
+	PostWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
+	ReconnectingPTYTimeout      time.Duration
+	EnvironmentVariables        map[string]string
+	Logger                      slog.Logger
 }
 
 // CoordinatorDialer is a function that constructs a new broker.
@@ -73,16 +74,17 @@ func New(options Options) io.Closer {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		reconnectingPTYTimeout:     options.ReconnectingPTYTimeout,
-		logger:                     options.Logger,
-		closeCancel:                cancelFunc,
-		closed:                     make(chan struct{}),
-		envVars:                    options.EnvironmentVariables,
-		coordinatorDialer:          options.CoordinatorDialer,
-		fetchMetadata:              options.FetchMetadata,
-		stats:                      &Stats{},
-		statsReporter:              options.StatsReporter,
-		workspaceAppHealthReporter: options.WorkspaceAppHealthReporter,
+		reconnectingPTYTimeout:      options.ReconnectingPTYTimeout,
+		logger:                      options.Logger,
+		closeCancel:                 cancelFunc,
+		closed:                      make(chan struct{}),
+		envVars:                     options.EnvironmentVariables,
+		coordinatorDialer:           options.CoordinatorDialer,
+		fetchMetadata:               options.FetchMetadata,
+		stats:                       &Stats{},
+		statsReporter:               options.StatsReporter,
+		workspaceAgentApps:          options.WorkspaceAgentApps,
+		postWorkspaceAgentAppHealth: options.PostWorkspaceAgentAppHealth,
 	}
 	server.init(ctx)
 	return server
@@ -105,11 +107,12 @@ type agent struct {
 	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	network                    *tailnet.Conn
-	coordinatorDialer          CoordinatorDialer
-	stats                      *Stats
-	statsReporter              StatsReporter
-	workspaceAppHealthReporter WorkspaceAppHealthReporter
+	network                     *tailnet.Conn
+	coordinatorDialer           CoordinatorDialer
+	stats                       *Stats
+	statsReporter               StatsReporter
+	workspaceAgentApps          WorkspaceAgentApps
+	postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
 }
 
 func (a *agent) run(ctx context.Context) {
@@ -155,8 +158,8 @@ func (a *agent) run(ctx context.Context) {
 		go a.runTailnet(ctx, metadata.DERPMap)
 	}
 
-	if a.workspaceAppHealthReporter != nil {
-		go a.workspaceAppHealthReporter(ctx)
+	if a.workspaceAgentApps != nil && a.postWorkspaceAgentAppHealth != nil {
+		go NewWorkspaceAppHealthReporter(a.logger, a.workspaceAgentApps, a.postWorkspaceAgentAppHealth)(ctx)
 	}
 }
 
