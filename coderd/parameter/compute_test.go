@@ -18,7 +18,6 @@ func TestCompute(t *testing.T) {
 	generateScope := func() parameter.ComputeScope {
 		return parameter.ComputeScope{
 			TemplateImportJobID: uuid.New(),
-			OrganizationID:      uuid.New(),
 			TemplateID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
@@ -27,7 +26,6 @@ func TestCompute(t *testing.T) {
 				UUID:  uuid.New(),
 				Valid: true,
 			},
-			UserID: uuid.New(),
 		}
 	}
 	type parameterOptions struct {
