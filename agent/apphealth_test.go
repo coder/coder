@@ -127,7 +127,7 @@ func TestAppHealth(t *testing.T) {
 			}
 
 			return apps[0].Health == codersdk.WorkspaceAppHealthUnhealthy
-		}, 10*time.Second, 1*time.Second)
+		}, testutil.WaitLong, testutil.IntervalSlow)
 	})
 }
 
