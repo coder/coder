@@ -68,12 +68,12 @@
         {
           "title": "AWS",
           "description": "Setup Coder with AWS",
-          "path": "./quickstart/AWS.md"
+          "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
           "description": "Setup Coder with Azure",
-          "path": "./quickstart/Azure.md"
+          "path": "./quickstart/azure.md"
         }
       ]
     },
