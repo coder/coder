@@ -364,8 +364,11 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// end span so we don't get long lived trace data
+	// End span so we don't get long lived trace data.
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
+	// Ignore all trace spans after this.
+	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
+
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
