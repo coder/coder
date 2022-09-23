@@ -178,6 +178,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     color: colors.gray[6],
     display: "flex",
+    flex: 1,
     fontSize: 16,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
     textDecoration: "none",
