@@ -13,7 +13,7 @@ import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useRef, useState } from "react"
 import { colors } from "theme/colors"
-import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
 
 export const Language = {
@@ -79,7 +79,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     },
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<UpdateTemplateMeta>(form, error)
+  const getFieldHelpers = getFormHelpers<UpdateTemplateMeta>(form, error)
   const styles = useStyles()
   const hasIcon = form.values.icon && form.values.icon !== ""
   const emojiButtonRef = useRef<HTMLButtonElement>(null)

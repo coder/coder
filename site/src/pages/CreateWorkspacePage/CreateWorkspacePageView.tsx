@@ -10,7 +10,7 @@ import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
 import { Loader } from "../../components/Loader/Loader"
 import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
 import { Stack } from "../../components/Stack/Stack"
-import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 
 export const Language = {
   templateLabel: "Template",
@@ -84,7 +84,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
       },
     })
 
-  const getFieldHelpers = getFormHelpersWithError<TypesGen.CreateWorkspaceRequest>(
+  const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
     props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR],
   )

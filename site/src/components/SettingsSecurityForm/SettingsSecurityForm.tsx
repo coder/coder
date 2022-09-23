@@ -3,7 +3,7 @@ import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
@@ -62,7 +62,7 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
     onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<SecurityFormValues>(form, updateSecurityError)
+  const getFieldHelpers = getFormHelpers<SecurityFormValues>(form, updateSecurityError)
 
   return (
     <>

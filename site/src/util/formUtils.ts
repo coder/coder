@@ -27,8 +27,12 @@ interface FormHelpers {
 
 // backendErrorName can be used if the backend names a field differently than the frontend does
 export const getFormHelpers =
-  <T>(form: FormikContextType<T>, apiValidationErrors?: FormikErrors<T>) =>
+  <T>(form: FormikContextType<T>, error?: Error | unknown) =>
   (name: keyof T, HelperText: ReactNode = "", backendErrorName?: string): FormHelpers => {
+    const apiValidationErrors =
+      isApiError(error) && hasApiFieldErrors(error)
+        ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
+        : error
     if (typeof name !== "string") {
       throw new Error(`name must be type of string, instead received '${typeof name}'`)
     }
@@ -39,25 +43,14 @@ export const getFormHelpers =
     const touched = getIn(form.touched, name)
     const apiError = getIn(apiValidationErrors, apiErrorName)
     const frontendError = getIn(form.errors, name)
-    const error = apiError ?? frontendError
+    const returnError = apiError ?? frontendError
     return {
       ...form.getFieldProps(name),
       id: name,
-      error: touched && Boolean(error),
-      helperText: touched ? error || HelperText : HelperText,
+      error: touched && Boolean(returnError),
+      helperText: touched ? returnError || HelperText : HelperText,
     }
   }
-
-export const getFormHelpersWithError = <T>(
-  form: FormikContextType<T>,
-  error?: Error | unknown,
-): ((name: keyof T, HelperText?: ReactNode, errorName?: string) => FormHelpers) => {
-  const apiValidationErrors =
-    isApiError(error) && hasApiFieldErrors(error)
-      ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-      : undefined
-  return getFormHelpers(form, apiValidationErrors)
-}
 
 export const onChangeTrimmed =
   <T>(form: FormikContextType<T>) =>
