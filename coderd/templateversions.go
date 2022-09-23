@@ -791,13 +791,17 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
+		if req.Name == "" {
+			req.Name = namesgenerator.GetRandomName(1)
+		}
+
 		templateVersion, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			Name:           namesgenerator.GetRandomName(1),
+			Name:           req.Name,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy: uuid.NullUUID{

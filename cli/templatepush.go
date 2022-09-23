@@ -19,6 +19,7 @@ import (
 func templatePush() *cobra.Command {
 	var (
 		directory     string
+		versionName   string
 		provisioner   string
 		parameterFile string
 		alwaysPrompt  bool
@@ -75,6 +76,7 @@ func templatePush() *cobra.Command {
 			spin.Stop()
 
 			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+				Name:            versionName,
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
@@ -107,6 +109,7 @@ func templatePush() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
+	cmd.Flags().StringVarP(&versionName, "name", "", "", "Specify a name for the new template version. It will be automatically generated if not provided.")
 	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
 	cliui.AllowSkipPrompt(cmd)
 	// This is for testing!
