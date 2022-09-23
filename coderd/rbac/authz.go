@@ -131,9 +131,6 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 // Authorize allows passing in custom Roles.
 // This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
 func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, object Object) error {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:    subjectID,
@@ -179,9 +176,6 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
 func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, objectType string) (*PartialAuthorizer, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
 	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
@@ -191,9 +185,6 @@ func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Rol
 }
 
 func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
 	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return nil, err
