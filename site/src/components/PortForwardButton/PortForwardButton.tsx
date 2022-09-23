@@ -28,14 +28,14 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        You can port forward this resource by typing the{" "}
-        <strong>port, workspace name, agent name</strong> and <strong>your username</strong> in the
-        URL like the example below
+        Access ports running on the agent with the{" "}
+        <strong>port, workspace name, agent name</strong> and <strong>your username</strong> URL
+        schema, as shown below.
       </HelpTooltipText>
 
       <CodeExample code={urlExample} />
 
-      <HelpTooltipText>Or you can use the following form to open it in a new tab.</HelpTooltipText>
+      <HelpTooltipText>Use the form to open applications in a new tab.</HelpTooltipText>
 
       <Stack direction="row" spacing={1} alignItems="center">
         <TextField
@@ -71,8 +71,8 @@ const DisabledView: React.FC<PortForwardButtonProps> = () => {
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        <strong>Looks like your deployment does not have port forward enabled.</strong> Check the
-        docs for more info on how to enable it.
+        <strong>Your deployment does not have port forward enabled.</strong> See the
+        docs for more details.
       </HelpTooltipText>
 
       <HelpTooltipLinksGroup>
