@@ -159,9 +159,11 @@ require (
 	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7
+	storj.io/drpc v0.0.33-0.20220923152156-858cfad9e41d
 	tailscale.com v1.30.0
 )
+
+require github.com/spacemonkeygo/monkit/v3 v3.0.7 // indirect
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
