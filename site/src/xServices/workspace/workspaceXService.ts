@@ -381,7 +381,6 @@ export const workspaceMachine = createMachine(
           timeline: {
             initial: "gettingBuilds",
             states: {
-              idle: {},
               gettingBuilds: {
                 entry: "clearGetBuildsError",
                 invoke: {
@@ -395,22 +394,17 @@ export const workspaceMachine = createMachine(
                   onError: [
                     {
                       actions: "assignGetBuildsError",
-                      target: "idle",
+                      target: "loadedBuilds",
                     },
                   ],
                 },
               },
               loadedBuilds: {
-                initial: "idle",
-                states: {
-                  idle: {
-                    on: {
-                      REFRESH_TIMELINE: {
-                        target: "#workspaceState.ready.timeline.gettingBuilds",
-                        cond: {
-                          type: "moreBuildsAvailable",
-                        },
-                      },
+                on: {
+                  REFRESH_TIMELINE: {
+                    target: "#workspaceState.ready.timeline.gettingBuilds",
+                    cond: {
+                      type: "moreBuildsAvailable",
                     },
                   },
                 },
