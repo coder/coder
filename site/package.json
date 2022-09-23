@@ -1,5 +1,4 @@
 {
-  "type": "module",
   "name": "coder-v2",
   "description": "Coder V2 (Workspaces V2)",
   "repository": "https://github.com/coder/coder",
