@@ -226,12 +226,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
-			OrganizationID:      job.OrganizationID,
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
 			},
-			UserID: user.ID,
 			WorkspaceID: uuid.NullUUID{
 				UUID:  workspace.ID,
 				Valid: true,
@@ -283,9 +281,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Compute parameters for the dry-run to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID:       templateVersion.JobID,
-			OrganizationID:            job.OrganizationID,
 			TemplateID:                templateVersion.TemplateID,
-			UserID:                    user.ID,
 			WorkspaceID:               uuid.NullUUID{},
 			AdditionalParameterValues: input.ParameterValues,
 		}, nil)
@@ -476,8 +472,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: job.ID,
 			TemplateID:          templateID,
-			OrganizationID:      job.OrganizationID,
-			UserID:              job.InitiatorID,
 		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("compute parameters: %w", err)
