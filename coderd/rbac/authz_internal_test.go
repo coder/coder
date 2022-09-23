@@ -40,10 +40,8 @@ func (w fakeObject) RBACObject() Object {
 
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	auth, err := NewAuthorizer()
-	require.NoError(t, err)
-
-	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	auth := NewAuthorizer()
+	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -160,8 +158,7 @@ func TestFilter(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-			auth, err := NewAuthorizer()
-			require.NoError(t, err, "new auth")
+			auth := NewAuthorizer()
 
 			scope := ScopeAll
 			if tc.Scope != "" {
@@ -742,8 +739,7 @@ type authTestCase struct {
 
 func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTestCase) {
 	t.Helper()
-	authorizer, err := NewAuthorizer()
-	require.NoError(t, err)
+	authorizer := NewAuthorizer()
 	for _, cases := range sets {
 		for i, c := range cases {
 			c := c

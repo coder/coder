@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"sync"
 
 	"github.com/open-policy-agent/opa/rego"
 	"go.opentelemetry.io/otel/attribute"
@@ -66,32 +67,37 @@ type RegoAuthorizer struct {
 
 var _ Authorizer = (*RegoAuthorizer)(nil)
 
-// Load the policy from policy.rego in this directory.
-//
-//go:embed policy.rego
-var policy string
+var (
+	// Load the policy from policy.rego in this directory.
+	//
+	//go:embed policy.rego
+	policy    string
+	queryOnce sync.Once
+	query     rego.PreparedEvalQuery
+)
 
 const (
 	rolesOkCheck = "role_ok"
 	scopeOkCheck = "scope_ok"
 )
 
-func NewAuthorizer() (*RegoAuthorizer, error) {
-	ctx := context.Background()
-	query, err := rego.New(
-		// Bind the results to 2 variables for easy checking later.
-		rego.Query(
-			fmt.Sprintf("%s := data.authz.role_allow "+
-				"%s := data.authz.scope_allow",
-				rolesOkCheck, scopeOkCheck),
-		),
-		rego.Module("policy.rego", policy),
-	).PrepareForEval(ctx)
-
-	if err != nil {
-		return nil, xerrors.Errorf("prepare query: %w", err)
-	}
-	return &RegoAuthorizer{query: query}, nil
+func NewAuthorizer() *RegoAuthorizer {
+	queryOnce.Do(func() {
+		var err error
+		query, err = rego.New(
+			// Bind the results to 2 variables for easy checking later.
+			rego.Query(
+				fmt.Sprintf("%s := data.authz.role_allow "+
+					"%s := data.authz.scope_allow",
+					rolesOkCheck, scopeOkCheck),
+			),
+			rego.Module("policy.rego", policy),
+		).PrepareForEval(context.Background())
+		if err != nil {
+			panic(xerrors.Errorf("compile rego: %w", err))
+		}
+	})
+	return &RegoAuthorizer{query: query}
 }
 
 type authSubject struct {
