@@ -30,7 +30,7 @@
     "@emoji-mart/react": "^1.0.1",
     "@fontsource/ibm-plex-mono": "4.5.10",
     "@fontsource/inter": "4.5.11",
-    "@material-ui/core": "4.9.4",
+    "@material-ui/core": "4.12.1",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
     "@testing-library/react-hooks": "8.0.1",
