@@ -71,13 +71,12 @@ The following command will get you information about the Coder launch process
 
 This will return a series of Coder logs, however, embedded in the launch is the URL for accessing Coder.
 
-<img src="../images/quickstart/azure/azure8.png">
-
-In this instance, Coder can be accessed at the url https://fccad1b6c901511b30cf2cf4fbd0973e.pit-1.try.coder.app.
 
 Copy the URL and run the following command to create the first user, either on your local machine or in the AWS EC2 instance terminal. 
 
-```coder login <url.try.coder.app>```
+```
+coder login <url***.try.coder.app>
+```
 
 Fill out the prompts. Be sure to save use email and password as these are your admin username and password.
 
