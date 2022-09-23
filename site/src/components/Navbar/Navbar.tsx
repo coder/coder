@@ -16,7 +16,8 @@ export const Navbar: React.FC = () => {
   )
   const canViewAuditLog =
     featureVisibility[FeatureNames.AuditLog] && Boolean(permissions?.viewAuditLog)
+    const canViewWorkspaceQuota = featureVisibility[FeatureNames.WorkspaceQuota]
   const onSignOut = () => authSend("SIGN_OUT")
 
-  return <NavbarView user={me} onSignOut={onSignOut} canViewAuditLog={canViewAuditLog} />
+  return <NavbarView user={me} onSignOut={onSignOut} canViewAuditLog={canViewAuditLog} canViewWorkspaceQuota={canViewWorkspaceQuota}/>
 }

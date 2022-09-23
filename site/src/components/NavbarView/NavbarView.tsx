@@ -19,6 +19,7 @@ export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
   canViewAuditLog: boolean
+  canViewWorkspaceQuota: boolean
 }
 
 export const Language = {
@@ -71,6 +72,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
   onSignOut,
   canViewAuditLog,
+  canViewWorkspaceQuota,
 }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -109,7 +111,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
       </div>
       <Stack direction="row" className={styles.profileButton}>
         <div className={styles.quota}>
-          <WorkspaceQuota count={1} limit={2} />
+          <WorkspaceQuota  />
         </div>
 
         <div className={styles.profileButton}>

@@ -5,23 +5,23 @@ import Skeleton from "@material-ui/lab/Skeleton"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import * as TypesGen from "../../api/typesGenerated"
 
 export const Language = {
   of: "of",
-  workspaceUsed: "workspace used",
-  workspacesUsed: "workspaces used",
+  workspace: "workspace",
+  workspaces: "workspaces",
 }
 
 export interface WorkspaceQuotaProps {
-  count?: number
-  limit?: number
+  quota?: TypesGen.UserWorkspaceQuota
 }
 
-export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
+export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
   const styles = useStyles()
 
   // loading state
-  if (count === undefined || limit === undefined) {
+  if (quota === undefined) {
     return (
       <Box>
         <Stack spacing={1} className={styles.stack}>
@@ -34,9 +34,14 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
     )
   }
 
-  let value = Math.round((count / limit) * 100)
+  // don't show if limit is 0, this means the feature is disabled.
+  if (quota.limit === 0) {
+    return (<></>)
+  }
+
+  let value = Math.round((quota.count / quota.limit) * 100)
   // we don't want to round down to zero if the count is > 0
-  if (count > 0 && value === 0) {
+  if (quota.count > 0 && value === 0) {
     value = 1
   }
 
@@ -45,8 +50,8 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ count, limit }) => {
       <Stack spacing={1} className={styles.stack}>
         <LinearProgress value={value} variant="determinate" color="primary" />
         <div className={styles.label}>
-          {count} {Language.of} {limit}{" "}
-          {limit === 1 ? Language.workspaceUsed : Language.workspacesUsed}
+          {quota.count} {Language.of} {quota.limit}{" "}
+          {quota.limit === 1 ? Language.workspace : Language.workspaces}{" used"}
         </div>
       </Stack>
     </Box>
