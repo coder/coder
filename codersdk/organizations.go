@@ -198,8 +198,8 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 }
 
 // CreateWorkspace creates a new workspace for the template specified.
-func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), request)
+func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces", organizationID, user), request)
 	if err != nil {
 		return Workspace{}, err
 	}

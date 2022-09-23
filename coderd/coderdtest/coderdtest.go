@@ -523,7 +523,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	for _, mutator := range mutators {
 		mutator(&req)
 	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
+	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
 	require.NoError(t, err)
 	return workspace
 }

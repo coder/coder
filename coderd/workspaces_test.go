@@ -156,7 +156,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: uuid.New(),
 			Name:       "workspace",
 		})
@@ -183,7 +183,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
 		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
 
-		_, err = client.CreateWorkspace(ctx, first.OrganizationID, codersdk.CreateWorkspaceRequest{
+		_, err = client.CreateWorkspace(ctx, first.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})
@@ -205,7 +205,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       workspace.Name,
 		})
@@ -285,7 +285,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 				Name:       "testing",
 				TTLMillis:  ptr.Ref((59 * time.Second).Milliseconds()),
 			}
-			_, err := client.CreateWorkspace(ctx, template.OrganizationID, req)
+			_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
@@ -311,7 +311,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 				Name:       "testing",
 				TTLMillis:  ptr.Ref(template.MaxTTLMillis + time.Minute.Milliseconds()),
 			}
-			_, err := client.CreateWorkspace(ctx, template.OrganizationID, req)
+			_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
@@ -338,7 +338,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			Name:              "testing",
 			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
 		}
-		_, err := client.CreateWorkspace(ctx, template.OrganizationID, req)
+		_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -412,7 +412,7 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 
 		// Given:
 		// We recreate the workspace with the same name
-		workspace, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.CreateWorkspaceRequest{
+		workspace, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID:        workspace.TemplateID,
 			Name:              workspace.Name,
 			AutostartSchedule: workspace.AutostartSchedule,
@@ -772,7 +772,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})

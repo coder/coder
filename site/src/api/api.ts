@@ -302,10 +302,11 @@ export const createUser = async (user: TypesGen.CreateUserRequest): Promise<Type
 
 export const createWorkspace = async (
   organizationId: string,
+  userId = "me",
   workspace: TypesGen.CreateWorkspaceRequest,
 ): Promise<TypesGen.Workspace> => {
   const response = await axios.post<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationId}/workspaces`,
+    `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
     workspace,
   )
   return response.data
