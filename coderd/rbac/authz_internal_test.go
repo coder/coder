@@ -661,25 +661,66 @@ func TestAuthorizeScope(t *testing.T) {
 		Roles:  []Role{must(RoleByName(RoleOwner()))},
 		Scope:  must(ScopeRole(ScopeApplicationConnect)),
 	}
-	var _ = unusedID
 
-	testAuthorize(t, "Admin_ScopeApplicationConnect", user, []authTestCase{
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.All(), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.InOrg(unusedID), actions: allActions(), allow: false},
-		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
-
+	testAuthorize(t, "Admin_ScopeApplicationConnect", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspace.InOrg(defOrg), allow: false},
+			{resource: ResourceWorkspace.WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspace.All(), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
+			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
+		}),
 		// Allowed by scope:
-		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
-		{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
-	})
+		[]authTestCase{
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+		},
+	)
+
+	user = subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleOrgMember(defOrg))),
+		},
+		Scope: must(ScopeRole(ScopeApplicationConnect)),
+	}
+
+	testAuthorize(t, "User_ScopeApplicationConnect", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+		},
+	)
 }
 
 // cases applies a given function to all test cases. This makes generalities easier to create.
