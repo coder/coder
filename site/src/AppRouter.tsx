@@ -1,5 +1,6 @@
 import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
@@ -41,7 +42,7 @@ export const AppRouter: FC = () => {
   const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
 
   return (
-    <Suspense fallback={<></>}>
+    <Suspense fallback={<FullScreenLoader />}>
       <Routes>
         <Route
           index
