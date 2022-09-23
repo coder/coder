@@ -2,8 +2,14 @@ import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
+import IndexPage from "pages"
+import AuditPage from "pages/AuditPage/AuditPage"
+import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
+import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
+import UsersPage from "pages/UsersPage/UsersPage"
+import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
 import { FC, lazy, Suspense, useContext } from "react"
 import { Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
@@ -13,17 +19,16 @@ import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 
-const IndexPage = lazy(() => import("./pages"))
+// Lazy load pages
+// - Pages that are secondary, not in the main navigation or not usually accessed
+// - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
 const CliAuthenticationPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"))
 const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
-const LoginPage = lazy(() => import("./pages/LoginPage/LoginPage"))
-const TemplatesPage = lazy(() => import("./pages/TemplatesPage/TemplatesPage"))
 const AccountPage = lazy(() => import("./pages/UserSettingsPage/AccountPage/AccountPage"))
 const SecurityPage = lazy(() => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"))
 const SSHKeysPage = lazy(() => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"))
 const CreateUserPage = lazy(() => import("./pages/UsersPage/CreateUserPage/CreateUserPage"))
-const UsersPage = lazy(() => import("./pages/UsersPage/UsersPage"))
 const WorkspaceBuildPage = lazy(() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"))
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
 const WorkspaceSchedulePage = lazy(
@@ -33,9 +38,7 @@ const WorkspaceAppErrorPage = lazy(
   () => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
-const WorkspacesPage = lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
-const AuditPage = lazy(() => import("./pages/AuditPage/AuditPage"))
 const TemplatePage = lazy(() => import("./pages/TemplatePage/TemplatePage"))
 
 export const AppRouter: FC = () => {
@@ -135,9 +138,6 @@ export const AppRouter: FC = () => {
           />
         </Route>
 
-        {/* REMARK: Route under construction
-        Eventually, we should gate this page
-        with permissions and licensing */}
         <Route path="/audit">
           <Route
             index
