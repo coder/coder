@@ -1,7 +1,6 @@
 package tailnet_test
 
 import (
-	"fmt"
 	"net"
 	"testing"
 
@@ -182,9 +181,7 @@ func TestCoordinatorHA(t *testing.T) {
 		defer agentWS.Close()
 		agentNodeChan := make(chan []*agpl.Node)
 		sendAgentNode, agentErrChan := agpl.ServeCoordinator(agentWS, func(nodes []*agpl.Node) error {
-			fmt.Println("got agent node")
 			agentNodeChan <- nodes
-			fmt.Println("sent agent node")
 			return nil
 		})
 		agentID := uuid.New()
@@ -204,9 +201,7 @@ func TestCoordinatorHA(t *testing.T) {
 		defer clientServerWS.Close()
 		clientNodeChan := make(chan []*agpl.Node)
 		sendClientNode, clientErrChan := agpl.ServeCoordinator(clientWS, func(nodes []*agpl.Node) error {
-			fmt.Println("got client node")
 			clientNodeChan <- nodes
-			fmt.Println("sent client node")
 			return nil
 		})
 		clientID := uuid.New()
@@ -239,9 +234,7 @@ func TestCoordinatorHA(t *testing.T) {
 		defer agentWS.Close()
 		agentNodeChan = make(chan []*agpl.Node)
 		_, agentErrChan = agpl.ServeCoordinator(agentWS, func(nodes []*agpl.Node) error {
-			fmt.Println("got agent node")
 			agentNodeChan <- nodes
-			fmt.Println("sent agent node")
 			return nil
 		})
 		closeAgentChan = make(chan struct{})
