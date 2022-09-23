@@ -2019,17 +2019,36 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 
 	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
-		ID:           arg.ID,
-		AgentID:      arg.AgentID,
-		CreatedAt:    arg.CreatedAt,
-		Name:         arg.Name,
-		Icon:         arg.Icon,
-		Command:      arg.Command,
-		Url:          arg.Url,
-		RelativePath: arg.RelativePath,
+		ID:                   arg.ID,
+		AgentID:              arg.AgentID,
+		CreatedAt:            arg.CreatedAt,
+		Name:                 arg.Name,
+		Icon:                 arg.Icon,
+		Command:              arg.Command,
+		Url:                  arg.Url,
+		RelativePath:         arg.RelativePath,
+		HealthcheckUrl:       arg.HealthcheckUrl,
+		HealthcheckInterval:  arg.HealthcheckInterval,
+		HealthcheckThreshold: arg.HealthcheckThreshold,
+		Health:               arg.Health,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, app := range q.workspaceApps {
+		if app.ID != arg.ID {
+			continue
+		}
+		app.Health = arg.Health
+		q.workspaceApps[index] = app
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

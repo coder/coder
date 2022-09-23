@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -25,12 +27,20 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string `mapstructure:"agent_id"`
-	Name         string `mapstructure:"name"`
-	Icon         string `mapstructure:"icon"`
-	URL          string `mapstructure:"url"`
-	Command      string `mapstructure:"command"`
-	RelativePath bool   `mapstructure:"relative_path"`
+	AgentID      string                     `mapstructure:"agent_id"`
+	Name         string                     `mapstructure:"name"`
+	Icon         string                     `mapstructure:"icon"`
+	URL          string                     `mapstructure:"url"`
+	Command      string                     `mapstructure:"command"`
+	RelativePath bool                       `mapstructure:"relative_path"`
+	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+}
+
+// A mapping of attributes on the "healthcheck" resource.
+type appHealthcheckAttributes struct {
+	URL       string `mapstructure:"url"`
+	Interval  int32  `mapstructure:"interval"`
+	Threshold int32  `mapstructure:"threshold"`
 }
 
 // A mapping of attributes on the "coder_metadata" resource.
@@ -212,11 +222,21 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
+			d, _ := json.MarshalIndent(resource.AttributeValues, "", "    ")
+			fmt.Print(string(d))
 			return nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
 		if attrs.Name == "" {
 			// Default to the resource name if none is set!
 			attrs.Name = resource.Name
+		}
+		var healthcheck *proto.Healthcheck
+		if len(attrs.Healthcheck) != 0 {
+			healthcheck = &proto.Healthcheck{
+				Url:       attrs.Healthcheck[0].URL,
+				Interval:  attrs.Healthcheck[0].Interval,
+				Threshold: attrs.Healthcheck[0].Threshold,
+			}
 		}
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
@@ -230,6 +250,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
 					RelativePath: attrs.RelativePath,
+					Healthcheck:  healthcheck,
 				})
 			}
 		}

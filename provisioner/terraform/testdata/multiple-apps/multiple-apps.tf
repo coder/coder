@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.11"
+      version = "0.4.15"
     }
   }
 }
@@ -18,6 +18,11 @@ resource "coder_app" "app1" {
 
 resource "coder_app" "app2" {
   agent_id = coder_agent.dev1.id
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 5
+    threshold = 6
+  }
 }
 
 resource "null_resource" "dev" {

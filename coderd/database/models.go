@@ -312,6 +312,27 @@ func (e *UserStatus) Scan(src interface{}) error {
 	return nil
 }
 
+type WorkspaceAppHealth string
+
+const (
+	WorkspaceAppHealthDisabled     WorkspaceAppHealth = "disabled"
+	WorkspaceAppHealthInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
+)
+
+func (e *WorkspaceAppHealth) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppHealth(s)
+	case string:
+		*e = WorkspaceAppHealth(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
+	}
+	return nil
+}
+
 type WorkspaceTransition string
 
 const (
@@ -576,14 +597,18 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceApp struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name                 string             `db:"name" json:"name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	RelativePath         bool               `db:"relative_path" json:"relative_path"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
+	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
 }
 
 type WorkspaceBuild struct {

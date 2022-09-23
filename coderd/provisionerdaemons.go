@@ -812,6 +812,14 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
+			health := database.WorkspaceAppHealthDisabled
+			if app.Healthcheck == nil {
+				app.Healthcheck = &sdkproto.Healthcheck{}
+			}
+			if app.Healthcheck.Url != "" {
+				health = database.WorkspaceAppHealthInitializing
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
@@ -826,7 +834,11 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
-				RelativePath: app.RelativePath,
+				RelativePath:         app.RelativePath,
+				HealthcheckUrl:       app.Healthcheck.Url,
+				HealthcheckInterval:  app.Healthcheck.Interval,
+				HealthcheckThreshold: app.Healthcheck.Threshold,
+				Health:               health,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)
