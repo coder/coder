@@ -98,7 +98,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     {
                       /* If there is no agent, just display the resource name */
                     }
-                    if (!agent) {
+                    if (!agent || workspace.latest_build.transition === "stop") {
                       return (
                         <TableRow key={`${resource.id}-${agentIndex}`}>
                           <TableCell>{resourceName}</TableCell>
@@ -106,7 +106,6 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                         </TableRow>
                       )
                     }
-
                     const { displayVersion, outdated } = getDisplayVersionStatus(
                       agent.version,
                       serverVersion,
