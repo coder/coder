@@ -56,7 +56,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceGroup) {
+	if !api.Authorize(r, rbac.ActionUpdate, group) {
 		http.NotFound(rw, r)
 		return
 	}
@@ -162,7 +162,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceGroup) {
+	if !api.Authorize(r, rbac.ActionDelete, group) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -184,7 +184,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceGroup) {
+	if !api.Authorize(r, rbac.ActionRead, group) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -204,27 +204,21 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		org = httpmw.OrganizationParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceGroup) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	groups, err := api.Database.GetGroupsByOrganizationID(ctx, org.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	// Filter templates based on rbac permissions
-	// TODO: authorize filters.
-	// groups, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, groups)
-	// if err != nil {
-	// 	httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-	// 		Message: "Internal error fetching templates.",
-	// 		Detail:  err.Error(),
-	// 	})
-	// 	return
-	// }
+	// Filter groups based on rbac permissions
+	groups, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, groups)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching groups.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
