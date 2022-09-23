@@ -146,7 +146,8 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 
 	var mu sync.Mutex
 	workspaceAgentApps := func(context.Context) ([]codersdk.WorkspaceApp, error) {
-		return apps, nil
+		var newApps []codersdk.WorkspaceApp
+		return append(newApps, apps...), nil
 	}
 	postWorkspaceAgentAppHealth := func(_ context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error {
 		for name, health := range req.Healths {

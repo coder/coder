@@ -437,7 +437,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 		},
 	})
 	require.Error(t, err)
-	// app.HealthEnabled == false
+	// healcheck disabled
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
 		Healths: map[string]codersdk.WorkspaceAppHealth{
 			"code-server": codersdk.WorkspaceAppHealthInitializing,
