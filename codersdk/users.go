@@ -54,7 +54,8 @@ type User struct {
 }
 
 type APIKey struct {
-	ID              string    `json:"id" validate:"required"`
+	ID string `json:"id" validate:"required"`
+	// NOTE: do not ever return the HashedSecret
 	UserID          uuid.UUID `json:"user_id" validate:"required"`
 	LastUsed        time.Time `json:"last_used" validate:"required"`
 	ExpiresAt       time.Time `json:"expires_at" validate:"required"`
@@ -100,56 +101,6 @@ type UpdateRoles struct {
 type UserRoles struct {
 	Roles             []string               `json:"roles"`
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
-}
-
-type UserAuthorizationResponse map[string]bool
-
-// UserAuthorizationRequest is a structure instead of a map because
-// go-playground/validate can only validate structs. If you attempt to pass
-// a map into 'httpapi.Read', you will get an invalid type error.
-type UserAuthorizationRequest struct {
-	// Checks is a map keyed with an arbitrary string to a permission check.
-	// The key can be any string that is helpful to the caller, and allows
-	// multiple permission checks to be run in a single request.
-	// The key ensures that each permission check has the same key in the
-	// response.
-	Checks map[string]UserAuthorization `json:"checks"`
-}
-
-// UserAuthorization is used to check if a user can do a given action
-// to a given set of objects.
-type UserAuthorization struct {
-	// Object can represent a "set" of objects, such as:
-	//	- All workspaces in an organization
-	//	- All workspaces owned by me
-	//	- All workspaces across the entire product
-	// When defining an object, use the most specific language when possible to
-	// produce the smallest set. Meaning to set as many fields on 'Object' as
-	// you can. Example, if you want to check if you can update all workspaces
-	// owned by 'me', try to also add an 'OrganizationID' to the settings.
-	// Omitting the 'OrganizationID' could produce the incorrect value, as
-	// workspaces have both `user` and `organization` owners.
-	Object UserAuthorizationObject `json:"object"`
-	// Action can be 'create', 'read', 'update', or 'delete'
-	Action string `json:"action"`
-}
-
-type UserAuthorizationObject struct {
-	// ResourceType is the name of the resource.
-	// './coderd/rbac/object.go' has the list of valid resource types.
-	ResourceType string `json:"resource_type"`
-	// OwnerID (optional) is a user_id. It adds the set constraint to all resources owned
-	// by a given user.
-	OwnerID string `json:"owner_id,omitempty"`
-	// OrganizationID (optional) is an organization_id. It adds the set constraint to
-	// all resources owned by a given organization.
-	OrganizationID string `json:"organization_id,omitempty"`
-	// ResourceID (optional) reduces the set to a singular resource. This assigns
-	// a resource ID to the resource type, eg: a single workspace.
-	// The rbac library will not fetch the resource from the database, so if you
-	// are using this option, you should also set the 'OwnerID' and 'OrganizationID'
-	// if possible. Be as specific as possible using all the fields relevant.
-	ResourceID string `json:"resource_id,omitempty"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.

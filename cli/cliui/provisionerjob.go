@@ -22,7 +22,7 @@ func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Clie
 			build, err := client.WorkspaceBuild(ctx, build)
 			return build.Job, err
 		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
 			return client.WorkspaceBuildLogsAfter(ctx, build, before)
 		},
 	})
@@ -31,7 +31,7 @@ func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Clie
 type ProvisionerJobOptions struct {
 	Fetch  func() (codersdk.ProvisionerJob, error)
 	Cancel func() error
-	Logs   func() (<-chan codersdk.ProvisionerJobLog, error)
+	Logs   func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error)
 
 	FetchInterval time.Duration
 	// Verbose determines whether debug and trace logs will be shown.
@@ -132,10 +132,11 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 	// The initial stage needs to print after the signal handler has been registered.
 	printStage()
 
-	logs, err := opts.Logs()
+	logs, closer, err := opts.Logs()
 	if err != nil {
 		return xerrors.Errorf("logs: %w", err)
 	}
+	defer closer.Close()
 
 	var (
 		// logOutput is where log output is written

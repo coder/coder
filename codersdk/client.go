@@ -42,11 +42,21 @@ type Client struct {
 	URL          *url.URL
 }
 
-type requestOption func(*http.Request)
+type RequestOption func(*http.Request)
+
+func WithQueryParams(params map[string]string) RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		for k, v := range params {
+			q.Add(k, v)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
 
 // Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
-func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
+func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)

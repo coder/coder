@@ -11,59 +11,6 @@ import (
 )
 
 type PartialAuthorizer struct {
-	// mainAuthorizer is used for the user's roles. It is always not-nil.
-	mainAuthorizer *subPartialAuthorizer
-	// scopeAuthorizer is used for the API key scope. It may be nil.
-	scopeAuthorizer *subPartialAuthorizer
-}
-
-var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
-
-func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	err := pa.mainAuthorizer.Authorize(ctx, object)
-	if err != nil {
-		return err
-	}
-
-	if pa.scopeAuthorizer != nil {
-		return pa.scopeAuthorizer.Authorize(ctx, object)
-	}
-
-	return nil
-}
-
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	pAuth, err := newSubPartialAuthorizer(ctx, subjectID, roles, action, objectType)
-	if err != nil {
-		return nil, err
-	}
-
-	var scopeAuth *subPartialAuthorizer
-	if scope != ScopeAll {
-		scopeRole, err := ScopeRole(scope)
-		if err != nil {
-			return nil, xerrors.Errorf("unknown scope %q", scope)
-		}
-
-		scopeAuth, err = newSubPartialAuthorizer(ctx, subjectID, []Role{scopeRole}, action, objectType)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &PartialAuthorizer{
-		mainAuthorizer:  pAuth,
-		scopeAuthorizer: scopeAuth,
-	}, nil
-}
-
-type subPartialAuthorizer struct {
 	// partialQueries is mainly used for unit testing to assert our rego policy
 	// can always be compressed into a set of queries.
 	partialQueries *rego.PartialQueries
@@ -78,73 +25,13 @@ type subPartialAuthorizer struct {
 	alwaysTrue bool
 }
 
-func newSubPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, action Action, objectType string) (*subPartialAuthorizer, error) {
+var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
+
+func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	input := map[string]interface{}{
-		"subject": authSubject{
-			ID:    subjectID,
-			Roles: roles,
-		},
-		"object": map[string]string{
-			"type": objectType,
-		},
-		"action": action,
-	}
-
-	// Run the rego policy with a few unknown fields. This should simplify our
-	// policy to a set of queries.
-	partialQueries, err := rego.New(
-		rego.Query("true = data.authz.allow"),
-		rego.Module("policy.rego", policy),
-		rego.Unknowns([]string{
-			"input.object.owner",
-			"input.object.org_owner",
-		}),
-		rego.Input(input),
-	).Partial(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("prepare: %w", err)
-	}
-
-	pAuth := &subPartialAuthorizer{
-		partialQueries:  partialQueries,
-		preparedQueries: []rego.PreparedEvalQuery{},
-		input:           input,
-	}
-
-	// Prepare each query to optimize the runtime when we iterate over the objects.
-	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
-	for _, q := range partialQueries.Queries {
-		if q.String() == "" {
-			// No more work needed. An empty query is the same as
-			//	'WHERE true'
-			// This is likely an admin. We don't even need to use rego going
-			// forward.
-			pAuth.alwaysTrue = true
-			preparedQueries = []rego.PreparedEvalQuery{}
-			break
-		}
-		results, err := rego.New(
-			rego.ParsedQuery(q),
-		).PrepareForEval(ctx)
-		if err != nil {
-			return nil, xerrors.Errorf("prepare query %s: %w", q.String(), err)
-		}
-		preparedQueries = append(preparedQueries, results)
-	}
-	pAuth.preparedQueries = preparedQueries
-
-	return pAuth, nil
-}
-
-// Authorize authorizes a single object using the partially prepared queries.
-func (a subPartialAuthorizer) Authorize(ctx context.Context, object Object) error {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	if a.alwaysTrue {
+	if pa.alwaysTrue {
 		return nil
 	}
 
@@ -159,7 +46,7 @@ func (a subPartialAuthorizer) Authorize(ctx context.Context, object Object) erro
 	// all boolean expressions. In the above 1st example, there are 2.
 	// These expressions within a single query are `AND` together by rego.
 EachQueryLoop:
-	for _, q := range a.preparedQueries {
+	for _, q := range pa.preparedQueries {
 		// We need to eval each query with the newly known fields.
 		results, err := q.Eval(ctx, rego.EvalInput(map[string]interface{}{
 			"object": object,
@@ -204,5 +91,67 @@ EachQueryLoop:
 		return nil
 	}
 
-	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), a.input, nil)
+	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
+}
+
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, objectType string) (*PartialAuthorizer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	input := map[string]interface{}{
+		"subject": authSubject{
+			ID:    subjectID,
+			Roles: roles,
+			Scope: scope,
+		},
+		"object": map[string]string{
+			"type": objectType,
+		},
+		"action": action,
+	}
+
+	// Run the rego policy with a few unknown fields. This should simplify our
+	// policy to a set of queries.
+	partialQueries, err := rego.New(
+		rego.Query("data.authz.role_allow = true data.authz.scope_allow = true"),
+		rego.Module("policy.rego", policy),
+		rego.Unknowns([]string{
+			"input.object.owner",
+			"input.object.org_owner",
+		}),
+		rego.Input(input),
+	).Partial(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare: %w", err)
+	}
+
+	pAuth := &PartialAuthorizer{
+		partialQueries:  partialQueries,
+		preparedQueries: []rego.PreparedEvalQuery{},
+		input:           input,
+	}
+
+	// Prepare each query to optimize the runtime when we iterate over the objects.
+	preparedQueries := make([]rego.PreparedEvalQuery, 0, len(partialQueries.Queries))
+	for _, q := range partialQueries.Queries {
+		if q.String() == "" {
+			// No more work needed. An empty query is the same as
+			//	'WHERE true'
+			// This is likely an admin. We don't even need to use rego going
+			// forward.
+			pAuth.alwaysTrue = true
+			preparedQueries = []rego.PreparedEvalQuery{}
+			break
+		}
+		results, err := rego.New(
+			rego.ParsedQuery(q),
+		).PrepareForEval(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("prepare query %s: %w", q.String(), err)
+		}
+		preparedQueries = append(preparedQueries, results)
+	}
+	pAuth.preparedQueries = preparedQueries
+
+	return pAuth, nil
 }

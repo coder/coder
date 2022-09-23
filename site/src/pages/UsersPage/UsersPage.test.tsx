@@ -184,7 +184,7 @@ describe("UsersPage", () => {
 
   it("does not show 'Create user' button to unauthorized user", async () => {
     server.use(
-      rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         const permissions = Object.keys(permissionsToCheck)
         const response = permissions.reduce((obj, permission) => {
           return {

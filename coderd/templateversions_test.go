@@ -447,8 +447,9 @@ func TestTemplateVersionLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
+	logs, closer, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
+	defer closer.Close()
 	for {
 		_, ok := <-logs
 		if !ok {
@@ -618,8 +619,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
-		logs, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
+		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
 		require.NoError(t, err)
+		defer closer.Close()
 
 		logsDone := make(chan struct{})
 		go func() {

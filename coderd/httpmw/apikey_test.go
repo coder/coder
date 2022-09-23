@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,7 +47,10 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -59,7 +63,10 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(db, nil, true)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: true,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		location, err := res.Location()
@@ -77,7 +84,10 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionCustomHeader, "test-wow-hello")
 
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -92,7 +102,10 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionCustomHeader, "test-wow")
 
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -107,7 +120,10 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionCustomHeader, "testtestid-wow")
 
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -123,7 +139,10 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
 
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -149,7 +168,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -175,7 +197,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -202,7 +227,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -244,7 +272,10 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
 			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
@@ -282,7 +313,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -316,7 +350,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -350,7 +387,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -391,7 +431,10 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -436,13 +479,17 @@ func TestAPIKey(t *testing.T) {
 			RefreshToken: "moo",
 			Expiry:       database.Now().AddDate(0, 0, 1),
 		}
-		httpmw.ExtractAPIKey(db, &httpmw.OAuth2Configs{
-			Github: &oauth2Config{
-				tokenSource: oauth2TokenSource(func() (*oauth2.Token, error) {
-					return token, nil
-				}),
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB: db,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				Github: &oauth2Config{
+					tokenSource: oauth2TokenSource(func() (*oauth2.Token, error) {
+						return token, nil
+					}),
+				},
 			},
-		}, false)(successHandler).ServeHTTP(rw, r)
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -477,7 +524,10 @@ func TestAPIKey(t *testing.T) {
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
-		httpmw.ExtractAPIKey(db, nil, false)(successHandler).ServeHTTP(rw, r)
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -486,6 +536,58 @@ func TestAPIKey(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, net.ParseIP("1.1.1.1"), gotAPIKey.IPAddress.IPNet.IP)
+	})
+
+	t.Run("RedirectToLogin", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = databasefake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: true,
+		})(successHandler).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		u, err := res.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/login", u.Path)
+	})
+
+	t.Run("Optional", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db = databasefake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+
+			count   int64
+			handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				atomic.AddInt64(&count, 1)
+
+				apiKey, ok := httpmw.APIKeyOptional(r)
+				assert.False(t, ok)
+				assert.Zero(t, apiKey)
+
+				rw.WriteHeader(http.StatusOK)
+			})
+		)
+
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+			Optional:        true,
+		})(handler).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.EqualValues(t, 1, atomic.LoadInt64(&count))
 	})
 }
 
