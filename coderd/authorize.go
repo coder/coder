@@ -1,18 +1,21 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 )
 
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r)
-	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Groups, roles.Scope.ToRBAC(), action, objects)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
 		h.Logger.Error(r.Context(), "filter failed",
@@ -57,7 +60,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserAuthorization(r)
-	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Groups, roles.Scope.ToRBAC(), action, object.RBACObject())
+	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
@@ -80,4 +83,46 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		return false
 	}
 	return true
+}
+
+// checkAuthorization returns if the current API key can use the given
+// permissions, factoring in the current user's roles and the API key scopes.
+func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	auth := httpmw.UserAuthorization(r)
+
+	var params codersdk.AuthorizationRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	api.Logger.Warn(ctx, "check-auth",
+		slog.F("my_id", httpmw.APIKey(r).UserID),
+		slog.F("got_id", auth.ID),
+		slog.F("name", auth.Username),
+		slog.F("roles", auth.Roles), slog.F("scope", auth.Scope),
+	)
+
+	response := make(codersdk.AuthorizationResponse)
+	for k, v := range params.Checks {
+		if v.Object.ResourceType == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q.", k),
+			})
+			return
+		}
+
+		if v.Object.OwnerID == "me" {
+			v.Object.OwnerID = auth.ID.String()
+		}
+		err := api.Authorizer.ByRoleName(r.Context(), auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action),
+			rbac.Object{
+				Owner: v.Object.OwnerID,
+				OrgID: v.Object.OrganizationID,
+				Type:  v.Object.ResourceType,
+			})
+		response[k] = err == nil
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }

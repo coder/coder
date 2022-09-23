@@ -91,7 +91,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, c.Groups, c.Scope, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, c.Scope, c.Groups, rbac.ActionRead, objects)
 			require.NoError(b, err)
 			var _ = allowed
 		})
@@ -361,7 +361,7 @@ func TestRolePermissions(t *testing.T) {
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
 						// TODO: scopey
-						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, subj.Groups, rbac.ScopeAll, action, c.Resource)
+						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAll, subj.Groups, action, c.Resource)
 						if result {
 							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {

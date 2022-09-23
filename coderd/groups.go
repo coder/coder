@@ -27,7 +27,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	var req codersdk.CreateGroupRequest
-	if !httpapi.Read(rw, r, &req) {
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -37,7 +37,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		OrganizationID: org.ID,
 	})
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Group with name %q already exists.", req.Name),
 		})
 		return
@@ -47,7 +47,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertGroup(group, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertGroup(group, nil))
 }
 
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
@@ -62,7 +62,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var req codersdk.PatchGroupRequest
-	if !httpapi.Read(rw, r, &req) {
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -72,7 +72,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	for _, id := range users {
 		if _, err := uuid.Parse(id); err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("ID %q must be a valid user UUID.", id),
 			})
 			return
@@ -84,7 +84,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			UserID:         uuid.MustParse(id),
 		})
 		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusPreconditionFailed, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 				Message: fmt.Sprintf("User %q must be a member of organization %q", id, group.ID),
 			})
 			return
@@ -100,7 +100,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			Name:           req.Name,
 		})
 		if err == nil {
-			httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A group with name %q already exists.", req.Name),
 			})
 			return
@@ -136,7 +136,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
 		})
@@ -153,7 +153,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertGroup(group, members))
+	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, members))
 }
 
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
@@ -173,7 +173,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Successfully deleted group!",
 	})
 }
@@ -195,7 +195,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertGroup(group, users))
+	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, users))
 }
 
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
@@ -237,7 +237,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		resp = append(resp, convertGroup(group, members))
 	}
 
-	httpapi.Write(rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 func convertGroup(g database.Group, users []database.User) codersdk.Group {

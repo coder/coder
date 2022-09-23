@@ -53,7 +53,7 @@ export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = 
     return <TableLoader />
   }
 
-  if (!users || !users.length) {
+  if (!users || users.length === 0) {
     return (
       <TableRow>
         <TableCell colSpan={999}>

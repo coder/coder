@@ -13,38 +13,37 @@ const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
 }
 
 const Language = {
-  refreshTemplateError: "Error updating workspace: latest template could not be fetched.",
+  refreshTemplateWarning: "Error updating workspace: latest template could not be fetched.",
   buildError: "Workspace action failed.",
 }
 
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceContext {
+  // our server side events instance
+  eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
   build?: TypesGen.WorkspaceBuild
-  resources?: TypesGen.WorkspaceResource[]
   getWorkspaceError?: Error | unknown
-  // error creating a new WorkspaceBuild
-  buildError?: Error | unknown
-  // these are separate from getX errors because they don't make the page unusable
-  refreshWorkspaceError: Error | unknown
-  refreshTemplateError: Error | unknown
-  getResourcesError: Error | unknown
+  // these are labeled as warnings because they don't make the page unusable
+  refreshWorkspaceWarning?: Error | unknown
+  refreshTemplateWarning: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
-  loadMoreBuildsError?: Error | unknown
+  // error creating a new WorkspaceBuild
+  buildError?: Error | unknown
   cancellationMessage?: Types.Message
   cancellationError?: Error | unknown
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  userId?: string
 }
 
 export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceName: string; username: string }
+  | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START" }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
@@ -52,8 +51,9 @@ export type WorkspaceEvent =
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
-  | { type: "LOAD_MORE_BUILDS" }
+  | { type: "CHECK_REFRESH_TIMELINE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "REFRESH_TIMELINE" }
+  | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -109,20 +109,14 @@ export const workspaceMachine = createMachine(
         cancelWorkspace: {
           data: Types.Message
         }
-        refreshWorkspace: {
-          data: TypesGen.Workspace | undefined
-        }
-        getResources: {
-          data: TypesGen.WorkspaceResource[]
+        listening: {
+          data: TypesGen.ServerSentEvent
         }
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
         }
-        loadMoreBuilds: {
-          data: TypesGen.WorkspaceBuild[]
-        }
         checkPermissions: {
-          data: TypesGen.UserAuthorizationResponse
+          data: TypesGen.AuthorizationResponse
         }
       },
     },
@@ -158,7 +152,7 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       refreshingTemplate: {
-        entry: "clearRefreshTemplateError",
+        entry: "clearRefreshTemplateWarning",
         invoke: {
           src: "getTemplate",
           id: "refreshTemplate",
@@ -170,7 +164,7 @@ export const workspaceMachine = createMachine(
           ],
           onError: [
             {
-              actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
+              actions: ["assignRefreshTemplateWarning", "displayRefreshTemplateWarning"],
               target: "error",
             },
           ],
@@ -199,32 +193,33 @@ export const workspaceMachine = createMachine(
       ready: {
         type: "parallel",
         states: {
-          pollingWorkspace: {
-            initial: "refreshingWorkspace",
+          listening: {
+            initial: "gettingEvents",
             states: {
-              refreshingWorkspace: {
-                entry: "clearRefreshWorkspaceError",
+              gettingEvents: {
+                entry: ["clearRefreshWorkspaceWarning", "initializeEventSource"],
+                exit: "closeEventSource",
                 invoke: {
-                  src: "refreshWorkspace",
-                  id: "refreshWorkspace",
-                  onDone: [
-                    {
-                      actions: ["refreshTimeline", "assignWorkspace"],
-                      target: "waiting",
-                    },
-                  ],
-                  onError: [
-                    {
-                      actions: "assignRefreshWorkspaceError",
-                      target: "waiting",
-                    },
-                  ],
+                  src: "listening",
+                  id: "listening",
+                },
+                on: {
+                  REFRESH_WORKSPACE: {
+                    actions: ["refreshWorkspace"],
+                  },
+                  EVENT_SOURCE_ERROR: {
+                    target: "error",
+                  },
+                  CHECK_REFRESH_TIMELINE: {
+                    actions: ["refreshTimeline"],
+                  },
                 },
               },
-              waiting: {
+              error: {
+                entry: "assignRefreshWorkspaceWarning",
                 after: {
                   "1000": {
-                    target: "refreshingWorkspace",
+                    target: "gettingEvents",
                   },
                 },
               },
@@ -348,7 +343,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               refreshingTemplate: {
-                entry: "clearRefreshTemplateError",
+                entry: "clearRefreshTemplateWarning",
                 invoke: {
                   src: "getTemplate",
                   id: "refreshTemplate",
@@ -360,41 +355,10 @@ export const workspaceMachine = createMachine(
                   ],
                   onError: [
                     {
-                      actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
+                      actions: ["assignRefreshTemplateWarning", "displayRefreshTemplateWarning"],
                       target: "idle",
                     },
                   ],
-                },
-              },
-            },
-          },
-          pollingResources: {
-            initial: "gettingResources",
-            states: {
-              gettingResources: {
-                entry: "clearGetResourcesError",
-                invoke: {
-                  src: "getResources",
-                  id: "getResources",
-                  onDone: [
-                    {
-                      actions: "assignResources",
-                      target: "waiting",
-                    },
-                  ],
-                  onError: [
-                    {
-                      actions: "assignGetResourcesError",
-                      target: "waiting",
-                    },
-                  ],
-                },
-              },
-              waiting: {
-                after: {
-                  "5000": {
-                    target: "gettingResources",
-                  },
                 },
               },
             },
@@ -426,31 +390,9 @@ export const workspaceMachine = createMachine(
                 states: {
                   idle: {
                     on: {
-                      LOAD_MORE_BUILDS: {
-                        cond: "hasMoreBuilds",
-                        target: "loadingMoreBuilds",
-                      },
                       REFRESH_TIMELINE: {
                         target: "#workspaceState.ready.timeline.gettingBuilds",
                       },
-                    },
-                  },
-                  loadingMoreBuilds: {
-                    entry: "clearLoadMoreBuildsError",
-                    invoke: {
-                      src: "loadMoreBuilds",
-                      onDone: [
-                        {
-                          actions: "assignNewBuilds",
-                          target: "idle",
-                        },
-                      ],
-                      onError: [
-                        {
-                          actions: "assignLoadMoreBuildsError",
-                          target: "idle",
-                        },
-                      ],
                     },
                   },
                 },
@@ -477,6 +419,7 @@ export const workspaceMachine = createMachine(
           template: undefined,
           build: undefined,
           permissions: undefined,
+          eventSource: undefined,
         }),
       assignWorkspace: assign({
         workspace: (_, event) => event.data,
@@ -525,30 +468,29 @@ export const workspaceMachine = createMachine(
       clearCancellationError: assign({
         cancellationError: (_) => undefined,
       }),
-      assignRefreshWorkspaceError: assign({
-        refreshWorkspaceError: (_, event) => event.data,
+      // SSE related actions
+      // open a new EventSource so we can stream SSE
+      initializeEventSource: assign({
+        eventSource: (context) => context.workspace && API.watchWorkspace(context.workspace.id),
       }),
-      clearRefreshWorkspaceError: assign({
-        refreshWorkspaceError: (_) => undefined,
+      closeEventSource: (context) => context.eventSource && context.eventSource.close(),
+      refreshWorkspace: assign({
+        workspace: (_, event) => event.data,
       }),
-      assignRefreshTemplateError: assign({
-        refreshTemplateError: (_, event) => event.data,
+      assignRefreshWorkspaceWarning: assign({
+        refreshWorkspaceWarning: (_, event) => event,
       }),
-      displayRefreshTemplateError: () => {
-        displayError(Language.refreshTemplateError)
+      clearRefreshWorkspaceWarning: assign({
+        refreshWorkspaceWarning: (_) => undefined,
+      }),
+      assignRefreshTemplateWarning: assign({
+        refreshTemplateWarning: (_, event) => event.data,
+      }),
+      displayRefreshTemplateWarning: () => {
+        displayError(Language.refreshTemplateWarning)
       },
-      clearRefreshTemplateError: assign({
-        refreshTemplateError: (_) => undefined,
-      }),
-      // Resources
-      assignResources: assign({
-        resources: (_, event) => event.data,
-      }),
-      assignGetResourcesError: assign({
-        getResourcesError: (_, event) => event.data,
-      }),
-      clearGetResourcesError: assign({
-        getResourcesError: (_) => undefined,
+      clearRefreshTemplateWarning: assign({
+        refreshTemplateWarning: (_) => undefined,
       }),
       // Timeline
       assignBuilds: assign({
@@ -560,32 +502,15 @@ export const workspaceMachine = createMachine(
       clearGetBuildsError: assign({
         getBuildsError: (_) => undefined,
       }),
-      assignNewBuilds: assign({
-        builds: (context, event) => {
-          const oldBuilds = context.builds
-
-          if (!oldBuilds) {
-            // This state is theoretically impossible, but helps TS
-            throw new Error("workspaceXService: failed to load workspace builds")
-          }
-
-          return [...oldBuilds, ...event.data]
-        },
-      }),
-      assignLoadMoreBuildsError: assign({
-        loadMoreBuildsError: (_, event) => event.data,
-      }),
-      clearLoadMoreBuildsError: assign({
-        loadMoreBuildsError: (_) => undefined,
-      }),
       refreshTimeline: pure((context, event) => {
         // No need to refresh the timeline if it is not loaded
         if (!context.builds) {
           return
         }
-        // When it is a refresh workspace event, we want to check if the latest
+
+        // When it is a CHECK_REFRESH_TIMELINE workspace event, we want to check if the latest
         // build was updated to not over fetch the builds
-        if (event.type === "done.invoke.refreshWorkspace") {
+        if (event.type === "CHECK_REFRESH_TIMELINE") {
           const latestBuildInTimeline = latestBuild(context.builds)
           const isUpdated = event.data?.latest_build.updated_at !== latestBuildInTimeline.updated_at
           if (isUpdated) {
@@ -595,9 +520,6 @@ export const workspaceMachine = createMachine(
           return send({ type: "REFRESH_TIMELINE" })
         }
       }),
-    },
-    guards: {
-      hasMoreBuilds: (_) => false,
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -650,27 +572,28 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot cancel workspace without build id")
         }
       },
-      refreshWorkspace: async (context) => {
-        if (context.workspace) {
-          return await API.getWorkspaceByOwnerAndName(
-            context.workspace.owner_name,
-            context.workspace.name,
-            {
-              include_deleted: true,
-            },
-          )
-        } else {
-          throw Error("Cannot refresh workspace without id")
+      listening: (context) => (send) => {
+        if (!context.eventSource) {
+          send({ type: "EVENT_SOURCE_ERROR", error: "error initializing sse" })
+          return
         }
-      },
-      getResources: async (context) => {
-        // If the job hasn't completed, fetching resources will result
-        // in an unfriendly error for the user.
-        if (!context.workspace?.latest_build.job.completed_at) {
-          return []
+
+        context.eventSource.addEventListener("data", (event) => {
+          // refresh our workspace with each SSE
+          send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) })
+          // refresh our timeline
+          send({ type: "CHECK_REFRESH_TIMELINE", data: JSON.parse(event.data) })
+        })
+
+        // handle any error events returned by our sse
+        context.eventSource.addEventListener("error", (event) => {
+          send({ type: "EVENT_SOURCE_ERROR", error: event })
+        })
+
+        // handle any sse implementation exceptions
+        context.eventSource.onerror = () => {
+          send({ type: "EVENT_SOURCE_ERROR", error: "sse error" })
         }
-        const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
-        return resources
       },
       getBuilds: async (context) => {
         if (context.workspace) {
@@ -679,20 +602,13 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get builds without id")
         }
       },
-      loadMoreBuilds: async (context) => {
-        if (context.workspace) {
-          return await API.getWorkspaceBuilds(context.workspace.id)
-        } else {
-          throw Error("Cannot load more builds without id")
-        }
-      },
       checkPermissions: async (context) => {
-        if (context.workspace && context.userId) {
-          return await API.checkUserPermissions(context.userId, {
+        if (context.workspace) {
+          return await API.checkAuthorization({
             checks: permissionsToCheck(context.workspace),
           })
         } else {
-          throw Error("Cannot check permissions without both workspace and user id")
+          throw Error("Cannot check permissions workspace id")
         }
       },
     },

@@ -141,7 +141,7 @@ export const createWorkspaceMachine = createMachine(
       assignSelectedTemplate: assign({
         selectedTemplate: (ctx, event) => {
           const templates = event.data.filter((template) => template.name === ctx.templateName)
-          return templates.length ? templates[0] : undefined
+          return templates.length > 0 ? templates[0] : undefined
         },
       }),
       assignTemplateSchema: assign({

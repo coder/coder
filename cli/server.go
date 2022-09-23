@@ -72,6 +72,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	var (
 		accessURL             string
 		address               string
+		wildcardAccessURL     string
 		autobuildPollInterval time.Duration
 		derpServerEnabled     bool
 		derpServerRegionID    int
@@ -103,6 +104,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		oidcScopes                       []string
 		tailscaleEnable                  bool
 		telemetryEnable                  bool
+		telemetryTraceEnable             bool
 		telemetryURL                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
@@ -160,17 +162,26 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				sqlDriver      = "postgres"
 			)
 
-			if traceEnable || telemetryEnable {
-				sdkTracerProvider, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+			// Coder tracing should be disabled if telemetry is disabled unless
+			// --telemetry-trace was explicitly provided.
+			shouldCoderTrace := telemetryEnable && !isTest()
+			// Only override if telemetryTraceEnable was specifically set.
+			// By default we want it to be controlled by telemetryEnable.
+			if cmd.Flags().Changed("telemetry-trace") {
+				shouldCoderTrace = telemetryTraceEnable
+			}
+
+			if traceEnable || shouldCoderTrace {
+				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 					Default: traceEnable,
-					Coder:   telemetryEnable && !isTest(),
+					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
 					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
 				} else {
 					// allow time for traces to flush even if command context is canceled
 					defer func() {
-						_ = shutdownWithTimeout(sdkTracerProvider, 5*time.Second)
+						_ = shutdownWithTimeout(closeTracing, 5*time.Second)
 					}()
 
 					d, err := tracing.PostgresDriver(sdkTracerProvider, "coderd.database")
@@ -337,8 +348,13 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
+			appHostname := strings.TrimPrefix(wildcardAccessURL, "http://")
+			appHostname = strings.TrimPrefix(appHostname, "https://")
+			appHostname = strings.TrimPrefix(appHostname, "*.")
+
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
+				AppHostname:                 appHostname,
 				Logger:                      logger.Named("coderd"),
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
@@ -545,7 +561,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				},
 			}
 			defer func() {
-				_ = shutdownWithTimeout(server, 5*time.Second)
+				_ = shutdownWithTimeout(server.Shutdown, 5*time.Second)
 			}()
 
 			eg := errgroup.Group{}
@@ -633,7 +649,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cmd.Println("Shutting down API server...")
-			err = shutdownWithTimeout(server, 5*time.Second)
+			err = shutdownWithTimeout(server.Shutdown, 5*time.Second)
 			if err != nil {
 				cmd.Printf("API server shutdown took longer than 5s: %s", err)
 			} else {
@@ -655,7 +671,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 					if verbose {
 						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
 					}
-					err := shutdownWithTimeout(provisionerDaemon, 5*time.Second)
+					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
 						cmd.PrintErrf("Failed to shutdown provisioner daemon %d: %s\n", id, err)
 						return
@@ -690,6 +706,9 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
+			if xerrors.Is(exitErr, context.Canceled) {
+				return nil
+			}
 			return exitErr
 		},
 	}
@@ -742,6 +761,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"External URL to access your deployment. This must be accessible by all provisioned workspaces.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000",
 		"Bind address of the server.")
+	cliflag.StringVarP(root.Flags(), &wildcardAccessURL, "wildcard-access-url", "", "CODER_WILDCARD_ACCESS_URL", "", `Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".`)
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
 		"URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",
@@ -809,6 +829,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault,
 		"Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
+	cliflag.BoolVarP(root.Flags(), &telemetryTraceEnable, "telemetry-trace", "", "CODER_TELEMETRY_TRACE", enableTelemetryByDefault,
+		"Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com",
 		"URL to send telemetry.")
 	_ = root.Flags().MarkHidden("telemetry-url")
@@ -903,10 +925,10 @@ func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
 	return false, nil
 }
 
-func shutdownWithTimeout(s interface{ Shutdown(context.Context) error }, timeout time.Duration) error {
+func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return s.Shutdown(ctx)
+	return shutdown(ctx)
 }
 
 // nolint:revive

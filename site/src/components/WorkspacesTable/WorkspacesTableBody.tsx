@@ -33,7 +33,7 @@ export const WorkspacesTableBody: FC<React.PropsWithChildren<TableBodyProps>> = 
     return <TableLoader />
   }
 
-  if (!workspaceRefs || !workspaceRefs.length) {
+  if (!workspaceRefs || workspaceRefs.length === 0) {
     return (
       <>
         {filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all ? (

@@ -83,6 +83,7 @@ export const ConfirmDialog: React.FC<React.PropsWithChildren<ConfirmDialogProps>
   confirmLoading,
   confirmText,
   description,
+  disabled = false,
   hideCancel,
   onClose,
   onConfirm,
@@ -122,6 +123,7 @@ export const ConfirmDialog: React.FC<React.PropsWithChildren<ConfirmDialogProps>
           confirmDialog
           confirmLoading={confirmLoading}
           confirmText={confirmText || defaults.confirmText}
+          disabled={disabled}
           onCancel={!hideCancel ? onClose : undefined}
           onConfirm={onConfirm || onClose}
           type={type}

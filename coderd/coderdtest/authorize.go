@@ -44,6 +44,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
+		"POST:/api/v2/authcheck":        {NoAuthorize: true},
+		"GET:/api/v2/applications/host": {NoAuthorize: true},
+		// This is a dummy endpoint for compatibility with older CLI versions.
+		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -236,13 +240,19 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/users": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
+		"GET:/api/v2/users":                      {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
+		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+
+		// TODO: @emyrk @jonayers Fix this unit test by using a valid group
+		"DELETE:/api/v2/groups/{group}": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PATCH:/api/v2/groups/{group}":  {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/groups/{group}":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -511,7 +521,7 @@ type RecordingAuthorizer struct {
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, groups []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, groups []string, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
@@ -523,7 +533,7 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, groups []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:  r,
 		SubjectID: subjectID,
@@ -548,5 +558,5 @@ type fakePreparedAuthorizer struct {
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Groups, f.Scope, f.Action, object)
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object)
 }

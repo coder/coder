@@ -28,6 +28,7 @@ func GroupParam(r *http.Request) database.Group {
 func ExtractGroupParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			groupID, parsed := parseUUID(rw, r, "group")
 			if !parsed {
 				return
@@ -39,14 +40,14 @@ func ExtractGroupParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching group.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), groupParamContextKey{}, group)
+			ctx = context.WithValue(ctx, groupParamContextKey{}, group)
 			chi.RouteContext(ctx).URLParams.Add("organization", group.OrganizationID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

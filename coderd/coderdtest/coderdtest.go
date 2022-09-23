@@ -62,6 +62,7 @@ import (
 )
 
 type Options struct {
+	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
@@ -176,6 +177,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		// agents are not marked as disconnected during slow tests.
 		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
+		AppHostname:                    options.AppHostname,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
 		Database:                       db,

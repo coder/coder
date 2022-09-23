@@ -1,0 +1,203 @@
+package coderd_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/testutil"
+)
+
+//nolint:revive
+func makeScimUser(t testing.TB) coderd.SCIMUser {
+	rstr, err := cryptorand.String(10)
+	require.NoError(t, err)
+
+	return coderd.SCIMUser{
+		UserName: rstr,
+		Name: struct {
+			GivenName  string "json:\"givenName\""
+			FamilyName string "json:\"familyName\""
+		}{
+			GivenName:  rstr,
+			FamilyName: rstr,
+		},
+		Emails: []struct {
+			Primary bool   "json:\"primary\""
+			Value   string "json:\"value\""
+			Type    string "json:\"type\""
+			Display string "json:\"display\""
+		}{
+			{Primary: true, Value: fmt.Sprintf("%s@coder.com", rstr)},
+		},
+		Active: true,
+	}
+}
+
+func setScimAuth(key []byte) func(*http.Request) {
+	return func(r *http.Request) {
+		r.Header.Set("Authorization", string(key))
+	}
+}
+
+func TestScim(t *testing.T) {
+	t.Parallel()
+
+	t.Run("postUser", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("disabled", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AccountID: "coolin",
+				SCIM:      false,
+			})
+
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+		})
+
+		t.Run("noAuth", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AccountID: "coolin",
+				SCIM:      true,
+			})
+
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+		})
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			scimAPIKey := []byte("hi")
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AccountID: "coolin",
+				SCIM:      true,
+			})
+
+			sUser := makeScimUser(t)
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			users, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			require.NoError(t, err)
+			require.Len(t, users, 1)
+
+			assert.Equal(t, sUser.Emails[0].Value, users[0].Email)
+			assert.Equal(t, sUser.UserName, users[0].Username)
+		})
+	})
+
+	t.Run("patchUser", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("disabled", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AccountID: "coolin",
+				SCIM:      false,
+			})
+
+			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+		})
+
+		t.Run("noAuth", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AccountID: "coolin",
+				SCIM:      true,
+			})
+
+			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+		})
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			scimAPIKey := []byte("hi")
+			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AccountID: "coolin",
+				SCIM:      true,
+			})
+
+			sUser := makeScimUser(t)
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			err = json.NewDecoder(res.Body).Decode(&sUser)
+			require.NoError(t, err)
+
+			sUser.Active = false
+
+			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			users, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			require.NoError(t, err)
+			require.Len(t, users, 1)
+			assert.Equal(t, codersdk.UserStatusSuspended, users[0].Status)
+		})
+	})
+}

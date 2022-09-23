@@ -20,10 +20,34 @@ WHERE
 			resource_type = @resource_type :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN @resource_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = @resource_id
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN @resource_target :: text != '' THEN
+			resource_target = @resource_target
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
 		WHEN @action :: text != '' THEN
 			action = @action :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN @username :: text != '' THEN
+			users.username = @username
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN @email :: text != '' THEN
+			users.email = @email
 		ELSE true
 	END
 ORDER BY
@@ -35,9 +59,9 @@ OFFSET
 
 -- name: GetAuditLogCount :one
 SELECT
-    COUNT(*) as count
+  COUNT(*) as count
 FROM
-    audit_logs
+	audit_logs
 WHERE
     -- Filter resource_type
 	CASE
@@ -45,10 +69,34 @@ WHERE
 			resource_type = @resource_type :: resource_type
 		ELSE true
 	END
+	-- Filter resource_id
+	AND CASE
+		WHEN @resource_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			resource_id = @resource_id
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN @resource_target :: text != '' THEN
+			resource_target = @resource_target
+		ELSE true
+	END
 	-- Filter action
 	AND CASE
 		WHEN @action :: text != '' THEN
 			action = @action :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN @username :: text != '' THEN
+			user_id = (SELECT id from users WHERE users.username = @username )
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN @email :: text != '' THEN
+			user_id = (SELECT id from users WHERE users.email = @email )
 		ELSE true
 	END;
 

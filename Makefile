@@ -410,7 +410,7 @@ gen/mark-fresh:
 # Runs migrations to output a dump of the database schema after migrations are
 # applied.
 coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)
-	go run coderd/database/gen/dump/main.go
+	go run ./coderd/database/gen/dump/main.go
 
 # Generates Go code for querying the database.
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
