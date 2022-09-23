@@ -288,6 +288,8 @@ func (a *agent) runCoordinator(ctx context.Context) {
 			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
+		//nolint:revive // Defer is ok because we're exiting this loop.
+		defer coordinator.Close()
 		a.logger.Info(context.Background(), "connected to coordination server")
 		break
 	}
@@ -296,7 +298,6 @@ func (a *agent) runCoordinator(ctx context.Context) {
 		return
 	default:
 	}
-	defer coordinator.Close()
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
 	a.network.SetNodeCallback(sendNodes)
 	select {
