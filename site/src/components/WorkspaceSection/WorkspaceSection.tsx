@@ -11,7 +11,7 @@ export interface WorkspaceSectionProps {
    */
   action?: React.ReactNode
   contentsProps?: HTMLProps<HTMLDivElement>
-  title?: string
+  title?: string | JSX.Element
 }
 
 export const WorkspaceSection: React.FC<React.PropsWithChildren<WorkspaceSectionProps>> = ({
