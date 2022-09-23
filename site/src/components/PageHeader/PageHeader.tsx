@@ -12,7 +12,7 @@ export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({
   actions,
   className,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return (
     <div className={combineClasses([styles.root, className])}>
@@ -27,7 +27,7 @@ export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({
 }
 
 export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return <h1 className={styles.title}>{children}</h1>
 }

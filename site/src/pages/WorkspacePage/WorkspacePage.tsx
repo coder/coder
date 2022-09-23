@@ -34,7 +34,7 @@ export const WorkspacePage: FC = () => {
     workspace,
     getWorkspaceError,
     template,
-    refreshTemplateWarning,
+    getTemplateWarning,
     refreshWorkspaceWarning,
     builds,
     getBuildsError,
@@ -61,7 +61,7 @@ export const WorkspacePage: FC = () => {
     return (
       <div className={styles.error}>
         {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-        {Boolean(refreshTemplateWarning) && <ErrorSummary error={refreshTemplateWarning} />}
+        {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
         {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )

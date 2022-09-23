@@ -22,7 +22,7 @@ export const TableCellDataPrimary: React.FC<React.PropsWithChildren<{ highlight?
 export const TableCellDataSecondary: React.FC<React.PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return <span className={styles.secondary}>{children}</span>
 }

@@ -578,10 +578,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	if err == nil {
 		err = json.Unmarshal(latestStat.Payload, &lastReport)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to unmarshal stat payload.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "unmarshal stat payload", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("unmarshal stat payload: %s", err))
 			return
 		}
 	}
@@ -591,29 +589,23 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	for {
 		err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to write report request.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "write report request", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("write report request: %s", err))
 			return
 		}
 		var rep codersdk.AgentStatsReportResponse
 
 		err = wsjson.Read(ctx, conn, &rep)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to read report response.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "read report response", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("read report response: %s", err))
 			return
 		}
 
 		repJSON, err := json.Marshal(rep)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to marshal stat json.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "marshal stat json", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("marshal stat json: %s", err))
 			return
 		}
 
@@ -623,7 +615,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		// all.
 		// We also don't want to update the workspace last used at on duplicate
 		// reports.
-		var updateDB = !reflect.DeepEqual(lastReport, rep)
+		updateDB := !reflect.DeepEqual(lastReport, rep)
 
 		api.Logger.Debug(ctx, "read stats report",
 			slog.F("interval", api.AgentStatsRefreshInterval),
@@ -649,10 +641,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				Payload:     json.RawMessage(repJSON),
 			})
 			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to insert agent stat.",
-					Detail:  err.Error(),
-				})
+				api.Logger.Debug(ctx, "insert agent stat", slog.Error(err))
+				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert agent stat: %s", err))
 				return
 			}
 
@@ -661,10 +651,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				LastUsedAt: database.Now(),
 			})
 			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to update workspace last used at.",
-					Detail:  err.Error(),
-				})
+				api.Logger.Debug(ctx, "update workspace last used at", slog.Error(err))
+				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("update workspace last used at: %s", err))
 				return
 			}
 		}
