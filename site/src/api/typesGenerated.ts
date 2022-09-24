@@ -185,6 +185,7 @@ export interface CreateTemplateVersionDryRunRequest {
 
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
+  readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
   readonly storage_source: string

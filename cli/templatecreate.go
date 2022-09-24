@@ -144,6 +144,7 @@ func templateCreate() *cobra.Command {
 }
 
 type createValidTemplateVersionArgs struct {
+	Name          string
 	Client        *codersdk.Client
 	Organization  codersdk.Organization
 	Provisioner   database.ProvisionerType
@@ -162,6 +163,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	client := args.Client
 
 	req := codersdk.CreateTemplateVersionRequest{
+		Name:            args.Name,
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
 		StorageSource:   args.FileHash,
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
