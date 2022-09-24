@@ -303,7 +303,7 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			api.Logger.Debug(ctx, "successfully subscribed to pubsub")
 		}
 
-		api.Logger.Info(ctx, "syncing licensed entitlements")
+		api.Logger.Debug(ctx, "syncing licensed entitlements")
 		err := api.updateEntitlements(ctx)
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to get feature entitlements", slog.Error(err))
