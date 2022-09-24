@@ -14,6 +14,7 @@ export const Language = {
   usernameLabel: "User",
   rolesLabel: "Roles",
   statusLabel: "Status",
+  lastSeenLabel: "Last Seen",
 }
 
 export interface UsersTableProps {
@@ -50,6 +51,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
           <TableRow>
             <TableCell width="50%">{Language.usernameLabel}</TableCell>
             <TableCell width="25%">{Language.statusLabel}</TableCell>
+            <TableCell width="50%">{Language.lastSeenLabel}</TableCell>
             <TableCell width="25%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>

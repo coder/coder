@@ -8,11 +8,11 @@ import { colors } from "theme/colors"
 
 dayjs.extend(relativeTime)
 
-interface WorkspaceLastUsedProps {
+interface LastUsedProps {
   lastUsedAt: string
 }
 
-export const WorkspaceLastUsed: FC<WorkspaceLastUsedProps> = ({ lastUsedAt }) => {
+export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
   const theme: Theme = useTheme()
   const styles = useStyles()
 

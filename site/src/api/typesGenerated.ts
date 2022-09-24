@@ -510,6 +510,7 @@ export interface User {
   readonly username: string
   readonly email: string
   readonly created_at: string
+  readonly last_seen_at: string
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
