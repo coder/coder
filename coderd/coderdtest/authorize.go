@@ -233,7 +233,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
-		"POST:/api/v2/organizations/{organization}/workspaces": {
+		"POST:/api/v2/organizations/{organization}/members/{user}/workspaces": {
 			AssertAction: rbac.ActionCreate,
 			// No ID when creating
 			AssertObject: workspaceRBACObj,

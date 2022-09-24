@@ -128,7 +128,7 @@ export const createWorkspaceMachine = createMachine(
           throw new Error("No create workspace request")
         }
 
-        return createWorkspace(organizationId, createWorkspaceRequest)
+        return createWorkspace(organizationId, "me", createWorkspaceRequest)
       },
     },
     guards: {

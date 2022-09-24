@@ -292,7 +292,6 @@ func New(options *Options) *API {
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
@@ -301,6 +300,7 @@ func New(options *Options) *API {
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
+						r.Post("/workspaces", api.postWorkspacesByOrganization)
 					})
 				})
 			})
