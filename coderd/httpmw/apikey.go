@@ -318,6 +318,9 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 					}
 				}
 
+				// We only want to update this occasionally to reduce DB write
+				// load. We update alongside the UserLink and APIKey since it's
+				// easier on the DB to colocate writes.
 				_, err = cfg.DB.UpdateUserLastSeenAt(ctx, database.UpdateUserLastSeenAtParams{
 					ID:         key.UserID,
 					LastSeenAt: database.Now(),
