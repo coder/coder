@@ -317,6 +317,19 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 						return
 					}
 				}
+
+				_, err = cfg.DB.UpdateUserLastSeenAt(ctx, database.UpdateUserLastSeenAtParams{
+					ID:         key.UserID,
+					LastSeenAt: database.Now(),
+					UpdatedAt:  database.Now(),
+				})
+				if err != nil {
+					write(http.StatusInternalServerError, codersdk.Response{
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
+					})
+					return
+				}
 			}
 
 			// If the key is valid, we also fetch the user roles and status.
