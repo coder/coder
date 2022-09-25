@@ -168,6 +168,18 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 
+			ctx, cancelFunc := context.WithTimeout(cmd.Context(), time.Hour)
+			defer cancelFunc()
+			for retry.New(100*time.Millisecond, 5*time.Second).Wait(ctx) {
+				err := client.PostWorkspaceAgentVersion(cmd.Context(), version)
+				if err != nil {
+					logger.Warn(cmd.Context(), "post agent version: %w", slog.Error(err), slog.F("version", version))
+					continue
+				}
+				logger.Info(ctx, "updated agent version", slog.F("version", version))
+				break
+			}
+
 			executablePath, err := os.Executable()
 			if err != nil {
 				return xerrors.Errorf("getting os executable: %w", err)
@@ -175,10 +187,6 @@ func workspaceAgent() *cobra.Command {
 			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 			if err != nil {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
-			}
-
-			if err := client.PostWorkspaceAgentVersion(cmd.Context(), version); err != nil {
-				logger.Error(cmd.Context(), "post agent version: %w", slog.Error(err), slog.F("version", version))
 			}
 
 			closer := agent.New(agent.Options{
