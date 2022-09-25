@@ -328,9 +328,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			}
 
 			defaultRegion := &tailcfg.DERPRegion{
-				RegionID:   derpServerRegionID,
-				RegionCode: derpServerRegionCode,
-				RegionName: derpServerRegionName,
+				EmbeddedRelay: true,
+				RegionID:      derpServerRegionID,
+				RegionCode:    derpServerRegionCode,
+				RegionName:    derpServerRegionName,
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", derpServerRegionID),
 					RegionID:  derpServerRegionID,

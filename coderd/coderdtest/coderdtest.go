@@ -218,9 +218,10 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		DERPMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
 				1: {
-					RegionID:   1,
-					RegionCode: "coder",
-					RegionName: "Coder",
+					EmbeddedRelay: true,
+					RegionID:      1,
+					RegionCode:    "coder",
+					RegionName:    "Coder",
 					Nodes: []*tailcfg.DERPNode{{
 						Name:             "1a",
 						RegionID:         1,
