@@ -7,6 +7,7 @@ import { Loader } from "components/Loader/Loader"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
+import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { i18n } from "i18n"
 import { FC, useState } from "react"
@@ -169,6 +170,8 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                   ))}
                 </Stack>
               )}
+
+              <WorkspaceQuota />
 
               <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
             </>

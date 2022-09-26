@@ -105,7 +105,6 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
 
         <Stack direction="row" className={styles.profileButton}>
-          <WorkspaceQuota  quota={{ count: 1, limit: 3 }}/>
           {user && <UserDropdown user={user} onSignOut={onSignOut} />}
         </Stack>
       </div>

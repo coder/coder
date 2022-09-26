@@ -11,7 +11,6 @@ import useTheme from "@material-ui/styles/useTheme"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -99,13 +98,7 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
 
   return (
     <Margins>
-        <PageHeader
-          actions={
-            <>
-              <WorkspaceQuota  quota={{ count: 1, limit: 3 }}/>
-            </>
-          }
-        >
+        <PageHeader>
           <PageHeaderTitle>
             <Stack spacing={1} direction="row" alignItems="center">
               Templates

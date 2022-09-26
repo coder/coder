@@ -20,14 +20,18 @@ export interface WorkspaceQuotaProps {
 export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
   const styles = useStyles()
   quota = {
-    count: 1,
-    limit: 10,
+    count: 3,
+    limit: 3,
   }
+  // quota = undefined
   // loading state
   if (quota === undefined) {
     return (
       <Box>
         <Stack spacing={1} className={styles.stack}>
+          <span className={styles.title}>
+            Workspace Quota
+          </span>
           <LinearProgress color="primary" />
           <div className={styles.label}>
             <Skeleton className={styles.skeleton} />
@@ -48,10 +52,14 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
     value = 1
   }
 
+
   return (
     <Box>
       <Stack spacing={1} className={styles.stack}>
-        <LinearProgress value={value} variant="determinate" color="primary" />
+        <span className={styles.title}>
+          Workspace Quota
+        </span>
+        <LinearProgress className={quota.count >= quota.limit ? styles.maxProgress : undefined} value={value} variant="determinate" />
         <div className={styles.label}>
           {quota.count} {Language.of} {quota.limit}{" "}
           {quota.limit === 1 ? Language.workspace : Language.workspaces}{" used"}
@@ -64,6 +72,19 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
 const useStyles = makeStyles((theme) => ({
   stack: {
     paddingTop: theme.spacing(2.5),
+  },
+  maxProgress: {
+    "& .MuiLinearProgress-colorPrimary": {
+      backgroundColor: theme.palette.error.main,
+    },
+    "& .MuiLinearProgress-barColorPrimary": {
+      backgroundColor: theme.palette.error.main,
+    },
+  },
+  title: {
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    fontSize: 21,
+    paddingBottom: "8px",
   },
   label: {
     fontFamily: MONOSPACE_FONT_FAMILY,
