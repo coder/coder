@@ -549,6 +549,7 @@ type User struct {
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
 	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
+	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 }
 
 type UserLink struct {

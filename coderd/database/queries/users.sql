@@ -157,6 +157,15 @@ SET
 WHERE
 	id = $1 RETURNING *;
 
+-- name: UpdateUserLastSeenAt :one
+UPDATE
+	users
+SET
+	last_seen_at = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING *;
+
 
 -- name: GetAuthorizationUserRoles :one
 -- This function returns roles for authorization purposes. Implied member roles
