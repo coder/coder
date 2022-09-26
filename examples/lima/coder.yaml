@@ -67,7 +67,7 @@ provision:
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/terraform-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" > /etc/apt/sources.list.d/terraform.list
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
-    apt-get install terraform=1.1.9
+    apt-get install terraform=1.3.0
     apt-mark hold terraform
 - mode: system
   script: |
