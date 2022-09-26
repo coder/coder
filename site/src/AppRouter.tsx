@@ -5,6 +5,7 @@ import { RequirePermission } from "components/RequirePermission/RequirePermissio
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import IndexPage from "pages"
 import AuditPage from "pages/AuditPage/AuditPage"
+import CreateGroupPage from "pages/GroupsPage/CreateGroupPage"
 import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
@@ -157,6 +158,14 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <GroupsPage />
               </AuthAndFrame>
+            }
+          />
+          <Route
+            path="create"
+            element={
+              <RequireAuth>
+                <CreateGroupPage />
+              </RequireAuth>
             }
           />
         </Route>

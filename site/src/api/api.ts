@@ -512,3 +512,11 @@ export const getGroups = async (organizationId: string): Promise<TypesGen.Group[
   const response = await axios.get(`/api/v2/organizations/${organizationId}/groups`)
   return response.data
 }
+
+export const createGroup = async (
+  organizationId: string,
+  data: TypesGen.CreateGroupRequest,
+): Promise<TypesGen.Group> => {
+  const response = await axios.post(`/api/v2/organizations/${organizationId}/groups`, data)
+  return response.data
+}

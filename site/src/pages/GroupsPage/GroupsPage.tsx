@@ -25,7 +25,7 @@ import { groupsMachine } from "xServices/groups/groupsXService"
 
 const CreateGroupButton: React.FC = () => {
   return (
-    <Link underline="none" component={RouterLink} to="/groups/new">
+    <Link underline="none" component={RouterLink} to="/groups/create">
       <Button startIcon={<AddCircleOutline />}>Create group</Button>
     </Link>
   )
