@@ -2,12 +2,12 @@ import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
+import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import IndexPage from "pages"
 import AuditPage from "pages/AuditPage/AuditPage"
 import LoginPage from "pages/LoginPage/LoginPage"
-import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { SetupPage } from "pages/SetupPage/SetupPage"
-import TemplateCollaboratorsPage from "pages/TemplatePage/TemplateCollaboratorsPage/TemplateCollaboratorsPage"
+import TemplatePermissionsPage from "pages/TemplatePage/TemplatePermissionsPage/TemplatePermissionsPage"
 import TemplateSummaryPage from "pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
@@ -93,43 +93,41 @@ export const AppRouter: FC = () => {
             }
           />
 
-          <Route path=":template">
-            <Route
-              index
-              element={
-                <AuthAndFrame>
-                  <TemplateLayout />
-                </AuthAndFrame>
-              }
-            >
-              <Route index element={<TemplateSummaryPage />} />
-              <Route path="collaborators" element={<TemplateCollaboratorsPage />} />
-            </Route>
-            <Route
-              path="workspace"
-              element={
-                <RequireAuth>
-                  <CreateWorkspacePage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="workspace"
-              element={
-                <RequireAuth>
-                  <CreateWorkspacePage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="settings"
-              element={
-                <RequireAuth>
-                  <TemplateSettingsPage />
-                </RequireAuth>
-              }
-            />
+          <Route
+            path=":template"
+            element={
+              <AuthAndFrame>
+                <TemplateLayout />
+              </AuthAndFrame>
+            }
+          >
+            <Route index element={<TemplateSummaryPage />} />
+            <Route path="permissions" element={<TemplatePermissionsPage />} />
           </Route>
+          <Route
+            path="workspace"
+            element={
+              <RequireAuth>
+                <CreateWorkspacePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="workspace"
+            element={
+              <RequireAuth>
+                <CreateWorkspacePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <RequireAuth>
+                <TemplateSettingsPage />
+              </RequireAuth>
+            }
+          />
         </Route>
 
         <Route path="users">

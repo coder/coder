@@ -12,7 +12,6 @@ import { Loader } from "components/Loader/Loader"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC, useContext } from "react"
-import { useTranslation } from "react-i18next"
 import { Link as RouterLink, Navigate, NavLink, Outlet, useParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "util/firstLetter"
@@ -42,7 +41,6 @@ export const TemplateLayout: FC = () => {
   const styles = useStyles()
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
-  const { t } = useTranslation("templatePage")
   const [templateState, templateSend] = useMachine(templateMachine, {
     context: {
       templateName,
@@ -143,7 +141,7 @@ export const TemplateLayout: FC = () => {
               Summary
             </NavLink>
             <NavLink
-              to={`/templates/${template.name}/collaborators`}
+              to={`/templates/${template.name}/permissions`}
               className={({ isActive }) =>
                 combineClasses([styles.tabItem, isActive ? styles.tabItemActive : undefined])
               }
@@ -161,14 +159,14 @@ export const TemplateLayout: FC = () => {
       <DeleteDialog
         isOpen={templateState.matches("confirmingDelete")}
         confirmLoading={templateState.matches("deleting")}
-        title={t("deleteDialog.title")}
-        description={t("deleteDialog.description")}
         onConfirm={() => {
           templateSend("CONFIRM_DELETE")
         }}
         onCancel={() => {
           templateSend("CANCEL_DELETE")
         }}
+        entity="template"
+        name={template.name}
       />
     </>
   )
