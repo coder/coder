@@ -31,6 +31,7 @@ const CreateWorkspacePage: FC = () => {
     getTemplatesError,
     createWorkspaceError,
     permissions,
+    quota,
   } = createWorkspaceState.context
 
   const xServices = useContext(XServiceContext)
@@ -53,6 +54,7 @@ const CreateWorkspacePage: FC = () => {
         templates={templates}
         selectedTemplate={selectedTemplate}
         templateSchema={templateSchema}
+        quota={quota}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
           [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: getTemplateSchemaError,

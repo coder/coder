@@ -19,11 +19,7 @@ export interface WorkspaceQuotaProps {
 
 export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
   const styles = useStyles()
-  quota = {
-    count: 3,
-    limit: 3,
-  }
-  // quota = undefined
+
   // loading state
   if (quota === undefined) {
     return (

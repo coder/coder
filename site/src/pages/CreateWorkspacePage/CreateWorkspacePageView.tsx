@@ -30,6 +30,7 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
+  quota?: TypesGen.UserWorkspaceQuota
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
   defaultWorkspaceOwner: TypesGen.User | null
@@ -171,7 +172,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 </Stack>
               )}
 
-              <WorkspaceQuota />
+              <WorkspaceQuota quota={props.quota}/>
 
               <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
             </>
