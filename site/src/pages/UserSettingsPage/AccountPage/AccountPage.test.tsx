@@ -38,6 +38,7 @@ describe("AccountPage", () => {
           organization_ids: ["123"],
           roles: [],
           avatar_url: "",
+          last_seen_at: new Date().toString(),
           ...data,
         }),
       )
