@@ -280,7 +280,7 @@ export interface GitSSHKey {
 
 // From codersdk/groups.go
 export interface Group {
-  readonly uuid: string
+  readonly id: string
   readonly name: string
   readonly organization_id: string
   readonly members: User[]

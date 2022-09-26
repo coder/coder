@@ -3,7 +3,6 @@ package rbac
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"sync"
 
 	"github.com/open-policy-agent/opa/rego"
@@ -92,12 +91,7 @@ func NewAuthorizer() *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error
 		query, err = rego.New(
-			// Bind the results to 2 variables for easy checking later.
-			rego.Query(
-				fmt.Sprintf("%s := data.authz.role_allow "+
-					"%s := data.authz.scope_allow",
-					rolesOkCheck, scopeOkCheck),
-			),
+			rego.Query("data.authz.allow"),
 			rego.Module("policy.rego", policy),
 		).PrepareForEval(context.Background())
 		if err != nil {
@@ -158,31 +152,10 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
 	}
 
-	// We expect only the 2 bindings for scopes and roles checks.
-	if len(results) == 1 && len(results[0].Bindings) == 2 {
-		roleCheck, ok := results[0].Bindings[rolesOkCheck].(bool)
-		if !ok || !roleCheck {
-			return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
-		}
-
-		scopeCheck, ok := results[0].Bindings[scopeOkCheck].(bool)
-		if !ok || !scopeCheck {
-			return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
-		}
-
-		// This is purely defensive programming. The two above checks already
-		// check for 'true' expressions. This is just a sanity check to make
-		// sure we don't add non-boolean expressions to our query.
-		// This is super cheap to do, and just adds in some extra safety for
-		// programmer error.
-		for _, exp := range results[0].Expressions {
-			if b, ok := exp.Value.(bool); !ok || !b {
-				return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
-			}
-		}
-		return nil
+	if !results.Allowed() {
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
 	}
-	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+	return nil
 }
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).

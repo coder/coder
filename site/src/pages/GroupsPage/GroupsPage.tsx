@@ -82,13 +82,13 @@ export const GroupsPage: React.FC = () => {
 
                 <Cond condition={!isEmpty}>
                   {groups?.map((group) => {
-                    const groupPageLink = `/groups/${group.uuid}`
+                    const groupPageLink = `/groups/${group.id}`
 
                     return (
                       <TableRow
-                        key={group.uuid}
+                        key={group.id}
                         hover
-                        data-testid={`group-${group.uuid}`}
+                        data-testid={`group-${group.id}`}
                         tabIndex={0}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {

@@ -2,8 +2,8 @@ package authz
 import future.keywords
 # A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
-# opa eval --format=pretty 'data.authz.role_allow data.authz.scope_allow' -d policy.rego  -i input.json
-# opa eval --partial --format=pretty 'data.authz.role_allow = true data.authz.scope_allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
+# opa eval --format=pretty 'data.authz.allow' -d policy.rego  -i input.json
+# opa eval --partial --format=pretty 'data.authz.allow' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
 
 #
 # This policy is specifically constructed to compress to a set of queries if the
@@ -156,7 +156,6 @@ user_allow(roles) := num {
 # Allow query:
 #	 data.authz.role_allow = true data.authz.scope_allow = true
 
-default role_allow = false
 role_allow {
 	site = 1
 }
@@ -175,8 +174,6 @@ role_allow {
 	user = 1
 }
 
-
-default scope_allow = false
 scope_allow {
 	scope_site = 1
 }
@@ -196,7 +193,7 @@ scope_allow {
 }
 
 # ACL for users
-allow {
+acl_allow {
 	# Should you have to be a member of the org too?
 	perms := input.object.acl_user_list[input.subject.id]
 	# Either the input action or wildcard
@@ -204,19 +201,34 @@ allow {
 }
 
 # ACL for groups
-allow {
+acl_allow {
 	# If there is no organization owner, the object cannot be owned by an
 	# org_scoped team.
 	# TODO: This line and 'org_mem' are similiar and should be combined.
 	# 	Currently the simplfied queries return extra queries that are always
 	# 	false. If these 2 lines are combined, we reduce the number of queries
 	# 	returned by partial execution.
-	input.object.org_owner != ""
+#	input.object.org_owner != ""
 	# Only people in the org can use the team access.
-	org_mem
+#	org_mem
 	group := input.subject.groups[_]
 	perms := input.object.acl_group_list[group]
 	# Either the input action or wildcard
 	[input.action, "*"][_] in perms
 }
 
+###############
+# Final Allow
+# The role or the ACL must allow the action. Scopes can be used to limit,
+# so scope_allow must always be true.
+
+allow {
+	role_allow
+	scope_allow
+}
+
+# ACL list must also have the scope_allow to pass
+allow {
+	acl_allow
+	scope_allow
+}
