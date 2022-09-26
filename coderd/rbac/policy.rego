@@ -208,9 +208,9 @@ acl_allow {
 	# 	Currently the simplfied queries return extra queries that are always
 	# 	false. If these 2 lines are combined, we reduce the number of queries
 	# 	returned by partial execution.
-	input.object.org_owner != ""
+#	input.object.org_owner != ""
 	# Only people in the org can use the team access.
-	org_mem
+#	org_mem
 	group := input.subject.groups[_]
 	perms := input.object.acl_group_list[group]
 	# Either the input action or wildcard
