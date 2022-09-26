@@ -256,8 +256,16 @@ func TestPostLogin(t *testing.T) {
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
+
 		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
+			Password: req.Password,
+		})
+		require.NoError(t, err)
+
+		// Login should be case insensitive
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    strings.ToUpper(req.Email),
 			Password: req.Password,
 		})
 		require.NoError(t, err)
