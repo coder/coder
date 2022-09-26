@@ -6,11 +6,11 @@ import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
-import { ChangeEvent, useState } from "react"
+import { ChangeEvent, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 
 export type UserAutocompleteProps = {
-  value: User
+  value?: User
   onChange: (user: User | null) => void
 }
 
@@ -19,6 +19,21 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
+  const [selectedValue, setSelectedValue] = useState<User | null>(value || null)
+
+  // seed list of options on the first page load
+  useEffect(() => {
+    const query = value ? value.email : ""
+    sendSearch("SEARCH", { query })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // when selected value changes, update search terms
+  useEffect(() => {
+    const query = selectedValue ? selectedValue.email : ""
+    sendSearch("SEARCH", { query })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedValue])
 
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
@@ -26,9 +41,8 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
 
   return (
     <Autocomplete
-      value={value}
+      value={selectedValue}
       id="user-autocomplete"
-      style={{ width: 300 }}
       open={isAutocompleteOpen}
       onOpen={() => {
         setIsAutocompleteOpen(true)
@@ -37,6 +51,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
         setIsAutocompleteOpen(false)
       }}
       onChange={(event, newValue) => {
+        setSelectedValue(newValue)
         onChange(newValue)
       }}
       getOptionSelected={(option: User, value: User) => option.username === value.username}
