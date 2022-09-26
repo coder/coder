@@ -69,3 +69,5 @@ export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
     </>
   )
 }
+
+export default SSHKeysPage

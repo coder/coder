@@ -59,19 +59,14 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
         <Stack spacing={0.5} className={styles.codeExamples}>
           <div>
             <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>
-                Configure ssh{" "}
-                <span className={styles.textHelper}>
-                  - only needs to be run once, or after managing workspaces
-                </span>
-              </strong>
+              <strong className={styles.codeExampleLabel}>Configure SSH hosts on machine:</strong>
             </HelpTooltipText>
             <CodeExample code="coder config-ssh" />
           </div>
 
           <div>
             <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>Connect to the agent</strong>
+              <strong className={styles.codeExampleLabel}>Connect to the agent:</strong>
             </HelpTooltipText>
             <CodeExample code={`ssh coder.${workspaceName}.${agentName}`} />
           </div>
@@ -81,8 +76,11 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
             Install Coder CLI
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides/web-ides">
-            Configuring Web IDEs
+          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#vs-code-remote">
+            Connect via VS Code Remote SSH
+          </HelpTooltipLink>
+          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#jetbrains-gateway">
+            Connect via JetBrains Gateway
           </HelpTooltipLink>
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">
             SSH configuration

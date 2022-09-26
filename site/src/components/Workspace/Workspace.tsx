@@ -43,8 +43,10 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
+  hideSSHButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
+  applicationsHost?: string
 }
 
 /**
@@ -63,7 +65,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   builds,
   canUpdateWorkspace,
   workspaceErrors,
+  hideSSHButton,
   buildInfo,
+  applicationsHost,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -137,6 +141,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             workspace={workspace}
             canUpdateWorkspace={canUpdateWorkspace}
             buildInfo={buildInfo}
+            hideSSHButton={hideSSHButton}
+            applicationsHost={applicationsHost}
           />
         )}
 

@@ -108,14 +108,10 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   return response.data
 }
 
-export const checkUserPermissions = async (
-  userId: string,
-  params: TypesGen.UserAuthorizationRequest,
-): Promise<TypesGen.UserAuthorizationResponse> => {
-  const response = await axios.post<TypesGen.UserAuthorizationResponse>(
-    `/api/v2/users/${userId}/authorization`,
-    params,
-  )
+export const checkAuthorization = async (
+  params: TypesGen.AuthorizationRequest,
+): Promise<TypesGen.AuthorizationResponse> => {
+  const response = await axios.post<TypesGen.AuthorizationResponse>(`/api/v2/authcheck`, params)
   return response.data
 }
 
@@ -219,6 +215,18 @@ export const getWorkspace = async (
   return response.data
 }
 
+/**
+ *
+ * @param workspaceId
+ * @returns An EventSource that emits workspace event objects (ServerSentEvent)
+ */
+export const watchWorkspace = (workspaceId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
+    { withCredentials: true },
+  )
+}
+
 export const getURLWithSearchParams = (
   basePath: string,
   filter?: TypesGen.WorkspaceFilter | TypesGen.UsersRequest,
@@ -294,10 +302,11 @@ export const createUser = async (user: TypesGen.CreateUserRequest): Promise<Type
 
 export const createWorkspace = async (
   organizationId: string,
+  userId = "me",
   workspace: TypesGen.CreateWorkspaceRequest,
 ): Promise<TypesGen.Workspace> => {
   const response = await axios.post<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationId}/workspaces`,
+    `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
     workspace,
   )
   return response.data
@@ -484,5 +493,10 @@ export const getTemplateDAUs = async (
   templateId: string,
 ): Promise<TypesGen.TemplateDAUsResponse> => {
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
+  return response.data
+}
+
+export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse> => {
+  const response = await axios.get(`/api/v2/applications/host`)
   return response.data
 }

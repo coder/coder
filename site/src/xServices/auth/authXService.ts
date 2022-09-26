@@ -114,7 +114,7 @@ export const authMachine =
             data: undefined
           }
           checkPermissions: {
-            data: TypesGen.UserAuthorizationResponse
+            data: TypesGen.AuthorizationResponse
           }
           getSSHKey: {
             data: TypesGen.GitSSHKey
@@ -438,12 +438,8 @@ export const authMachine =
 
           return API.updateUserPassword(context.me.id, event.data)
         },
-        checkPermissions: async (context) => {
-          if (!context.me) {
-            throw new Error("No current user found")
-          }
-
-          return API.checkUserPermissions(context.me.id, {
+        checkPermissions: async () => {
+          return API.checkAuthorization({
             checks: permissionsToCheck,
           })
         },

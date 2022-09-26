@@ -1956,6 +1956,22 @@ func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserLastSeenAt(_ context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.LastSeenAt = arg.LastSeenAt
+		user.UpdatedAt = arg.UpdatedAt
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2019,17 +2035,36 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 
 	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
-		ID:           arg.ID,
-		AgentID:      arg.AgentID,
-		CreatedAt:    arg.CreatedAt,
-		Name:         arg.Name,
-		Icon:         arg.Icon,
-		Command:      arg.Command,
-		Url:          arg.Url,
-		RelativePath: arg.RelativePath,
+		ID:                   arg.ID,
+		AgentID:              arg.AgentID,
+		CreatedAt:            arg.CreatedAt,
+		Name:                 arg.Name,
+		Icon:                 arg.Icon,
+		Command:              arg.Command,
+		Url:                  arg.Url,
+		RelativePath:         arg.RelativePath,
+		HealthcheckUrl:       arg.HealthcheckUrl,
+		HealthcheckInterval:  arg.HealthcheckInterval,
+		HealthcheckThreshold: arg.HealthcheckThreshold,
+		Health:               arg.Health,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, app := range q.workspaceApps {
+		if app.ID != arg.ID {
+			continue
+		}
+		app.Health = arg.Health
+		q.workspaceApps[index] = app
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
@@ -2388,13 +2423,26 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			arg.Offset--
 			continue
 		}
-
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
-
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
 		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
@@ -2440,9 +2488,23 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
-
 		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
 			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
 		}
 
 		logs = append(logs, alog)

@@ -164,6 +164,7 @@ func (c *Coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 			c.mutex.Unlock()
 			continue
 		}
+		c.mutex.Unlock()
 		// Write the new node from this client to the actively
 		// connected agent.
 		data, err := json.Marshal([]*Node{&node})
@@ -173,14 +174,11 @@ func (c *Coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 		}
 		_, err = agentSocket.Write(data)
 		if errors.Is(err, io.EOF) {
-			c.mutex.Unlock()
 			return nil
 		}
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("write json: %w", err)
 		}
-		c.mutex.Unlock()
 	}
 }
 
@@ -259,7 +257,7 @@ func (c *Coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 				wg.Done()
 			}()
 		}
-		wg.Wait()
 		c.mutex.Unlock()
+		wg.Wait()
 	}
 }

@@ -1,8 +1,10 @@
+import { makeStyles } from "@material-ui/core/styles"
 import { useMachine, useSelector } from "@xstate/react"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { Margins } from "components/Margins/Margins"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
 import { Navigate, useParams } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { XServiceContext } from "xServices/StateContext"
@@ -23,8 +25,8 @@ const useTemplateName = () => {
 }
 
 export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
+  const styles = useStyles()
   const organizationId = useOrganizationId()
-  const { t } = useTranslation("templatePage")
   const templateName = useTemplateName()
   const [templateState, templateSend] = useMachine(templateMachine, {
     context: {
@@ -40,6 +42,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     templateVersions,
     deleteTemplateError,
     templateDAUs,
+    getTemplateError,
   } = templateState.context
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
@@ -48,6 +51,16 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
 
   const handleDeleteTemplate = () => {
     templateSend("DELETE")
+  }
+
+  if (templateState.matches("error") && Boolean(getTemplateError)) {
+    return (
+      <Margins>
+        <div className={styles.errorBox}>
+          <ErrorSummary error={getTemplateError} />
+        </div>
+      </Margins>
+    )
   }
 
   if (isLoading) {
@@ -77,8 +90,8 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
       <DeleteDialog
         isOpen={templateState.matches("confirmingDelete")}
         confirmLoading={templateState.matches("deleting")}
-        title={t("deleteDialog.title")}
-        description={t("deleteDialog.description")}
+        entity="template"
+        name={template.name}
         onConfirm={() => {
           templateSend("CONFIRM_DELETE")
         }}
@@ -89,5 +102,11 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     </>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  errorBox: {
+    padding: theme.spacing(3),
+  },
+}))
 
 export default TemplatePage

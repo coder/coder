@@ -21,12 +21,12 @@ import (
 )
 
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	ctx := r.Context()
 	page, ok := parsePagination(rw, r)
 	if !ok {
 		return
@@ -35,7 +35,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
 	if len(errs) > 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
 			Validations: errs,
 		})
@@ -46,14 +46,17 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Offset:       int32(page.Offset),
 		Limit:        int32(page.Limit),
 		ResourceType: filter.ResourceType,
+		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
+		Username:     filter.Username,
+		Email:        filter.Email,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.AuditLogResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: convertAuditLogs(dblogs),
 	})
 }
@@ -68,7 +71,7 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
 	if len(errs) > 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
 			Validations: errs,
 		})
@@ -77,14 +80,17 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 
 	count, err := api.Database.GetAuditLogCount(ctx, database.GetAuditLogCountParams{
 		ResourceType: filter.ResourceType,
+		ResourceID:   filter.ResourceID,
 		Action:       filter.Action,
+		Username:     filter.Username,
+		Email:        filter.Email,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.AuditLogCountResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogCountResponse{
 		Count: count,
 	})
 }
@@ -125,7 +131,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var params codersdk.CreateTestAuditLogRequest
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 	if params.Action == "" {
@@ -133,6 +139,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	}
 	if params.ResourceType == "" {
 		params.ResourceType = codersdk.ResourceTypeUser
+	}
+	if params.ResourceID == uuid.Nil {
+		params.ResourceID = uuid.New()
 	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
@@ -142,7 +151,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Ip:               ipNet,
 		UserAgent:        r.UserAgent(),
 		ResourceType:     database.ResourceType(params.ResourceType),
-		ResourceID:       user.ID,
+		ResourceID:       params.ResourceID,
 		ResourceTarget:   user.Username,
 		Action:           database.AuditAction(params.Action),
 		Diff:             diff,
@@ -251,7 +260,10 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
 		ResourceType: parser.String(searchParams, "", "resource_type"),
+		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
 		Action:       parser.String(searchParams, "", "action"),
+		Username:     parser.String(searchParams, "", "username"),
+		Email:        parser.String(searchParams, "", "email"),
 	}
 
 	return filter, parser.Errors

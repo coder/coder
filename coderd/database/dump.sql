@@ -88,6 +88,13 @@ CREATE TYPE user_status AS ENUM (
     'suspended'
 );
 
+CREATE TYPE workspace_app_health AS ENUM (
+    'disabled',
+    'initializing',
+    'healthy',
+    'unhealthy'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -117,6 +124,8 @@ CREATE TABLE api_keys (
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     scope api_key_scope DEFAULT 'all'::public.api_key_scope NOT NULL
 );
+
+COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
 
 CREATE TABLE audit_logs (
     id uuid NOT NULL,
@@ -308,7 +317,8 @@ CREATE TABLE users (
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::public.login_type NOT NULL,
     avatar_url text,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -342,7 +352,11 @@ CREATE TABLE workspace_apps (
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
-    relative_path boolean DEFAULT false NOT NULL
+    relative_path boolean DEFAULT false NOT NULL,
+    healthcheck_url text DEFAULT ''::text NOT NULL,
+    healthcheck_interval integer DEFAULT 0 NOT NULL,
+    healthcheck_threshold integer DEFAULT 0 NOT NULL,
+    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
 );
 
 CREATE TABLE workspace_builds (

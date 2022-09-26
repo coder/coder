@@ -1,4 +1,4 @@
-import { createMuiTheme } from "@material-ui/core/styles"
+import { createTheme } from "@material-ui/core/styles"
 import { PaletteOptions } from "@material-ui/core/styles/createPalette"
 import { borderRadius } from "./constants"
 import { getOverrides } from "./overrides"
@@ -7,7 +7,7 @@ import { props } from "./props"
 import { typography } from "./typography"
 
 const makeTheme = (palette: PaletteOptions) => {
-  const theme = createMuiTheme({
+  const theme = createTheme({
     palette,
     typography,
     shape: {

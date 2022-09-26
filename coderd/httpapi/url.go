@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"fmt"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,15 +22,14 @@ var (
 // SplitSubdomain splits a subdomain from the rest of the hostname. E.g.:
 //   - "foo.bar.com" becomes "foo", "bar.com"
 //   - "foo.bar.baz.com" becomes "foo", "bar.baz.com"
-//
-// An error is returned if the string doesn't contain a period.
-func SplitSubdomain(hostname string) (subdomain string, rest string, err error) {
+//   - "foo" becomes "foo", ""
+func SplitSubdomain(hostname string) (subdomain string, rest string) {
 	toks := strings.SplitN(hostname, ".", 2)
 	if len(toks) < 2 {
-		return "", "", xerrors.New("no subdomain")
+		return toks[0], ""
 	}
 
-	return toks[0], toks[1], nil
+	return toks[0], toks[1]
 }
 
 // ApplicationURL is a parsed application URL hostname.
@@ -40,35 +40,31 @@ type ApplicationURL struct {
 	AgentName     string
 	WorkspaceName string
 	Username      string
-	// BaseHostname is the rest of the hostname minus the application URL part
-	// and the first dot.
-	BaseHostname string
 }
 
-// String returns the application URL hostname without scheme.
+// String returns the application URL hostname without scheme. You will likely
+// want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
 	appNameOrPort := a.AppName
 	if a.Port != 0 {
 		appNameOrPort = strconv.Itoa(int(a.Port))
 	}
 
-	return fmt.Sprintf("%s--%s--%s--%s.%s", appNameOrPort, a.AgentName, a.WorkspaceName, a.Username, a.BaseHostname)
+	return fmt.Sprintf("%s--%s--%s--%s", appNameOrPort, a.AgentName, a.WorkspaceName, a.Username)
 }
 
-// ParseSubdomainAppURL parses an ApplicationURL from the given hostname. If
+// ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
 // the subdomain is not a valid application URL hostname, returns a non-nil
-// error.
+// error. If the hostname is not a subdomain of the given base hostname, returns
+// a non-nil error.
+//
+// The base hostname should not include a scheme, leading asterisk or dot.
 //
 // Subdomains should be in the form:
 //
 //	{PORT/APP_NAME}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-//	(eg. http://8080--main--dev--dean.hi.c8s.io)
-func ParseSubdomainAppURL(hostname string) (ApplicationURL, error) {
-	subdomain, rest, err := SplitSubdomain(hostname)
-	if err != nil {
-		return ApplicationURL{}, xerrors.Errorf("split host domain %q: %w", hostname, err)
-	}
-
+//	(eg. https://8080--main--dev--dean.hi.c8s.io)
+func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)
 	if len(matches) == 0 {
 		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
@@ -82,7 +78,6 @@ func ParseSubdomainAppURL(hostname string) (ApplicationURL, error) {
 		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
 		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
 		Username:      matchGroup[appURL.SubexpIndex("Username")],
-		BaseHostname:  rest,
 	}, nil
 }
 
@@ -97,4 +92,22 @@ func AppNameOrPort(val string) (string, uint16) {
 	}
 
 	return val, uint16(port)
+}
+
+// HostnamesMatch returns true if the hostnames are equal, disregarding
+// capitalization, extra leading or trailing periods, and ports.
+func HostnamesMatch(a, b string) bool {
+	a = strings.Trim(a, ".")
+	b = strings.Trim(b, ".")
+
+	aHost, _, err := net.SplitHostPort(a)
+	if err != nil {
+		aHost = a
+	}
+	bHost, _, err := net.SplitHostPort(b)
+	if err != nil {
+		bHost = b
+	}
+
+	return strings.EqualFold(aHost, bHost)
 }

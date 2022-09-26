@@ -79,7 +79,7 @@ export const handlers = [
   rest.get("/api/v2/users/roles", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockSiteRoles))
   }),
-  rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+  rest.post("/api/v2/authcheck", async (req, res, ctx) => {
     const permissions = Object.keys(permissionsToCheck)
     const response = permissions.reduce((obj, permission) => {
       return {
@@ -167,5 +167,10 @@ export const handlers = [
 
   rest.get("/api/v2/audit/count", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json({ count: 1000 }))
+  }),
+
+  // Applications host
+  rest.get("/api/v2/applications/host", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json({ host: "dev.coder.com" }))
   }),
 ]

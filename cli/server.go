@@ -72,6 +72,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	var (
 		accessURL             string
 		address               string
+		wildcardAccessURL     string
 		autobuildPollInterval time.Duration
 		derpServerEnabled     bool
 		derpServerRegionID    int
@@ -103,6 +104,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		oidcScopes                       []string
 		tailscaleEnable                  bool
 		telemetryEnable                  bool
+		telemetryTraceEnable             bool
 		telemetryURL                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
@@ -160,10 +162,19 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				sqlDriver      = "postgres"
 			)
 
-			if traceEnable || telemetryEnable {
+			// Coder tracing should be disabled if telemetry is disabled unless
+			// --telemetry-trace was explicitly provided.
+			shouldCoderTrace := telemetryEnable && !isTest()
+			// Only override if telemetryTraceEnable was specifically set.
+			// By default we want it to be controlled by telemetryEnable.
+			if cmd.Flags().Changed("telemetry-trace") {
+				shouldCoderTrace = telemetryTraceEnable
+			}
+
+			if traceEnable || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 					Default: traceEnable,
-					Coder:   telemetryEnable && !isTest(),
+					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
 					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
@@ -317,9 +328,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			}
 
 			defaultRegion := &tailcfg.DERPRegion{
-				RegionID:   derpServerRegionID,
-				RegionCode: derpServerRegionCode,
-				RegionName: derpServerRegionName,
+				EmbeddedRelay: true,
+				RegionID:      derpServerRegionID,
+				RegionCode:    derpServerRegionCode,
+				RegionName:    derpServerRegionName,
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", derpServerRegionID),
 					RegionID:  derpServerRegionID,
@@ -337,8 +349,13 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
+			appHostname := strings.TrimPrefix(wildcardAccessURL, "http://")
+			appHostname = strings.TrimPrefix(appHostname, "https://")
+			appHostname = strings.TrimPrefix(appHostname, "*.")
+
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
+				AppHostname:                 appHostname,
 				Logger:                      logger.Named("coderd"),
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
@@ -745,6 +762,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"External URL to access your deployment. This must be accessible by all provisioned workspaces.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000",
 		"Bind address of the server.")
+	cliflag.StringVarP(root.Flags(), &wildcardAccessURL, "wildcard-access-url", "", "CODER_WILDCARD_ACCESS_URL", "", `Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".`)
 	cliflag.StringVarP(root.Flags(), &derpConfigURL, "derp-config-url", "", "CODER_DERP_CONFIG_URL", "",
 		"URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/")
 	cliflag.StringVarP(root.Flags(), &derpConfigPath, "derp-config-path", "", "CODER_DERP_CONFIG_PATH", "",
@@ -768,11 +786,16 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"Serve pprof metrics on the address defined by `pprof-address`.")
 	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060",
 		"The bind address to serve pprof.")
-	defaultCacheDir := filepath.Join(os.TempDir(), "coder-cache")
+
+	defaultCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		defaultCacheDir = os.TempDir()
+	}
 	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
 		// For compatibility with systemd.
 		defaultCacheDir = dir
 	}
+	defaultCacheDir = filepath.Join(defaultCacheDir, "coder")
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir,
 		"The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
 	cliflag.BoolVarP(root.Flags(), &inMemoryDatabase, "in-memory", "", "CODER_INMEMORY", false,
@@ -812,6 +835,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	enableTelemetryByDefault := !isTest()
 	cliflag.BoolVarP(root.Flags(), &telemetryEnable, "telemetry", "", "CODER_TELEMETRY", enableTelemetryByDefault,
 		"Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.")
+	cliflag.BoolVarP(root.Flags(), &telemetryTraceEnable, "telemetry-trace", "", "CODER_TELEMETRY_TRACE", enableTelemetryByDefault,
+		"Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.")
 	cliflag.StringVarP(root.Flags(), &telemetryURL, "telemetry-url", "", "CODER_TELEMETRY_URL", "https://telemetry.coder.com",
 		"URL to send telemetry.")
 	_ = root.Flags().MarkHidden("telemetry-url")

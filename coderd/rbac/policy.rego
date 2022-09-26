@@ -2,8 +2,8 @@ package authz
 import future.keywords
 # A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
-# opa eval --format=pretty 'data.authz.allow = true' -d policy.rego  -i input.json
-# opa eval --partial --format=pretty 'data.authz.allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner -i input.json
+# opa eval --format=pretty 'data.authz.role_allow data.authz.scope_allow' -d policy.rego  -i input.json
+# opa eval --partial --format=pretty 'data.authz.role_allow = true data.authz.scope_allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner -i input.json
 
 #
 # This policy is specifically constructed to compress to a set of queries if the
@@ -64,11 +64,15 @@ number(set) = c {
 # from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
 default site = 0
-site := num {
+site := site_allow(input.subject.roles)
+default scope_site := 0
+scope_site := site_allow([input.subject.scope])
+
+site_allow(roles) := num {
 	# allow is a set of boolean values without duplicates.
 	allow := { x |
 		# Iterate over all site permissions in all roles
-    	perm := input.subject.roles[_].site[_]
+    	perm := roles[_].site[_]
         perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
 		# x is either 'true' or 'false' if a matching permission exists.
@@ -85,11 +89,15 @@ org_members := { orgID |
 # org is the same as 'site' except we need to iterate over each organization
 # that the actor is a member of.
 default org = 0
-org := num {
+org := org_allow(input.subject.roles)
+default scope_org := 0
+scope_org := org_allow([input.scope])
+
+org_allow(roles) := num {
 	allow := { id: num |
 		id := org_members[_]
 		set := { x |
-			perm := input.subject.roles[_].org[id][_]
+			perm := roles[_].org[id][_]
 			perm.action in [input.action, "*"]
 			perm.resource_type in [input.object.type, "*"]
 			x := bool_flip(perm.negate)
@@ -120,11 +128,15 @@ org_mem := true {
 # User is the same as the site, except it only applies if the user owns the object and
 # the user is apart of the org (if the object has an org).
 default user = 0
-user := num {
+user := user_allow(input.subject.roles)
+default user_scope := 0
+scope_user := user_allow([input.scope])
+
+user_allow(roles) := num {
     input.object.owner != ""
     input.subject.id = input.object.owner
 	allow := { x |
-    	perm := input.subject.roles[_].user[_]
+    	perm := roles[_].user[_]
         perm.action in [input.action, "*"]
 		perm.resource_type in [input.object.type, "*"]
         x := bool_flip(perm.negate)
@@ -136,23 +148,49 @@ user := num {
 # Authorization looks for any `allow` statement that is true. Multiple can be true!
 # Note that the absence of `allow` means "unauthorized".
 # An explicit `"allow": true` is required.
+#
+# Scope is also applied. The default scope is "wildcard:wildcard" allowing
+# all actions. If the scope is not "1", then the action is not authorized.
+#
+#
+# Allow query:
+#	 data.authz.role_allow = true data.authz.scope_allow = true
 
-
-default allow = false
-allow {
+default role_allow = false
+role_allow {
 	site = 1
 }
 
-allow {
+role_allow {
 	not site = -1
 	org = 1
 }
 
-allow {
+role_allow {
 	not site = -1
 	not org = -1
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_mem
 	user = 1
+}
+
+
+default scope_allow = false
+scope_allow {
+	scope_site = 1
+}
+
+scope_allow {
+	not scope_site = -1
+	scope_org = 1
+}
+
+scope_allow {
+	not scope_site = -1
+	not scope_org = -1
+	# If we are not a member of an org, and the object has an org, then we are
+	# not authorized. This is an "implied -1" for not being in the org.
+	org_mem
+	scope_user = 1
 }

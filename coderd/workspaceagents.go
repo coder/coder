@@ -23,7 +23,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -34,15 +33,16 @@ import (
 )
 
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace agent applications.",
 			Detail:  err.Error(),
 		})
@@ -50,28 +50,43 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, apiAgent)
+	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
+}
+
+func (api *API) workspaceAgentApps(rw http.ResponseWriter, r *http.Request) {
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent applications.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, convertApps(dbApps))
 }
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, agent.Metadata{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentMetadata{
 		DERPMap:              api.DERPMap,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
@@ -80,10 +95,11 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 }
 
 func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
@@ -91,37 +107,39 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 	}
 
 	var req codersdk.PostWorkspaceAgentVersionRequest
-	if !httpapi.Read(rw, r, &req) {
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	api.Logger.Info(r.Context(), "post workspace agent version", slog.F("agent_id", apiAgent.ID), slog.F("agent_version", req.Version))
+	api.Logger.Info(ctx, "post workspace agent version", slog.F("agent_id", apiAgent.ID), slog.F("agent_version", req.Version))
 
 	if !semver.IsValid(req.Version) {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid workspace agent version provided.",
 			Detail:  fmt.Sprintf("invalid semver version: %q", req.Version),
 		})
 		return
 	}
 
-	if err := api.Database.UpdateWorkspaceAgentVersionByID(r.Context(), database.UpdateWorkspaceAgentVersionByIDParams{
+	if err := api.Database.UpdateWorkspaceAgentVersionByID(ctx, database.UpdateWorkspaceAgentVersionByIDParams{
 		ID:      apiAgent.ID,
 		Version: req.Version,
 	}); err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, nil)
+	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
 // This is used for the web terminal.
 func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
@@ -135,14 +153,14 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		httpapi.Write(rw, http.StatusPreconditionRequired, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
 			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
@@ -150,7 +168,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query param 'reconnect' must be a valid UUID.",
 			Validations: []codersdk.ValidationError{
 				{Field: "reconnect", Detail: "invalid UUID"},
@@ -171,14 +189,14 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	_, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	_, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
 
 	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
@@ -200,7 +218,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(ptNetConn, wsNetConn)
 }
 
-func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.AgentConn, error) {
 	clientConn, serverConn := net.Pipe()
 	go func() {
 		<-r.Context().Done()
@@ -208,9 +226,44 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		_ = serverConn.Close()
 	}()
 
+	derpMap := api.DERPMap.Clone()
+	for _, region := range derpMap.Regions {
+		if !region.EmbeddedRelay {
+			continue
+		}
+		var node *tailcfg.DERPNode
+		for _, n := range region.Nodes {
+			if n.STUNOnly {
+				continue
+			}
+			node = n
+			break
+		}
+		if node == nil {
+			continue
+		}
+		// TODO: This should dial directly to execute the
+		// DERP server instead of contacting localhost.
+		//
+		// This requires modification of Tailscale internals
+		// to pipe through a proxy function per-region, so
+		// this is an easy and mostly reliable hack for now.
+		cloned := node.Clone()
+		// Add p for proxy.
+		// This first node supports TLS.
+		cloned.Name += "p"
+		cloned.IPv4 = "127.0.0.1"
+		cloned.InsecureForTests = true
+		region.Nodes = append(region.Nodes, cloned.Clone())
+		// This second node forces HTTP.
+		cloned.Name += "-http"
+		cloned.ForceHTTP = true
+		region.Nodes = append(region.Nodes, cloned)
+	}
+
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   api.DERPMap,
+		DERPMap:   derpMap,
 		Logger:    api.Logger.Named("tailnet").Leveled(slog.LevelDebug),
 	})
 	if err != nil {
@@ -227,40 +280,43 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 			_ = conn.Close()
 		}
 	}()
-	return &agent.Conn{
+	return &codersdk.AgentConn{
 		Conn: conn,
 	}, nil
 }
 
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
 		DERPMap: api.DERPMap,
 	})
 }
 
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Internal error fetching workspace build job.",
 			Detail:  err.Error(),
 		})
@@ -269,7 +325,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	// Ensure the resource is still valid!
 	// We only accept agents for resources on the latest build.
 	ensureLatestBuild := func() error {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), build.WorkspaceID)
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
 		if err != nil {
 			return err
 		}
@@ -281,11 +337,11 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = ensureLatestBuild()
 	if err != nil {
-		api.Logger.Debug(r.Context(), "agent tried to connect from non-latest built",
+		api.Logger.Debug(ctx, "agent tried to connect from non-latest built",
 			slog.F("resource", resource),
 			slog.F("agent", workspaceAgent),
 		)
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Agent trying to connect from non-latest build.",
 			Detail:  err.Error(),
 		})
@@ -294,13 +350,13 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	ctx, wsNetConn := websocketNetConn(r.Context(), conn, websocket.MessageBinary)
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
 	firstConnectedAt := workspaceAgent.FirstConnectedAt
@@ -339,12 +395,15 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = updateConnectionTimes()
 	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		_ = conn.Close(websocket.StatusGoingAway, err.Error())
 		return
 	}
 
-	// end span so we don't get long lived trace data
+	// End span so we don't get long lived trace data.
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
+	// Ignore all trace spans after this.
+	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
+
 	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
@@ -372,7 +431,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		}
 		err = updateConnectionTimes()
 		if err != nil {
-			_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
 		}
 		err := ensureLatestBuild()
@@ -388,10 +447,20 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+	// This is used by Enterprise code to control the functionality of this route.
+	override := api.WorkspaceClientCoordinateOverride.Load()
+	if override != nil {
+		overrideFunc := *override
+		if overrideFunc != nil && overrideFunc(rw) {
+			return
+		}
 	}
 
 	api.websocketWaitMutex.Lock()
@@ -402,14 +471,14 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetCoordinator.ServeClient(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
+	err = api.TailnetCoordinator.ServeClient(websocket.NetConn(ctx, conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -424,6 +493,12 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 			Name:    dbApp.Name,
 			Command: dbApp.Command.String,
 			Icon:    dbApp.Icon,
+			Healthcheck: codersdk.Healthcheck{
+				URL:       dbApp.HealthcheckUrl,
+				Interval:  dbApp.HealthcheckInterval,
+				Threshold: dbApp.HealthcheckThreshold,
+			},
+			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
 		})
 	}
 	return apps
@@ -508,33 +583,35 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 	return workspaceAgent, nil
 }
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace resource.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get build.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
 		})
@@ -545,56 +622,47 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	defer conn.Close(websocket.StatusAbnormalClosure, "")
+	defer conn.Close(websocket.StatusGoingAway, "")
 
 	var lastReport codersdk.AgentStatsReportResponse
-	latestStat, err := api.Database.GetLatestAgentStat(r.Context(), workspaceAgent.ID)
+	latestStat, err := api.Database.GetLatestAgentStat(ctx, workspaceAgent.ID)
 	if err == nil {
 		err = json.Unmarshal(latestStat.Payload, &lastReport)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to unmarshal stat payload.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "unmarshal stat payload", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("unmarshal stat payload: %s", err))
 			return
 		}
 	}
 
 	// Allow overriding the stat interval for debugging and testing purposes.
-	ctx := r.Context()
 	timer := time.NewTicker(api.AgentStatsRefreshInterval)
 	for {
 		err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to write report request.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "write report request", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("write report request: %s", err))
 			return
 		}
 		var rep codersdk.AgentStatsReportResponse
 
 		err = wsjson.Read(ctx, conn, &rep)
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to read report response.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "read report response", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("read report response: %s", err))
 			return
 		}
 
 		repJSON, err := json.Marshal(rep)
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to marshal stat json.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Debug(ctx, "marshal stat json", slog.Error(err))
+			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("marshal stat json: %s", err))
 			return
 		}
 
@@ -604,7 +672,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		// all.
 		// We also don't want to update the workspace last used at on duplicate
 		// reports.
-		var updateDB = !reflect.DeepEqual(lastReport, rep)
+		updateDB := !reflect.DeepEqual(lastReport, rep)
 
 		api.Logger.Debug(ctx, "read stats report",
 			slog.F("interval", api.AgentStatsRefreshInterval),
@@ -616,6 +684,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		)
 
 		if updateDB {
+			go activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace)
+
 			lastReport = rep
 
 			_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
@@ -628,10 +698,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				Payload:     json.RawMessage(repJSON),
 			})
 			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to insert agent stat.",
-					Detail:  err.Error(),
-				})
+				api.Logger.Debug(ctx, "insert agent stat", slog.Error(err))
+				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert agent stat: %s", err))
 				return
 			}
 
@@ -640,10 +708,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				LastUsedAt: database.Now(),
 			})
 			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to update workspace last used at.",
-					Detail:  err.Error(),
-				})
+				api.Logger.Debug(ctx, "update workspace last used at", slog.Error(err))
+				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("update workspace last used at: %s", err))
 				return
 			}
 		}
@@ -656,6 +722,94 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
+}
+
+func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	var req codersdk.PostWorkspaceAppHealthsRequest
+	if !httpapi.Read(r.Context(), rw, r, &req) {
+		return
+	}
+
+	if req.Healths == nil || len(req.Healths) == 0 {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Health field is empty",
+		})
+		return
+	}
+
+	apps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error getting agent apps",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var newApps []database.WorkspaceApp
+	for name, newHealth := range req.Healths {
+		old := func() *database.WorkspaceApp {
+			for _, app := range apps {
+				if app.Name == name {
+					return &app
+				}
+			}
+
+			return nil
+		}()
+		if old == nil {
+			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  xerrors.Errorf("workspace app name %s not found", name).Error(),
+			})
+			return
+		}
+
+		if old.HealthcheckUrl == "" {
+			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", name).Error(),
+			})
+			return
+		}
+
+		switch newHealth {
+		case codersdk.WorkspaceAppHealthInitializing:
+		case codersdk.WorkspaceAppHealthHealthy:
+		case codersdk.WorkspaceAppHealthUnhealthy:
+		default:
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", newHealth).Error(),
+			})
+			return
+		}
+
+		// don't save if the value hasn't changed
+		if old.Health == database.WorkspaceAppHealth(newHealth) {
+			continue
+		}
+		old.Health = database.WorkspaceAppHealth(newHealth)
+
+		newApps = append(newApps, *old)
+	}
+
+	for _, app := range newApps {
+		err = api.Database.UpdateWorkspaceAppHealthByID(r.Context(), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     app.ID,
+			Health: app.Health,
+		})
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error setting workspace app health",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, nil)
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

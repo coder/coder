@@ -2,6 +2,7 @@ package httpapi_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -54,8 +55,9 @@ func TestWrite(t *testing.T) {
 	t.Parallel()
 	t.Run("NoErrors", func(t *testing.T) {
 		t.Parallel()
+		ctx := context.Background()
 		rw := httptest.NewRecorder()
-		httpapi.Write(rw, http.StatusOK, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 			Message: "Wow.",
 		})
 		var m map[string]interface{}
@@ -70,18 +72,20 @@ func TestRead(t *testing.T) {
 	t.Parallel()
 	t.Run("EmptyStruct", func(t *testing.T) {
 		t.Parallel()
+		ctx := context.Background()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/", bytes.NewBufferString("{}"))
 		v := struct{}{}
-		require.True(t, httpapi.Read(rw, r, &v))
+		require.True(t, httpapi.Read(ctx, rw, r, &v))
 	})
 
 	t.Run("NoBody", func(t *testing.T) {
 		t.Parallel()
+		ctx := context.Background()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/", nil)
 		var v json.RawMessage
-		require.False(t, httpapi.Read(rw, r, v))
+		require.False(t, httpapi.Read(ctx, rw, r, v))
 	})
 
 	t.Run("Validate", func(t *testing.T) {
@@ -89,11 +93,12 @@ func TestRead(t *testing.T) {
 		type toValidate struct {
 			Value string `json:"value" validate:"required"`
 		}
+		ctx := context.Background()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"value":"hi"}`))
 
 		var validate toValidate
-		require.True(t, httpapi.Read(rw, r, &validate))
+		require.True(t, httpapi.Read(ctx, rw, r, &validate))
 		require.Equal(t, "hi", validate.Value)
 	})
 
@@ -102,11 +107,12 @@ func TestRead(t *testing.T) {
 		type toValidate struct {
 			Value string `json:"value" validate:"required"`
 		}
+		ctx := context.Background()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/", bytes.NewBufferString("{}"))
 
 		var validate toValidate
-		require.False(t, httpapi.Read(rw, r, &validate))
+		require.False(t, httpapi.Read(ctx, rw, r, &validate))
 		var v codersdk.Response
 		err := json.NewDecoder(rw.Body).Decode(&v)
 		require.NoError(t, err)

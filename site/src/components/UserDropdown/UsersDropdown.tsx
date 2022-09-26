@@ -37,7 +37,7 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
         data-testid="user-dropdown-trigger"
       >
         <div className={styles.inner}>
-          <Badge overlap="circle">
+          <Badge overlap="circular">
             <UserAvatar username={user.username} avatarURL={user.avatar_url} />
           </Badge>
           {anchorEl ? (

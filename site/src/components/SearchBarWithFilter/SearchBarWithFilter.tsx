@@ -5,7 +5,7 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
-import { Theme } from "@material-ui/core/styles/createMuiTheme"
+import { Theme } from "@material-ui/core/styles/createTheme"
 import SearchIcon from "@material-ui/icons/Search"
 import debounce from "just-debounce-it"
 import { useCallback, useRef, useState } from "react"
@@ -112,7 +112,7 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
           />
         </div>
 
-        {presetFilters && presetFilters.length ? (
+        {presetFilters && presetFilters.length > 0 ? (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}

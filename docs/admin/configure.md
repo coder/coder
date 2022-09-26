@@ -14,6 +14,15 @@ should not be localhost.
 
 > Access URL should be a external IP address or domain with DNS records pointing to Coder.
 
+## Wildcard access URL
+
+`CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard)
+via the dashboard or running [coder_apps](../templates.md#coder-apps) on an absolute path. Set this to a wildcard
+subdomain that resolves to Coder (e.g. `*.coder.example.com`).
+
+> If you are providing TLS certificates directly to the Coder server, you must use a single certificate for the
+> root and wildcard domains. Multi-certificate support [is planned](https://github.com/coder/coder/pull/4150).
+
 ## PostgreSQL Database
 
 Coder uses a PostgreSQL database to store users, workspace metadata, and other deployment information.

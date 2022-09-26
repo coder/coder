@@ -93,7 +93,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "bananas",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
@@ -105,6 +106,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
+		require.Equal(t, "bananas", version.Name)
 
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
@@ -447,8 +449,9 @@ func TestTemplateVersionLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
+	logs, closer, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
+	defer closer.Close()
 	for {
 		_, ok := <-logs
 		if !ok {
@@ -618,8 +621,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
-		logs, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
+		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
 		require.NoError(t, err)
+		defer closer.Close()
 
 		logsDone := make(chan struct{})
 		go func() {

@@ -1,11 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor, useMachine, useSelector } from "@xstate/react"
+import { FeatureNames } from "api/types"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
+import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -14,7 +16,6 @@ import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
 import { canExtendDeadline, canReduceDeadline, maxDeadline, minDeadline } from "../../util/schedule"
 import { getFaviconByStatus } from "../../util/workspace"
-import { selectUser } from "../../xServices/auth/authSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
@@ -25,37 +26,27 @@ export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-
   const { t } = useTranslation("workspacePage")
-
   const xServices = useContext(XServiceContext)
-  const me = useSelector(xServices.authXService, selectUser)
-
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
-    context: {
-      userId: me?.id,
-    },
-  })
+  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
     getWorkspaceError,
     template,
-    refreshTemplateError,
-    resources,
-    getResourcesError,
+    getTemplateWarning,
+    refreshWorkspaceWarning,
     builds,
     getBuildsError,
     permissions,
     checkPermissionsError,
     buildError,
     cancellationError,
+    applicationsHost,
   } = workspaceState.context
-
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
-
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
-
   const styles = useStyles()
 
   /**
@@ -70,7 +61,7 @@ export const WorkspacePage: FC = () => {
     return (
       <div className={styles.error}>
         {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-        {Boolean(refreshTemplateError) && <ErrorSummary error={refreshTemplateError} />}
+        {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
         {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
@@ -128,20 +119,23 @@ export const WorkspacePage: FC = () => {
           handleDelete={() => workspaceSend("ASK_DELETE")}
           handleUpdate={() => workspaceSend("UPDATE")}
           handleCancel={() => workspaceSend("CANCEL")}
-          resources={resources}
+          resources={workspace.latest_build.resources}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
+          hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
           workspaceErrors={{
-            [WorkspaceErrors.GET_RESOURCES_ERROR]: getResourcesError,
+            [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
             [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
             [WorkspaceErrors.BUILD_ERROR]: buildError,
             [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
           }}
           buildInfo={buildInfoState.context.buildInfo}
+          applicationsHost={applicationsHost}
         />
         <DeleteDialog
-          title={t("deleteDialog.title")}
-          description={t("deleteDialog.description")}
+          entity="workspace"
+          name={workspace.name}
+          info={t("deleteDialog.info", { timeAgo: dayjs(workspace.created_at).fromNow() })}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
           onCancel={() => workspaceSend("CANCEL_DELETE")}
           onConfirm={() => {
@@ -158,3 +152,5 @@ const useStyles = makeStyles((theme) => ({
     margin: theme.spacing(2),
   },
 }))
+
+export default WorkspacePage

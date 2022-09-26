@@ -7,7 +7,7 @@ Docker is required. See the [official installation documentation](https://docs.d
 ## Run Coder with built-in database and tunnel (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with
-with the following command:
+the following command:
 
 ```sh
 export CODER_DATA=$HOME/.config/coderv2-docker
