@@ -114,12 +114,10 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR] ? (
+          {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]) && (
             <ErrorSummary
               error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
             />
-          ) : (
-            <></>
           )}
           <TextField
             disabled
