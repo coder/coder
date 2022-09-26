@@ -10,6 +10,7 @@ import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC, useState } from "react"
 import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
@@ -42,6 +43,7 @@ interface ResourcesProps {
   canUpdateWorkspace: boolean
   buildInfo?: BuildInfoResponse | undefined
   hideSSHButton?: boolean
+  applicationsHost?: string
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -51,6 +53,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   canUpdateWorkspace,
   buildInfo,
   hideSSHButton,
+  applicationsHost,
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
@@ -150,6 +153,14 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                           <div className={styles.accessLinks}>
                             {canUpdateWorkspace && agent.status === "connected" && (
                               <>
+                                {applicationsHost !== undefined && (
+                                  <PortForwardButton
+                                    host={applicationsHost}
+                                    workspaceName={workspace.name}
+                                    agentName={agent.name}
+                                    username={workspace.owner_name}
+                                  />
+                                )}
                                 {!hideSSHButton && (
                                   <SSHButton
                                     workspaceName={workspace.name}
