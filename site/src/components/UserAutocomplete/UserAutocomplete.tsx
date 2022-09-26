@@ -99,10 +99,16 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
 export const useStyles = makeStyles((theme) => {
   return {
     autocomplete: {
+      width: "100%",
+
+      "& .MuiFormControl-root": {
+        width: "100%",
+      },
+
       "& .MuiInputBase-root": {
-        width: 300,
+        width: "100%",
         // Match button small height
-        height: 36,
+        height: 40,
       },
 
       "& input": {
