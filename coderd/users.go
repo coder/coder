@@ -1018,9 +1018,27 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(rw, cookie)
 
+	// This code should be removed after Jan 1 2023.
+	// This code logs out of the old session cookie before we renamed it
+	// if it is a valid coder token. Otherwise, this old cookie hangs around
+	// and we never log out of the user.
+	oldCookie, err := r.Cookie("session_token")
+	if err == nil && oldCookie != nil {
+		_, _, err := httpmw.SplitAPIToken(oldCookie.Value)
+		if err == nil {
+			cookie := &http.Cookie{
+				// MaxAge < 0 means to delete the cookie now.
+				MaxAge: -1,
+				Name:   "session_token",
+				Path:   "/",
+			}
+			http.SetCookie(rw, cookie)
+		}
+	}
+
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
-	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
+	err = api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting API key.",
