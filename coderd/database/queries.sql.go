@@ -837,7 +837,7 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
 FROM
 	users
 JOIN
@@ -869,6 +869,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3715,7 +3716,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
