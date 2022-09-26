@@ -10,7 +10,7 @@ import { ChangeEvent, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 
 export type UserAutocompleteProps = {
-  value: User
+  value: User | null
   onChange: (user: User | null) => void
 }
 
