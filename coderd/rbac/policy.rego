@@ -217,6 +217,11 @@ acl_allow {
 	[input.action, "*"][_] in perms
 }
 
+###############
+# Final Allow
+# The role or the ACL must allow the action. Scopes can be used to limit,
+# so scope_allow must always be true.
+
 allow {
 	role_allow
 	scope_allow
@@ -227,5 +232,3 @@ allow {
 	acl_allow
 	scope_allow
 }
-
-

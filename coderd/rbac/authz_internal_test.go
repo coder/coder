@@ -198,17 +198,19 @@ func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
 	unuseID := uuid.New()
+	allUsersGroup := "all_users"
 
 	user := subject{
 		UserID: "me",
 		Scope:  must(ScopeRole(ScopeAll)),
+		Groups: []string{allUsersGroup},
 		Roles: []Role{
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
 	}
 
-	testAuthorize(t, "ACLList", user, []authTestCase{
+	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
 			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
 				user.UserID: allActions(),
@@ -234,6 +236,38 @@ func TestAuthorizeDomain(t *testing.T) {
 			// By default users cannot update templates
 			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
 				user.UserID: {ActionUpdate},
+			}),
+			actions: []Action{ActionRead, ActionUpdate},
+			allow:   true,
+		},
+	})
+
+	testAuthorize(t, "GroupACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithGroups(map[string][]Action{
+				allUsersGroup: allActions(),
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithGroups(map[string][]Action{
+				allUsersGroup: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithGroups(map[string][]Action{
+				allUsersGroup: {ActionRead, ActionUpdate},
+			}),
+			actions: []Action{ActionCreate, ActionDelete},
+			allow:   false,
+		},
+		{
+			// By default users cannot update templates
+			resource: ResourceTemplate.InOrg(defOrg).WithGroups(map[string][]Action{
+				allUsersGroup: {ActionUpdate},
 			}),
 			actions: []Action{ActionRead, ActionUpdate},
 			allow:   true,
@@ -790,21 +824,19 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 
 					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, subject.Scope, subject.Groups, a, c.resource)
 
+					d, _ := json.Marshal(map[string]interface{}{
+						"subject": subject,
+						"object":  c.resource,
+						"action":  a,
+					})
+
 					// Logging only
+					t.Logf("input: %s", string(d))
 					if authError != nil {
 						var uerr *UnauthorizedError
 						xerrors.As(authError, &uerr)
-						d, _ := json.Marshal(uerr.Input())
-						t.Logf("input: %s", string(d))
 						t.Logf("internal error: %+v", uerr.Internal().Error())
 						t.Logf("output: %+v", uerr.Output())
-					} else {
-						d, _ := json.Marshal(map[string]interface{}{
-							"subject": subject,
-							"object":  c.resource,
-							"action":  a,
-						})
-						t.Log(string(d))
 					}
 
 					if c.allow {
@@ -819,8 +851,6 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					d, _ := json.Marshal(partialAuthz.input)
-					t.Logf("input: %s", string(d))
 					for _, q := range partialAuthz.partialQueries.Queries {
 						t.Logf("query: %+v", q.String())
 					}
