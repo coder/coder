@@ -28,9 +28,8 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        Access ports running on the agent with the{" "}
-        <strong>port, workspace name, agent name</strong> and <strong>your username</strong> URL
-        schema, as shown below.
+        Access ports running on the agent with the <strong>port, workspace name, agent name</strong>{" "}
+        and <strong>your username</strong> URL schema, as shown below.
       </HelpTooltipText>
 
       <CodeExample code={urlExample} />
@@ -71,8 +70,8 @@ const DisabledView: React.FC<PortForwardButtonProps> = () => {
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        <strong>Your deployment does not have port forward enabled.</strong> See the
-        docs for more details.
+        <strong>Your deployment does not have port forward enabled.</strong> See the docs for more
+        details.
       </HelpTooltipText>
 
       <HelpTooltipLinksGroup>
