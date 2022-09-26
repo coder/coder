@@ -111,7 +111,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 	// Run the rego policy with a few unknown fields. This should simplify our
 	// policy to a set of queries.
 	partialQueries, err := rego.New(
-		rego.Query("data.authz.role_allow = true data.authz.scope_allow = true"),
+		rego.Query("data.authz.allow = true"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
 			"input.object.owner",

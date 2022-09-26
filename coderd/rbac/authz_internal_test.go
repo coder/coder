@@ -208,37 +208,37 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 	}
 
-	//testAuthorize(t, "ACLList", user, []authTestCase{
-	//	{
-	//		resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
-	//			user.UserID: allActions(),
-	//		}),
-	//		actions: allActions(),
-	//		allow:   true,
-	//	},
-	//	{
-	//		resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
-	//			user.UserID: {WildcardSymbol},
-	//		}),
-	//		actions: allActions(),
-	//		allow:   true,
-	//	},
-	//	{
-	//		resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
-	//			user.UserID: {ActionRead, ActionUpdate},
-	//		}),
-	//		actions: []Action{ActionCreate, ActionDelete},
-	//		allow:   false,
-	//	},
-	//	{
-	//		// By default users cannot update templates
-	//		resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
-	//			user.UserID: {ActionUpdate},
-	//		}),
-	//		actions: []Action{ActionRead, ActionUpdate},
-	//		allow:   true,
-	//	},
-	//})
+	testAuthorize(t, "ACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: allActions(),
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {ActionRead, ActionUpdate},
+			}),
+			actions: []Action{ActionCreate, ActionDelete},
+			allow:   false,
+		},
+		{
+			// By default users cannot update templates
+			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
+				user.UserID: {ActionUpdate},
+			}),
+			actions: []Action{ActionRead, ActionUpdate},
+			allow:   true,
+		},
+	})
 
 	testAuthorize(t, "Member", user, []authTestCase{
 		// Org + me
