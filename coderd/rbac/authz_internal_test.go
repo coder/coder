@@ -40,15 +40,15 @@ func (w fakeObject) RBACObject() Object {
 }
 
 // TODO: @emyrk Bring back this test when private/public templates are removed
-//	in favor of groups.
-//func TestFilterError(t *testing.T) {
-//	t.Parallel()
-//	auth, err := NewAuthorizer()
-//	require.NoError(t, err)
 //
-//	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
-//	require.ErrorContains(t, err, "object types must be uniform")
-//}
+//	in favor of groups.
+func TestFilterError(t *testing.T) {
+	t.Parallel()
+	auth := NewAuthorizer()
+
+	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	require.ErrorContains(t, err, "object types must be uniform")
+}
 
 // TestFilter ensures the filter acts the same as an individual authorize.
 // It generates a random set of objects, then runs the Filter batch function
