@@ -19,7 +19,10 @@ export interface WorkspaceQuotaProps {
 
 export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
   const styles = useStyles()
-
+  quota = {
+    count: 1,
+    limit: 10,
+  }
   // loading state
   if (quota === undefined) {
     return (
@@ -60,7 +63,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
 
 const useStyles = makeStyles((theme) => ({
   stack: {
-    display: "inline-flex",
+    paddingTop: theme.spacing(2.5),
   },
   label: {
     fontFamily: MONOSPACE_FONT_FAMILY,

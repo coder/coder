@@ -19,7 +19,7 @@ export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
   canViewAuditLog: boolean
-  canViewWorkspaceQuota: boolean
+  quota?: TypesGen.UserWorkspaceQuota
 }
 
 export const Language = {
@@ -72,7 +72,6 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
   onSignOut,
   canViewAuditLog,
-  canViewWorkspaceQuota,
 }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -105,30 +104,18 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
 
         <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
 
-        <div className={styles.profileButton}>
+        <Stack direction="row" className={styles.profileButton}>
+          <WorkspaceQuota  quota={{ count: 1, limit: 3 }}/>
           {user && <UserDropdown user={user} onSignOut={onSignOut} />}
-        </div>
+        </Stack>
       </div>
-      <Stack direction="row" className={styles.profileButton}>
-        <div className={styles.quota}>
-          <WorkspaceQuota  />
-        </div>
 
-        <div className={styles.profileButton}>
-          {user && <UserDropdown user={user} onSignOut={onSignOut} />}
-        </div>
-      </Stack>
     </nav>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    position: "relative",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    alignContent: "center",
     height: navHeight,
     background: theme.palette.background.paper,
     "@media (display-mode: standalone)": {

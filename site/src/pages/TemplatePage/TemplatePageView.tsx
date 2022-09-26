@@ -8,6 +8,7 @@ import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Markdown } from "components/Markdown/Markdown"
+import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
@@ -77,6 +78,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
 
   const createWorkspaceButton = (className?: string) => (
     <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
+      {/* <Button className={className ?? ""} startIcon={<AddCircleOutline />} disabled> */}
       <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
         {Language.createButton}
       </Button>
@@ -89,6 +91,7 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         <PageHeader
           actions={
             <>
+              {/* <WorkspaceQuota  quota={{ count: 1, limit: 3 }}/> */}
               <Link
                 underline="none"
                 component={RouterLink}

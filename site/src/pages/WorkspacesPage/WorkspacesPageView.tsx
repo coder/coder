@@ -1,4 +1,5 @@
 import Link from "@material-ui/core/Link"
+import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
@@ -42,7 +43,13 @@ export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewPr
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader
+        actions={
+          <>
+            <WorkspaceQuota  quota={{ count: 1, limit: 3 }}/>
+          </>
+        }
+      >
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.pageTitle}</span>
