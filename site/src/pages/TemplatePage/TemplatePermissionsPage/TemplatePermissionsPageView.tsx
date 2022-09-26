@@ -1,4 +1,3 @@
-import CircularProgress from "@material-ui/core/CircularProgress"
 import MenuItem from "@material-ui/core/MenuItem"
 import Select from "@material-ui/core/Select"
 import { makeStyles } from "@material-ui/core/styles"
@@ -8,10 +7,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import TextField from "@material-ui/core/TextField"
 import PersonAdd from "@material-ui/icons/PersonAdd"
-import Autocomplete from "@material-ui/lab/Autocomplete"
-import { useMachine } from "@xstate/react"
 import { TemplateRole, TemplateUser, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
@@ -21,24 +17,16 @@ import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
-import debounce from "just-debounce-it"
-import { ChangeEvent, FC, useState } from "react"
-import { searchUserMachine } from "xServices/users/searchUserXService"
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
+import { FC, useState } from "react"
 
 const AddTemplateUser: React.FC<{
   isLoading: boolean
   onSubmit: (user: User, role: TemplateRole, reset: () => void) => void
 }> = ({ isLoading, onSubmit }) => {
   const styles = useStyles()
-  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
-  const [searchState, sendSearch] = useMachine(searchUserMachine)
-  const { searchResults } = searchState.context
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [selectedRole, setSelectedRole] = useState<TemplateRole>("read")
-
-  const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
-    sendSearch("SEARCH", { query: event.target.value })
-  }, 1000)
 
   const resetValues = () => {
     setSelectedUser(null)
@@ -56,60 +44,11 @@ const AddTemplateUser: React.FC<{
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1}>
-        <Autocomplete
+        <UserAutocomplete
           value={selectedUser}
-          disabled={isLoading}
-          id="asynchronous-demo"
-          style={{ width: 300 }}
-          open={isAutocompleteOpen}
-          onOpen={() => {
-            setIsAutocompleteOpen(true)
-          }}
-          onClose={() => {
-            setIsAutocompleteOpen(false)
-          }}
-          onChange={(event, newValue) => {
+          onChange={(newValue) => {
             setSelectedUser(newValue)
           }}
-          getOptionSelected={(option: User, value: User) => option.username === value.username}
-          getOptionLabel={(option) => option.email}
-          renderOption={(option: User) => (
-            <AvatarData
-              title={option.username}
-              subtitle={option.email}
-              highlightTitle
-              avatar={
-                option.avatar_url ? (
-                  <img
-                    className={styles.avatar}
-                    alt={`${option.username}'s Avatar`}
-                    src={option.avatar_url}
-                  />
-                ) : null
-              }
-            />
-          )}
-          options={searchResults}
-          loading={searchState.matches("searching")}
-          className={styles.autocomplete}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              margin="none"
-              variant="outlined"
-              placeholder="User email or username"
-              InputProps={{
-                ...params.InputProps,
-                onChange: handleFilterChange,
-                endAdornment: (
-                  <>
-                    {searchState.matches("searching") ? <CircularProgress size={16} /> : null}
-                    {params.InputProps.endAdornment}
-                  </>
-                ),
-              }}
-            />
-          )}
         />
 
         <Select
@@ -273,19 +212,6 @@ export const TemplatePermissionsPageView: FC<
 
 export const useStyles = makeStyles((theme) => {
   return {
-    autocomplete: {
-      "& .MuiInputBase-root": {
-        width: 300,
-        // Match button small height
-        height: 36,
-      },
-
-      "& input": {
-        fontSize: 14,
-        padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
-      },
-    },
-
     select: {
       // Match button small height
       height: 36,
