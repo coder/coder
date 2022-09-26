@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
+	"strconv"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -208,7 +209,42 @@ func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (WorkspaceAgentMeta
 		return WorkspaceAgentMetadata{}, readBodyAsError(res)
 	}
 	var agentMetadata WorkspaceAgentMetadata
-	return agentMetadata, json.NewDecoder(res.Body).Decode(&agentMetadata)
+	err = json.NewDecoder(res.Body).Decode(&agentMetadata)
+	if err != nil {
+		return WorkspaceAgentMetadata{}, err
+	}
+	accessingPort := c.URL.Port()
+	if accessingPort == "" {
+		accessingPort = "80"
+		if c.URL.Scheme == "https" {
+			accessingPort = "443"
+		}
+	}
+	accessPort, err := strconv.Atoi(accessingPort)
+	if err != nil {
+		return WorkspaceAgentMetadata{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+	}
+	// Agents can provide an arbitrary access URL that may be different
+	// that the globally configured one. This breaks the built-in DERP,
+	// which would continue to reference the global access URL.
+	//
+	// This converts all built-in DERPs to use the access URL that the
+	// metadata request was performed with.
+	for _, region := range agentMetadata.DERPMap.Regions {
+		if !region.EmbeddedRelay {
+			continue
+		}
+
+		for _, node := range region.Nodes {
+			if node.STUNOnly {
+				continue
+			}
+			node.HostName = c.URL.Hostname()
+			node.DERPPort = accessPort
+			node.ForceHTTP = c.URL.Scheme == "http"
+		}
+	}
+	return agentMetadata, nil
 }
 
 func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
