@@ -28,9 +28,6 @@ type PartialAuthorizer struct {
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
 func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
 	if pa.alwaysTrue {
 		return nil
 	}

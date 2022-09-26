@@ -2,7 +2,6 @@ import { Theme } from "@material-ui/core/styles"
 import useTheme from "@material-ui/styles/useTheme"
 import * as TypesGen from "api/typesGenerated"
 import {
-  BarElement,
   CategoryScale,
   Chart as ChartJS,
   ChartOptions,
@@ -11,9 +10,11 @@ import {
   LinearScale,
   LineElement,
   PointElement,
+  TimeScale,
   Title,
   Tooltip,
 } from "chart.js"
+import "chartjs-adapter-date-fns"
 import { Stack } from "components/Stack/Stack"
 import { HelpTooltip, HelpTooltipText, HelpTooltipTitle } from "components/Tooltips/HelpTooltip"
 import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
@@ -24,8 +25,8 @@ import { Line } from "react-chartjs-2"
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  TimeScale,
   PointElement,
-  BarElement,
   LineElement,
   Title,
   Tooltip,
@@ -61,7 +62,7 @@ export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData 
     return val.amount
   })
 
-  defaults.font.family = theme.typography.fontFamily
+  defaults.font.family = theme.typography.fontFamily as string
   defaults.color = theme.palette.text.secondary
 
   const options = {
@@ -80,6 +81,11 @@ export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData 
       },
       x: {
         ticks: {},
+        type: "time",
+        time: {
+          unit: "day",
+          stepSize: 2,
+        },
       },
     },
     aspectRatio: 10 / 1,
@@ -87,16 +93,19 @@ export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData 
 
   return (
     <>
-      <WorkspaceSection>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <h3>{Language.chartTitle}</h3>
-          <HelpTooltip size="small">
-            <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
-            <HelpTooltipText>
-              We use all workspace connection traffic to calculate DAUs.
-            </HelpTooltipText>
-          </HelpTooltip>
-        </Stack>
+      <WorkspaceSection
+        title={
+          <Stack direction="row" spacing={1} alignItems="center">
+            {Language.chartTitle}
+            <HelpTooltip size="small">
+              <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
+              <HelpTooltipText>
+                We use all workspace connection traffic to calculate DAUs.
+              </HelpTooltipText>
+            </HelpTooltip>
+          </Stack>
+        }
+      >
         <Line
           data={{
             labels: labels,

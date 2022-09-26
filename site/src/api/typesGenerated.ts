@@ -12,12 +12,6 @@ export interface APIKey {
   readonly lifetime_seconds: number
 }
 
-// From codersdk/workspaceagents.go
-export interface AWSInstanceIdentityToken {
-  readonly signature: string
-  readonly document: string
-}
-
 // From codersdk/licenses.go
 export interface AddLicenseRequest {
   readonly license: string
@@ -192,6 +186,7 @@ export interface CreateTemplateVersionDryRunRequest {
 
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
+  readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
   readonly storage_source: string
@@ -278,9 +273,11 @@ export interface GitSSHKey {
   readonly public_key: string
 }
 
-// From codersdk/workspaceagents.go
-export interface GoogleInstanceIdentityToken {
-  readonly json_web_token: string
+// From codersdk/workspaceapps.go
+export interface Healthcheck {
+  readonly url: string
+  readonly interval: number
+  readonly threshold: number
 }
 
 // From codersdk/licenses.go
@@ -357,11 +354,6 @@ export interface ParameterSchema {
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains?: string[]
-}
-
-// From codersdk/workspaceagents.go
-export interface PostWorkspaceAgentVersionRequest {
-  readonly version: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -528,6 +520,7 @@ export interface User {
   readonly username: string
   readonly email: string
   readonly created_at: string
+  readonly last_seen_at: string
   readonly status: UserStatus
   readonly organization_ids: string[]
   readonly roles: Role[]
@@ -591,18 +584,6 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
 }
 
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentAuthenticateResponse {
-  readonly session_token: string
-}
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentConnectionInfo {
-  // Named type "tailscale.com/tailcfg.DERPMap" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly derp_map?: any
-}
-
 // From codersdk/workspaceresources.go
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
@@ -631,6 +612,8 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
+  readonly healthcheck: Healthcheck
+  readonly health: WorkspaceAppHealth
 }
 
 // From codersdk/workspacebuilds.go
@@ -755,6 +738,9 @@ export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceresources.go
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"

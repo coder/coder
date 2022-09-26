@@ -160,7 +160,6 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
-		apiKey          = httpmw.APIKey(r)
 		templateVersion = httpmw.TemplateVersionParam(r)
 		template        = httpmw.TemplateParam(r)
 	)
@@ -185,8 +184,6 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	}
 	values, err := parameter.Compute(ctx, api.Database, parameter.ComputeScope{
 		TemplateImportJobID: job.ID,
-		OrganizationID:      job.OrganizationID,
-		UserID:              apiKey.UserID,
 	}, &parameter.ComputeOptions{
 		// We *never* want to send the client secret parameter values.
 		HideRedisplayValues: true,

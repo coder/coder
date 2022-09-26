@@ -21,20 +21,22 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
 
+// @typescript-ignore GoogleInstanceIdentityToken
 type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
 }
 
+// @typescript-ignore AWSInstanceIdentityToken
 type AWSInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Document  string `json:"document" validate:"required"`
 }
 
+// @typescript-ignore ReconnectingPTYRequest
 type AzureInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
 	Encoding  string `json:"encoding" validate:"required"`
@@ -42,18 +44,29 @@ type AzureInstanceIdentityToken struct {
 
 // WorkspaceAgentAuthenticateResponse is returned when an instance ID
 // has been exchanged for a session token.
+// @typescript-ignore WorkspaceAgentAuthenticateResponse
 type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
 // WorkspaceAgentConnectionInfo returns required information for establishing
 // a connection with a workspace.
+// @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
 	DERPMap *tailcfg.DERPMap `json:"derp_map"`
 }
 
+// @typescript-ignore PostWorkspaceAgentVersionRequest
 type PostWorkspaceAgentVersionRequest struct {
 	Version string `json:"version"`
+}
+
+// @typescript-ignore WorkspaceAgentMetadata
+type WorkspaceAgentMetadata struct {
+	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	StartupScript        string            `json:"startup_script"`
+	Directory            string            `json:"directory"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
@@ -185,16 +198,16 @@ func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (Worksp
 }
 
 // WorkspaceAgentMetadata fetches metadata for the currently authenticated workspace agent.
-func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (agent.Metadata, error) {
+func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (WorkspaceAgentMetadata, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
 	if err != nil {
-		return agent.Metadata{}, err
+		return WorkspaceAgentMetadata{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return agent.Metadata{}, readBodyAsError(res)
+		return WorkspaceAgentMetadata{}, readBodyAsError(res)
 	}
-	var agentMetadata agent.Metadata
+	var agentMetadata WorkspaceAgentMetadata
 	return agentMetadata, json.NewDecoder(res.Body).Decode(&agentMetadata)
 }
 
@@ -228,7 +241,7 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (*agent.Conn, error) {
+func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (*AgentConn, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
 		return nil, err
@@ -325,7 +338,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 		_ = conn.Close()
 		return nil, err
 	}
-	return &agent.Conn{
+	return &AgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
@@ -346,6 +359,34 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+}
+
+// MyWorkspaceAgent returns the requesting agent.
+func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/apps", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var workspaceApps []WorkspaceApp
+	return workspaceApps, json.NewDecoder(res.Body).Decode(&workspaceApps)
+}
+
+// PostWorkspaceAgentAppHealth updates the workspace agent app health status.
+func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorkspaceAppHealthsRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/app-health", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+
+	return nil
 }
 
 func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
@@ -392,12 +433,22 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
+// Stats records the Agent's network connection statistics for use in
+// user-facing metrics and debugging.
+// Each member value must be written and read with atomic.
+// @typescript-ignore AgentStats
+type AgentStats struct {
+	NumConns int64 `json:"num_comms"`
+	RxBytes  int64 `json:"rx_bytes"`
+	TxBytes  int64 `json:"tx_bytes"`
+}
+
 // AgentReportStats begins a stat streaming connection with the Coder server.
 // It is resilient to network failures and intermittent coderd issues.
 func (c *Client) AgentReportStats(
 	ctx context.Context,
 	log slog.Logger,
-	stats func() *agent.Stats,
+	stats func() *AgentStats,
 ) (io.Closer, error) {
 	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/report-stats")
 	if err != nil {

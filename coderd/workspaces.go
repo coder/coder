@@ -222,6 +222,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		organization      = httpmw.OrganizationParam(r)
 		apiKey            = httpmw.APIKey(r)
 		auditor           = api.Auditor.Load()
+		user              = httpmw.UserParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -232,7 +233,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	defer commitAudit()
 
 	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(user.ID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -292,7 +293,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: apiKey.UserID,
+		OwnerID: user.ID,
 		Name:    createWorkspace.Name,
 	})
 	if err == nil {
@@ -359,7 +360,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           apiKey.UserID,
+			OwnerID:           user.ID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              createWorkspace.Name,
@@ -441,7 +442,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	aReq.New = workspace
 
 	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{apiKey.UserID, workspaceBuild.InitiatorID},
+		IDs: []uuid.UUID{user.ID, workspaceBuild.InitiatorID},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -478,7 +479,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		findUser(apiKey.UserID, users),
+		findUser(user.ID, users),
 	))
 }
 

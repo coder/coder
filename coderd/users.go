@@ -1210,6 +1210,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		ID:              user.ID,
 		Email:           user.Email,
 		CreatedAt:       user.CreatedAt,
+		LastSeenAt:      user.LastSeenAt,
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,

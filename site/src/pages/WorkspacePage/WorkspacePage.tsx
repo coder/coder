@@ -29,13 +29,12 @@ export const WorkspacePage: FC = () => {
   const { t } = useTranslation("workspacePage")
   const xServices = useContext(XServiceContext)
   const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
-
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
     getWorkspaceError,
     template,
-    refreshTemplateWarning,
+    getTemplateWarning,
     refreshWorkspaceWarning,
     builds,
     getBuildsError,
@@ -43,13 +42,11 @@ export const WorkspacePage: FC = () => {
     checkPermissionsError,
     buildError,
     cancellationError,
+    applicationsHost,
   } = workspaceState.context
-
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
-
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
-
   const styles = useStyles()
 
   /**
@@ -64,7 +61,7 @@ export const WorkspacePage: FC = () => {
     return (
       <div className={styles.error}>
         {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-        {Boolean(refreshTemplateWarning) && <ErrorSummary error={refreshTemplateWarning} />}
+        {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
         {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
@@ -133,6 +130,7 @@ export const WorkspacePage: FC = () => {
             [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
           }}
           buildInfo={buildInfoState.context.buildInfo}
+          applicationsHost={applicationsHost}
         />
         <DeleteDialog
           entity="workspace"
@@ -154,3 +152,5 @@ const useStyles = makeStyles((theme) => ({
     margin: theme.spacing(2),
   },
 }))
+
+export default WorkspacePage

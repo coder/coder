@@ -4,9 +4,10 @@ Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web
 applications in a browser.
 
-There are two ways to forward ports in Coder:
+There are three ways to forward ports in Coder:
 
 - The `coder port-forward` command
+- Dashboard
 - SSH
 
 The `coder port-forward` command is generally more performant.
@@ -20,6 +21,16 @@ coder port-forward myworkspace --tcp 8000:8080
 ```
 
 For more examples, see `coder port-forward --help`.
+
+## Dashboard
+
+> To enable port forwarding via the dashboard, Coder must be configured with a
+> [wildcard access URL](./admin/configure#wildcard-access-url).
+
+Use the "Port forward" button in the dashboard to access ports
+running on your workspace.
+
+![Port forwarding in the UI](../images/port-forward-dashboard.png)
 
 ## SSH
 

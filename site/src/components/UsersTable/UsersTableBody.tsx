@@ -2,6 +2,7 @@ import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
+import { LastUsed } from "components/LastUsed/LastUsed"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
@@ -100,6 +101,9 @@ export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = 
               ])}
             >
               {user.status}
+            </TableCell>
+            <TableCell>
+              <LastUsed lastUsedAt={user.last_seen_at} />
             </TableCell>
             <TableCell>
               {canEditUsers ? (

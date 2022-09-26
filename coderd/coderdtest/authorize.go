@@ -58,10 +58,12 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/apps":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/version":               {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/app-health":            {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/report-stats":           {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -232,7 +234,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
-		"POST:/api/v2/organizations/{organization}/workspaces": {
+		"POST:/api/v2/organizations/{organization}/members/{user}/workspaces": {
 			AssertAction: rbac.ActionCreate,
 			// No ID when creating
 			AssertObject: workspaceRBACObj,

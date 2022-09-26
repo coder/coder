@@ -29,3 +29,5 @@ export const CliAuthenticationPage: React.FC<React.PropsWithChildren<unknown>> =
     </>
   )
 }
+
+export default CliAuthenticationPage

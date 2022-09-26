@@ -49,3 +49,5 @@ export const CreateUserPage: React.FC = () => {
     </Margins>
   )
 }
+
+export default CreateUserPage
