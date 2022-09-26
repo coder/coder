@@ -40,3 +40,4 @@ rename:
   ids: IDs
   jwt: JWT
   user_acl: userACL
+  group_acl: userACL

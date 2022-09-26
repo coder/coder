@@ -108,8 +108,7 @@ var (
 				Name:        templateAdmin,
 				DisplayName: "Template Admin",
 				Site: permissions(map[string][]Action{
-					ResourceTemplate.Type:        {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceTemplatePrivate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// CRUD all files, even those they did not upload.
 					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					ResourceWorkspace.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},

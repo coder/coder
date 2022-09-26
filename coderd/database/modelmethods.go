@@ -10,6 +10,9 @@ import (
 // UserACL is a map of user_ids to permissions.
 type UserACL map[string]TemplateRole
 
+// Group is a map of user_ids to permissions.
+type GroupACL map[string]TemplateRole
+
 func (u UserACL) Actions() map[string][]rbac.Action {
 	aclRBAC := make(map[string][]rbac.Action, len(u))
 	for k, v := range u {
@@ -32,6 +35,8 @@ func (t Template) UserACL() UserACL {
 
 	return acl
 }
+
+func (t Template) GroupACL() Gr
 
 func (t Template) SetUserACL(acl UserACL) Template {
 	raw, err := json.Marshal(acl)
@@ -69,9 +74,6 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 
 func (t Template) RBACObject() rbac.Object {
 	obj := rbac.ResourceTemplate
-	if t.IsPrivate {
-		obj = rbac.ResourceTemplatePrivate
-	}
 	return obj.InOrg(t.OrganizationID).WithACLUserList(t.UserACL().Actions())
 }
 

@@ -262,7 +262,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
 			CreatedBy:            apiKey.UserID,
-			IsPrivate:            createTemplate.IsPrivate,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -533,8 +532,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
 			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() &&
-			len(req.UserPerms) == 0 &&
-			(req.IsPrivate == nil || req.IsPrivate != nil && *req.IsPrivate == template.IsPrivate) {
+			len(req.UserPerms) == 0 {
 			return nil
 		}
 
@@ -544,7 +542,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		icon := req.Icon
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		minAutostartInterval := time.Duration(req.MinAutostartIntervalMillis) * time.Millisecond
-		isPrivate := template.IsPrivate
 
 		if name == "" {
 			name = template.Name
@@ -554,9 +551,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
-		}
-		if req.IsPrivate != nil {
-			isPrivate = *req.IsPrivate
 		}
 
 		if len(req.UserPerms) > 0 {
@@ -585,7 +579,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Icon:                 icon,
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
-			IsPrivate:            isPrivate,
 		})
 		if err != nil {
 			return err
@@ -876,7 +869,6 @@ func (api *API) convertTemplate(
 		CreatedByID:                template.CreatedBy,
 		CreatedByName:              createdByName,
 		UserRoles:                  convertTemplateACL(template.UserACL()),
-		IsPrivate:                  template.IsPrivate,
 	}
 }
 
