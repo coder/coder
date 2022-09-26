@@ -109,7 +109,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 						mu.Unlock()
 					}
 
-					t.Reset(time.Duration(app.Healthcheck.Interval))
+					t.Reset(time.Duration(app.Healthcheck.Interval) * time.Second)
 				}
 			}()
 		}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -128,6 +129,37 @@ func TestAppHealth(t *testing.T) {
 
 			return apps[0].Health == codersdk.WorkspaceAppHealthUnhealthy
 		}, testutil.WaitLong, testutil.IntervalSlow)
+	})
+
+	t.Run("NotSpamming", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		apps := []codersdk.WorkspaceApp{
+			{
+				Name: "app2",
+				Healthcheck: codersdk.Healthcheck{
+					// URL: We don't set the URL for this test because the setup will
+					// create a httptest server for us and set it for us.
+					Interval:  1,
+					Threshold: 1,
+				},
+				Health: codersdk.WorkspaceAppHealthInitializing,
+			},
+		}
+
+		var counter = new(int32)
+		handlers := []http.Handler{
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(counter, 1)
+			}),
+		}
+		_, closeFn := setupAppReporter(ctx, t, apps, handlers)
+		defer closeFn()
+		// Ensure we haven't made more than 2 (expected 1 + 1 for buffer) requests in the last second.
+		// if there is a bug where we are spamming the healthcheck route this will catch it.
+		time.Sleep(time.Second)
+		require.LessOrEqual(t, *counter, int32(2))
 	})
 }
 
