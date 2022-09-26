@@ -507,3 +507,8 @@ export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse
   const response = await axios.get(`/api/v2/applications/host`)
   return response.data
 }
+
+export const getGroups = async (organizationId: string): Promise<TypesGen.Group[]> => {
+  const response = await axios.get(`/api/v2/organizations/${organizationId}/groups`)
+  return response.data
+}

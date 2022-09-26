@@ -146,7 +146,7 @@ const AddTemplateUser: React.FC<{
   )
 }
 
-export interface TemplateCollaboratorsPageViewProps {
+export interface TemplatePermissionsPageViewProps {
   deleteTemplateError: Error | unknown
   templateUsers: TemplateUser[] | undefined
   onAddUser: (user: User, role: TemplateRole, reset: () => void) => void
@@ -157,8 +157,8 @@ export interface TemplateCollaboratorsPageViewProps {
   onRemoveUser: (user: User) => void
 }
 
-export const TemplateCollaboratorsPageView: FC<
-  React.PropsWithChildren<TemplateCollaboratorsPageViewProps>
+export const TemplatePermissionsPageView: FC<
+  React.PropsWithChildren<TemplatePermissionsPageViewProps>
 > = ({
   deleteTemplateError,
   templateUsers,

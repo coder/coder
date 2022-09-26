@@ -7,7 +7,7 @@ import { pageTitle } from "util/page"
 import { Permissions } from "xServices/auth/authXService"
 import { templateUsersMachine } from "xServices/template/templateUsersXService"
 import { TemplateContext } from "xServices/template/templateXService"
-import { TemplateCollaboratorsPageView } from "./TemplatePermissionsPageView"
+import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
 export const TemplateCollaboratorsPage: FC<React.PropsWithChildren<unknown>> = () => {
   const { templateContext, permissions } = useOutletContext<{
@@ -32,9 +32,9 @@ export const TemplateCollaboratorsPage: FC<React.PropsWithChildren<unknown>> = (
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Collaborators`)}</title>
+        <title>{pageTitle(`${template.name} · Permissions`)}</title>
       </Helmet>
-      <TemplateCollaboratorsPageView
+      <TemplatePermissionsPageView
         canUpdateUsers={canUpdatesUsers}
         templateUsers={templateUsers}
         deleteTemplateError={deleteTemplateError}

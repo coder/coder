@@ -55,6 +55,11 @@ const NavItems: React.FC<
           {Language.users}
         </NavLink>
       </ListItem>
+      <ListItem button className={styles.item}>
+        <NavLink className={styles.link} to="/groups">
+          Groups
+        </NavLink>
+      </ListItem>
       {canViewAuditLog && (
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/audit">

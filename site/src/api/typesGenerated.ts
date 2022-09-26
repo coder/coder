@@ -152,6 +152,11 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
+// From codersdk/groups.go
+export interface CreateGroupRequest {
+  readonly name: string
+}
+
 // From codersdk/users.go
 export interface CreateOrganizationRequest {
   readonly name: string
@@ -273,6 +278,14 @@ export interface GitSSHKey {
   readonly public_key: string
 }
 
+// From codersdk/groups.go
+export interface Group {
+  readonly uuid: string
+  readonly name: string
+  readonly organization_id: string
+  readonly members: User[]
+}
+
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
   readonly url: string
@@ -354,6 +367,13 @@ export interface ParameterSchema {
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains?: string[]
+}
+
+// From codersdk/groups.go
+export interface PatchGroupRequest {
+  readonly add_users: string[]
+  readonly remove_users: string[]
+  readonly name: string
 }
 
 // From codersdk/provisionerdaemons.go
