@@ -257,7 +257,7 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "refreshTemplate",
+                  UPDATE: "updatingWorkspace",
                   CANCEL: "requestingCancel",
                 },
               },
@@ -271,32 +271,37 @@ export const workspaceMachine = createMachine(
                   },
                 },
               },
-              refreshTemplate: {
-                invoke: {
-                  id: "refreshTemplate",
-                  src: "getTemplate",
-                  onDone: {
-                    target: "requestingStartWithLatestTemplate",
-                    actions: ["assignTemplate"],
+              updatingWorkspace: {
+                tags: "updating",
+                initial: "refreshingTemplate",
+                states: {
+                  refreshingTemplate: {
+                    invoke: {
+                      id: "refreshTemplate",
+                      src: "getTemplate",
+                      onDone: {
+                        target: "startingWithLatestTemplate",
+                        actions: ["assignTemplate"],
+                      },
+                      onError: {
+                        target: "#workspaceState.ready.build.idle",
+                        actions: ["assignGetTemplateWarning"],
+                      },
+                    },
                   },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignGetTemplateWarning"],
-                  },
-                },
-              },
-              requestingStartWithLatestTemplate: {
-                entry: "clearBuildError",
-                invoke: {
-                  id: "startWorkspaceWithLatestTemplate",
-                  src: "startWorkspaceWithLatestTemplate",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild"],
-                  },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignBuildError"],
+                  startingWithLatestTemplate: {
+                    invoke: {
+                      id: "startWorkspaceWithLatestTemplate",
+                      src: "startWorkspaceWithLatestTemplate",
+                      onDone: {
+                        target: "#workspaceState.ready.build.idle",
+                        actions: ["assignBuild"],
+                      },
+                      onError: {
+                        target: "#workspaceState.ready.build.idle",
+                        actions: ["assignBuildError"],
+                      },
+                    },
                   },
                 },
               },
