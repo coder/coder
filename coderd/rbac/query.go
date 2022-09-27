@@ -117,9 +117,9 @@ func processTerm(term *ast.Term) (Term, error) {
 		// A ref is a set of terms. If the first term is a var, then the
 		// following terms are the path to the value.
 		if v0, ok := v[0].Value.(ast.Var); ok {
-			name := v0.String()
+			name := trimQuotes(v0.String())
 			for _, p := range v[1:] {
-				name += "." + p.String()
+				name += "." + trimQuotes(p.String())
 			}
 			return &TermVariable{
 				Base: base,
@@ -130,12 +130,12 @@ func processTerm(term *ast.Term) (Term, error) {
 		}
 	case ast.Var:
 		return &TermVariable{
-			Name: v.String(),
+			Name: trimQuotes(v.String()),
 			Base: base,
 		}, nil
 	case ast.String:
 		return &TermString{
-			Value: v.String(),
+			Value: trimQuotes(v.String()),
 			Base:  base,
 		}, nil
 	case ast.Set:
@@ -176,7 +176,7 @@ func (t ExpAnd) SQLString() string {
 	for _, expr := range t.Expressions {
 		exprs = append(exprs, expr.SQLString())
 	}
-	return strings.Join(exprs, " AND ")
+	return "(" + strings.Join(exprs, " AND ") + ")"
 }
 
 type ExpOr struct {
@@ -189,7 +189,8 @@ func (t ExpOr) SQLString() string {
 	for _, expr := range t.Expressions {
 		exprs = append(exprs, expr.SQLString())
 	}
-	return strings.Join(exprs, " OR ")
+
+	return "(" + strings.Join(exprs, " OR ") + ")"
 }
 
 // Operator joins terms together to form an expression.
@@ -240,7 +241,7 @@ type TermString struct {
 }
 
 func (t TermString) SQLString() string {
-	return t.Value
+	return "'" + t.Value + "'"
 }
 
 type TermVariable struct {
@@ -262,8 +263,16 @@ func (t TermSet) SQLString() string {
 	elems := make([]string, 0, len(values))
 	// TODO: Handle different typed terms?
 	for _, v := range t.Value.Slice() {
-		elems = append(elems, v.String())
+		t, err := processTerm(v)
+		if err != nil {
+			panic(err)
+		}
+		elems = append(elems, t.SQLString())
 	}
 
 	return fmt.Sprintf("ARRAY [%s]", strings.Join(elems, ","))
+}
+
+func trimQuotes(s string) string {
+	return strings.Trim(s, "\"")
 }
