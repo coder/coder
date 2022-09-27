@@ -65,6 +65,8 @@ func TestFeaturesList(t *testing.T) {
 			entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		assert.Equal(t, codersdk.EntitlementNotEntitled,
 			entitlements.Features[codersdk.FeatureBrowserOnly].Entitlement)
+		assert.Equal(t, codersdk.EntitlementNotEntitled,
+			entitlements.Features[codersdk.FeatureWorkspaceQuota].Entitlement)
 		assert.False(t, entitlements.HasLicense)
 	})
 }
