@@ -2,6 +2,7 @@ import Box from "@material-ui/core/Box"
 import LinearProgress from "@material-ui/core/LinearProgress"
 import { makeStyles } from "@material-ui/core/styles"
 import Skeleton from "@material-ui/lab/Skeleton"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -15,12 +16,27 @@ export const Language = {
 
 export interface WorkspaceQuotaProps {
   quota?: TypesGen.WorkspaceQuota
+  error: Error | unknown
 }
 
-export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
+export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
   const styles = useStyles()
 
-  // loading state
+  // error state
+  if (error !== undefined) {
+    return (
+      <Box>
+        <Stack spacing={1} className={styles.stack}>
+          <span className={styles.title}>Workspace Quota</span>
+          <ErrorSummary
+              error={error}
+          />
+        </Stack>
+      </Box>
+    )
+  }
+
+  // loading
   if (quota === undefined) {
     return (
       <Box>

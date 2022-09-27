@@ -29,6 +29,19 @@ Loading.args = {
   quota: undefined,
 }
 
+export const Error = Template.bind({})
+Error.args = {
+  quota: undefined,
+  error: {
+    response: {
+      data: {
+        message: "Failed to fetch workspace quotas!",
+      },
+    },
+    isAxiosError: true,
+  },
+}
+
 export const Disabled = Template.bind({})
 Disabled.args = {
   quota: {
