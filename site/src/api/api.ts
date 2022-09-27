@@ -520,3 +520,16 @@ export const createGroup = async (
   const response = await axios.post(`/api/v2/organizations/${organizationId}/groups`, data)
   return response.data
 }
+
+export const getGroup = async (groupId: string): Promise<TypesGen.Group> => {
+  const response = await axios.get(`/api/v2/groups/${groupId}`)
+  return response.data
+}
+
+export const patchGroup = async (
+  groupId: string,
+  data: TypesGen.PatchGroupRequest,
+): Promise<TypesGen.Group> => {
+  const response = await axios.patch(`/api/v2/groups/${groupId}`, data)
+  return response.data
+}

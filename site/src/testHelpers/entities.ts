@@ -848,7 +848,7 @@ export const MockAuditLog2: TypesGen.AuditLog = {
 
 export const MockGroup: TypesGen.Group = {
   name: "Coder Group",
-  uuid: "53bded77-7b9d-4e82-8771-991a34d75930",
+  id: "53bded77-7b9d-4e82-8771-991a34d75930",
   organization_id: MockOrganization.id,
   members: [],
 }

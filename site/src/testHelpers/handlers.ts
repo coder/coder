@@ -179,4 +179,16 @@ export const handlers = [
   rest.get("/api/v2/organizations/:organizationId/groups", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([MockGroup]))
   }),
+
+  rest.post("/api/v2/organizations/:organizationId/groups", async (req, res, ctx) => {
+    return res(ctx.status(201), ctx.json(M.MockGroup))
+  }),
+
+  rest.get("/api/v2/groups/:groupId", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(MockGroup))
+  }),
+
+  rest.patch("/api/v2/groups/:groupId", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(MockGroup))
+  }),
 ]

@@ -9,6 +9,7 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import AvatarGroup from "@material-ui/lab/AvatarGroup"
 import { useMachine } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
@@ -16,6 +17,7 @@ import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { TableCellLink } from "components/TableCellLink/TableCellLink"
 import { TableLoader } from "components/TableLoader/TableLoader"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import React from "react"
 import { Helmet } from "react-helmet-async"
@@ -99,7 +101,18 @@ export const GroupsPage: React.FC = () => {
                       >
                         <TableCellLink to={groupPageLink}>{group.name}</TableCellLink>
 
-                        <TableCell>Users</TableCell>
+                        <TableCell>
+                          {group.members.length === 0 && "No members"}
+                          <AvatarGroup>
+                            {group.members.map((member) => (
+                              <UserAvatar
+                                key={member.username}
+                                username={member.username}
+                                avatarURL={member.avatar_url}
+                              />
+                            ))}
+                          </AvatarGroup>
+                        </TableCell>
 
                         <TableCellLink to={groupPageLink}>
                           <div className={styles.arrowCell}>
