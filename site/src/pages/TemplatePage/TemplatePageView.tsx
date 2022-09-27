@@ -77,7 +77,6 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
 
   const createWorkspaceButton = (className?: string) => (
     <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
-      {/* <Button className={className ?? ""} startIcon={<AddCircleOutline />} disabled> */}
       <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
         {Language.createButton}
       </Button>

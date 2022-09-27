@@ -4,8 +4,6 @@ import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import MenuIcon from "@material-ui/icons/Menu"
-import { Stack } from "components/Stack/Stack"
-import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
 import { colors } from "theme/colors"
@@ -19,7 +17,6 @@ export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
   canViewAuditLog: boolean
-  quota?: TypesGen.UserWorkspaceQuota
 }
 
 export const Language = {
@@ -104,11 +101,10 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
 
         <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
 
-        <Stack direction="row" className={styles.profileButton}>
+        <div className={styles.profileButton}>
           {user && <UserDropdown user={user} onSignOut={onSignOut} />}
-        </Stack>
+        </div>
       </div>
-
     </nav>
   )
 }
@@ -151,12 +147,6 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.up("md")]: {
       display: "flex",
     },
-  },
-  quota: {
-    [theme.breakpoints.up("md")]: {
-      marginLeft: "auto",
-    },
-    paddingTop: theme.spacing(1),
   },
   profileButton: {
     [theme.breakpoints.up("md")]: {

@@ -1,5 +1,4 @@
 import Link from "@material-ui/core/Link"
-import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"

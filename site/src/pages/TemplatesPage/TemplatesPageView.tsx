@@ -98,33 +98,34 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
 
   return (
     <Margins>
-        <PageHeader>
-          <PageHeaderTitle>
-            <Stack spacing={1} direction="row" alignItems="center">
-              Templates
-              <TemplateHelpTooltip />
-            </Stack>
-          </PageHeaderTitle>
-          <Maybe condition={Boolean(props.templates && props.templates.length > 0)}>
-            <PageHeaderSubtitle>
-              Choose a template to create a new workspace
-              {props.canCreateTemplate ? (
-                <>
-                  , or{" "}
-                  <Link
-                    href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
-                    target="_blank"
-                  >
-                    manage templates
-                  </Link>{" "}
-                  from the CLI.
-                </>
-              ) : (
-                "."
-              )}
-            </PageHeaderSubtitle>
-          </Maybe>
-        </PageHeader>
+      <PageHeader>
+        <PageHeaderTitle>
+          <Stack spacing={1} direction="row" alignItems="center">
+            Templates
+            <TemplateHelpTooltip />
+          </Stack>
+        </PageHeaderTitle>
+        <Maybe condition={Boolean(props.templates && props.templates.length > 0)}>
+          <PageHeaderSubtitle>
+            Choose a template to create a new workspace
+            {props.canCreateTemplate ? (
+              <>
+                , or{" "}
+                <Link
+                  href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
+                  target="_blank"
+                >
+                  manage templates
+                </Link>{" "}
+                from the CLI.
+              </>
+            ) : (
+              "."
+            )}
+          </PageHeaderSubtitle>
+        </Maybe>
+      </PageHeader>
+
       <ChooseOne>
         <Cond condition={Boolean(props.getOrganizationsError)}>
           <ErrorSummary
@@ -276,12 +277,5 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       width: "100%",
     },
-  },
-  quota: {
-    [theme.breakpoints.up("md")]: {
-      marginLeft: "auto",
-    },
-    paddingTop: theme.spacing(6),
-    paddingBottom: theme.spacing(5),
   },
 }))
