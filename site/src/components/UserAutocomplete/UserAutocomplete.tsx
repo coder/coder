@@ -141,6 +141,11 @@ export const useInlineStyle = makeStyles(() => {
   return {
     inline: {
       width: "300px",
+
+      "& .MuiInputBase-root": {
+        // Match button small height
+        height: 36,
+      },
     },
   }
 })
