@@ -12,6 +12,7 @@ helm install postgres bitnami/postgresql \
 	--set auth.database=coder \
 	--set persistence.size=10Gi
 # deploy via helm for now
+envsubst <.sharing.io/values.template.yaml >.sharing.io/values.yaml
 helm install coder ./helm/ \
 	--namespace coder \
 	--values .sharingio/values.yaml
@@ -24,9 +25,12 @@ kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
 CODER_EMAIL=ii@ii.coop
 CODER_PASSWORD=ii
 CODER_USERNAME=ii
+CODER_URL=https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
 # export vars to we can emulate a tty with a short expect script
 export CODER_EMAIL CODER_PASSWORD CODER_USERNAME
-.sharingio/coder-login.exp
+coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
+#.sharingio/coder-login.exp
+# coder login
 #
 # echo yes | unbuffer -p coder login https://coder.prerepair.pair.sharing.io
 # echo yes | unbuffer -p coder login https://coder.prerepair.pair.sharing.io
