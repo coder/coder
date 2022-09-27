@@ -221,7 +221,7 @@ acl_allow {
 acl_allow {
 	org_mem
 	input.object.org_owner != ""
-	perms := input.object.acl_group_list["all_users"]
+	perms := input.object.acl_group_list["allUsers"]
 	[input.action, "*"][_] in perms
 }
 

@@ -39,9 +39,6 @@ func (w fakeObject) RBACObject() Object {
 	}
 }
 
-// TODO: @emyrk Bring back this test when private/public templates are removed
-//
-//	in favor of groups.
 func TestFilterError(t *testing.T) {
 	t.Parallel()
 	auth := NewAuthorizer()
@@ -198,7 +195,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
 	unuseID := uuid.New()
-	allUsersGroup := "all_users"
+	allUsersGroup := "allUsers"
 
 	user := subject{
 		UserID: "me",
@@ -237,7 +234,7 @@ func TestAuthorizeDomain(t *testing.T) {
 			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
 				user.UserID: {ActionUpdate},
 			}),
-			actions: []Action{ActionRead, ActionUpdate},
+			actions: []Action{ActionUpdate},
 			allow:   true,
 		},
 	})
@@ -269,7 +266,7 @@ func TestAuthorizeDomain(t *testing.T) {
 			resource: ResourceTemplate.InOrg(defOrg).WithGroupACL(map[string][]Action{
 				allUsersGroup: {ActionUpdate},
 			}),
-			actions: []Action{ActionRead, ActionUpdate},
+			actions: []Action{ActionUpdate},
 			allow:   true,
 		},
 	})

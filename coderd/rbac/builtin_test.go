@@ -219,8 +219,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceTemplate.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgMemberMe, orgAdmin, templateAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+				true:  {owner, orgAdmin, templateAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, orgMemberMe},
 			},
 		},
 		{
@@ -338,6 +338,19 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgAdmin, orgMemberMe, userAdmin},
 				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
+			},
+		},
+		{
+			Name:    "AllUsersGroupACL",
+			Actions: []rbac.Action{rbac.ActionRead},
+			Resource: rbac.ResourceTemplate.InOrg(orgID).WithGroupACL(
+				map[string][]rbac.Action{
+					"allUsers": {rbac.ActionRead},
+				}),
+
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, orgMemberMe, templateAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
 			},
 		},
 	}

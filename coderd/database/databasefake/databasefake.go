@@ -1316,22 +1316,25 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 		return nil, sql.ErrNoRows
 	}
 
-	acl := template.UserACL()
+	acl := template.GroupACL()
 
 	groups := make([]database.TemplateGroup, 0, len(acl))
 	for k, v := range acl {
-		user, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
-		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get user by ID: %w", err)
+		if k == database.AllUsersGroup {
+			continue
 		}
-		// We don't delete users from the map if they
+		group, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get group by ID: %w", err)
+		}
+		// We don't delete groups from the map if they
 		// get deleted so just skip.
 		if xerrors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 
 		groups = append(groups, database.TemplateGroup{
-			Group: user,
+			Group: group,
 			Role:  v,
 		})
 	}
@@ -1820,7 +1823,9 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		CreatedBy:            arg.CreatedBy,
 	}
 	template = template.SetUserACL(database.TemplateACL{})
-	template = template.SetGroupACL(database.TemplateACL{})
+	template = template.SetGroupACL(database.TemplateACL{
+		database.AllUsersGroup: database.TemplateRoleRead,
+	})
 	q.templates = append(q.templates, template)
 	return template, nil
 }
@@ -2512,6 +2517,16 @@ func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	for _, member := range q.groupMembers {
+		if member.GroupID == arg.GroupID &&
+			member.UserID == arg.UserID {
+			return &pq.Error{
+				Code: "23505",
+			}
+
+		}
+	}
+
 	q.groupMembers = append(q.groupMembers, database.GroupMember{
 		GroupID: arg.GroupID,
 		UserID:  arg.UserID,
@@ -2916,6 +2931,24 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 	}
 
 	return groups, nil
+}
+
+func (q *fakeQuerier) GetAllOrganizationMembers(_ context.Context, organizationID uuid.UUID) ([]database.User, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var users []database.User
+	for _, member := range q.organizationMembers {
+		if member.OrganizationID == organizationID {
+			for _, user := range q.users {
+				if user.ID == member.UserID {
+					users = append(users, user)
+				}
+			}
+		}
+	}
+
+	return users, nil
 }
 
 func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {

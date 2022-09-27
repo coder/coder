@@ -61,11 +61,6 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	count := uint32(0)
 	if len(workspaceCounts) > 0 {
 		count = uint32(workspaceCounts[0].Count)
@@ -465,8 +460,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only users who are able to create templates (aka template admins)
-	// are able to control user permissions.
-	if len(req.UserPerms) > 0 &&
+	// are able to control permissions.
+	if (len(req.UserPerms) > 0 || len(req.GroupPerms) > 0) &&
 		!api.Authorize(r, rbac.ActionCreate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -503,6 +498,26 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	for k, v := range req.GroupPerms {
+		if err := validateTemplateRole(v); err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "group_perms", Detail: err.Error()})
+			continue
+		}
+
+		groupID, err := uuid.Parse(k)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "group_perms", Detail: "Group ID " + k + "must be a valid UUID."})
+			continue
+		}
+
+		// This could get slow if we get a ton of group user perm updates.
+		_, err = api.Database.GetGroupByID(r.Context(), groupID)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "group_perms", Detail: fmt.Sprintf("Failed to find group with ID %q: %v", k, err.Error())})
+			continue
+		}
+	}
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update template metadata!",
@@ -532,7 +547,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
 			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() &&
-			len(req.UserPerms) == 0 {
+			len(req.UserPerms) == 0 &&
+			len(req.GroupPerms) == 0 {
 			return nil
 		}
 
@@ -566,6 +582,35 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			err = tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
+			if err != nil {
+				return xerrors.Errorf("update template user ACL: %w", err)
+			}
+		}
+
+		if len(req.GroupPerms) > 0 {
+			allUsersGroup, err := tx.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+				OrganizationID: template.OrganizationID,
+				Name:           database.AllUsersGroup,
+			})
+			if err != nil {
+				return xerrors.Errorf("get allUsers group: %w", err)
+			}
+
+			groupACL := template.GroupACL()
+			for k, v := range req.GroupPerms {
+				if k == allUsersGroup.ID.String() {
+					k = database.AllUsersGroup
+				}
+				// An id with an empty string implies
+				// deletion.
+				if v == "" {
+					delete(groupACL, k)
+					continue
+				}
+				groupACL[k] = database.TemplateRole(v)
+			}
+
+			err = tx.UpdateTemplateGroupACLByID(r.Context(), template.ID, groupACL)
 			if err != nil {
 				return xerrors.Errorf("update template user ACL: %w", err)
 			}
@@ -657,6 +702,22 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	role, ok := template.GroupACL()[database.AllUsersGroup]
+	if ok {
+		group, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+			OrganizationID: template.OrganizationID,
+			Name:           database.AllUsersGroup,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		groups = append(groups, database.TemplateGroup{
+			Group: group,
+			Role:  role,
+		})
+	}
+
 	groups, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, groups)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -672,7 +733,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}

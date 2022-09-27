@@ -55,7 +55,7 @@ func (t Template) SetGroupACL(acl TemplateACL) Template {
 		panic(fmt.Sprintf("marshal user acl: %v", err))
 	}
 
-	t.userACL = raw
+	t.groupACL = raw
 	return t
 }
 

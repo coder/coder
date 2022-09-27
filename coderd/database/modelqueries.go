@@ -114,7 +114,7 @@ WHERE
 func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error) {
 	const query = `
 	SELECT
-		perms.value as role, group.*
+		perms.value as role, groups.*
 	FROM
 		groups
 	JOIN
@@ -125,7 +125,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 				jsonb_each_text(
 					(
 						SELECT
-							templates.group
+							templates.group_acl
 						FROM
 							templates
 						WHERE

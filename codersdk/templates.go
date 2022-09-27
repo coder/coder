@@ -69,6 +69,7 @@ type UpdateTemplateMeta struct {
 	MaxTTLMillis               int64                   `json:"max_ttl_ms,omitempty"`
 	MinAutostartIntervalMillis int64                   `json:"min_autostart_interval_ms,omitempty"`
 	UserPerms                  map[string]TemplateRole `json:"user_perms,omitempty"`
+	GroupPerms                 map[string]TemplateRole `json:"group_perms,omitempty"`
 }
 
 // Template returns a single template.

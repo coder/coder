@@ -320,19 +320,18 @@ func TestGroups(t *testing.T) {
 
 		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
+		require.Len(t, groups, 3, "Should contain allUsers + 2 created groups")
 		require.Contains(t, groups, group1)
 		require.Contains(t, groups, group2)
-	})
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		ctx, _ := testutil.Context(t)
-		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
-		require.NoError(t, err)
-		require.Len(t, groups, 0)
+		for _, group := range groups {
+			if group.Name == database.AllUsersGroup {
+				require.Contains(t, group.Members, user2)
+				require.Contains(t, group.Members, user3)
+				require.Contains(t, group.Members, user4)
+				require.Contains(t, group.Members, user5)
+			}
+		}
 	})
 }
 

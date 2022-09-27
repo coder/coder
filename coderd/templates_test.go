@@ -808,7 +808,7 @@ func TestTemplateUserRoles(t *testing.T) {
 			Role: codersdk.TemplateRoleWrite,
 		}
 
-		require.Len(t, acl, 2)
+		require.Len(t, acl.Users, 2)
 		require.Contains(t, acl.Users, templateUser2)
 		require.Contains(t, acl.Users, templateUser3)
 	})
@@ -832,6 +832,50 @@ func TestTemplateGroupRoles(t *testing.T) {
 
 		require.Len(t, acl.Groups, 1)
 		require.Len(t, acl.Users, 0)
+	})
+
+	t.Run("NoAccess", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		acl, err := client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+
+		require.Len(t, acl.Groups, 1)
+		require.Len(t, acl.Users, 0)
+
+		// User should be able to read template due to allUsers group.
+		_, err = client1.Template(ctx, template.ID)
+		require.NoError(t, err)
+
+		allUsers := acl.Groups[0]
+
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			GroupPerms: map[string]codersdk.TemplateRole{
+				allUsers.ID.String(): codersdk.TemplateRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+
+		acl, err = client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+
+		require.Len(t, acl.Groups, 0)
+		require.Len(t, acl.Users, 0)
+
+		// User should not be able to read template due to allUsers group being deleted.
+		_, err = client1.Template(ctx, template.ID)
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 }
 

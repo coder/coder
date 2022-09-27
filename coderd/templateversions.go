@@ -721,7 +721,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
 		inherits := make([]uuid.UUID, 0)
 		for _, parameterValue := range req.ParameterValues {
@@ -736,7 +736,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				return xerrors.Errorf("cannot inherit parameters if template_id is not set")
 			}
 
-			inheritedParams, err := db.ParameterValues(ctx, database.ParameterValuesParams{
+			inheritedParams, err := tx.ParameterValues(ctx, database.ParameterValuesParams{
 				IDs: inherits,
 			})
 			if err != nil {
@@ -745,7 +745,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			for _, copy := range inheritedParams {
 				// This is a bit inefficient, as we make a new db call for each
 				// param.
-				version, err := db.GetTemplateVersionByJobID(ctx, copy.ScopeID)
+				version, err := tx.GetTemplateVersionByJobID(ctx, copy.ScopeID)
 				if err != nil {
 					return xerrors.Errorf("fetch template version for param %q: %w", copy.Name, err)
 				}
@@ -770,7 +770,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				continue
 			}
 
-			_, err = db.InsertParameterValue(ctx, database.InsertParameterValueParams{
+			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
 				CreatedAt:         database.Now(),
@@ -786,7 +786,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -810,13 +810,17 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
-		templateVersion, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+		if req.Name == "" {
+			req.Name = namesgenerator.GetRandomName(1)
+		}
+
+		templateVersion, err = tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			Name:           namesgenerator.GetRandomName(1),
+			Name:           req.Name,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy: uuid.NullUUID{
