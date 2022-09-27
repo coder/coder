@@ -7,7 +7,7 @@ metadata:
   namespace: coder
 spec:
   rules:
-    - host: coder.prerepair.pair.sharing.io
+    - host: coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
       http:
         paths:
           - backend:
@@ -19,7 +19,7 @@ spec:
             pathType: ImplementationSpecific
   tls:
     - hosts:
-        - coder.prerepair.pair.sharing.io
+        - coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
       secretName: letsencrypt-prod
 status:
   loadBalancer: {}
