@@ -4,8 +4,8 @@ import { makeStyles } from "@material-ui/core/styles"
 import Skeleton from "@material-ui/lab/Skeleton"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import * as TypesGen from "../../api/typesGenerated"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 export const Language = {
   of: "of",
@@ -14,7 +14,7 @@ export const Language = {
 }
 
 export interface WorkspaceQuotaProps {
-  quota?: TypesGen.UserWorkspaceQuota
+  quota?: TypesGen.WorkspaceQuota
 }
 
 export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
@@ -25,9 +25,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
     return (
       <Box>
         <Stack spacing={1} className={styles.stack}>
-          <span className={styles.title}>
-            Workspace Quota
-          </span>
+          <span className={styles.title}>Workspace Quota</span>
           <LinearProgress color="primary" />
           <div className={styles.label}>
             <Skeleton className={styles.skeleton} />
@@ -38,27 +36,33 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota }) => {
   }
 
   // don't show if limit is 0, this means the feature is disabled.
-  if (quota.limit === 0) {
-    return (<></>)
+  if (quota.user_workspace_limit === 0) {
+    return <></>
   }
 
-  let value = Math.round((quota.count / quota.limit) * 100)
+  let value = Math.round((quota.user_workspace_count / quota.user_workspace_limit) * 100)
   // we don't want to round down to zero if the count is > 0
-  if (quota.count > 0 && value === 0) {
+  if (quota.user_workspace_count > 0 && value === 0) {
     value = 1
   }
-
 
   return (
     <Box>
       <Stack spacing={1} className={styles.stack}>
-        <span className={styles.title}>
-          Workspace Quota
-        </span>
-        <LinearProgress className={quota.count >= quota.limit ? styles.maxProgress : undefined} value={value} variant="determinate" />
+        <span className={styles.title}>Workspace Quota</span>
+        <LinearProgress
+          className={
+            quota.user_workspace_count >= quota.user_workspace_limit
+              ? styles.maxProgress
+              : undefined
+          }
+          value={value}
+          variant="determinate"
+        />
         <div className={styles.label}>
-          {quota.count} {Language.of} {quota.limit}{" "}
-          {quota.limit === 1 ? Language.workspace : Language.workspaces}{" used"}
+          {quota.user_workspace_count} {Language.of} {quota.user_workspace_limit}{" "}
+          {quota.user_workspace_limit === 1 ? Language.workspace : Language.workspaces}
+          {" used"}
         </div>
       </Stack>
     </Box>

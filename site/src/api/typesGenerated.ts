@@ -523,12 +523,6 @@ export interface UserRoles {
   readonly organization_roles: Record<string, string[]>
 }
 
-// From codersdk/workspacequota.go
-export interface UserWorkspaceQuota {
-  readonly count: number
-  readonly limit: number
-}
-
 // From codersdk/users.go
 export interface UsersRequest extends Pagination {
   readonly q?: string
@@ -645,6 +639,12 @@ export interface WorkspaceFilter {
 // From codersdk/workspaces.go
 export interface WorkspaceOptions {
   readonly include_deleted?: boolean
+}
+
+// From codersdk/workspacequota.go
+export interface WorkspaceQuota {
+  readonly user_workspace_count: number
+  readonly user_workspace_limit: number
 }
 
 // From codersdk/workspaceresources.go
