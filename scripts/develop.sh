@@ -97,7 +97,7 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=false yarn --cwd=./site dev:vite || kill -INT -$$ &
+	CODER_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev || kill -INT -$$ &
 
 	log
 	log "===================================================================="
