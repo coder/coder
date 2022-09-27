@@ -135,6 +135,13 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+	if database.IsUniqueViolation(err) {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			Message: "Cannot add the same user to a group twice!",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	if xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",

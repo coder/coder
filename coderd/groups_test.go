@@ -171,6 +171,29 @@ func TestPatchGroup(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
+
+	t.Run("AddDuplicateUser", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user2.ID.String(), user2.ID.String()},
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusPreconditionFailed, cerr.StatusCode())
+	})
 }
 
 // TODO: test auth.
