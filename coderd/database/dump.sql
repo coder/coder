@@ -313,7 +313,7 @@ CREATE TABLE templates (
     created_by uuid NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    is_private boolean DEFAULT false NOT NULL
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE user_links (
@@ -441,6 +441,9 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);

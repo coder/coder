@@ -1,7 +1,7 @@
 BEGIN;
 
 ALTER TABLE templates ADD COLUMN user_acl jsonb NOT NULL default '{}';
-ALTER TABLE templates ADD COLUMN is_private boolean NOT NULL default 'false';
+ALTER TABLE templates ADD COLUMN group_acl jsonb NOT NULL default '{}';
 
 CREATE TYPE template_role AS ENUM (
 	'read',
@@ -21,7 +21,8 @@ CREATE TABLE group_members (
 	user_id uuid NOT NULL,
 	group_id uuid NOT NULL,
 	FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-	FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE
+	FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE,
+	UNIQUE(user_id, group_id)
 );
 
 COMMIT;

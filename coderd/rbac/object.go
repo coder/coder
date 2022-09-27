@@ -62,10 +62,6 @@ var (
 		Type: "group",
 	}
 
-	ResourceTemplatePrivate = Object{
-		Type: "template_private",
-	}
-
 	ResourceFile = Object{
 		Type: "file",
 	}
@@ -212,7 +208,7 @@ func (z Object) WithACLUserList(acl map[string][]Action) Object {
 	}
 }
 
-func (z Object) WithGroups(groups map[string][]Action) Object {
+func (z Object) WithGroupACL(groups map[string][]Action) Object {
 	return Object{
 		Owner:        z.Owner,
 		OrgID:        z.OrgID,
