@@ -22,7 +22,7 @@
     {
       "title": "Installation",
       "description": "How to install and deploy Coder",
-      "icon_path": "./images/icons/wrench.svg",
+      "icon_path": "./images/icons/download.svg",
       "path": "./install/index.md",
       "children": [
         {
@@ -171,26 +171,31 @@
         {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "icon_path": "./images/icons/key.svg",
           "path": "./admin/auth.md"
         },
         {
           "title": "Configuration",
           "description": "Learn how to configure Coder",
-          "path": "./admin/configure.md"
+          "path": "./admin/configure.md",
+          "icon_path": "./images/icons/toggle_on.svg"
         },
         {
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder.",
+          "icon_path": "./images/icons/upgrade.svg",
           "path": "./admin/upgrade.md"
         },
         {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment.",
+          "icon_path": "./images/icons/radar.svg",
           "path": "./admin/audit-logs.md"
         },
         {
           "title": "Enterprise",
           "description": "Learn how to enable Enterprise features.",
+          "icon_path": "./images/icons/group.svg",
           "path": "./admin/enterprise.md"
         }
       ]
