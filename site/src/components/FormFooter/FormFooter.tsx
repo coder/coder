@@ -45,7 +45,6 @@ export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
         variant="contained"
         color="primary"
         type="submit"
-        disabled
       >
         {submitLabel}
       </LoadingButton>
