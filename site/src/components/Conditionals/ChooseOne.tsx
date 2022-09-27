@@ -22,7 +22,7 @@ export const Cond = ({ children }: PropsWithChildren<CondProps>): JSX.Element =>
  * @returns one of its children, or null if there are no children
  * @throws an error if its last child has a condition prop, or any non-final children do not have a condition prop
  */
-export const ChooseOne = ({ children }: PropsWithChildren): JSX.Element|null => {
+export const ChooseOne = ({ children }: PropsWithChildren): JSX.Element | null => {
   const childArray = Children.toArray(children) as JSX.Element[]
   if (childArray.length === 0) {
     return null

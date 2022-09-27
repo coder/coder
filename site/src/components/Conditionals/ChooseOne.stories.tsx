@@ -12,7 +12,7 @@ export const FirstIsTrue: Story = () => (
     <Cond condition>The first one shows.</Cond>
     <Cond condition={false}>The second one does not show.</Cond>
     <Cond>The default does not show.</Cond>
-   </ChooseOne>
+  </ChooseOne>
 )
 
 export const SecondIsTrue: Story = () => (
@@ -41,8 +41,6 @@ export const NoneAreTrue: Story = () => (
 
 export const OneCond: Story = () => (
   <ChooseOne>
-    <Cond>
-      An only child renders.
-    </Cond>
+    <Cond>An only child renders.</Cond>
   </ChooseOne>
 )
