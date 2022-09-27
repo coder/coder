@@ -1,5 +1,0 @@
-#!/usr/bin/expect -f
-spawn coder login https://coder.prerepair.pair.sharing.io
-expect yes
-send -- "yes\n"
-expect eof
