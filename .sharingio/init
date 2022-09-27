@@ -17,6 +17,7 @@ helm install coder ./helm/ \
 	--namespace coder \
 	--values .sharingio/values.yaml
 # setup ingress
+envsubst <.sharingio/ingress.template.yaml >.sharingio/ingress.yaml
 kubectl apply -f .sharingio/ingress.yaml
 # Wait for coder to deploy
 kubectl rollout status deployment coder -n coder
