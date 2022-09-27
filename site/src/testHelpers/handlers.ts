@@ -191,4 +191,8 @@ export const handlers = [
   rest.patch("/api/v2/groups/:groupId", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(MockGroup))
   }),
+
+  rest.delete("/api/v2/groups/:groupId", (req, res, ctx) => {
+    return res(ctx.status(204))
+  }),
 ]

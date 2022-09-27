@@ -533,3 +533,7 @@ export const patchGroup = async (
   const response = await axios.patch(`/api/v2/groups/${groupId}`, data)
   return response.data
 }
+
+export const deleteGroup = async (groupId: string): Promise<void> => {
+  await axios.delete(`/api/v2/groups/${groupId}`)
+}

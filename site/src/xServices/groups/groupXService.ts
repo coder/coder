@@ -1,4 +1,4 @@
-import { getGroup, patchGroup } from "api/api"
+import { deleteGroup, getGroup, patchGroup } from "api/api"
 import { getErrorMessage } from "api/errors"
 import { Group } from "api/typesGenerated"
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
@@ -24,6 +24,9 @@ export const groupMachine = createMachine(
         removeMember: {
           data: Group
         }
+        deleteGroup: {
+          data: unknown
+        }
       },
       events: {} as
         | {
@@ -34,6 +37,15 @@ export const groupMachine = createMachine(
         | {
             type: "REMOVE_MEMBER"
             userId: string
+          }
+        | {
+            type: "DELETE"
+          }
+        | {
+            type: "CONFIRM_DELETE"
+          }
+        | {
+            type: "CANCEL_DELETE"
           },
     },
     tsTypes: {} as import("./groupXService.typegen").Typegen0,
@@ -61,6 +73,9 @@ export const groupMachine = createMachine(
           REMOVE_MEMBER: {
             target: "removingMember",
             actions: ["removeUserFromMembers"],
+          },
+          DELETE: {
+            target: "confirmingDelete",
           },
         },
       },
@@ -90,6 +105,23 @@ export const groupMachine = createMachine(
           },
         },
       },
+      confirmingDelete: {
+        on: {
+          CONFIRM_DELETE: "deleting",
+          CANCEL_DELETE: "idle",
+        },
+      },
+      deleting: {
+        invoke: {
+          src: "deleteGroup",
+          onDone: {
+            actions: ["redirectToGroups"],
+          },
+          onError: {
+            actions: ["displayDeleteGroupError"],
+          },
+        },
+      },
     },
   },
   {
@@ -108,6 +140,13 @@ export const groupMachine = createMachine(
         }
 
         return patchGroup(group.id, { name: "", add_users: [], remove_users: [userId] })
+      },
+      deleteGroup: ({ group }) => {
+        if (!group) {
+          throw new Error("Group not defined.")
+        }
+
+        return deleteGroup(group.id)
       },
     },
     actions: {
@@ -149,6 +188,10 @@ export const groupMachine = createMachine(
       },
       displayRemoveMemberSuccess: () => {
         displaySuccess("Member removed successfully.")
+      },
+      displayDeleteGroupError: (_, { data }) => {
+        const message = getErrorMessage(data, "Failed to delete group.")
+        displayError(message)
       },
     },
   },
