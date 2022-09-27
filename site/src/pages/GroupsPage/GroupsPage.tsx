@@ -11,9 +11,9 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import AvatarGroup from "@material-ui/lab/AvatarGroup"
 import { useMachine } from "@xstate/react"
+import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
-import { TableCellLink } from "components/TableCellLink/TableCellLink"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useOrganizationId } from "hooks/useOrganizationId"
@@ -78,10 +78,13 @@ export const GroupsPage: React.FC = () => {
 
                   return (
                     <TableRow
-                      key={group.id}
                       hover
+                      key={group.id}
                       data-testid={`group-${group.id}`}
                       tabIndex={0}
+                      onClick={() => {
+                        navigate(groupPageLink)
+                      }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") {
                           navigate(groupPageLink)
@@ -89,10 +92,16 @@ export const GroupsPage: React.FC = () => {
                       }}
                       className={styles.clickableTableRow}
                     >
-                      <TableCellLink to={groupPageLink}>{group.name}</TableCellLink>
+                      <TableCell>
+                        <AvatarData
+                          title={group.name}
+                          subtitle={`${group.members.length} members`}
+                          highlightTitle
+                        />
+                      </TableCell>
 
                       <TableCell>
-                        {group.members.length === 0 && "No members"}
+                        {group.members.length === 0 && "-"}
                         <AvatarGroup>
                           {group.members.map((member) => (
                             <UserAvatar
@@ -104,11 +113,11 @@ export const GroupsPage: React.FC = () => {
                         </AvatarGroup>
                       </TableCell>
 
-                      <TableCellLink to={groupPageLink}>
+                      <TableCell>
                         <div className={styles.arrowCell}>
                           <KeyboardArrowRight className={styles.arrowRight} />
                         </div>
-                      </TableCellLink>
+                      </TableCell>
                     </TableRow>
                   )
                 })}
@@ -123,6 +132,8 @@ export const GroupsPage: React.FC = () => {
 
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
+    cursor: "pointer",
+
     "&:hover td": {
       backgroundColor: theme.palette.action.hover,
     },
