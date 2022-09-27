@@ -9,6 +9,7 @@ import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import { EmptyState } from "components/EmptyState/EmptyState"
 import { Loader } from "components/Loader/Loader"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Margins } from "components/Margins/Margins"
@@ -110,18 +111,33 @@ export const GroupPage: React.FC = () => {
                   </TableHead>
 
                   <TableBody>
-                    {group?.members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell width="99%">
-                          <AvatarData
-                            title={member.username}
-                            subtitle={member.email}
-                            highlightTitle
-                          />
-                        </TableCell>
-                        <TableCell width="1%"></TableCell>
-                      </TableRow>
-                    ))}
+                    <ChooseOne>
+                      <Cond condition={Boolean(group?.members.length === 0)}>
+                        <TableRow>
+                          <TableCell colSpan={999}>
+                            <EmptyState
+                              message="No members yet"
+                              description="Add a member using the controls above"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      </Cond>
+
+                      <Cond condition>
+                        {group?.members.map((member) => (
+                          <TableRow key={member.id}>
+                            <TableCell width="99%">
+                              <AvatarData
+                                title={member.username}
+                                subtitle={member.email}
+                                highlightTitle
+                              />
+                            </TableCell>
+                            <TableCell width="1%"></TableCell>
+                          </TableRow>
+                        ))}
+                      </Cond>
+                    </ChooseOne>
                   </TableBody>
                 </Table>
               </TableContainer>
