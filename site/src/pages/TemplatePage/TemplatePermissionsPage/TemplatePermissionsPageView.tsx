@@ -17,7 +17,7 @@ import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
+import { UserAutocompleteInline } from "components/UserAutocomplete/UserAutocomplete"
 import { FC, useState } from "react"
 
 const AddTemplateUser: React.FC<{
@@ -44,7 +44,7 @@ const AddTemplateUser: React.FC<{
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1}>
-        <UserAutocomplete
+        <UserAutocompleteInline
           value={selectedUser}
           onChange={(newValue) => {
             setSelectedUser(newValue)
@@ -78,7 +78,7 @@ const AddTemplateUser: React.FC<{
           startIcon={<PersonAdd />}
           loading={isLoading}
         >
-          Add collaborator
+          Add user
         </LoadingButton>
       </Stack>
     </form>
@@ -135,8 +135,8 @@ export const TemplatePermissionsPageView: FC<
                 <TableRow>
                   <TableCell colSpan={999}>
                     <EmptyState
-                      message="No collaborators yet"
-                      description="Add a collaborator using the controls above"
+                      message="No users yet"
+                      description="Add a user using the controls above"
                     />
                   </TableCell>
                 </TableRow>

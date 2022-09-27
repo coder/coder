@@ -7,14 +7,20 @@ import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, useEffect, useState } from "react"
+import { combineClasses } from "util/combineClasses"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 
 export type UserAutocompleteProps = {
   value?: User | null
   onChange: (user: User | null) => void
+  className?: string
 }
 
-export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onChange }) => {
+export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
+  value,
+  onChange,
+  className,
+}) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
@@ -73,7 +79,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
       )}
       options={searchResults}
       loading={searchState.matches("searching")}
-      className={styles.autocomplete}
+      className={combineClasses([styles.autocomplete, className])}
       renderInput={(params) => (
         <TextField
           {...params}
@@ -95,6 +101,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
     />
   )
 }
+
 export const useStyles = makeStyles((theme) => {
   return {
     autocomplete: {
@@ -120,6 +127,20 @@ export const useStyles = makeStyles((theme) => {
       width: theme.spacing(4.5),
       height: theme.spacing(4.5),
       borderRadius: "100%",
+    },
+  }
+})
+
+export const UserAutocompleteInline: React.FC<UserAutocompleteProps> = (props) => {
+  const style = useInlineStyle()
+
+  return <UserAutocomplete {...props} className={style.inline} />
+}
+
+export const useInlineStyle = makeStyles(() => {
+  return {
+    inline: {
+      width: "300px",
     },
   }
 })
