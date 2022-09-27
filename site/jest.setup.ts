@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom"
+import { cleanup } from "@testing-library/react"
 import crypto from "crypto"
 import * as util from "util"
 import { server } from "./src/testHelpers/server"
@@ -22,6 +23,7 @@ beforeAll(() =>
 // Reset any request handlers that we may add during the tests,
 // so they don't affect other tests.
 afterEach(() => {
+  cleanup()
   server.resetHandlers()
   jest.clearAllMocks()
 })
