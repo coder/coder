@@ -412,6 +412,7 @@ func New(options *Options) *API {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
+					r.Get("/workspace-quota", api.workspaceQuota)
 				})
 			})
 		})

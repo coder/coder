@@ -1,6 +1,6 @@
 package codersdk
 
-type UserWorkspaceQuota struct {
-	Count int `json:"count"`
-	Limit int `json:"limit"`
+type WorkspaceQuota struct {
+	UserWorkspaceCount int `json:"user_workspace_count"`
+	UserWorkspaceLimit int `json:"user_workspace_limit"`
 }

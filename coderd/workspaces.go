@@ -294,27 +294,37 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
+	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
 		OwnerID: user.ID,
-		Name:    createWorkspace.Name,
 	})
-	if err == nil {
-		// If the workspace already exists, don't allow creation.
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
-			Validations: []codersdk.ValidationError{{
-				Field:  "name",
-				Detail: "This value is already in use and should be unique.",
-			}},
-		})
-		return
-	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
 		})
 		return
+	}
+	for _, workspace := range workspaces {
+		if workspace.Name == createWorkspace.Name {
+			// If the workspace already exists, don't allow creation.
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+			return
+		}
+	}
+
+	// make sure the user has not hit their quota limit
+	e := *api.WorkspaceQuotaEnforcer.Load()
+	canCreate := e.CanCreateWorkspace(len(workspaces))
+	if !canCreate {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("User workspace limit of %s is already reached.", e.UserWorkspaceLimit()),
+		})
 	}
 
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
@@ -352,8 +362,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var provisionerJob database.ProvisionerJob
-	var workspaceBuild database.WorkspaceBuild
+	var (
+		workspace      database.Workspace
+		provisionerJob database.ProvisionerJob
+		workspaceBuild database.WorkspaceBuild
+	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
 		workspaceBuildID := uuid.New()
