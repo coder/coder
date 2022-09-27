@@ -21,19 +21,14 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
   const { searchResults } = searchState.context
   const [selectedValue, setSelectedValue] = useState<User | null>(value || null)
 
-  // seed list of options on the first page load
+  // seed list of options on the first page load if a user pases in a value
+  // since some organizations have long lists of users, we do not load all options on page load.
   useEffect(() => {
-    const query = value ? value.email : ""
-    sendSearch("SEARCH", { query })
+    if (value) {
+      sendSearch("SEARCH", { query: value.email })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // when selected value changes, update search terms
-  useEffect(() => {
-    const query = selectedValue ? selectedValue.email : ""
-    sendSearch("SEARCH", { query })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedValue])
 
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
@@ -50,7 +45,11 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
       onClose={() => {
         setIsAutocompleteOpen(false)
       }}
-      onChange={(event, newValue) => {
+      onChange={(_, newValue) => {
+        if (newValue === null) {
+          sendSearch("CLEAR_RESULTS")
+        }
+
         setSelectedValue(newValue)
         onChange(newValue)
       }}

@@ -3,17 +3,18 @@ import { User } from "api/typesGenerated"
 import { queryToFilter } from "util/filters"
 import { assign, createMachine } from "xstate"
 
+export type AutocompleteEvent =
+  | { type: "SEARCH"; query: string; }
+  | { type: "CLEAR_RESULTS" }
+
 export const searchUserMachine = createMachine(
   {
     id: "searchUserMachine",
     schema: {
       context: {} as {
-        searchResults: User[]
+        searchResults?: User[]
       },
-      events: {} as {
-        type: "SEARCH"
-        query: string
-      },
+      events: {} as AutocompleteEvent,
       services: {} as {
         searchUsers: {
           data: User[]
@@ -29,6 +30,10 @@ export const searchUserMachine = createMachine(
       idle: {
         on: {
           SEARCH: "searching",
+          CLEAR_RESULTS: {
+            actions: ["clearResults"],
+            target: "idle",
+          }
         },
       },
       searching: {
@@ -50,6 +55,9 @@ export const searchUserMachine = createMachine(
       assignSearchResults: assign({
         searchResults: (_, { data }) => data,
       }),
+      clearResults: assign({
+        searchResults: (_) => undefined,
+      })
     },
   },
 )
