@@ -556,7 +556,7 @@ type Template struct {
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
 	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
-	GroupAcl             json.RawMessage `db:"group_acl" json:"group_acl"`
+	groupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {

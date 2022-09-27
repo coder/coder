@@ -2464,7 +2464,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
-		&i.GroupAcl,
+		&i.groupACL,
 	)
 	return i, err
 }
@@ -2506,7 +2506,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
-		&i.GroupAcl,
+		&i.groupACL,
 	)
 	return i, err
 }
@@ -2540,7 +2540,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.CreatedBy,
 			&i.Icon,
 			&i.userACL,
-			&i.GroupAcl,
+			&i.groupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -2620,7 +2620,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.CreatedBy,
 			&i.Icon,
 			&i.userACL,
-			&i.GroupAcl,
+			&i.groupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -2701,7 +2701,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
-		&i.GroupAcl,
+		&i.groupACL,
 	)
 	return i, err
 }
@@ -2800,7 +2800,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.CreatedBy,
 		&i.Icon,
 		&i.userACL,
-		&i.GroupAcl,
+		&i.groupACL,
 	)
 	return i, err
 }

@@ -406,7 +406,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Icon:                       "/icons/new-icon.png",
 			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
 			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
-			IsPrivate:                  boolPtr(true),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -423,7 +422,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
-		assert.True(t, updated.IsPrivate)
 
 		// Extra paranoid: did it _really_ happen?
 		updated, err = client.Template(ctx, template.ID)
@@ -434,7 +432,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
 		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
-		assert.Equal(t, *req.IsPrivate, updated.IsPrivate)
 
 		require.Len(t, auditor.AuditLogs, 4)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)

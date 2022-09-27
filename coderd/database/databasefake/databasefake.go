@@ -1233,13 +1233,27 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
-func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.UserACL) error {
+func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.ACL) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for i, t := range q.templates {
 		if t.ID == id {
 			t = t.SetUserACL(acl)
+			q.templates[i] = t
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateGroupACLByID(_ context.Context, id uuid.UUID, acl database.ACL) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for i, t := range q.templates {
+		if t.ID == id {
+			t = t.SetGroupACL(acl)
 			q.templates[i] = t
 			return nil
 		}
@@ -1284,6 +1298,45 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	}
 
 	return users, nil
+}
+
+func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var template database.Template
+	for _, t := range q.templates {
+		if t.ID == id {
+			template = t
+			break
+		}
+	}
+
+	if template.ID == uuid.Nil {
+		return nil, sql.ErrNoRows
+	}
+
+	acl := template.UserACL()
+
+	groups := make([]database.TemplateGroup, 0, len(acl))
+	for k, v := range acl {
+		user, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
+		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get user by ID: %w", err)
+		}
+		// We don't delete users from the map if they
+		// get deleted so just skip.
+		if xerrors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+
+		groups = append(groups, database.TemplateGroup{
+			Group: user,
+			Role:  v,
+		})
+	}
+
+	return groups, nil
 }
 
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
@@ -1766,7 +1819,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		MinAutostartInterval: arg.MinAutostartInterval,
 		CreatedBy:            arg.CreatedBy,
 	}
-	template = template.SetUserACL(database.UserACL{})
+	template = template.SetUserACL(database.ACL{})
+	template = template.SetGroupACL(database.ACL{})
 	q.templates = append(q.templates, template)
 	return template, nil
 }

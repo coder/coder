@@ -466,7 +466,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	// Only users who are able to create templates (aka template admins)
 	// are able to control user permissions.
-	if (len(req.UserPerms) > 0 || req.IsPrivate != nil) &&
+	if len(req.UserPerms) > 0 &&
 		!api.Authorize(r, rbac.ActionCreate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -872,7 +872,7 @@ func (api *API) convertTemplate(
 	}
 }
 
-func convertTemplateACL(acl database.UserACL) map[string]codersdk.TemplateRole {
+func convertTemplateACL(acl database.ACL) map[string]codersdk.TemplateRole {
 	userACL := make(map[string]codersdk.TemplateRole, len(acl))
 	for k, v := range acl {
 		userACL[k] = convertDatabaseTemplateRole(v)

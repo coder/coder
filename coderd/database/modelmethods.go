@@ -7,13 +7,10 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// UserACL is a map of user_ids to permissions.
-type UserACL map[string]TemplateRole
+// ACL is a map of user_ids to permissions.
+type ACL map[string]TemplateRole
 
-// Group is a map of user_ids to permissions.
-type GroupACL map[string]TemplateRole
-
-func (u UserACL) Actions() map[string][]rbac.Action {
+func (u ACL) Actions() map[string][]rbac.Action {
 	aclRBAC := make(map[string][]rbac.Action, len(u))
 	for k, v := range u {
 		aclRBAC[k] = templateRoleToActions(v)
@@ -22,8 +19,8 @@ func (u UserACL) Actions() map[string][]rbac.Action {
 	return aclRBAC
 }
 
-func (t Template) UserACL() UserACL {
-	var acl UserACL
+func (t Template) UserACL() ACL {
+	var acl ACL
 	if len(t.userACL) == 0 {
 		return acl
 	}
@@ -36,9 +33,31 @@ func (t Template) UserACL() UserACL {
 	return acl
 }
 
-func (t Template) GroupACL() Gr
+func (t Template) GroupACL() ACL {
+	var acl ACL
+	if len(t.groupACL) == 0 {
+		return acl
+	}
 
-func (t Template) SetUserACL(acl UserACL) Template {
+	err := json.Unmarshal(t.groupACL, &acl)
+	if err != nil {
+		panic(fmt.Sprintf("failed to unmarshal template.userACL: %v", err.Error()))
+	}
+
+	return acl
+}
+
+func (t Template) SetGroupACL(acl ACL) Template {
+	raw, err := json.Marshal(acl)
+	if err != nil {
+		panic(fmt.Sprintf("marshal user acl: %v", err))
+	}
+
+	t.userACL = raw
+	return t
+}
+
+func (t Template) SetUserACL(acl ACL) Template {
 	raw, err := json.Marshal(acl)
 	if err != nil {
 		panic(fmt.Sprintf("marshal user acl: %v", err))
@@ -74,7 +93,9 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 
 func (t Template) RBACObject() rbac.Object {
 	obj := rbac.ResourceTemplate
-	return obj.InOrg(t.OrganizationID).WithACLUserList(t.UserACL().Actions())
+	return obj.InOrg(t.OrganizationID).
+		WithACLUserList(t.UserACL().Actions()).
+		WithGroupACL(t.GroupACL().Actions())
 }
 
 func (TemplateVersion) RBACObject(template Template) rbac.Object {
