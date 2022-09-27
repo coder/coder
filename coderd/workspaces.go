@@ -323,8 +323,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	canCreate := e.CanCreateWorkspace(len(workspaces))
 	if !canCreate {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("User workspace limit of %s is already reached.", e.UserWorkspaceLimit()),
+			Message: fmt.Sprintf("User workspace limit of %d is already reached.", e.UserWorkspaceLimit()),
 		})
+		return
 	}
 
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)

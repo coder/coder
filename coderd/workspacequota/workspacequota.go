@@ -11,9 +11,9 @@ func NewNop() *nop {
 	return &nop{}
 }
 
-func (_ *nop) UserWorkspaceLimit() int {
+func (*nop) UserWorkspaceLimit() int {
 	return 0
 }
-func (_ *nop) CanCreateWorkspace(_ int) bool {
+func (*nop) CanCreateWorkspace(_ int) bool {
 	return true
 }

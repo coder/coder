@@ -11,16 +11,16 @@ const Template: Story<WorkspaceQuotaProps> = (args) => <WorkspaceQuota {...args}
 export const Example = Template.bind({})
 Example.args = {
   quota: {
-    count: 1,
-    limit: 3,
+    user_workspace_count: 1,
+    user_workspace_limit: 3,
   },
 }
 
 export const LimitOf1 = Template.bind({})
 LimitOf1.args = {
   quota: {
-    count: 1,
-    limit: 1,
+    user_workspace_count: 1,
+    user_workspace_limit: 1,
   },
 }
 
@@ -32,7 +32,7 @@ Loading.args = {
 export const Disabled = Template.bind({})
 Disabled.args = {
   quota: {
-    count: 1,
-    limit: 0,
+    user_workspace_count: 1,
+    user_workspace_limit: 0,
   },
 }
