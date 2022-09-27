@@ -1,4 +1,5 @@
 import Button from "@material-ui/core/Button"
+import Link from "@material-ui/core/Link"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -23,7 +24,7 @@ import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
 import { UserAutocompleteInline } from "components/UserAutocomplete/UserAutocomplete"
 import { useState } from "react"
 import { Helmet } from "react-helmet-async"
-import { useNavigate, useParams } from "react-router-dom"
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { groupMachine } from "xServices/groups/groupXService"
 
@@ -104,7 +105,9 @@ export const GroupPage: React.FC = () => {
             <PageHeader
               actions={
                 <>
-                  <Button startIcon={<SettingsOutlined />}>Settings</Button>
+                  <Link to="settings" underline="none" component={RouterLink}>
+                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
+                  </Link>
                   <Button
                     onClick={() => {
                       send("DELETE")

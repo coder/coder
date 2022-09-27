@@ -5,12 +5,10 @@ import { RequirePermission } from "components/RequirePermission/RequirePermissio
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import IndexPage from "pages"
 import AuditPage from "pages/AuditPage/AuditPage"
-import CreateGroupPage from "pages/GroupsPage/CreateGroupPage"
-import GroupPage from "pages/GroupsPage/GroupPage"
 import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
-import TemplatePermissionsPage from "pages/TemplatePage/TemplatePermissionsPage/TemplatePermissionsPage"
+
 import TemplateSummaryPage from "pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
@@ -44,7 +42,13 @@ const WorkspaceAppErrorPage = lazy(
   () => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
+const TemplatePermissionsPage = lazy(
+  () => import("./pages/TemplatePage/TemplatePermissionsPage/TemplatePermissionsPage"),
+)
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
+const CreateGroupPage = lazy(() => import("./pages/GroupsPage/CreateGroupPage"))
+const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"))
+const SettingsGroupPage = lazy(() => import("./pages/GroupsPage/SettingsGroupPage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -175,6 +179,14 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <GroupPage />
               </AuthAndFrame>
+            }
+          />
+          <Route
+            path=":groupId/settings"
+            element={
+              <RequireAuth>
+                <SettingsGroupPage />
+              </RequireAuth>
             }
           />
         </Route>
