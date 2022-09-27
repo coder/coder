@@ -314,9 +314,12 @@ export const workspacesMachine = createMachine(
         context.workspaceRefs?.forEach((ref) => {
           const matchingWorkspace = event.data.find((workspace) => ref.id === workspace.id)
           if (matchingWorkspace) {
+            // if a workspace machine reference describes a workspace that has not been deleted,
+            // update its data and mark it as a refToKeep
             ref.send({ type: "UPDATE_DATA", data: matchingWorkspace })
             refsToKeep.push(ref)
           } else {
+            // if it describes a workspace that has been deleted, stop the machine
             ref.stop && ref.stop()
           }
         })
