@@ -217,6 +217,14 @@ acl_allow {
 	[input.action, "*"][_] in perms
 }
 
+# ACL for 'all_users' special group
+acl_allow {
+	org_mem
+	input.object.org_owner != ""
+	perms := input.object.acl_group_list["all_users"]
+	[input.action, "*"][_] in perms
+}
+
 ###############
 # Final Allow
 # The role or the ACL must allow the action. Scopes can be used to limit,
