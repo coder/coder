@@ -12,7 +12,7 @@ helm install postgres bitnami/postgresql \
 	--set auth.database=coder \
 	--set persistence.size=10Gi
 # deploy via helm for now
-envsubst <.sharing.io/values.template.yaml >.sharing.io/values.yaml
+envsubst <.sharingio/values.template.yaml >.sharingio/values.yaml
 helm install coder ./helm/ \
 	--namespace coder \
 	--values .sharingio/values.yaml
