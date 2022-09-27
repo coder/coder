@@ -18,6 +18,7 @@ import (
 	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -213,13 +214,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
-	// TODO(f0ssel)
 	if entitlements.workspaceQuota != api.entitlements.workspaceQuota {
-		// var handler func(rw http.ResponseWriter) bool
+		var enforcer workspacequota.Enforcer
 		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.WorkspaceQuota > 0 {
-			// handler = api.shouldBlockNonBrowserConnections
+			enforcer = NewEnforcer(api.WorkspaceQuota)
 		}
-		// api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
+		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}
 
 	api.entitlements = entitlements
