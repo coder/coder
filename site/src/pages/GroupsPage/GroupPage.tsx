@@ -15,6 +15,7 @@ import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
+import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { useState } from "react"
 import { Helmet } from "react-helmet-async"
@@ -133,7 +134,21 @@ export const GroupPage: React.FC = () => {
                                 highlightTitle
                               />
                             </TableCell>
-                            <TableCell width="1%"></TableCell>
+                            <TableCell width="1%">
+                              <TableCell>
+                                <TableRowMenu
+                                  data={member}
+                                  menuItems={[
+                                    {
+                                      label: "Remove",
+                                      onClick: () => {
+                                        send({ type: "REMOVE_MEMBER", userId: member.id })
+                                      },
+                                    },
+                                  ]}
+                                />
+                              </TableCell>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </Cond>
