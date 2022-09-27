@@ -15,10 +15,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
-	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -98,9 +96,9 @@ type Options struct {
 
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly    bool
-	SCIMAPIKey     []byte
-	WorkspaceQuota int
+	BrowserOnly        bool
+	SCIMAPIKey         []byte
+	UserWorkspaceQuota int
 
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -193,17 +191,16 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if entitlements.auditLogs != api.entitlements.auditLogs {
-		auditor := agplaudit.NewNop()
 		// A flag could be added to the options that would allow disabling
 		// enhanced audit logging here!
 		if entitlements.auditLogs != codersdk.EntitlementNotEntitled && api.AuditLogging {
-			auditor = audit.NewAuditor(
+			auditor := audit.NewAuditor(
 				audit.DefaultFilter,
 				backends.NewPostgres(api.Database, true),
 				backends.NewSlog(api.Logger),
 			)
+			api.AGPL.Auditor.Store(&auditor)
 		}
-		api.AGPL.Auditor.Store(&auditor)
 	}
 
 	if entitlements.browserOnly != api.entitlements.browserOnly {
@@ -215,11 +212,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if entitlements.workspaceQuota != api.entitlements.workspaceQuota {
-		var enforcer workspacequota.Enforcer
-		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.WorkspaceQuota > 0 {
-			enforcer = NewEnforcer(api.WorkspaceQuota)
+		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.Options.UserWorkspaceQuota > 0 {
+			enforcer := NewEnforcer(api.Options.UserWorkspaceQuota)
+			api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 		}
-		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}
 
 	api.entitlements = entitlements
@@ -279,9 +275,9 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 
 	resp.Features[codersdk.FeatureWorkspaceQuota] = codersdk.Feature{
 		Entitlement: entitlements.workspaceQuota,
-		Enabled:     api.WorkspaceQuota > 0,
+		Enabled:     api.UserWorkspaceQuota > 0,
 	}
-	if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod && api.WorkspaceQuota > 0 {
+	if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod && api.UserWorkspaceQuota > 0 {
 		resp.Warnings = append(resp.Warnings,
 			"Workspace quotas are enabled but your license for this feature is expired.")
 	}

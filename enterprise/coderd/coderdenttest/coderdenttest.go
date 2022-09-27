@@ -39,6 +39,7 @@ type Options struct {
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
+	UserWorkspaceQuota         int
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -59,6 +60,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		AuditLogging:               true,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys: map[string]ed25519.PublicKey{
