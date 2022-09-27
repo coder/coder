@@ -21,8 +21,6 @@ func server() *cobra.Command {
 		userWorkspaceQuota int
 	)
 	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
-		coderd.NewEnforcer(userWorkspaceQuota)
-
 		api, err := coderd.New(ctx, &coderd.Options{
 			AuditLogging:       auditLogging,
 			BrowserOnly:        browserOnly,
