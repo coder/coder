@@ -146,7 +146,7 @@ export const TemplateLayout: FC = () => {
                 combineClasses([styles.tabItem, isActive ? styles.tabItemActive : undefined])
               }
             >
-              Collaborators
+              Permissions
             </NavLink>
           </Stack>
         </Margins>
