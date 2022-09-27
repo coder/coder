@@ -15,16 +15,16 @@ resources in the template. With our generic model, any web application can
 be used as a Coder application. For example:
 
 ```hcl
-# Give template users the portainer.io web UI
+# Add button to open Portainer in the workspace dashboard
+# Note: Portainer must be already running in the workspace
 resource "coder_app" "portainer" {
   agent_id      = coder_agent.main.id
   name          = "portainer"
   icon          = "https://simpleicons.org/icons/portainer.svg"
-  url           = "http://localhost:8000"
-  relative_path = true
+  url           = "https://localhost:9443/api/status"
 
   healthcheck {
-    url       = "http://localhost:8000/"
+    url       = "https://localhost:9443/api/status"
     interval  = 6
     threshold = 10
   }
