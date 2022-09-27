@@ -3,6 +3,7 @@ import { WorkspaceBuildTransition } from "../api/types"
 import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
 import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
+import { MockGroup } from "./entities"
 
 export const handlers = [
   rest.get("/api/v2/templates/:templateId/daus", async (req, res, ctx) => {
@@ -172,5 +173,22 @@ export const handlers = [
   // Applications host
   rest.get("/api/v2/applications/host", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json({ host: "dev.coder.com" }))
+  }),
+
+  // Groups
+  rest.get("/api/v2/organizations/:organizationId/groups", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([MockGroup]))
+  }),
+
+  rest.post("/api/v2/organizations/:organizationId/groups", async (req, res, ctx) => {
+    return res(ctx.status(201), ctx.json(M.MockGroup))
+  }),
+
+  rest.get("/api/v2/groups/:groupId", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(MockGroup))
+  }),
+
+  rest.patch("/api/v2/groups/:groupId", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(MockGroup))
   }),
 ]
