@@ -19,11 +19,14 @@ export const Cond = ({ children }: PropsWithChildren<CondProps>): JSX.Element =>
  * Wrapper component for rendering exactly one of its children. Wrap each child in Cond to associate it
  * with a condition under which it should be rendered. If no conditions are met, the final child
  * will be rendered.
- * @returns one of its children
+ * @returns one of its children, or null if there are no children
  * @throws an error if its last child has a condition prop, or any non-final children do not have a condition prop
  */
-export const ChooseOne = ({ children }: PropsWithChildren): JSX.Element => {
+export const ChooseOne = ({ children }: PropsWithChildren): JSX.Element|null => {
   const childArray = Children.toArray(children) as JSX.Element[]
+  if (childArray.length === 0) {
+    return null
+  }
   const conditionedOptions = childArray.slice(0, childArray.length - 1)
   const defaultCase = childArray[childArray.length - 1]
   if (defaultCase.props.condition !== undefined) {
