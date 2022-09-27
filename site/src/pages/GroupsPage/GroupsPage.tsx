@@ -13,8 +13,6 @@ import AvatarGroup from "@material-ui/lab/AvatarGroup"
 import { useMachine } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
-import { Margins } from "components/Margins/Margins"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { TableCellLink } from "components/TableCellLink/TableCellLink"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
@@ -24,14 +22,6 @@ import { Helmet } from "react-helmet-async"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { groupsMachine } from "xServices/groups/groupsXService"
-
-const CreateGroupButton: React.FC = () => {
-  return (
-    <Link underline="none" component={RouterLink} to="/groups/create">
-      <Button startIcon={<AddCircleOutline />}>Create group</Button>
-    </Link>
-  )
-}
 
 export const GroupsPage: React.FC = () => {
   const organizationId = useOrganizationId()
@@ -51,83 +41,82 @@ export const GroupsPage: React.FC = () => {
       <Helmet>
         <title>{pageTitle("Groups")}</title>
       </Helmet>
-      <Margins>
-        <PageHeader actions={<CreateGroupButton />}>
-          <PageHeaderTitle>Groups</PageHeaderTitle>
-        </PageHeader>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell width="50%">Name</TableCell>
-                <TableCell width="49%">Users</TableCell>
-                <TableCell width="1%"></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <ChooseOne>
-                <Cond condition={isLoading}>
-                  <TableLoader />
-                </Cond>
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell width="50%">Name</TableCell>
+              <TableCell width="49%">Users</TableCell>
+              <TableCell width="1%"></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <ChooseOne>
+              <Cond condition={isLoading}>
+                <TableLoader />
+              </Cond>
 
-                <Cond condition={isEmpty}>
-                  <TableRow>
-                    <TableCell colSpan={999}>
-                      <EmptyState
-                        message="No groups yet"
-                        description="Create your first group"
-                        cta={<CreateGroupButton />}
-                      />
-                    </TableCell>
-                  </TableRow>
-                </Cond>
+              <Cond condition={isEmpty}>
+                <TableRow>
+                  <TableCell colSpan={999}>
+                    <EmptyState
+                      message="No groups yet"
+                      description="Create your first group"
+                      cta={
+                        <Link underline="none" component={RouterLink} to="/groups/create">
+                          <Button startIcon={<AddCircleOutline />}>Create group</Button>
+                        </Link>
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              </Cond>
 
-                <Cond condition={!isEmpty}>
-                  {groups?.map((group) => {
-                    const groupPageLink = `/groups/${group.id}`
+              <Cond condition={!isEmpty}>
+                {groups?.map((group) => {
+                  const groupPageLink = `/groups/${group.id}`
 
-                    return (
-                      <TableRow
-                        key={group.id}
-                        hover
-                        data-testid={`group-${group.id}`}
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            navigate(groupPageLink)
-                          }
-                        }}
-                        className={styles.clickableTableRow}
-                      >
-                        <TableCellLink to={groupPageLink}>{group.name}</TableCellLink>
+                  return (
+                    <TableRow
+                      key={group.id}
+                      hover
+                      data-testid={`group-${group.id}`}
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          navigate(groupPageLink)
+                        }
+                      }}
+                      className={styles.clickableTableRow}
+                    >
+                      <TableCellLink to={groupPageLink}>{group.name}</TableCellLink>
 
-                        <TableCell>
-                          {group.members.length === 0 && "No members"}
-                          <AvatarGroup>
-                            {group.members.map((member) => (
-                              <UserAvatar
-                                key={member.username}
-                                username={member.username}
-                                avatarURL={member.avatar_url}
-                              />
-                            ))}
-                          </AvatarGroup>
-                        </TableCell>
+                      <TableCell>
+                        {group.members.length === 0 && "No members"}
+                        <AvatarGroup>
+                          {group.members.map((member) => (
+                            <UserAvatar
+                              key={member.username}
+                              username={member.username}
+                              avatarURL={member.avatar_url}
+                            />
+                          ))}
+                        </AvatarGroup>
+                      </TableCell>
 
-                        <TableCellLink to={groupPageLink}>
-                          <div className={styles.arrowCell}>
-                            <KeyboardArrowRight className={styles.arrowRight} />
-                          </div>
-                        </TableCellLink>
-                      </TableRow>
-                    )
-                  })}
-                </Cond>
-              </ChooseOne>
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Margins>
+                      <TableCellLink to={groupPageLink}>
+                        <div className={styles.arrowCell}>
+                          <KeyboardArrowRight className={styles.arrowRight} />
+                        </div>
+                      </TableCellLink>
+                    </TableRow>
+                  )
+                })}
+              </Cond>
+            </ChooseOne>
+          </TableBody>
+        </Table>
+      </TableContainer>
     </>
   )
 }
