@@ -6,11 +6,11 @@ import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
-import { ChangeEvent, useState } from "react"
+import { ChangeEvent, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 
 export type UserAutocompleteProps = {
-  value: User | null
+  value?: User | null
   onChange: (user: User | null) => void
 }
 
@@ -19,6 +19,16 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
+  const [selectedValue, setSelectedValue] = useState<User | null>(value || null)
+
+  // seed list of options on the first page load if a user pases in a value
+  // since some organizations have long lists of users, we do not load all options on page load.
+  useEffect(() => {
+    if (value) {
+      sendSearch("SEARCH", { query: value.email })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
@@ -26,9 +36,8 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
 
   return (
     <Autocomplete
-      value={value}
+      value={selectedValue}
       id="user-autocomplete"
-      style={{ width: 300 }}
       open={isAutocompleteOpen}
       onOpen={() => {
         setIsAutocompleteOpen(true)
@@ -36,7 +45,12 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
       onClose={() => {
         setIsAutocompleteOpen(false)
       }}
-      onChange={(event, newValue) => {
+      onChange={(_, newValue) => {
+        if (newValue === null) {
+          sendSearch("CLEAR_RESULTS")
+        }
+
+        setSelectedValue(newValue)
         onChange(newValue)
       }}
       getOptionSelected={(option: User, value: User) => option.username === value.username}
@@ -84,10 +98,16 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
 export const useStyles = makeStyles((theme) => {
   return {
     autocomplete: {
+      width: "100%",
+
+      "& .MuiFormControl-root": {
+        width: "100%",
+      },
+
       "& .MuiInputBase-root": {
-        width: 300,
+        width: "100%",
         // Match button small height
-        height: 36,
+        height: 40,
       },
 
       "& input": {

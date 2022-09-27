@@ -17,6 +17,7 @@ package gorules
 
 import (
 	"github.com/quasilyte/go-ruleguard/dsl"
+	"github.com/quasilyte/go-ruleguard/dsl/types"
 )
 
 // Use xerrors everywhere! It provides additional stacktrace info!
@@ -237,4 +238,31 @@ func ProperRBACReturn(m dsl.Matcher) {
 		return
 	}
 	`).Report("Must write to 'ResponseWriter' before returning'")
+}
+
+// FullResponseWriter ensures that any overridden response writer has full
+// functionality. Mainly is hijackable and flushable.
+func FullResponseWriter(m dsl.Matcher) {
+	m.Match(`
+	type $w struct {
+		$*_
+		http.ResponseWriter
+		$*_
+	}
+	`).
+		At(m["w"]).
+		Where(m["w"].Filter(notImplementsFullResponseWriter)).
+		Report("ResponseWriter \"$w\" must implement http.Flusher and http.Hijacker")
+}
+
+// notImplementsFullResponseWriter returns false if the type does not implement
+// http.Flusher, http.Hijacker, and http.ResponseWriter.
+func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
+	flusher := ctx.GetInterface(`net/http.Flusher`)
+	hijacker := ctx.GetInterface(`net/http.Hijacker`)
+	writer := ctx.GetInterface(`net/http.ResponseWriter`)
+	p := types.NewPointer(ctx.Type)
+	return !(types.Implements(p, writer) || types.Implements(ctx.Type, writer)) ||
+		!(types.Implements(p, flusher) || types.Implements(ctx.Type, flusher)) ||
+		!(types.Implements(p, hijacker) || types.Implements(ctx.Type, hijacker))
 }
