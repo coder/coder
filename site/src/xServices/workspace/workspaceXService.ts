@@ -257,7 +257,7 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "requestingStartWithLatestTemplate",
+                  UPDATE: "refreshTemplate",
                   CANCEL: "requestingCancel",
                 },
               },
@@ -268,6 +268,20 @@ export const workspaceMachine = createMachine(
                   },
                   CANCEL_DELETE: {
                     target: "idle",
+                  },
+                },
+              },
+              refreshTemplate: {
+                invoke: {
+                  id: "refreshTemplate",
+                  src: "getTemplate",
+                  onDone: {
+                    target: "requestingStartWithLatestTemplate",
+                    actions: ["assignTemplate"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignGetTemplateWarning"],
                   },
                 },
               },
