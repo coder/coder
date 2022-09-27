@@ -4,7 +4,7 @@ import { Group } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
-import { Loader } from "components/Loader/Loader"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { Margins } from "components/Margins/Margins"
 import { useFormik } from "formik"
 import React from "react"
@@ -87,7 +87,7 @@ export const SettingsGroupPage: React.FC = () => {
 
       <ChooseOne>
         <Cond condition={editState.matches("loading")}>
-          <Loader />
+          <FullScreenLoader />
         </Cond>
 
         <Cond condition>
