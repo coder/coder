@@ -19,7 +19,7 @@ export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
-  GET_WORKSPACE_QUOTA_ERROR = "getWorkspaceQuotaError"
+  GET_WORKSPACE_QUOTA_ERROR = "getWorkspaceQuotaError",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -116,7 +116,10 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
     )
   }
 
-  const canSubmit = props.quota && props.quota.user_workspace_limit > 0 ? props.quota.user_workspace_count < props.quota.user_workspace_limit : true
+  const canSubmit =
+    props.quota && props.quota.user_workspace_limit > 0
+      ? props.quota.user_workspace_count < props.quota.user_workspace_limit
+      : true
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
@@ -176,13 +179,21 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
               )}
 
               {props.quota ? (
-                  <WorkspaceQuota quota={props.quota} error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]}/>
-                ) : (
-                  <></>
-                )
-              }
+                <WorkspaceQuota
+                  quota={props.quota}
+                  error={
+                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
+                  }
+                />
+              ) : (
+                <></>
+              )}
 
-              <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} submitDisabled={!canSubmit}/>
+              <FormFooter
+                onCancel={props.onCancel}
+                isLoading={props.creatingWorkspace}
+                submitDisabled={!canSubmit}
+              />
             </>
           )}
         </Stack>

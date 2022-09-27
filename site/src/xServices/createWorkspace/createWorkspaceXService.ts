@@ -50,16 +50,16 @@ export const createWorkspaceMachine = createMachine(
       services: {} as {
         getTemplates: {
           data: Template[]
-        },
+        }
         getTemplateSchema: {
           data: ParameterSchema[]
-        },
+        }
         getWorkspaceQuota: {
           data: WorkspaceQuota
-        },
+        }
         createWorkspace: {
           data: Workspace
-        },
+        }
       },
     },
     initial: "gettingTemplates",

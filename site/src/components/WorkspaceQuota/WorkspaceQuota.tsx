@@ -28,9 +28,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
       <Box>
         <Stack spacing={1} className={styles.stack}>
           <span className={styles.title}>Workspace Quota</span>
-          <ErrorSummary
-              error={error}
-          />
+          <ErrorSummary error={error} />
         </Stack>
       </Box>
     )
