@@ -566,6 +566,16 @@ func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspace
 	return workspaces, nil
 }
 
+func (q *fakeQuerier) AuthorizedGetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
+	workspaces, err := q.GetWorkspaces(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Filter workspaces
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

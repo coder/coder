@@ -10,6 +10,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type SQLConfig struct {
+	// VariableRenames renames rego variables to sql columns
+	VariableRenames map[string]string
+}
+
+type AuthorizeFilter interface {
+	RegoString() string
+	SQLString(cfg SQLConfig) string
+}
+
 // Compile will convert a rego query AST into our custom types. The output is
 // an AST that can be used to generate SQL.
 func Compile(partialQueries *rego.PartialQueries) (Expression, error) {
@@ -178,8 +188,7 @@ func (b base) RegoString() string {
 //
 // Eg: neq(input.object.org_owner, "") AND input.object.org_owner == "foo"
 type Expression interface {
-	RegoString() string
-	SQLString() string
+	AuthorizeFilter
 }
 
 type expAnd struct {
@@ -187,10 +196,10 @@ type expAnd struct {
 	Expressions []Expression
 }
 
-func (t expAnd) SQLString() string {
+func (t expAnd) SQLString(cfg SQLConfig) string {
 	exprs := make([]string, 0, len(t.Expressions))
 	for _, expr := range t.Expressions {
-		exprs = append(exprs, expr.SQLString())
+		exprs = append(exprs, expr.SQLString(cfg))
 	}
 	return "(" + strings.Join(exprs, " AND ") + ")"
 }
@@ -200,10 +209,10 @@ type expOr struct {
 	Expressions []Expression
 }
 
-func (t expOr) SQLString() string {
+func (t expOr) SQLString(cfg SQLConfig) string {
 	exprs := make([]string, 0, len(t.Expressions))
 	for _, expr := range t.Expressions {
-		exprs = append(exprs, expr.SQLString())
+		exprs = append(exprs, expr.SQLString(cfg))
 	}
 
 	return "(" + strings.Join(exprs, " OR ") + ")"
@@ -214,8 +223,7 @@ func (t expOr) SQLString() string {
 //
 // Eg: "=", "neq", "internal.member_2", etc.
 type Operator interface {
-	RegoString() string
-	SQLString() string
+	AuthorizeFilter
 }
 
 type opEqual struct {
@@ -225,12 +233,12 @@ type opEqual struct {
 	Not bool
 }
 
-func (t opEqual) SQLString() string {
+func (t opEqual) SQLString(cfg SQLConfig) string {
 	op := "="
 	if t.Not {
 		op = "!="
 	}
-	return fmt.Sprintf("%s %s %s", t.Terms[0].SQLString(), op, t.Terms[1].SQLString())
+	return fmt.Sprintf("%s %s %s", t.Terms[0].SQLString(cfg), op, t.Terms[1].SQLString(cfg))
 }
 
 // opInternalMember2 is checking if the first term is a member of the second term.
@@ -240,8 +248,8 @@ type opInternalMember2 struct {
 	Terms [2]Term
 }
 
-func (t opInternalMember2) SQLString() string {
-	return fmt.Sprintf("%s = ANY(%s)", t.Terms[0].SQLString(), t.Terms[1].SQLString())
+func (t opInternalMember2) SQLString(cfg SQLConfig) string {
+	return fmt.Sprintf("%s = ANY(%s)", t.Terms[0].SQLString(cfg), t.Terms[1].SQLString(cfg))
 }
 
 // Term is a single value in an expression. Terms can be variables or constants.
@@ -249,8 +257,7 @@ func (t opInternalMember2) SQLString() string {
 // Eg: "f9d6fb75-b59b-4363-ab6b-ae9d26b679d7", "input.object.org_owner",
 // "{"f9d6fb75-b59b-4363-ab6b-ae9d26b679d7"}"
 type Term interface {
-	SQLString() string
-	RegoString() string
+	AuthorizeFilter
 }
 
 type termString struct {
@@ -258,7 +265,7 @@ type termString struct {
 	Value string
 }
 
-func (t termString) SQLString() string {
+func (t termString) SQLString(_ SQLConfig) string {
 	return "'" + t.Value + "'"
 }
 
@@ -267,7 +274,11 @@ type termVariable struct {
 	Name string
 }
 
-func (t termVariable) SQLString() string {
+func (t termVariable) SQLString(cfg SQLConfig) string {
+	rename, ok := cfg.VariableRenames[t.Name]
+	if ok {
+		return rename
+	}
 	return t.Name
 }
 
@@ -277,7 +288,7 @@ type termSet struct {
 	Value ast.Set
 }
 
-func (t termSet) SQLString() string {
+func (t termSet) SQLString(cfg SQLConfig) string {
 	values := t.Value.Slice()
 	elems := make([]string, 0, len(values))
 	// TODO: Handle different typed terms?
@@ -286,7 +297,7 @@ func (t termSet) SQLString() string {
 		if err != nil {
 			panic(err)
 		}
-		elems = append(elems, t.SQLString())
+		elems = append(elems, t.SQLString(cfg))
 	}
 
 	return fmt.Sprintf("ARRAY [%s]", strings.Join(elems, ","))
@@ -297,7 +308,7 @@ type termBoolean struct {
 	Value bool
 }
 
-func (t termBoolean) SQLString() string {
+func (t termBoolean) SQLString(_ SQLConfig) string {
 	return strconv.FormatBool(t.Value)
 }
 

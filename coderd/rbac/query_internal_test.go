@@ -30,9 +30,13 @@ func TestCompileQuery(t *testing.T) {
 	part, err := auth.Prepare(ctx, user.UserID, user.Roles, user.Scope, action, object.Type)
 	require.NoError(t, err)
 
-	result, err := Compile(ctx, part.partialQueries)
+	result, err := Compile(part.partialQueries)
 	require.NoError(t, err)
 
 	fmt.Println("Rego: ", result.RegoString())
-	fmt.Println("SQL: ", result.SQLString())
+	fmt.Println("SQL: ", result.SQLString(SQLConfig{
+		map[string]string{
+			"input.object.org_owner": "organization_id",
+		},
+	}))
 }
