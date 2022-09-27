@@ -1233,7 +1233,7 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
-func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.ACL) error {
+func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.TemplateACL) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1247,7 +1247,7 @@ func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID,
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateGroupACLByID(_ context.Context, id uuid.UUID, acl database.ACL) error {
+func (q *fakeQuerier) UpdateTemplateGroupACLByID(_ context.Context, id uuid.UUID, acl database.TemplateACL) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1819,8 +1819,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		MinAutostartInterval: arg.MinAutostartInterval,
 		CreatedBy:            arg.CreatedBy,
 	}
-	template = template.SetUserACL(database.ACL{})
-	template = template.SetGroupACL(database.ACL{})
+	template = template.SetUserACL(database.TemplateACL{})
+	template = template.SetGroupACL(database.TemplateACL{})
 	q.templates = append(q.templates, template)
 	return template, nil
 }

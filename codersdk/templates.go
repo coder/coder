@@ -47,6 +47,16 @@ const (
 	TemplateRoleDeleted TemplateRole = ""
 )
 
+type TemplateACL struct {
+	Users  []TemplateUser  `json:"users"`
+	Groups []TemplateGroup `json:"group"`
+}
+
+type TemplateGroup struct {
+	Group
+	Role TemplateRole `json:"role"`
+}
+
 type TemplateUser struct {
 	User
 	Role TemplateRole `json:"role"`
@@ -103,17 +113,17 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
 }
 
-func (c *Client) TemplateUserRoles(ctx context.Context, templateID uuid.UUID) ([]TemplateUser, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/user-roles", templateID), nil)
+func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), nil)
 	if err != nil {
-		return nil, err
+		return TemplateACL{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return TemplateACL{}, readBodyAsError(res)
 	}
-	var users []TemplateUser
-	return users, json.NewDecoder(res.Body).Decode(&users)
+	var acl TemplateACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.

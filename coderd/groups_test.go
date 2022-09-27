@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -50,6 +51,22 @@ func TestCreateGroup(t *testing.T) {
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 		require.Equal(t, http.StatusConflict, cerr.StatusCode())
+	})
+
+	t.Run("allUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, _ := testutil.Context(t)
+		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: database.AllUsersGroup,
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 }
 
@@ -179,7 +196,6 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -192,7 +208,29 @@ func TestPatchGroup(t *testing.T) {
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
+
 		require.Equal(t, http.StatusPreconditionFailed, cerr.StatusCode())
+	})
+
+	t.Run("allUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			Name: database.AllUsersGroup,
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 }
 
@@ -321,5 +359,23 @@ func TestDeleteGroup(t *testing.T) {
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	t.Run("allUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, _ := testutil.Context(t)
+		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+
+		err = client.DeleteGroup(ctx, groups[0].ID)
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 }

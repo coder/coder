@@ -29,6 +29,7 @@ func ExtractGroupParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
 			groupID, parsed := parseUUID(rw, r, "group")
 			if !parsed {
 				return

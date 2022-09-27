@@ -16,8 +16,8 @@ type customQuerier interface {
 }
 
 type templateQuerier interface {
-	UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl ACL) error
-	UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl ACL) error
+	UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error
+	UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error
 	GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error)
 	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
 }
@@ -27,7 +27,7 @@ type TemplateUser struct {
 	Role TemplateRole `db:"role"`
 }
 
-func (q *sqlQuerier) UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl ACL) error {
+func (q *sqlQuerier) UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
 	raw, err := json.Marshal(acl)
 	if err != nil {
 		return xerrors.Errorf("marshal user acl: %w", err)
@@ -89,7 +89,7 @@ type TemplateGroup struct {
 	Role TemplateRole
 }
 
-func (q *sqlQuerier) UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl ACL) error {
+func (q *sqlQuerier) UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
 	raw, err := json.Marshal(acl)
 	if err != nil {
 		return xerrors.Errorf("marshal user acl: %w", err)

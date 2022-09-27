@@ -248,9 +248,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var dbTemplate database.Template
 	var template codersdk.Template
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
-		dbTemplate, err = db.InsertTemplate(ctx, database.InsertTemplateParams{
+		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
 			ID:                   uuid.New(),
 			CreatedAt:            now,
 			UpdatedAt:            now,
@@ -269,7 +269,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 		templateAudit.New = dbTemplate
 
-		err = db.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  dbTemplate.ID,
@@ -288,7 +288,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		templateVersionAudit.New = newTemplateVersion
 
 		for _, parameterValue := range createTemplate.ParameterValues {
-			_, err = db.InsertParameterValue(ctx, database.InsertParameterValueParams{
+			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
 				CreatedAt:         database.Now(),
@@ -304,7 +304,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, db, []database.Template{dbTemplate})
+		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
 		if err != nil {
 			return xerrors.Errorf("get creator name: %w", err)
 		}
@@ -628,7 +628,7 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) templateUserRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 	if !api.Authorize(r, rbac.ActionRead, template) {
@@ -643,6 +643,21 @@ func (api *API) templateUserRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	users, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, users)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	groups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	groups, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, groups)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -667,7 +682,10 @@ func (api *API) templateUserRoles(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateUsers(users, organizationIDsByUserID))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateACL{
+		Users:  convertTemplateUsers(users, organizationIDsByUserID),
+		Groups: convertTemplateGroups(groups),
+	})
 }
 
 type autoImportTemplateOpts struct {
@@ -680,13 +698,13 @@ type autoImportTemplateOpts struct {
 
 func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateOpts) (database.Template, error) {
 	var template database.Template
-	err := api.Database.InTx(func(s database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		// Insert the archive into the files table.
 		var (
 			hash = sha256.Sum256(opts.archive)
 			now  = database.Now()
 		)
-		file, err := s.InsertFile(ctx, database.InsertFileParams{
+		file, err := tx.InsertFile(ctx, database.InsertFileParams{
 			Hash:      hex.EncodeToString(hash[:]),
 			CreatedAt: now,
 			CreatedBy: opts.userID,
@@ -701,7 +719,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 
 		// Insert parameters
 		for key, value := range opts.params {
-			_, err = s.InsertParameterValue(ctx, database.InsertParameterValueParams{
+			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              key,
 				CreatedAt:         now,
@@ -718,7 +736,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		// Create provisioner job
-		job, err := s.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+		job, err := tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -735,7 +753,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		// Create template version
-		templateVersion, err := s.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+		templateVersion, err := tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID: uuid.New(),
 			TemplateID: uuid.NullUUID{
 				UUID:  uuid.Nil,
@@ -757,7 +775,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		// Create template
-		template, err = s.InsertTemplate(ctx, database.InsertTemplateParams{
+		template, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
 			ID:                   uuid.New(),
 			CreatedAt:            now,
 			UpdatedAt:            now,
@@ -775,7 +793,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		// Update template version with template ID
-		err = s.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
@@ -788,7 +806,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 
 		// Insert parameters at the template scope
 		for key, value := range opts.params {
-			_, err = s.InsertParameterValue(ctx, database.InsertParameterValueParams{
+			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              key,
 				CreatedAt:         now,
@@ -802,6 +820,13 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			if err != nil {
 				return xerrors.Errorf("insert template-scoped parameter %q with value %q: %w", key, value, err)
 			}
+		}
+
+		err = tx.UpdateTemplateGroupACLByID(ctx, template.ID, database.TemplateACL{
+			database.AllUsersGroup: database.TemplateRoleRead,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template group acl: %w", err)
 		}
 
 		return nil
@@ -872,7 +897,7 @@ func (api *API) convertTemplate(
 	}
 }
 
-func convertTemplateACL(acl database.ACL) map[string]codersdk.TemplateRole {
+func convertTemplateACL(acl database.TemplateACL) map[string]codersdk.TemplateRole {
 	userACL := make(map[string]codersdk.TemplateRole, len(acl))
 	for k, v := range acl {
 		userACL[k] = convertDatabaseTemplateRole(v)
@@ -927,4 +952,17 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	}
 
 	return users
+}
+
+func convertTemplateGroups(tgs []database.TemplateGroup) []codersdk.TemplateGroup {
+	groups := make([]codersdk.TemplateGroup, 0, len(tgs))
+
+	for _, tg := range tgs {
+		groups = append(groups, codersdk.TemplateGroup{
+			Group: convertGroup(tg.Group, nil),
+			Role:  codersdk.TemplateRole(tg.Role),
+		})
+	}
+
+	return groups
 }

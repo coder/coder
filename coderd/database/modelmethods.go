@@ -7,10 +7,12 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// ACL is a map of user_ids to permissions.
-type ACL map[string]TemplateRole
+const AllUsersGroup = "allUsers"
 
-func (u ACL) Actions() map[string][]rbac.Action {
+// TemplateACL is a map of user_ids to permissions.
+type TemplateACL map[string]TemplateRole
+
+func (u TemplateACL) Actions() map[string][]rbac.Action {
 	aclRBAC := make(map[string][]rbac.Action, len(u))
 	for k, v := range u {
 		aclRBAC[k] = templateRoleToActions(v)
@@ -19,8 +21,8 @@ func (u ACL) Actions() map[string][]rbac.Action {
 	return aclRBAC
 }
 
-func (t Template) UserACL() ACL {
-	var acl ACL
+func (t Template) UserACL() TemplateACL {
+	var acl TemplateACL
 	if len(t.userACL) == 0 {
 		return acl
 	}
@@ -33,8 +35,8 @@ func (t Template) UserACL() ACL {
 	return acl
 }
 
-func (t Template) GroupACL() ACL {
-	var acl ACL
+func (t Template) GroupACL() TemplateACL {
+	var acl TemplateACL
 	if len(t.groupACL) == 0 {
 		return acl
 	}
@@ -47,7 +49,7 @@ func (t Template) GroupACL() ACL {
 	return acl
 }
 
-func (t Template) SetGroupACL(acl ACL) Template {
+func (t Template) SetGroupACL(acl TemplateACL) Template {
 	raw, err := json.Marshal(acl)
 	if err != nil {
 		panic(fmt.Sprintf("marshal user acl: %v", err))
@@ -57,7 +59,7 @@ func (t Template) SetGroupACL(acl ACL) Template {
 	return t
 }
 
-func (t Template) SetUserACL(acl ACL) Template {
+func (t Template) SetUserACL(acl TemplateACL) Template {
 	raw, err := json.Marshal(acl)
 	if err != nil {
 		panic(fmt.Sprintf("marshal user acl: %v", err))

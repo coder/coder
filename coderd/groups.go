@@ -31,6 +31,13 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if req.Name == database.AllUsersGroup {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("%q is a reserved keyword and cannot be used for a group name.", database.AllUsersGroup),
+		})
+		return
+	}
+
 	group, err := api.Database.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             uuid.New(),
 		Name:           req.Name,
@@ -63,6 +70,13 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.PatchGroupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.Name != "" && req.Name == database.AllUsersGroup {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("%q is a reserved group name!", database.AllUsersGroup),
+		})
 		return
 	}
 
@@ -174,6 +188,13 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if group.Name == database.AllUsersGroup {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.AllUsersGroup),
+		})
+		return
+	}
+
 	err := api.Database.DeleteGroupByID(ctx, group.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -196,7 +217,15 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetGroupMembers(ctx, group.ID)
+	var (
+		users []database.User
+		err   error
+	)
+	if group.Name == database.AllUsersGroup {
+		users, err = api.Database.GetAllOrganizationMembers(ctx, group.OrganizationID)
+	} else {
+		users, err = api.Database.GetGroupMembers(ctx, group.ID)
+	}
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return

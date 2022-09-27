@@ -74,7 +74,6 @@ type CreateTemplateRequest struct {
 	// allowable duration between autostarts for all workspaces created from
 	// this template.
 	MinAutostartIntervalMillis *int64 `json:"min_autostart_interval_ms,omitempty"`
-	IsPrivate                  bool   `json:"is_private"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
