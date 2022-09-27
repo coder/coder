@@ -9,7 +9,7 @@ import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { Loader } from "components/Loader/Loader"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Margins } from "components/Margins/Margins"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
@@ -84,7 +84,7 @@ export const GroupPage: React.FC = () => {
       </Helmet>
       <ChooseOne>
         <Cond condition={isLoading}>
-          <FullScreenLoader />
+          <Loader />
         </Cond>
 
         <Cond condition>
