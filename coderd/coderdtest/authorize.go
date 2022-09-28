@@ -247,7 +247,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
-		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK},
+		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -528,11 +528,12 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 
 func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
-		Original:  r,
-		SubjectID: subjectID,
-		Roles:     roles,
-		Scope:     scope,
-		Action:    action,
+		Original:           r,
+		SubjectID:          subjectID,
+		Roles:              roles,
+		Scope:              scope,
+		Action:             action,
+		HardCodedSQLString: "true",
 	}, nil
 }
 
@@ -541,11 +542,13 @@ func (r *RecordingAuthorizer) reset() {
 }
 
 type fakePreparedAuthorizer struct {
-	Original  *RecordingAuthorizer
-	SubjectID string
-	Roles     []string
-	Scope     rbac.Scope
-	Action    rbac.Action
+	Original            *RecordingAuthorizer
+	SubjectID           string
+	Roles               []string
+	Scope               rbac.Scope
+	Action              rbac.Action
+	HardCodedSQLString  string
+	HardCodedRegoString string
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
@@ -562,10 +565,16 @@ func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
 	return f.Original.ByRoleName(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object) == nil
 }
 
-func (fakePreparedAuthorizer) RegoString() string {
+func (f fakePreparedAuthorizer) RegoString() string {
+	if f.HardCodedRegoString != "" {
+		return f.HardCodedRegoString
+	}
 	panic("not implemented")
 }
 
-func (fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+func (f fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+	if f.HardCodedSQLString != "" {
+		return f.HardCodedSQLString
+	}
 	panic("not implemented")
 }

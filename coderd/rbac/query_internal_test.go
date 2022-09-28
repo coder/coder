@@ -1,11 +1,8 @@
 package rbac
 
 import (
-	"context"
-	"fmt"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 
@@ -79,42 +76,4 @@ func TestCompileQuery(t *testing.T) {
 			`user_acl->me ? 'read')`,
 			expression.SQLString(DefaultConfig()), "complex")
 	})
-}
-
-//func TestRE(t *testing.T) {
-//	// ^input\.object\.group_acl\.([^.]*)$
-//	re := regexp.MustCompile(`^input\.object\.group_acl\.([^.]*)$`)
-//
-//	x := []string{"test"}
-//	fmt.Sprintf("test", x)
-//
-//	//re.FindStringSubmatch("input.object.group_acl.allUsers")
-//	fmt.Println(re.FindStringSubmatch("input.object.group_acl.allUsers"))
-//}
-
-func TestPartialCompileQuery(t *testing.T) {
-	ctx := context.Background()
-	defOrg := uuid.New()
-	unuseID := uuid.New()
-
-	user := subject{
-		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
-		Roles: []Role{
-			must(RoleByName(RoleMember())),
-			must(RoleByName(RoleOrgMember(defOrg))),
-		},
-	}
-	var action Action = ActionRead
-	object := ResourceWorkspace.InOrg(defOrg).WithOwner(unuseID.String())
-
-	auth := NewAuthorizer()
-	part, err := auth.Prepare(ctx, user.UserID, user.Roles, user.Scope, action, object.Type)
-	require.NoError(t, err)
-
-	result, err := Compile(part.partialQueries)
-	require.NoError(t, err)
-
-	fmt.Println("Rego: ", result.RegoString())
-	fmt.Println("SQL: ", result.SQLString(DefaultConfig()))
 }
