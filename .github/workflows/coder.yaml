@@ -64,8 +64,6 @@ jobs:
               - '**'
             docs:
               - 'docs/**'
-              # For testing:
-              # - '.github/**'
             sh:
               - "**.sh"
             gen:
