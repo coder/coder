@@ -70,6 +70,8 @@ jobs:
               - "**.sh"
             go:
               - "**.go"
+            tf:
+              - "**.tf"
             ts:
               - 'site/**'
             k8s:
@@ -255,6 +257,8 @@ jobs:
     name: "style/fmt"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: changes
+    if: needs.changes.outputs.sh == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.tf == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
