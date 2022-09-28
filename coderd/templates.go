@@ -459,14 +459,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only users who are able to create templates (aka template admins)
-	// are able to control permissions.
-	if (len(req.UserPerms) > 0 || len(req.GroupPerms) > 0) &&
-		!api.Authorize(r, rbac.ActionCreate, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var validErrs []codersdk.ValidationError
 	if req.MaxTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
@@ -476,46 +468,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()})
-	}
-
-	for k, v := range req.UserPerms {
-		if err := validateTemplateRole(v); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: err.Error()})
-			continue
-		}
-
-		userID, err := uuid.Parse(k)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: "User ID " + k + "must be a valid UUID."})
-			continue
-		}
-
-		// This could get slow if we get a ton of user perm updates.
-		_, err = api.Database.GetUserByID(r.Context(), userID)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "user_perms", Detail: fmt.Sprintf("Failed to find user with ID %q: %v", k, err.Error())})
-			continue
-		}
-	}
-
-	for k, v := range req.GroupPerms {
-		if err := validateTemplateRole(v); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "group_perms", Detail: err.Error()})
-			continue
-		}
-
-		groupID, err := uuid.Parse(k)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "group_perms", Detail: "Group ID " + k + "must be a valid UUID."})
-			continue
-		}
-
-		// This could get slow if we get a ton of group user perm updates.
-		_, err = api.Database.GetGroupByID(r.Context(), groupID)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "group_perms", Detail: fmt.Sprintf("Failed to find group with ID %q: %v", k, err.Error())})
-			continue
-		}
 	}
 
 	if len(validErrs) > 0 {
@@ -546,9 +498,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
-			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() &&
-			len(req.UserPerms) == 0 &&
-			len(req.GroupPerms) == 0 {
+			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
 			return nil
 		}
 
@@ -567,53 +517,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 		if minAutostartInterval == 0 {
 			minAutostartInterval = time.Duration(template.MinAutostartInterval)
-		}
-
-		if len(req.UserPerms) > 0 {
-			userACL := template.UserACL()
-			for k, v := range req.UserPerms {
-				// A user with an empty string implies
-				// deletion.
-				if v == "" {
-					delete(userACL, k)
-					continue
-				}
-				userACL[k] = database.TemplateRole(v)
-			}
-
-			err = tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
-			}
-		}
-
-		if len(req.GroupPerms) > 0 {
-			allUsersGroup, err := tx.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-				OrganizationID: template.OrganizationID,
-				Name:           database.AllUsersGroup,
-			})
-			if err != nil {
-				return xerrors.Errorf("get allUsers group: %w", err)
-			}
-
-			groupACL := template.GroupACL()
-			for k, v := range req.GroupPerms {
-				if k == allUsersGroup.ID.String() {
-					k = database.AllUsersGroup
-				}
-				// An id with an empty string implies
-				// deletion.
-				if v == "" {
-					delete(groupACL, k)
-					continue
-				}
-				groupACL[k] = database.TemplateRole(v)
-			}
-
-			err = tx.UpdateTemplateGroupACLByID(r.Context(), template.ID, groupACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
-			}
 		}
 
 		updated, err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
@@ -671,82 +574,6 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	template := httpmw.TemplateParam(r)
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	users, err := api.Database.GetTemplateUserRoles(ctx, template.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	users, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, users)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	groups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	role, ok := template.GroupACL()[database.AllUsersGroup]
-	if ok {
-		group, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-			OrganizationID: template.OrganizationID,
-			Name:           database.AllUsersGroup,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		groups = append(groups, database.TemplateGroup{
-			Group: group,
-			Role:  role,
-		})
-	}
-
-	groups, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, groups)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	userIDs := make([]uuid.UUID, 0, len(users))
-	for _, user := range users {
-		userIDs = append(userIDs, user.ID)
-	}
-
-	orgIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
-	for _, organizationIDsByMemberIDsRow := range orgIDsByMemberIDsRows {
-		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateACL{
-		Users:  convertTemplateUsers(users, organizationIDsByUserID),
-		Groups: convertTemplateGroups(groups),
-	})
 }
 
 type autoImportTemplateOpts struct {
@@ -954,76 +781,5 @@ func (api *API) convertTemplate(
 		MinAutostartIntervalMillis: time.Duration(template.MinAutostartInterval).Milliseconds(),
 		CreatedByID:                template.CreatedBy,
 		CreatedByName:              createdByName,
-		UserRoles:                  convertTemplateACL(template.UserACL()),
 	}
-}
-
-func convertTemplateACL(acl database.TemplateACL) map[string]codersdk.TemplateRole {
-	userACL := make(map[string]codersdk.TemplateRole, len(acl))
-	for k, v := range acl {
-		userACL[k] = convertDatabaseTemplateRole(v)
-	}
-
-	return userACL
-}
-
-func convertDatabaseTemplateRole(role database.TemplateRole) codersdk.TemplateRole {
-	switch role {
-	case database.TemplateRoleAdmin:
-		return codersdk.TemplateRoleAdmin
-	case database.TemplateRoleWrite:
-		return codersdk.TemplateRoleWrite
-	case database.TemplateRoleRead:
-		return codersdk.TemplateRoleRead
-	}
-
-	return ""
-}
-
-func convertSDKTemplateRole(role codersdk.TemplateRole) database.TemplateRole {
-	switch role {
-	case codersdk.TemplateRoleAdmin:
-		return database.TemplateRoleAdmin
-	case codersdk.TemplateRoleWrite:
-		return database.TemplateRoleWrite
-	case codersdk.TemplateRoleRead:
-		return database.TemplateRoleRead
-	}
-
-	return ""
-}
-
-func validateTemplateRole(role codersdk.TemplateRole) error {
-	dbRole := convertSDKTemplateRole(role)
-	if dbRole == "" && role != codersdk.TemplateRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Template role", role)
-	}
-
-	return nil
-}
-
-func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.UUID][]uuid.UUID) []codersdk.TemplateUser {
-	users := make([]codersdk.TemplateUser, 0, len(tus))
-
-	for _, tu := range tus {
-		users = append(users, codersdk.TemplateUser{
-			User: convertUser(tu.User, orgIDsByUserIDs[tu.User.ID]),
-			Role: codersdk.TemplateRole(tu.Role),
-		})
-	}
-
-	return users
-}
-
-func convertTemplateGroups(tgs []database.TemplateGroup) []codersdk.TemplateGroup {
-	groups := make([]codersdk.TemplateGroup, 0, len(tgs))
-
-	for _, tg := range tgs {
-		groups = append(groups, codersdk.TemplateGroup{
-			Group: convertGroup(tg.Group, nil),
-			Role:  codersdk.TemplateRole(tg.Role),
-		})
-	}
-
-	return groups
 }

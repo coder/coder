@@ -271,16 +271,6 @@ func New(options *Options) *API {
 			r.Post("/", api.postFile)
 		})
 
-		r.Route("/groups/{group}", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractGroupParam(api.Database),
-			)
-			r.Get("/", api.group)
-			r.Patch("/", api.patchGroup)
-			r.Delete("/", api.deleteGroup)
-		})
-
 		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -302,10 +292,6 @@ func New(options *Options) *API {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
-				})
-				r.Route("/groups", func(r chi.Router) {
-					r.Post("/", api.postGroupByOrganization)
-					r.Get("/", api.groups)
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
@@ -337,7 +323,6 @@ func New(options *Options) *API {
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
 			r.Patch("/", api.patchTemplateMeta)
-			r.Get("/acl", api.templateACL)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.templateVersionsByTemplate)
 				r.Patch("/", api.patchActiveTemplateVersion)

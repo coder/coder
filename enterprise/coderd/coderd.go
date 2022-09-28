@@ -18,6 +18,7 @@ import (
 	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -66,6 +67,33 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
+		})
+		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Post("/", api.postGroupByOrganization)
+			r.Get("/", api.groups)
+		})
+
+		r.Route("/templates/{template}/acl", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractTemplateParam(api.Database),
+			)
+			r.Get("/", api.templateACL)
+			r.Patch("/", api.patchTemplateACL)
+		})
+
+		r.Route("/groups/{group}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGroupParam(api.Database),
+			)
+			r.Get("/", api.group)
+			r.Patch("/", api.patchGroup)
+			r.Delete("/", api.deleteGroup)
 		})
 	})
 
@@ -323,6 +351,10 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			continue
 		}
 	}
+}
+
+func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }
 
 func max(a, b int64) int64 {
