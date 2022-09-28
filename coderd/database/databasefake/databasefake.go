@@ -1829,7 +1829,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	}
 	template = template.SetUserACL(database.TemplateACL{})
 	template = template.SetGroupACL(database.TemplateACL{
-		database.AllUsersGroup: database.TemplateRoleRead,
+		database.AllUsersGroup: database.TemplateRoleView,
 	})
 	q.templates = append(q.templates, template)
 	return template, nil

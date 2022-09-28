@@ -763,7 +763,7 @@ export type ResourceType =
 export type ServerSentEventType = "data" | "error" | "ping"
 
 // From codersdk/templates.go
-export type TemplateRole = "" | "admin" | "read" | "write"
+export type TemplateRole = "" | "admin" | "view"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

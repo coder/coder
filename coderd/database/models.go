@@ -297,8 +297,7 @@ func (e *ResourceType) Scan(src interface{}) error {
 type TemplateRole string
 
 const (
-	TemplateRoleRead  TemplateRole = "read"
-	TemplateRoleWrite TemplateRole = "write"
+	TemplateRoleView  TemplateRole = "view"
 	TemplateRoleAdmin TemplateRole = "admin"
 )
 

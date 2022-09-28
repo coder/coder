@@ -30,8 +30,8 @@ func TestTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleRead,
-				user3.ID.String(): codersdk.TemplateRoleWrite,
+				user2.ID.String(): codersdk.TemplateRoleView,
+				user3.ID.String(): codersdk.TemplateRoleAdmin,
 			},
 		})
 		require.NoError(t, err)
@@ -41,12 +41,12 @@ func TestTemplateACL(t *testing.T) {
 
 		templateUser2 := codersdk.TemplateUser{
 			User: user2,
-			Role: codersdk.TemplateRoleRead,
+			Role: codersdk.TemplateRoleView,
 		}
 
 		templateUser3 := codersdk.TemplateUser{
 			User: user3,
-			Role: codersdk.TemplateRoleWrite,
+			Role: codersdk.TemplateRoleAdmin,
 		}
 
 		require.Len(t, acl.Users, 2)
@@ -133,8 +133,8 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleRead,
-				user3.ID.String(): codersdk.TemplateRoleWrite,
+				user2.ID.String(): codersdk.TemplateRoleView,
+				user3.ID.String(): codersdk.TemplateRoleAdmin,
 			},
 		})
 		require.NoError(t, err)
@@ -144,12 +144,12 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		templateUser2 := codersdk.TemplateUser{
 			User: user2,
-			Role: codersdk.TemplateRoleRead,
+			Role: codersdk.TemplateRoleView,
 		}
 
 		templateUser3 := codersdk.TemplateUser{
 			User: user3,
-			Role: codersdk.TemplateRoleWrite,
+			Role: codersdk.TemplateRoleAdmin,
 		}
 
 		require.Len(t, acl.Users, 2)
@@ -168,8 +168,8 @@ func TestUpdateTemplateACL(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleRead,
-				user3.ID.String(): codersdk.TemplateRoleWrite,
+				user2.ID.String(): codersdk.TemplateRoleView,
+				user3.ID.String(): codersdk.TemplateRoleAdmin,
 			},
 		}
 
@@ -183,11 +183,11 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user2,
-			Role: codersdk.TemplateRoleRead,
+			Role: codersdk.TemplateRoleView,
 		})
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user3,
-			Role: codersdk.TemplateRoleWrite,
+			Role: codersdk.TemplateRoleAdmin,
 		})
 
 		req = codersdk.UpdateTemplateACL{
@@ -210,7 +210,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		require.NotContains(t, acl.Users, codersdk.TemplateUser{
 			User: user3,
-			Role: codersdk.TemplateRoleWrite,
+			Role: codersdk.TemplateRoleAdmin,
 		})
 	})
 
@@ -288,7 +288,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleWrite,
+				user2.ID.String(): codersdk.TemplateRoleView,
 			},
 		}
 
@@ -331,7 +331,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		req = codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user3.ID.String(): codersdk.TemplateRoleRead,
+				user3.ID.String(): codersdk.TemplateRoleView,
 			},
 		}
 
@@ -343,7 +343,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user3,
-			Role: codersdk.TemplateRoleRead,
+			Role: codersdk.TemplateRoleView,
 		})
 	})
 

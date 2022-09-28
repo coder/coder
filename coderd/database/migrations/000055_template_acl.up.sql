@@ -1,11 +1,10 @@
 BEGIN;
 
 ALTER TABLE templates ADD COLUMN user_acl jsonb NOT NULL default '{}';
-ALTER TABLE templates ADD COLUMN group_acl jsonb NOT NULL default '{"allUsers":"read"}';
+ALTER TABLE templates ADD COLUMN group_acl jsonb NOT NULL default '{"allUsers":"view"}';
 
 CREATE TYPE template_role AS ENUM (
-	'read',
-	'write',
+	'view',
 	'admin'
 );
 

@@ -84,8 +84,7 @@ CREATE TYPE resource_type AS ENUM (
 );
 
 CREATE TYPE template_role AS ENUM (
-    'read',
-    'write',
+    'view',
     'admin'
 );
 
@@ -313,7 +312,7 @@ CREATE TABLE templates (
     created_by uuid NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    group_acl jsonb DEFAULT '{"allUsers": "read"}'::jsonb NOT NULL
+    group_acl jsonb DEFAULT '{"allUsers": "view"}'::jsonb NOT NULL
 );
 
 CREATE TABLE user_links (

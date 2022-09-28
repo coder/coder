@@ -711,7 +711,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		err = tx.UpdateTemplateGroupACLByID(ctx, template.ID, database.TemplateACL{
-			database.AllUsersGroup: database.TemplateRoleRead,
+			database.AllUsersGroup: database.TemplateRoleView,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template group acl: %w", err)
