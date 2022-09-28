@@ -115,6 +115,8 @@ jobs:
     name: style/lint/shellcheck
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.sh == 'true'
     steps:
       - uses: actions/checkout@v3
       - name: Run ShellCheck
