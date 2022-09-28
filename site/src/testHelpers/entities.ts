@@ -187,8 +187,6 @@ export const MockTemplate: TypesGen.Template = {
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
-  user_roles: {},
-  is_private: false,
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
