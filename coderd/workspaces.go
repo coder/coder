@@ -638,6 +638,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
+	aReq.Old = workspace
 
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
