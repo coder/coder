@@ -32,7 +32,7 @@ type Node struct {
 	// AllowedIPs specify what addresses can dial the connection.
 	// We allow all by default.
 	AllowedIPs []netip.Prefix `json:"allowed_ips"`
-	// Endpoints are ip:port that can be used to establish
+	// Endpoints are ip:port combinations that can be used to establish
 	// peer-to-peer connections.
 	Endpoints []string `json:"endpoints"`
 }
