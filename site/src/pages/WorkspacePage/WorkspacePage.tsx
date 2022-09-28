@@ -29,7 +29,6 @@ export const WorkspacePage: FC = () => {
   const { t } = useTranslation("workspacePage")
   const xServices = useContext(XServiceContext)
   const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
-
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
@@ -43,13 +42,11 @@ export const WorkspacePage: FC = () => {
     checkPermissionsError,
     buildError,
     cancellationError,
+    applicationsHost,
   } = workspaceState.context
-
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
-
   const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
-
   const styles = useStyles()
 
   /**
@@ -116,6 +113,7 @@ export const WorkspacePage: FC = () => {
               return canExtendDeadline(deadline, workspace, template)
             },
           }}
+          isUpdating={workspaceState.hasTag("updating")}
           workspace={workspace}
           handleStart={() => workspaceSend("START")}
           handleStop={() => workspaceSend("STOP")}
@@ -133,6 +131,7 @@ export const WorkspacePage: FC = () => {
             [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
           }}
           buildInfo={buildInfoState.context.buildInfo}
+          applicationsHost={applicationsHost}
         />
         <DeleteDialog
           entity="workspace"

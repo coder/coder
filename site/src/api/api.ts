@@ -495,3 +495,8 @@ export const getTemplateDAUs = async (
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }
+
+export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse> => {
+  const response = await axios.get(`/api/v2/applications/host`)
+  return response.data
+}

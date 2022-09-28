@@ -17,7 +17,7 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER(@username) OR email = @email)
+	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email))
 	AND deleted = @deleted
 LIMIT
 	1;
@@ -153,6 +153,15 @@ UPDATE
 	users
 SET
 	status = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING *;
+
+-- name: UpdateUserLastSeenAt :one
+UPDATE
+	users
+SET
+	last_seen_at = $2,
 	updated_at = $3
 WHERE
 	id = $1 RETURNING *;

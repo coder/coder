@@ -168,4 +168,9 @@ export const handlers = [
   rest.get("/api/v2/audit/count", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json({ count: 1000 }))
   }),
+
+  // Applications host
+  rest.get("/api/v2/applications/host", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json({ host: "dev.coder.com" }))
+  }),
 ]

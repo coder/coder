@@ -481,19 +481,6 @@ func TestAgent(t *testing.T) {
 		}
 	})
 
-	t.Run("Tailnet", func(t *testing.T) {
-		t.Parallel()
-		derpMap := tailnettest.RunDERPAndSTUN(t)
-		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
-			DERPMap: derpMap,
-		}, 0)
-		defer conn.Close()
-		require.Eventually(t, func() bool {
-			_, err := conn.Ping()
-			return err == nil
-		}, testutil.WaitLong, testutil.IntervalFast)
-	})
-
 	t.Run("Speedtest", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {
