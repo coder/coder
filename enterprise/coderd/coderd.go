@@ -171,7 +171,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		auditLogs:   codersdk.EntitlementNotEntitled,
 		scim:        codersdk.EntitlementNotEntitled,
 		browserOnly: codersdk.EntitlementNotEntitled,
-		groups:      codersdk.EntitlementNotEntitled,
 	}
 
 	// Here we loop through licenses to detect enabled features.
