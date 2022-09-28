@@ -139,7 +139,7 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
             defaultMessage={t("errors.getTemplatesError")}
           />
         </Cond>
-        <Cond condition>
+        <Cond>
           <TableContainer>
             <Table>
               <TableHead>
@@ -173,7 +173,7 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                       </TableCell>
                     </TableRow>
                   </Cond>
-                  <Cond condition>
+                  <Cond>
                     {props.templates?.map((template) => {
                       const templatePageLink = `/templates/${template.name}`
                       const hasIcon = template.icon && template.icon !== ""

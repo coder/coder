@@ -38,6 +38,13 @@ resource "coder_app" "code-server" {
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:1337/healthz"
+    interval  = 3
+    threshold = 10
+  }
+
 }
 
 variable "docker_image" {

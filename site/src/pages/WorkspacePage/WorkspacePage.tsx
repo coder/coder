@@ -113,6 +113,7 @@ export const WorkspacePage: FC = () => {
               return canExtendDeadline(deadline, workspace, template)
             },
           }}
+          isUpdating={workspaceState.hasTag("updating")}
           workspace={workspace}
           handleStart={() => workspaceSend("START")}
           handleStop={() => workspaceSend("STOP")}

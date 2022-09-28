@@ -25,7 +25,7 @@ For more examples, see `coder port-forward --help`.
 ## Dashboard
 
 > To enable port forwarding via the dashboard, Coder must be configured with a
-> [wildcard access URL](./admin/configure#wildcard-access-url).
+> [wildcard access URL](../admin/configure.md#wildcard-access-url).
 
 Use the "Port forward" button in the dashboard to access ports
 running on your workspace.

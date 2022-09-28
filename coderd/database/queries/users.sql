@@ -17,7 +17,7 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER(@username) OR email = @email)
+	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email))
 	AND deleted = @deleted
 LIMIT
 	1;

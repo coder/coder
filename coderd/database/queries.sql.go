@@ -3071,7 +3071,7 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER($1) OR email = $2)
+	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2))
 	AND deleted = $3
 LIMIT
 	1
