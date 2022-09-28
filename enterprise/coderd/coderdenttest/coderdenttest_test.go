@@ -28,6 +28,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
 	license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{})
+	groupObj := rbac.ResourceGroup.InOrg(admin.OrganizationID)
 	a := coderdtest.NewAuthTester(context.Background(), t, client, api.AGPL, admin)
 	a.URLParams["licenses/{id}"] = fmt.Sprintf("licenses/%d", license.ID)
 
@@ -47,6 +48,31 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	assertRoute["DELETE:/api/v2/licenses/{id}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionDelete,
 		AssertObject: rbac.ResourceLicense,
+	}
+	assertRoute["GET:/api/v2/templates/{template}/acl"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceTemplate,
+	}
+	assertRoute["PATCH:/api/v2/templates/{template}/acl"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionCreate,
+		AssertObject: rbac.ResourceTemplate,
+	}
+	assertRoute["GET:/api/v2/organizations/{organization}/groups"] = coderdtest.RouteCheck{
+		StatusCode:   http.StatusOK,
+		AssertAction: rbac.ActionRead,
+		AssertObject: groupObj,
+	}
+	assertRoute["PATCH:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: groupObj,
+	}
+	assertRoute["PATCH:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionUpdate,
+		AssertObject: groupObj,
+	}
+	assertRoute["DELETE:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionDelete,
+		AssertObject: groupObj,
 	}
 
 	a.Test(context.Background(), assertRoute, skipRoutes)
