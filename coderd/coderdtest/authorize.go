@@ -553,3 +553,21 @@ type fakePreparedAuthorizer struct {
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
 	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
 }
+
+// Compile returns a compiled version of the authorizer that will work for
+// in memory databases. This fake version will not work against a SQL database.
+func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
+	return f, nil
+}
+
+func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
+	return f.Original.ByRoleName(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object) == nil
+}
+
+func (f *fakePreparedAuthorizer) RegoString() string {
+	panic("not implemented")
+}
+
+func (f *fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+	panic("not implemented")
+}

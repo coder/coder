@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/rbac"
 
 	"github.com/lib/pq"
@@ -13,8 +15,8 @@ import (
 func (q *sqlQuerier) AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
 	query := fmt.Sprintf("%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.SQLConfig{
 		VariableRenames: map[string]string{
-			"input.object.org_owner": "organization_id",
-			"input.object.owner":     "owner_id",
+			"input.object.org_owner": "organization_id::text",
+			"input.object.owner":     "owner_id::text",
 		},
 	}))
 	rows, err := q.db.QueryContext(ctx, query,
@@ -26,7 +28,7 @@ func (q *sqlQuerier) AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Name,
 	)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
 	}
 	defer rows.Close()
 	var items []Workspace

@@ -21,6 +21,21 @@ type Authorizer interface {
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
+	Compile() (AuthorizeFilter, error)
+}
+
+func (a *RegoAuthorizer) SQLFilter(ctx context.Context, subjID string, subjRoles []string, scope Scope, action Action, objectType string) (AuthorizeFilter, error) {
+	prepared, err := a.PrepareByRoleName(ctx, subjID, subjRoles, scope, action, objectType)
+	if err != nil {
+		return nil, xerrors.Errorf("filter: %w", err)
+	}
+
+	filter, err := prepared.Compile()
+	if err != nil {
+		return nil, xerrors.Errorf("filter: %w", err)
+	}
+
+	return filter, nil
 }
 
 // Filter takes in a list of objects, and will filter the list removing all

@@ -85,6 +85,21 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 	return true
 }
 
+func (a *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.AuthorizeFilter, error) {
+	roles := httpmw.UserAuthorization(r)
+	prepared, err := a.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objectType)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare filter: %w", err)
+	}
+
+	filter, err := prepared.Compile()
+	if err != nil {
+		return nil, xerrors.Errorf("compile filter: %w", err)
+	}
+
+	return filter, nil
+}
+
 // checkAuthorization returns if the current API key can use the given
 // permissions, factoring in the current user's roles and the API key scopes.
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {

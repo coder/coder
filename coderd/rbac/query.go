@@ -18,6 +18,9 @@ type SQLConfig struct {
 type AuthorizeFilter interface {
 	RegoString() string
 	SQLString(cfg SQLConfig) string
+	// Eval is required for the fake in memory database to work. The in memory
+	// database can use this function to filter the results.
+	Eval(object Object) bool
 }
 
 // Compile will convert a rego query AST into our custom types. The output is
@@ -165,8 +168,18 @@ func processTerm(term *ast.Term) (Term, error) {
 			base:  base,
 		}, nil
 	case ast.Set:
+		slice := v.Slice()
+		set := make([]Term, 0, len(slice))
+		for _, elem := range slice {
+			processed, err := processTerm(elem)
+			if err != nil {
+				return nil, xerrors.Errorf("invalid set term %s: %w", elem.String(), err)
+			}
+			set = append(set, processed)
+		}
+
 		return &termSet{
-			Value: v,
+			Value: set,
 			base:  base,
 		}, nil
 	default:
@@ -204,6 +217,15 @@ func (t expAnd) SQLString(cfg SQLConfig) string {
 	return "(" + strings.Join(exprs, " AND ") + ")"
 }
 
+func (t expAnd) Eval(object Object) bool {
+	for _, expr := range t.Expressions {
+		if !expr.Eval(object) {
+			return false
+		}
+	}
+	return true
+}
+
 type expOr struct {
 	base
 	Expressions []Expression
@@ -218,12 +240,21 @@ func (t expOr) SQLString(cfg SQLConfig) string {
 	return "(" + strings.Join(exprs, " OR ") + ")"
 }
 
+func (t expOr) Eval(object Object) bool {
+	for _, expr := range t.Expressions {
+		if expr.Eval(object) {
+			return true
+		}
+	}
+	return false
+}
+
 // Operator joins terms together to form an expression.
 // Operators are also expressions.
 //
 // Eg: "=", "neq", "internal.member_2", etc.
 type Operator interface {
-	AuthorizeFilter
+	Expression
 }
 
 type opEqual struct {
@@ -241,11 +272,33 @@ func (t opEqual) SQLString(cfg SQLConfig) string {
 	return fmt.Sprintf("%s %s %s", t.Terms[0].SQLString(cfg), op, t.Terms[1].SQLString(cfg))
 }
 
+func (t opEqual) Eval(object Object) bool {
+	a, b := t.Terms[0].Eval(object), t.Terms[1].Eval(object)
+	if t.Not {
+		return a != b
+	}
+	return a == b
+}
+
 // opInternalMember2 is checking if the first term is a member of the second term.
 // The second term is a set or list.
 type opInternalMember2 struct {
 	base
 	Terms [2]Term
+}
+
+func (t opInternalMember2) Eval(object Object) bool {
+	a, b := t.Terms[0].Eval(object), t.Terms[1].Eval(object)
+	bset, ok := b.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, elem := range bset {
+		if a == elem {
+			return true
+		}
+	}
+	return false
 }
 
 func (t opInternalMember2) SQLString(cfg SQLConfig) string {
@@ -257,12 +310,20 @@ func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 // Eg: "f9d6fb75-b59b-4363-ab6b-ae9d26b679d7", "input.object.org_owner",
 // "{"f9d6fb75-b59b-4363-ab6b-ae9d26b679d7"}"
 type Term interface {
-	AuthorizeFilter
+	RegoString() string
+	SQLString(cfg SQLConfig) string
+	// Eval will evaluate the term
+	// Terms can eval to any type. The operator/expression will type check.
+	Eval(object Object) interface{}
 }
 
 type termString struct {
 	base
 	Value string
+}
+
+func (t termString) Eval(_ Object) interface{} {
+	return t.Value
 }
 
 func (t termString) SQLString(_ SQLConfig) string {
@@ -272,6 +333,19 @@ func (t termString) SQLString(_ SQLConfig) string {
 type termVariable struct {
 	base
 	Name string
+}
+
+func (t termVariable) Eval(obj Object) interface{} {
+	switch t.Name {
+	case "input.object.org_owner":
+		return obj.OrgID
+	case "input.object.owner":
+		return obj.Owner
+	case "input.object.type":
+		return obj.Type
+	default:
+		return fmt.Sprintf("'Unknown variable %s'", t.Name)
+	}
 }
 
 func (t termVariable) SQLString(cfg SQLConfig) string {
@@ -285,19 +359,22 @@ func (t termVariable) SQLString(cfg SQLConfig) string {
 // termSet is a set of unique terms.
 type termSet struct {
 	base
-	Value ast.Set
+	Value []Term
+}
+
+func (t termSet) Eval(obj Object) interface{} {
+	set := make([]interface{}, 0, len(t.Value))
+	for _, term := range t.Value {
+		set = append(set, term.Eval(obj))
+	}
+
+	return set
 }
 
 func (t termSet) SQLString(cfg SQLConfig) string {
-	values := t.Value.Slice()
-	elems := make([]string, 0, len(values))
-	// TODO: Handle different typed terms?
-	for _, v := range t.Value.Slice() {
-		t, err := processTerm(v)
-		if err != nil {
-			panic(err)
-		}
-		elems = append(elems, t.SQLString(cfg))
+	elems := make([]string, 0, len(t.Value))
+	for _, v := range t.Value {
+		elems = append(elems, v.SQLString(cfg))
 	}
 
 	return fmt.Sprintf("ARRAY [%s]", strings.Join(elems, ","))
@@ -306,6 +383,10 @@ func (t termSet) SQLString(cfg SQLConfig) string {
 type termBoolean struct {
 	base
 	Value bool
+}
+
+func (t termBoolean) Eval(_ Object) bool {
+	return t.Value
 }
 
 func (t termBoolean) SQLString(_ SQLConfig) string {
