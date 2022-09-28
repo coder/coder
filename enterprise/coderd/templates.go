@@ -256,9 +256,7 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) database.TemplateRole {
 	switch role {
 	case codersdk.TemplateRoleAdmin:
 		return database.TemplateRoleAdmin
-	case codersdk.TemplateRoleWrite:
-		return database.TemplateRoleWrite
-	case codersdk.TemplateRoleRead:
+	case codersdk.TemplateRoleView:
 		return database.TemplateRoleRead
 	}
 

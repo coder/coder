@@ -145,6 +145,7 @@ type entitlements struct {
 	auditLogs   codersdk.Entitlement
 	browserOnly codersdk.Entitlement
 	scim        codersdk.Entitlement
+	groups      codersdk.Entitlement
 }
 
 func (api *API) Close() error {
@@ -171,6 +172,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		auditLogs:   codersdk.EntitlementNotEntitled,
 		scim:        codersdk.EntitlementNotEntitled,
 		browserOnly: codersdk.EntitlementNotEntitled,
+		groups:      codersdk.EntitlementNotEntitled,
 	}
 
 	// Here we loop through licenses to detect enabled features.
