@@ -13,8 +13,6 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"golang.org/x/xerrors"
 )
 
@@ -22,13 +20,10 @@ import (
 // It extends the generated interface to add transaction support.
 type Store interface {
 	querier
+	// customQuerier contains custom queries that are not generated.
 	customQuerier
 
 	InTx(func(Store) error) error
-}
-
-type customQuerier interface {
-	AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
 }
 
 // DBTX represents a database connection or transaction.

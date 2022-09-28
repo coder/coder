@@ -24,20 +24,6 @@ type PreparedAuthorized interface {
 	Compile() (AuthorizeFilter, error)
 }
 
-func (a *RegoAuthorizer) SQLFilter(ctx context.Context, subjID string, subjRoles []string, scope Scope, action Action, objectType string) (AuthorizeFilter, error) {
-	prepared, err := a.PrepareByRoleName(ctx, subjID, subjRoles, scope, action, objectType)
-	if err != nil {
-		return nil, xerrors.Errorf("filter: %w", err)
-	}
-
-	filter, err := prepared.Compile()
-	if err != nil {
-		return nil, xerrors.Errorf("filter: %w", err)
-	}
-
-	return filter, nil
-}
-
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.

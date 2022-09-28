@@ -12,11 +12,16 @@ import (
 
 type SQLConfig struct {
 	// VariableRenames renames rego variables to sql columns
+	//	Example:
+	// 		"input.object.org_owner": "organization_id::text"
+	//		"input.object.owner":     "owner_id::text"
 	VariableRenames map[string]string
 }
 
 type AuthorizeFilter interface {
+	// RegoString is used in debugging to see the original rego expression.
 	RegoString() string
+	// SQLString returns the SQL expression that can be used in a WHERE clause.
 	SQLString(cfg SQLConfig) string
 	// Eval is required for the fake in memory database to work. The in memory
 	// database can use this function to filter the results.
@@ -92,7 +97,18 @@ func processQuery(query ast.Body) (Expression, error) {
 
 func processExpression(expr *ast.Expr) (Expression, error) {
 	if !expr.IsCall() {
-		return nil, xerrors.Errorf("invalid expression: function calls not supported")
+		// This could be a single term that is a valid expression.
+		if term, ok := expr.Terms.(*ast.Term); ok {
+			value, err := processTerm(term)
+			if err != nil {
+				return nil, xerrors.Errorf("single term expression: %w", err)
+			}
+			if boolExp, ok := value.(Expression); ok {
+				return boolExp, nil
+			}
+			// Default to error.
+		}
+		return nil, xerrors.Errorf("invalid expression: single non-boolean terms not supported")
 	}
 
 	op := expr.Operator().String()
@@ -142,6 +158,11 @@ func processTerms(expected int, terms []*ast.Term) ([]Term, error) {
 func processTerm(term *ast.Term) (Term, error) {
 	base := base{Rego: term.String()}
 	switch v := term.Value.(type) {
+	case ast.Boolean:
+		return &termBoolean{
+			base:  base,
+			Value: bool(v),
+		}, nil
 	case ast.Ref:
 		// A ref is a set of terms. If the first term is a var, then the
 		// following terms are the path to the value.
@@ -210,6 +231,10 @@ type expAnd struct {
 }
 
 func (t expAnd) SQLString(cfg SQLConfig) string {
+	if len(t.Expressions) == 1 {
+		return t.Expressions[0].SQLString(cfg)
+	}
+
 	exprs := make([]string, 0, len(t.Expressions))
 	for _, expr := range t.Expressions {
 		exprs = append(exprs, expr.SQLString(cfg))
@@ -232,11 +257,14 @@ type expOr struct {
 }
 
 func (t expOr) SQLString(cfg SQLConfig) string {
+	if len(t.Expressions) == 1 {
+		return t.Expressions[0].SQLString(cfg)
+	}
+
 	exprs := make([]string, 0, len(t.Expressions))
 	for _, expr := range t.Expressions {
 		exprs = append(exprs, expr.SQLString(cfg))
 	}
-
 	return "(" + strings.Join(exprs, " OR ") + ")"
 }
 
@@ -273,7 +301,7 @@ func (t opEqual) SQLString(cfg SQLConfig) string {
 }
 
 func (t opEqual) Eval(object Object) bool {
-	a, b := t.Terms[0].Eval(object), t.Terms[1].Eval(object)
+	a, b := t.Terms[0].EvalTerm(object), t.Terms[1].EvalTerm(object)
 	if t.Not {
 		return a != b
 	}
@@ -288,7 +316,7 @@ type opInternalMember2 struct {
 }
 
 func (t opInternalMember2) Eval(object Object) bool {
-	a, b := t.Terms[0].Eval(object), t.Terms[1].Eval(object)
+	a, b := t.Terms[0].EvalTerm(object), t.Terms[1].EvalTerm(object)
 	bset, ok := b.([]interface{})
 	if !ok {
 		return false
@@ -314,7 +342,7 @@ type Term interface {
 	SQLString(cfg SQLConfig) string
 	// Eval will evaluate the term
 	// Terms can eval to any type. The operator/expression will type check.
-	Eval(object Object) interface{}
+	EvalTerm(object Object) interface{}
 }
 
 type termString struct {
@@ -322,7 +350,7 @@ type termString struct {
 	Value string
 }
 
-func (t termString) Eval(_ Object) interface{} {
+func (t termString) EvalTerm(_ Object) interface{} {
 	return t.Value
 }
 
@@ -335,7 +363,7 @@ type termVariable struct {
 	Name string
 }
 
-func (t termVariable) Eval(obj Object) interface{} {
+func (t termVariable) EvalTerm(obj Object) interface{} {
 	switch t.Name {
 	case "input.object.org_owner":
 		return obj.OrgID
@@ -362,10 +390,10 @@ type termSet struct {
 	Value []Term
 }
 
-func (t termSet) Eval(obj Object) interface{} {
+func (t termSet) EvalTerm(obj Object) interface{} {
 	set := make([]interface{}, 0, len(t.Value))
 	for _, term := range t.Value {
-		set = append(set, term.Eval(obj))
+		set = append(set, term.EvalTerm(obj))
 	}
 
 	return set
@@ -386,6 +414,10 @@ type termBoolean struct {
 }
 
 func (t termBoolean) Eval(_ Object) bool {
+	return t.Value
+}
+
+func (t termBoolean) EvalTerm(_ Object) interface{} {
 	return t.Value
 }
 

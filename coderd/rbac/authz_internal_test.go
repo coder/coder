@@ -781,6 +781,8 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, subject.Scope, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
+					// Ensure the partial can compile to a SQL clause.
+					// This does not guarantee that the clause is valid SQL.
 					_, err = Compile(partialAuthz.partialQueries)
 					require.NoError(t, err, "compile prepared authorizer")
 

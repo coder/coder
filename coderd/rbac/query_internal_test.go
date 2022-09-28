@@ -1,42 +1,38 @@
 package rbac
 
 import (
-	"context"
-	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/rego"
 
-	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompileQuery(t *testing.T) {
-	ctx := context.Background()
-	defOrg := uuid.New()
-	unuseID := uuid.New()
+	t.Run("EmptyQuery", func(t *testing.T) {
+		expression, err := Compile(&rego.PartialQueries{
+			Queries: []ast.Body{
+				must(ast.ParseBody("")),
+			},
+			Support: []*ast.Module{},
+		})
+		require.NoError(t, err, "compile empty")
 
-	user := subject{
-		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
-		Roles: []Role{
-			must(RoleByName(RoleMember())),
-			must(RoleByName(RoleOrgMember(defOrg))),
-		},
-	}
-	var action Action = ActionRead
-	object := ResourceWorkspace.InOrg(defOrg).WithOwner(unuseID.String())
+		require.Equal(t, "true", expression.RegoString(), "empty query is rego 'true'")
+		require.Equal(t, "true", expression.SQLString(SQLConfig{}), "empty query is sql 'true'")
+	})
 
-	auth := NewAuthorizer()
-	part, err := auth.Prepare(ctx, user.UserID, user.Roles, user.Scope, action, object.Type)
-	require.NoError(t, err)
+	t.Run("TrueQuery", func(t *testing.T) {
+		expression, err := Compile(&rego.PartialQueries{
+			Queries: []ast.Body{
+				must(ast.ParseBody("true")),
+			},
+			Support: []*ast.Module{},
+		})
+		require.NoError(t, err, "compile empty")
 
-	result, err := Compile(part.partialQueries)
-	require.NoError(t, err)
-
-	fmt.Println("Rego: ", result.RegoString())
-	fmt.Println("SQL: ", result.SQLString(SQLConfig{
-		map[string]string{
-			"input.object.org_owner": "organization_id",
-		},
-	}))
+		require.Equal(t, "true", expression.RegoString(), "true query is rego 'true'")
+		require.Equal(t, "true", expression.SQLString(SQLConfig{}), "true query is sql 'true'")
+	})
 }

@@ -4,14 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
-
-	"github.com/lib/pq"
 )
 
+type customQuerier interface {
+	AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
+}
+
 // AuthorizedGetWorkspaces returns all workspaces that the user is authorized to access.
+// This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
+// clause.
 func (q *sqlQuerier) AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
 	query := fmt.Sprintf("%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.SQLConfig{
 		VariableRenames: map[string]string{
