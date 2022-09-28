@@ -146,6 +146,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 <UserAutocomplete
                   value={props.defaultWorkspaceOwner}
                   onChange={(user) => props.setOwner(user)}
+                  label="Workspace Owner"
                 />
               )}
 

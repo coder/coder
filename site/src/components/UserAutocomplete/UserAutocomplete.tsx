@@ -12,9 +12,10 @@ import { searchUserMachine } from "xServices/users/searchUserXService"
 export type UserAutocompleteProps = {
   value: User | null
   onChange: (user: User | null) => void
+  label?: string
 }
 
-export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onChange }) => {
+export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onChange, label }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
@@ -77,8 +78,8 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
       renderInput={(params) => (
         <TextField
           {...params}
-          margin="none"
           variant="outlined"
+          label={label ?? undefined}
           placeholder="User email or username"
           InputProps={{
             ...params.InputProps,
@@ -111,7 +112,7 @@ export const useStyles = makeStyles((theme) => {
       },
 
       "& input": {
-        fontSize: 14,
+        fontSize: 16,
         padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
       },
     },
