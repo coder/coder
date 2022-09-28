@@ -11,10 +11,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type TermType string
+
 const (
-	VarTypeJsonbArray = "jsonb-array"
-	VarTypeUUID       = "uuid"
-	VarTypeText       = "text"
+	VarTypeJsonbTextArray TermType = "jsonb-text-array"
+	VarTypeText           TermType = "text"
 )
 
 type SQLColumn struct {
@@ -30,7 +31,7 @@ type SQLColumn struct {
 	// An example is if the variable is a jsonb array, the "contains" SQL
 	// query is `"value"' @> variable.` instead of `'value' = ANY(variable)`.
 	// This type is only needed to be provided
-	Type string
+	Type TermType
 }
 
 type SQLConfig struct {
@@ -57,17 +58,22 @@ func DefaultConfig() SQLConfig {
 			{
 				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_group_list\.([^.]*)$`),
 				ColumnSelect: "group_acl->$1",
-				Type:         VarTypeJsonbArray,
+				Type:         VarTypeJsonbTextArray,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_user_list\.([^.]*)$`),
+				ColumnSelect: "user_acl->$1",
+				Type:         VarTypeJsonbTextArray,
 			},
 			{
 				RegoMatch:    regexp.MustCompile(`^input\.object\.org_owner$`),
 				ColumnSelect: "organization_id :: text",
-				Type:         VarTypeUUID,
+				Type:         VarTypeText,
 			},
 			{
 				RegoMatch:    regexp.MustCompile(`^input\.object\.owner$`),
 				ColumnSelect: "owner_id :: text",
-				Type:         VarTypeUUID,
+				Type:         VarTypeText,
 			},
 		},
 	}
@@ -185,8 +191,9 @@ func processExpression(expr *ast.Expr) (Expression, error) {
 			return nil, xerrors.Errorf("invalid '%s' expression: %w", op, err)
 		}
 		return &opInternalMember2{
-			base:  base,
-			Terms: [2]Term{terms[0], terms[1]},
+			base:     base,
+			Needle:   terms[0],
+			Haystack: terms[1],
 		}, nil
 	default:
 		return nil, xerrors.Errorf("invalid expression: operator %s not supported", op)
@@ -230,9 +237,8 @@ func processTerm(term *ast.Term) (Term, error) {
 				base: base,
 				Name: name,
 			}, nil
-		} else {
-			return nil, xerrors.Errorf("invalid term: ref must start with a var, started with %T", v[0])
 		}
+		return nil, xerrors.Errorf("invalid term: ref must start with a var, started with %T", v[0])
 	case ast.Var:
 		return &termVariable{
 			Name: trimQuotes(v.String()),
@@ -367,11 +373,12 @@ func (t opEqual) Eval(object Object) bool {
 // The second term is a set or list.
 type opInternalMember2 struct {
 	base
-	Terms [2]Term
+	Needle   Term
+	Haystack Term
 }
 
 func (t opInternalMember2) Eval(object Object) bool {
-	a, b := t.Terms[0].EvalTerm(object), t.Terms[1].EvalTerm(object)
+	a, b := t.Needle.EvalTerm(object), t.Haystack.EvalTerm(object)
 	bset, ok := b.([]interface{})
 	if !ok {
 		return false
@@ -385,7 +392,20 @@ func (t opInternalMember2) Eval(object Object) bool {
 }
 
 func (t opInternalMember2) SQLString(cfg SQLConfig) string {
-	return fmt.Sprintf("%s = ANY(%s)", t.Terms[0].SQLString(cfg), t.Terms[1].SQLString(cfg))
+	if haystack, ok := t.Haystack.(*termVariable); ok {
+		// This is a special case where the haystack is a jsonb array.
+		// The more general way to solve this would be to implement a fuller type
+		// system and handle type conversions for each supported type.
+		// Then we could determine that the haystack is always an "array" and
+		// implement the "contains" function on the array type.
+		// But that requires a lot more code to handle a lot of cases we don't
+		// actually care about.
+		if haystack.SQLType(cfg) == VarTypeJsonbTextArray {
+			return fmt.Sprintf("%s ? %s", haystack.SQLString(cfg), t.Needle.SQLString(cfg))
+		}
+	}
+
+	return fmt.Sprintf("%s = ANY(%s)", t.Needle.SQLString(cfg), t.Haystack.SQLString(cfg))
 }
 
 // Term is a single value in an expression. Terms can be variables or constants.
@@ -413,6 +433,10 @@ func (t termString) SQLString(_ SQLConfig) string {
 	return "'" + t.Value + "'"
 }
 
+func (t termString) SQLType(_ SQLConfig) TermType {
+	return VarTypeText
+}
+
 type termVariable struct {
 	base
 	Name string
@@ -431,8 +455,15 @@ func (t termVariable) EvalTerm(obj Object) interface{} {
 	}
 }
 
+func (t termVariable) SQLType(cfg SQLConfig) TermType {
+	if col := t.ColumnConfig(cfg); col != nil {
+		return col.Type
+	}
+	return VarTypeText
+}
+
 func (t termVariable) SQLString(cfg SQLConfig) string {
-	for _, col := range cfg.Variables {
+	if col := t.ColumnConfig(cfg); col != nil {
 		matches := col.RegoMatch.FindStringSubmatch(t.Name)
 		if len(matches) > 0 {
 			// This config matches this variable.
@@ -447,6 +478,18 @@ func (t termVariable) SQLString(cfg SQLConfig) string {
 	}
 
 	return t.Name
+}
+
+// ColumnConfig returns the correct SQLColumn settings for the
+// term. If there is no configured column, it will return nil.
+func (t termVariable) ColumnConfig(cfg SQLConfig) *SQLColumn {
+	for _, col := range cfg.Variables {
+		matches := col.RegoMatch.MatchString(t.Name)
+		if matches {
+			return &col
+		}
+	}
+	return nil
 }
 
 // termSet is a set of unique terms.

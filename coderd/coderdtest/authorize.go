@@ -564,10 +564,10 @@ func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
 	return f.Original.ByRoleName(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object) == nil
 }
 
-func (f *fakePreparedAuthorizer) RegoString() string {
+func (fakePreparedAuthorizer) RegoString() string {
 	panic("not implemented")
 }
 
-func (f *fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+func (fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
 	panic("not implemented")
 }

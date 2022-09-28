@@ -93,9 +93,9 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 // from postgres are already authorized, and the caller does not need to
 // call 'Authorize()' on the returned objects.
 // Note the authorization is only for the given action and object type.
-func (a *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.AuthorizeFilter, error) {
+func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.AuthorizeFilter, error) {
 	roles := httpmw.UserAuthorization(r)
-	prepared, err := a.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objectType)
+	prepared, err := h.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare filter: %w", err)
 	}
