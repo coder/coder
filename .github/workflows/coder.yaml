@@ -573,9 +573,8 @@ jobs:
 
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
-    needs:
-      - changes
-    if: needs.changes.outputs.docs-only == 'false'
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.tf == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
