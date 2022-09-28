@@ -1,12 +1,21 @@
 #!/bin/env bash
 set -x
+
 # upgrade go to 1.19.1
-curl -L https://dl.google.com/go/go1.19.1.linux-amd64.tar.gz | sudo tar --directory /usr/local --extract --ungzip
-go version
-sudo apt-get install shfmt
+go version | grep 1.19.1 || curl -L https://dl.google.com/go/go1.19.1.linux-amd64.tar.gz | sudo tar --directory /usr/local --extract --ungzip
+# shfmt needed for make
+which shfmt || sudo apt-get install shfmt
+# TODO: Make still failing, possible dependencies still missing.
+
 # install coder binary until we can build from src
-curl -OL https://github.com/coder/coder/releases/download/v0.9.1/coder_0.9.1_linux_amd64.deb
-sudo dpkg -i coder_0.9.1_linux_amd64.deb
+which coder || (
+	curl -OL https://github.com/coder/coder/releases/download/v0.9.1/coder_0.9.1_linux_amd64.deb
+	sudo dpkg -i coder_0.9.1_linux_amd64.deb
+	# Add completion
+	echo '. <(coder completion bash)' >>~/.bashrc
+)
+
+# Deploying coder (from helm for now)
 kubectl create namespace coder
 # ensure ingress works / certs secrets get copied
 kubectl label ns coder cert-manager-tls=sync
@@ -29,6 +38,8 @@ kubectl apply -f .sharingio/ingress.yaml
 # Wait for coder to deploy
 kubectl rollout status deployment coder -n coder
 kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
+
+# create the initial user
 # populate ii or pair as an admin user without logging in
 CODER_EMAIL=ii@ii.coop
 CODER_PASSWORD=ii
@@ -37,11 +48,5 @@ CODER_URL=https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
 # export vars to we can emulate a tty with a short expect script
 export CODER_EMAIL CODER_PASSWORD CODER_USERNAME
 coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
-#.sharingio/coder-login.exp
-# coder login
-#
-# echo yes | unbuffer -p coder login https://coder.prerepair.pair.sharing.io
-# echo yes | unbuffer -p coder login https://coder.prerepair.pair.sharing.io
+
 # TODO : upload / update the kubernetes template
-# Add completion
-echo '. <(coder completion bash)' >>~/.bashrc
