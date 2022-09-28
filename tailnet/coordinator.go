@@ -20,7 +20,7 @@ type Node struct {
 	ID tailcfg.NodeID `json:"id"`
 	// Key is also used to identify the connection.
 	Key key.NodePublic `json:"key"`
-	// DiscoKey is used to establish a peer-to-peer connection.
+	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.
 	DiscoKey key.DiscoPublic `json:"disco"`
 	// PreferredDERP is the DERP server that peered connections
 	// should meet at to establish.
