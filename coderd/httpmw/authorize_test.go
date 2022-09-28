@@ -97,6 +97,7 @@ func TestExtractUserRoles(t *testing.T) {
 						UpdatedAt:      time.Now(),
 						Roles:          orgRoles,
 					})
+					require.NoError(t, err)
 					roles = append(roles, orgRoles...)
 					roles = append(roles, rbac.RoleOrgMember(organization.ID))
 				}
