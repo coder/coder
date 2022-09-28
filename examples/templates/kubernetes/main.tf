@@ -76,6 +76,12 @@ resource "coder_app" "code-server" {
   icon          = "/icon/code.svg"
   url           = "http://localhost:13337?folder=/home/coder"
   relative_path = true
+
+  healthcheck {
+    url       = "http://localhost:1337/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }
 
 resource "kubernetes_persistent_volume_claim" "home" {

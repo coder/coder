@@ -41,6 +41,12 @@ resource "coder_app" "code-server" {
   agent_id = coder_agent.main.id
   url      = "http://localhost:8080/?folder=/home/coder"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:8080/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }
 
 resource "docker_volume" "home_volume" {

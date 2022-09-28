@@ -27,6 +27,7 @@ export interface WorkspaceActionsProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  isUpdating: boolean
   children?: ReactNode
 }
 
@@ -37,6 +38,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleDelete,
   handleUpdate,
   handleCancel,
+  isUpdating,
 }) => {
   const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
     workspace.latest_build,
@@ -63,6 +65,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
     [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
+    [ButtonTypesEnum.updating]: <ActionLoadingButton label={Language.updating} />,
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
     [ButtonTypesEnum.starting]: <ActionLoadingButton label={Language.starting} />,
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
@@ -77,7 +80,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   return (
     <DropdownButton
-      primaryAction={buttonMapping[actions.primary]}
+      primaryAction={
+        isUpdating ? buttonMapping[ButtonTypesEnum.updating] : buttonMapping[actions.primary]
+      }
       canCancel={actions.canCancel}
       handleCancel={handleCancel}
       secondaryActions={actions.secondary.map((action) => ({
