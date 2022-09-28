@@ -8,14 +8,11 @@ import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
+import { i18n } from "i18n"
 import { FC, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
-
-export const Language = {
-  templateLabel: "Template",
-  nameLabel: "Name",
-}
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -42,13 +39,17 @@ export interface CreateWorkspacePageViewProps {
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
 }
 
+const { t } = i18n
+
 export const validationSchema = Yup.object({
-  name: nameValidator(Language.nameLabel),
+  name: nameValidator(t("createWorkspacePage.nameLabel")),
 })
 
 export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (
   props,
 ) => {
+  const { t } = useTranslation("createWorkspacePage")
+
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
@@ -124,7 +125,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           <TextField
             disabled
             fullWidth
-            label={Language.templateLabel}
+            label={t("templateLabel")}
             value={props.selectedTemplate?.name || props.templateName}
             variant="outlined"
           />
@@ -138,7 +139,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 onChange={onChangeTrimmed(form)}
                 autoFocus
                 fullWidth
-                label={Language.nameLabel}
+                label={t("nameLabel")}
                 variant="outlined"
               />
 
@@ -146,7 +147,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 <UserAutocomplete
                   value={props.defaultWorkspaceOwner}
                   onChange={(user) => props.setOwner(user)}
-                  label="Workspace Owner"
+                  label={t("ownerLabel")}
                 />
               )}
 

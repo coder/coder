@@ -2,11 +2,15 @@
 import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
+import i18next from "i18next"
 import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
 import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
-import { Language } from "./CreateWorkspacePageView"
+
+const { t } = i18next
+const nameLabelText = t("createWorkspacePage.nameLabel")
+const ownerLabelText = t("createWorkspacePage.ownerLabel")
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -22,14 +26,25 @@ describe("CreateWorkspacePage", () => {
     expect(element).toBeDefined()
   })
 
-  it("succeeds", async () => {
+  it("succeeds using default owner", async () => {
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
 
     renderCreateWorkspacePage()
 
-    const nameField = await screen.findByLabelText(Language.nameLabel)
+    const nameField = await screen.findByLabelText(nameLabelText)
     userEvent.type(nameField, "test")
     const submitButton = screen.getByText(FooterLanguage.defaultSubmitLabel)
     userEvent.click(submitButton)
+  })
+
+  it("succeeds with a specified owner", async () => {
+    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
+
+    renderCreateWorkspacePage()
+
+    const nameField = await screen.findByLabelText(nameLabelText)
+    userEvent.type(nameField, "test")
+    const ownerField = await screen.findByLabelText(ownerLabelText)
+    userEvent.type(ownerField, "test")
   })
 })
