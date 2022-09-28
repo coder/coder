@@ -50,7 +50,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
       >
         <Icon className={styles.icon} />
       </span>
-      {message}
+      <span data-chromatic="ignore">{message}</span>
     </span>
   )
 }
