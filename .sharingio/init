@@ -1,8 +1,9 @@
 #!/bin/env bash
 set -x
 # upgrade go to 1.19.1
-curl -L https://dl.google.com/go/go1.19.1.linux-amd64.tar.gz  | sudo tar --directory /usr/local --extract --ungzip --verbose
+curl -L https://dl.google.com/go/go1.19.1.linux-amd64.tar.gz | sudo tar --directory /usr/local --extract --ungzip --verbose
 go version
+sudo apt-get install shfmt
 kubectl create namespace coder
 # ensure ingress works / certs secrets get copied
 kubectl label ns coder cert-manager-tls=sync
