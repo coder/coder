@@ -1,5 +1,4 @@
 import { useMachine } from "@xstate/react"
-import { useMe } from "hooks/useMe"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useOutletContext } from "react-router-dom"
@@ -10,7 +9,7 @@ import { TemplateContext } from "xServices/template/templateXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
 export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () => {
-  const { templateContext, permissions } = useOutletContext<{
+  const { templateContext } = useOutletContext<{
     templateContext: TemplateContext
     permissions: Permissions
   }>()
@@ -24,10 +23,7 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
 
   const [state, send] = useMachine(templateUsersMachine, { context: { templateId: template.id } })
   const { templateUsers, userToBeUpdated } = state.context
-  const me = useMe()
-  const userTemplateRole = template.user_roles[me.id]
-  const canUpdatesUsers =
-    permissions.deleteTemplates || userTemplateRole === "admin" || template.created_by_id === me.id
+  const canUpdatesUsers = true
 
   return (
     <>

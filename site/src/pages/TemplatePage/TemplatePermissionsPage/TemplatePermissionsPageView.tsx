@@ -141,7 +141,7 @@ export const TemplatePermissionsPageView: FC<
                   </TableCell>
                 </TableRow>
               </Cond>
-              <Cond condition={Boolean(templateUsers && templateUsers.length > 0)}>
+              <Cond>
                 {templateUsers?.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
