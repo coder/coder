@@ -3,6 +3,7 @@ import { FeatureNames } from "api/types"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
+import { UsersLayout } from "components/UsersLayout/UsersLayout"
 import IndexPage from "pages"
 import AuditPage from "pages/AuditPage/AuditPage"
 import GroupsPage from "pages/GroupsPage/GroupsPage"
@@ -142,7 +143,9 @@ export const AppRouter: FC = () => {
             index
             element={
               <AuthAndFrame>
-                <UsersPage />
+                <UsersLayout>
+                  <UsersPage />
+                </UsersLayout>
               </AuthAndFrame>
             }
           />
@@ -161,7 +164,9 @@ export const AppRouter: FC = () => {
             index
             element={
               <AuthAndFrame>
-                <GroupsPage />
+                <UsersLayout>
+                  <GroupsPage />
+                </UsersLayout>
               </AuthAndFrame>
             }
           />
