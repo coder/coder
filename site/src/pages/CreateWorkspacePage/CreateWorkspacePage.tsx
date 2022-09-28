@@ -1,4 +1,5 @@
 import { useActor, useMachine } from "@xstate/react"
+import { User } from "api/typesGenerated"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC, useContext, useState } from "react"
 import { Helmet } from "react-helmet-async"
@@ -35,7 +36,7 @@ const CreateWorkspacePage: FC = () => {
   const [authState] = useActor(xServices.authXService)
   const { permissions, me } = authState.context
 
-  const [ownerId, setOwnerId] = useState<string | undefined>(me?.id)
+  const [owner, setOwner] = useState<User | null>(me ?? null)
 
   return (
     <>
@@ -57,8 +58,8 @@ const CreateWorkspacePage: FC = () => {
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
-        defaultWorkspaceOwnerId={me?.id}
-        setOwnerId={setOwnerId}
+        defaultWorkspaceOwner={me ?? null}
+        setOwner={setOwner}
         onCancel={() => {
           navigate("/templates")
         }}
@@ -66,7 +67,7 @@ const CreateWorkspacePage: FC = () => {
           send({
             type: "CREATE_WORKSPACE",
             request,
-            ownerId,
+            owner,
           })
         }}
       />

@@ -1,15 +1,16 @@
 import { assign, createMachine } from "xstate"
-import { createWorkspace, getTemplates, getTemplateVersionSchema } from "../../api/api"
+import { createWorkspace, getTemplates, getTemplateVersionSchema } from "api/api"
 import {
   CreateWorkspaceRequest,
   ParameterSchema,
   Template,
   Workspace,
-} from "../../api/typesGenerated"
+  User
+} from "api/typesGenerated"
 
 type CreateWorkspaceContext = {
   organizationId: string
-  ownerId?: string
+  owner: User | null
   templateName: string
   templates?: Template[]
   selectedTemplate?: Template
@@ -24,7 +25,7 @@ type CreateWorkspaceContext = {
 type CreateWorkspaceEvent = {
   type: "CREATE_WORKSPACE"
   request: CreateWorkspaceRequest
-  ownerId?: string
+  owner: User | null
 }
 
 export const createWorkspaceMachine = createMachine(
@@ -86,7 +87,7 @@ export const createWorkspaceMachine = createMachine(
       fillingParams: {
         on: {
           CREATE_WORKSPACE: {
-            actions: ["assignCreateWorkspaceRequest", "assignOwnerId"],
+            actions: ["assignCreateWorkspaceRequest", "assignOwner"],
             target: "creatingWorkspace",
           },
         },
@@ -124,13 +125,13 @@ export const createWorkspaceMachine = createMachine(
         return getTemplateVersionSchema(selectedTemplate.active_version_id)
       },
       createWorkspace: (context) => {
-        const { createWorkspaceRequest, organizationId, ownerId } = context
+        const { createWorkspaceRequest, organizationId, owner } = context
 
         if (!createWorkspaceRequest) {
           throw new Error("No create workspace request")
         }
 
-        return createWorkspace(organizationId, ownerId, createWorkspaceRequest)
+        return createWorkspace(organizationId, owner?.id ?? 'me', createWorkspaceRequest)
       },
     },
     guards: {
@@ -154,8 +155,8 @@ export const createWorkspaceMachine = createMachine(
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,
       }),
-      assignOwnerId: assign({
-        ownerId: (_, event) => event.ownerId,
+      assignOwner: assign({
+        owner: (_, event) => event.owner,
       }),
       assignCreateWorkspaceError: assign({
         createWorkspaceError: (_, event) => event.data,

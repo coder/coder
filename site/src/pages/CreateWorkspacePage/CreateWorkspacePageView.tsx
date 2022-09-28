@@ -1,16 +1,16 @@
 import TextField from "@material-ui/core/TextField"
+import * as TypesGen from "api/typesGenerated"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
-import { UsersSelect } from "components/UsersSelect/UsersSelect"
+import { FormFooter } from "components/FormFooter/FormFooter"
+import { FullPageForm } from "components/FullPageForm/FullPageForm"
+import { Loader } from "components/Loader/Loader"
+import { ParameterInput } from "components/ParameterInput/ParameterInput"
+import { Stack } from "components/Stack/Stack"
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useState } from "react"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
-import * as TypesGen from "../../api/typesGenerated"
-import { FormFooter } from "../../components/FormFooter/FormFooter"
-import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
-import { Loader } from "../../components/Loader/Loader"
-import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
-import { Stack } from "../../components/Stack/Stack"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 
 export const Language = {
   templateLabel: "Template",
@@ -34,8 +34,8 @@ export interface CreateWorkspacePageViewProps {
   templateSchema?: TypesGen.ParameterSchema[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
-  defaultWorkspaceOwnerId?: string
-  setOwnerId: (arg0: string) => void
+  defaultWorkspaceOwner: TypesGen.User | null
+  setOwner: (arg0: TypesGen.User | null) => void
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
   // initialTouched is only used for testing the error state of the form.
@@ -143,9 +143,9 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
               />
 
               {props.canCreateForUser && (
-                <UsersSelect
-                  defaultUserId={props.defaultWorkspaceOwnerId}
-                  handleChange={(id: string) => props.setOwnerId(id)}
+                <UserAutocomplete
+                  value={props.defaultWorkspaceOwner}
+                  onChange={(user) => props.setOwner(user)}
                 />
               )}
 
