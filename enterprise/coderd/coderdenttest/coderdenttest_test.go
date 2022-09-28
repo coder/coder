@@ -6,9 +6,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestNew(t *testing.T) {
@@ -26,11 +30,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 		},
 	})
+	ctx, _ := testutil.Context(t)
 	admin := coderdtest.CreateFirstUser(t, client)
 	license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{})
+	group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "testgroup",
+	})
+	require.NoError(t, err)
+
 	groupObj := rbac.ResourceGroup.InOrg(admin.OrganizationID)
-	a := coderdtest.NewAuthTester(context.Background(), t, client, api.AGPL, admin)
+	a := coderdtest.NewAuthTester(ctx, t, client, api.AGPL, admin)
 	a.URLParams["licenses/{id}"] = fmt.Sprintf("licenses/%d", license.ID)
+	a.URLParams["groups/{group}"] = fmt.Sprintf("groups/%s", group.ID.String())
 
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
 	assertRoute["GET:/api/v2/entitlements"] = coderdtest.RouteCheck{

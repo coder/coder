@@ -357,10 +357,6 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		ParameterValues: []codersdk.CreateParameterRequest{},
 	})
 	require.NoError(t, err, "template version dry-run")
-	group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
-		Name: "testgroup",
-	})
-	require.NoError(t, err, "create group")
 
 	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 		Name:              "test-param",
@@ -386,7 +382,6 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{jobID}":               templateVersionDryRun.ID.String(),
 		"{templatename}":        template.Name,
 		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
-		"{group}":               group.ID.String(),
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
