@@ -324,6 +324,13 @@ export const MockQueuedWorkspace: TypesGen.Workspace = {
   },
 }
 
+// requests the MockWorkspace
+export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
+  name: "test",
+  parameter_values: [],
+  template_id: "test-template",
+}
+
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",

@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import { screen } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
+import { Language as FooterLanguage } from "components/FormFooter/FormFooter"
 import i18next from "i18next"
-import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
-import { MockTemplate, MockWorkspace } from "../../testHelpers/entities"
-import { renderWithAuth } from "../../testHelpers/renderHelpers"
+import { MockTemplate, MockUser, MockWorkspace, MockWorkspaceRequest } from "testHelpers/entities"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 
 const { t } = i18next
-const nameLabelText = t("createWorkspacePage.nameLabel")
-const ownerLabelText = t("createWorkspacePage.ownerLabel")
+
+const nameLabelText = t("nameLabel", { ns: "createWorkspacePage" })
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -26,25 +26,26 @@ describe("CreateWorkspacePage", () => {
     expect(element).toBeDefined()
   })
 
-  it("succeeds using default owner", async () => {
+  it("succeeds with default owner", async () => {
+    jest.spyOn(API, "getUsers").mockResolvedValueOnce([MockUser])
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
 
     renderCreateWorkspacePage()
 
     const nameField = await screen.findByLabelText(nameLabelText)
-    userEvent.type(nameField, "test")
+
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    })
+
     const submitButton = screen.getByText(FooterLanguage.defaultSubmitLabel)
     userEvent.click(submitButton)
-  })
 
-  it("succeeds with a specified owner", async () => {
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
-
-    renderCreateWorkspacePage()
-
-    const nameField = await screen.findByLabelText(nameLabelText)
-    userEvent.type(nameField, "test")
-    const ownerField = await screen.findByLabelText(ownerLabelText)
-    userEvent.type(ownerField, "test")
+    await waitFor(() =>
+      expect(API.createWorkspace).toBeCalledWith(MockUser.organization_ids[0], MockUser.id, {
+        ...MockWorkspaceRequest,
+      }),
+    )
   })
 })

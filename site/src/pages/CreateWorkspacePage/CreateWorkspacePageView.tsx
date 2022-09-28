@@ -42,7 +42,7 @@ export interface CreateWorkspacePageViewProps {
 const { t } = i18n
 
 export const validationSchema = Yup.object({
-  name: nameValidator(t("createWorkspacePage.nameLabel")),
+  name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
 })
 
 export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (

@@ -1,12 +1,12 @@
-import { assign, createMachine } from "xstate"
 import { createWorkspace, getTemplates, getTemplateVersionSchema } from "api/api"
 import {
   CreateWorkspaceRequest,
   ParameterSchema,
   Template,
+  User,
   Workspace,
-  User
 } from "api/typesGenerated"
+import { assign, createMachine } from "xstate"
 
 type CreateWorkspaceContext = {
   organizationId: string
@@ -131,7 +131,7 @@ export const createWorkspaceMachine = createMachine(
           throw new Error("No create workspace request")
         }
 
-        return createWorkspace(organizationId, owner?.id ?? 'me', createWorkspaceRequest)
+        return createWorkspace(organizationId, owner?.id ?? "me", createWorkspaceRequest)
       },
     },
     guards: {

@@ -16,7 +16,7 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
-  createWorkspaceForUser: "createWorkspaceForUser"
+  createWorkspaceForUser: "createWorkspaceForUser",
 } as const
 
 export const permissionsToCheck = {
@@ -61,7 +61,7 @@ export const permissionsToCheck = {
       resource_type: "workspace_creation_for_user",
     },
     action: "create",
-  }
+  },
 } as const
 
 type Permissions = Record<keyof typeof permissionsToCheck, boolean>
