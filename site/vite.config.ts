@@ -9,7 +9,9 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "./out"),
   },
   define: {
-    "process.env": process.env,
+    "process.env": {
+      NODE_ENV: process.env.NODE_ENV,
+    },
   },
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
