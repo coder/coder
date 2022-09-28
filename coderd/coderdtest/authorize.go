@@ -523,7 +523,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 			return nil
 		})
 	require.NoError(a.t, err)
-	require.Len(a.t, routeMissing, 0, "didn't walk some asserted routes: %v", routeMissing)
+	require.Len(a.t, routeMissing, 0, "didn't walk some asserted routes: %+v", routeMissing)
 }
 
 type authCall struct {

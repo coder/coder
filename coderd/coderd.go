@@ -307,7 +307,6 @@ func New(options *Options) *API {
 					r.Post("/", api.postGroupByOrganization)
 					r.Get("/", api.groups)
 				})
-				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {

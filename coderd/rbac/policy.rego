@@ -204,7 +204,7 @@ acl_allow {
 acl_allow {
 	# If there is no organization owner, the object cannot be owned by an
 	# org_scoped team.
-	# TODO: This line and 'org_mem' are similiar and should be combined.
+	# TODO: This line and 'org_mem' are similar and should be combined.
 	# 	Currently the simplfied queries return extra queries that are always
 	# 	false. If these 2 lines are combined, we reduce the number of queries
 	# 	returned by partial execution.

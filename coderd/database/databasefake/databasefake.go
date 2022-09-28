@@ -19,6 +19,11 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
+var errDuplicateKey = &pq.Error{
+	Code:    "23505",
+	Message: "duplicate key value violates unique constraint",
+}
+
 // New returns an in-memory fake of the database.
 func New() database.Store {
 	return &fakeQuerier{
@@ -2375,7 +2380,7 @@ func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 				continue
 			}
 			if other.Name == arg.Name {
-				return database.Workspace{}, &pq.Error{Code: "23505", Message: "duplicate key value violates unique constraint"}
+				return database.Workspace{}, errDuplicateKey
 			}
 		}
 
@@ -2520,13 +2525,11 @@ func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	for _, member := range q.groupMembers {
 		if member.GroupID == arg.GroupID &&
 			member.UserID == arg.UserID {
-			return &pq.Error{
-				Code: "23505",
-			}
-
+			return errDuplicateKey
 		}
 	}
 
+	//nolint:gosimple
 	q.groupMembers = append(q.groupMembers, database.GroupMember{
 		GroupID: arg.GroupID,
 		UserID:  arg.UserID,
@@ -2873,12 +2876,11 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	for _, group := range q.groups {
 		if group.OrganizationID.String() == arg.OrganizationID.String() &&
 			group.Name == arg.Name {
-			return database.Group{}, &pq.Error{
-				Code: "23505",
-			}
+			return database.Group{}, errDuplicateKey
 		}
 	}
 
+	//nolint:gosimple
 	group := database.Group{
 		ID:             arg.ID,
 		Name:           arg.Name,
@@ -2890,7 +2892,7 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	return group, nil
 }
 
-func (q *fakeQuerier) GetUserGroups(_ context.Context, userID uuid.UUID) ([]database.Group, error) {
+func (*fakeQuerier) GetUserGroups(_ context.Context, _ uuid.UUID) ([]database.Group, error) {
 	panic("not implemented")
 }
 

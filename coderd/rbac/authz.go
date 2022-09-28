@@ -75,11 +75,6 @@ var (
 	query     rego.PreparedEvalQuery
 )
 
-const (
-	rolesOkCheck = "role_ok"
-	scopeOkCheck = "scope_ok"
-)
-
 func NewAuthorizer() *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error

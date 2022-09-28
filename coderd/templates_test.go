@@ -985,7 +985,3 @@ func TestTemplateDAUs(t *testing.T) {
 		database.Now(), workspaces[0].LastUsedAt, time.Minute,
 	)
 }
-
-func boolPtr(b bool) *bool {
-	return &b
-}
