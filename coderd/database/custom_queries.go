@@ -18,12 +18,7 @@ type customQuerier interface {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
-	query := fmt.Sprintf("%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.SQLConfig{
-		VariableRenames: map[string]string{
-			"input.object.org_owner": "organization_id::text",
-			"input.object.owner":     "owner_id::text",
-		},
-	}))
+	query := fmt.Sprintf("%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.DefaultConfig()))
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.OwnerID,

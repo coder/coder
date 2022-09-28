@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -10,12 +11,66 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	VarTypeJsonbArray = "jsonb-array"
+	VarTypeUUID       = "uuid"
+	VarTypeText       = "text"
+)
+
+type SQLColumn struct {
+	// RegoMatch matches the original variable string.
+	// If it is a match, then this variable config will apply.
+	RegoMatch *regexp.Regexp
+	// ColumnSelect is the name of the postgres column to select.
+	// Can use capture groups from RegoMatch with $1, $2, etc.
+	ColumnSelect string
+
+	// Type indicates the postgres type of the column. Some expressions will
+	// need to know this in order to determine what SQL to produce.
+	// An example is if the variable is a jsonb array, the "contains" SQL
+	// query is `"value"' @> variable.` instead of `'value' = ANY(variable)`.
+	// This type is only needed to be provided
+	Type string
+}
+
 type SQLConfig struct {
-	// VariableRenames renames rego variables to sql columns
+	// Variables is a map of rego variable names to SQL columns.
 	//	Example:
-	// 		"input.object.org_owner": "organization_id::text"
-	//		"input.object.owner":     "owner_id::text"
-	VariableRenames map[string]string
+	// 		"input\.object\.org_owner": SQLColumn{
+	//			ColumnSelect: "organization_id",
+	//			Type: VarTypeUUID
+	//		}
+	//		"input\.object\.owner": SQLColumn{
+	//				ColumnSelect: "owner_id",
+	//				Type: VarTypeUUID
+	//		}
+	//		"input\.object\.group_acl\.(.*)": SQLColumn{
+	//				ColumnSelect: "group_acl->$1",
+	//				Type: VarTypeJsonb
+	//		}
+	Variables []SQLColumn
+}
+
+func DefaultConfig() SQLConfig {
+	return SQLConfig{
+		Variables: []SQLColumn{
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_group_list\.([^.]*)$`),
+				ColumnSelect: "group_acl->$1",
+				Type:         VarTypeJsonbArray,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.org_owner$`),
+				ColumnSelect: "organization_id :: text",
+				Type:         VarTypeUUID,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.owner$`),
+				ColumnSelect: "owner_id :: text",
+				Type:         VarTypeUUID,
+			},
+		},
+	}
 }
 
 type AuthorizeFilter interface {
@@ -377,10 +432,20 @@ func (t termVariable) EvalTerm(obj Object) interface{} {
 }
 
 func (t termVariable) SQLString(cfg SQLConfig) string {
-	rename, ok := cfg.VariableRenames[t.Name]
-	if ok {
-		return rename
+	for _, col := range cfg.Variables {
+		matches := col.RegoMatch.FindStringSubmatch(t.Name)
+		if len(matches) > 0 {
+			// This config matches this variable.
+			replace := make([]string, 0, len(matches)*2)
+			for i, m := range matches {
+				replace = append(replace, fmt.Sprintf("$%d", i))
+				replace = append(replace, m)
+			}
+			replacer := strings.NewReplacer(replace...)
+			return replacer.Replace(col.ColumnSelect)
+		}
 	}
+
 	return t.Name
 }
 
