@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,10 +60,12 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 
 func list() *cobra.Command {
 	var (
-		all          bool
-		columns      []string
-		defaultQuery = "owner:me"
-		searchQuery  string
+		all               bool
+		columns           []string
+		defaultQuery      = "owner:me"
+		searchQuery       string
+		me                bool
+		displayWorkspaces []workspaceListRow
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -79,6 +83,14 @@ func list() *cobra.Command {
 			}
 			if all && searchQuery == defaultQuery {
 				filter.FilterQuery = ""
+			}
+
+			if me {
+				myUser, err := client.User(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return err
+				}
+				filter.Owner = myUser.Username
 			}
 			workspaces, err := client.Workspaces(cmd.Context(), filter)
 			if err != nil {
@@ -101,7 +113,7 @@ func list() *cobra.Command {
 			}
 
 			now := time.Now()
-			displayWorkspaces := make([]workspaceListRow, len(workspaces))
+			displayWorkspaces = make([]workspaceListRow, len(workspaces))
 			for i, workspace := range workspaces {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
@@ -115,10 +127,21 @@ func list() *cobra.Command {
 			return err
 		},
 	}
+
+	v := reflect.Indirect(reflect.ValueOf(displayWorkspaces))
+	availColumns, err := cliui.TypeToTableHeaders(v.Type().Elem())
+	if err != nil {
+		panic(err)
+	}
+	for i, s := range availColumns {
+		availColumns[i] = strings.Replace(s, " ", "_", -1)
+	}
+	columnString := strings.Join(availColumns[:], ", ")
+
 	cmd.Flags().BoolVarP(&all, "all", "a", false,
 		"Specifies whether all workspaces will be listed or not.")
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
-		"Specify a column to filter in the table.")
-	cmd.Flags().StringVar(&searchQuery, "search", defaultQuery, "Search for a workspace with a query.")
+		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", columnString))
+	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
 	return cmd
 }
