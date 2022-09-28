@@ -18,7 +18,7 @@ import (
 type Node struct {
 	// ID is used to identify the connection.
 	ID tailcfg.NodeID `json:"id"`
-	// Key is also used to identify the connection.
+	// Key is the Wireguard public key of the node.
 	Key key.NodePublic `json:"key"`
 	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.
 	DiscoKey key.DiscoPublic `json:"disco"`
