@@ -27,7 +27,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
-	groupObj := rbac.ResourceGroup.InOrg(a.Organization.ID)
 
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
@@ -245,24 +244,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/users":                      {StatusCode: http.StatusOK, AssertObject: rbac.ResourceUser},
 		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
-
-		"DELETE:/api/v2/groups/{group}": {
-			AssertAction: rbac.ActionDelete,
-			AssertObject: groupObj,
-		},
-		"PATCH:/api/v2/groups/{group}": {
-			AssertAction: rbac.ActionUpdate,
-			AssertObject: groupObj,
-		},
-		"GET:/api/v2/groups/{group}": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: groupObj,
-		},
-		"GET:/api/v2/organizations/{organization}/groups/": {
-			StatusCode:   http.StatusOK,
-			AssertAction: rbac.ActionRead,
-			AssertObject: groupObj,
-		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
