@@ -145,7 +145,6 @@ type entitlements struct {
 	auditLogs   codersdk.Entitlement
 	browserOnly codersdk.Entitlement
 	scim        codersdk.Entitlement
-	groups      codersdk.Entitlement
 }
 
 func (api *API) Close() error {

@@ -19,10 +19,9 @@ const (
 	FeatureAuditLog    = "audit_log"
 	FeatureBrowserOnly = "browser_only"
 	FeatureSCIM        = "scim"
-	FeatureGroups      = "groups"
 )
 
-var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog, FeatureBrowserOnly, FeatureSCIM, FeatureGroups}
+var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog, FeatureBrowserOnly, FeatureSCIM}
 
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
