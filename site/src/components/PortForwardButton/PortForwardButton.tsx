@@ -125,7 +125,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
           <Cond condition={host !== ""}>
             <EnabledView {...props} />
           </Cond>
-          <Cond condition={host === ""}>
+          <Cond>
             <DisabledView {...props} />
           </Cond>
         </ChooseOne>
