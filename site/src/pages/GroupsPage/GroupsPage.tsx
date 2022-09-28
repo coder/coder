@@ -72,7 +72,7 @@ export const GroupsPage: React.FC = () => {
                 </TableRow>
               </Cond>
 
-              <Cond condition={!isEmpty}>
+              <Cond>
                 {groups?.map((group) => {
                   const groupPageLink = `/groups/${group.id}`
 
