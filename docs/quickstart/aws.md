@@ -26,7 +26,7 @@ On the EC2 dashboard, click `Instances`. This will take you to all the EC2 insta
 
 For this tutorial, we are going to launch this as the base Ubuntu server. 
 
-For the `Create key pair`, we are using ED25519 and .pem as we will SSH into the instance later in the tutorial.
+For the `Create key pair`, we are using ED25519 and `.pem` as we will SSH into the instance later in the tutorial.
 <img src="../images/quickstart/aws/aws4.png">
 
 Next, under `Network Settings`, change your Firewall security group to Select existing security group and from the resulting dropdown, select the security group you created in the previous section.
@@ -45,13 +45,13 @@ You will also need the IP address of the server. Click on the server in the `Ins
 
 <img src="../images/quickstart/aws/aws6.png">
 
-Now that we’ve gathered all the information you will need to ssh into your EC2 instance, on a terminal on your local system, navigate to the `.pem` file downloaded when you created the EC2 instance. Run the following command:
+Now that we’ve gathered all the information you will need to SSH into your EC2 instance, on a terminal on your local system, navigate to the `.pem` file downloaded when you created the EC2 instance. Run the following command:
 
 ```sh
 chmod 400 [mykey].pem
 ```
 
-This adds the required permissions for ssh-ing into an EC2 instance.
+This adds the required permissions for SSH-ing into an EC2 instance.
 
 Run the following command in terminal, where `mykey` is the security key file, `username` is the username found above for the relevant EC2 operating system image, and the `ip-address` is the IPv4 address for the server: 
 
@@ -63,7 +63,7 @@ Congrats you’ve SSH’d into the server.
 
 ## Install Coder
 
-For this instance, we will run Coder as a service command, however you can run Coder a multitude of different ways. You can learn more about those [here](https://coder.com/docs/coder-oss/latest/install).
+For this instance, we will run Coder as a system service, however you can run Coder a multitude of different ways. You can learn more about those [here](https://coder.com/docs/coder-oss/latest/install).
 
 In the EC2 instance, run the following command to install Coder
 
@@ -104,7 +104,7 @@ Copy the URL and run the following command to create the first user, either on y
 coder login <url***.try.coder.app>
 ```
 
-Fill out the prompts - be sure to save use email and password - these are your admin username and password.
+Fill out the prompts. Be sure to save use email and password as these are your admin username and password.
 
 You can now access Coder on your local machine with the relevant  `***.try.coder.app` URL and logging in with the username and password.
 
@@ -128,7 +128,7 @@ Run the following command to create a folder for the AWS credentials to live in:
 sudo mkdir /home/coder/.aws
 ```
 
-Then run the following commands to copy the credentials and give the `coder` user access to them:
+Run the following commands to copy the AWS credentials and give the `coder` user access to them:
 
 ```sh
 sudo cp ~/.aws/credentials /home/coder/.aws/credentials 

@@ -1,5 +1,6 @@
 ## Requirements 
-To get started running Coder on Azure, you will need an Azure account with the capability to create new Virtual Machines. 
+
+This quickstart will show you how to set up the Coder server on Azure and then set up an Azure hosted Linux based workspace, which allows users to create there own instances of these workspaces and use the Coder product. This quickstart assumes you have access to admin level access to Azure. 
 
 ## Create An Azure VM
 
@@ -27,13 +28,13 @@ Click `Return to create a virtual machine`. Your VM will start up!
 
 <img src="../images/quickstart/azure/azure6.png">
 
-Click `Go to resource` in the Virtual machine and copy the public IP address. You will need it to SSH into the virtual machine via your local machine.
+Click `Go to resource` in the virtual machine and copy the public IP address. You will need it to SSH into the virtual machine via your local machine.
 
 Follow [these instructions](https://learn.microsoft.com/en-us/azure/virtual-machines/linux-vm-connect?tabs=Linux) to SSH into the virtual machine. Once on the VM, you can run and install Coder using your method of choice. For the fastest install, we recommend running Coder as a system service.
 
 ## Install Coder
 
-For this instance, we will run Coder as a service command, however you can run Coder a multitude of different ways. You can learn more about those [here](https://coder.com/docs/coder-oss/latest/install).
+For this instance, we will run Coder as a system service, however you can run Coder a multitude of different ways. You can learn more about those [here](https://coder.com/docs/coder-oss/latest/install).
 
 In the Azure VM instance, run the following command to install Coder
 
@@ -62,8 +63,7 @@ The following command will get you information about the Coder launch service
  journalctl -u coder.service -b
 ```
 
-This will return a series of Coder logs, however, embedded in the launch is the URL for accessing Coder.
-
+This will return a series of logs related to running Coder as a system service. Embedded in the logs is the Coder Access URL.
 
 Copy the URL and run the following command to create the first user, either on your local machine or in the instance terminal. 
 
@@ -87,7 +87,7 @@ Press `enter` to select `Develop in Linux on Azure` template. This will return t
 
 To get started using the Azure template, install the Azure CLI by following the instructions [here](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt). Run `az login` and follow the instructions to configure the Azure command line. 
 
-For this example, Coder was run as a system level service, which creates the system user `coder` for handling processes. The Coder user will require access to the Azure credentials to initialize the template.
+Coder is running as a system service, which creates the system user `coder` for handling processes. The Coder user will require access to the Azure credentials to initialize the template.
 
 Run the following commands to copy the Azure credentials and give the `coder` user access to them:
 
