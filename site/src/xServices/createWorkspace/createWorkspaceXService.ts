@@ -9,6 +9,7 @@ import {
 
 type CreateWorkspaceContext = {
   organizationId: string
+  ownerId?: string
   templateName: string
   templates?: Template[]
   selectedTemplate?: Template
@@ -23,6 +24,7 @@ type CreateWorkspaceContext = {
 type CreateWorkspaceEvent = {
   type: "CREATE_WORKSPACE"
   request: CreateWorkspaceRequest
+  ownerId?: string
 }
 
 export const createWorkspaceMachine = createMachine(
@@ -84,7 +86,7 @@ export const createWorkspaceMachine = createMachine(
       fillingParams: {
         on: {
           CREATE_WORKSPACE: {
-            actions: ["assignCreateWorkspaceRequest"],
+            actions: ["assignCreateWorkspaceRequest", "assignOwnerId"],
             target: "creatingWorkspace",
           },
         },
@@ -122,13 +124,13 @@ export const createWorkspaceMachine = createMachine(
         return getTemplateVersionSchema(selectedTemplate.active_version_id)
       },
       createWorkspace: (context) => {
-        const { createWorkspaceRequest, organizationId } = context
+        const { createWorkspaceRequest, organizationId, ownerId } = context
 
         if (!createWorkspaceRequest) {
           throw new Error("No create workspace request")
         }
 
-        return createWorkspace(organizationId, "me", createWorkspaceRequest)
+        return createWorkspace(organizationId, ownerId, createWorkspaceRequest)
       },
     },
     guards: {
@@ -151,6 +153,9 @@ export const createWorkspaceMachine = createMachine(
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,
+      }),
+      assignOwnerId: assign({
+        ownerId: (_, event) => event.ownerId,
       }),
       assignCreateWorkspaceError: assign({
         createWorkspaceError: (_, event) => event.data,

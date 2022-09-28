@@ -1,6 +1,6 @@
-import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { UsersSelect } from "components/UsersSelect/UsersSelect"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useState } from "react"
 import * as Yup from "yup"
@@ -33,6 +33,9 @@ export interface CreateWorkspacePageViewProps {
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
+  canCreateForUser?: boolean
+  defaultWorkspaceOwnerId?: string
+  setOwnerId: (arg0: string) => void
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
   // initialTouched is only used for testing the error state of the form.
@@ -47,7 +50,6 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   props,
 ) => {
   const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
-  useStyles()
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -140,6 +142,13 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 variant="outlined"
               />
 
+              {props.canCreateForUser && (
+                <UsersSelect
+                  defaultUserId={props.defaultWorkspaceOwnerId}
+                  handleChange={(id: string) => props.setOwnerId(id)}
+                />
+              )}
+
               {props.templateSchema.length > 0 && (
                 <Stack>
                   {props.templateSchema.map((schema) => (
@@ -166,33 +175,3 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
     </FullPageForm>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  readMoreLink: {
-    display: "flex",
-    alignItems: "center",
-
-    "& svg": {
-      width: 12,
-      height: 12,
-      marginLeft: theme.spacing(0.5),
-    },
-  },
-  emptyState: {
-    padding: 0,
-    fontFamily: "inherit",
-    textAlign: "left",
-    minHeight: "auto",
-    alignItems: "flex-start",
-  },
-  emptyStateDescription: {
-    lineHeight: "160%",
-  },
-  code: {
-    background: theme.palette.background.paper,
-    width: "100%",
-  },
-  codeButton: {
-    background: theme.palette.background.paper,
-  },
-}))
