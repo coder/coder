@@ -308,28 +308,33 @@ jobs:
         if: needs.changes.outputs.go == 'true'
 
       - uses: actions/setup-go@v3
+        if: needs.changes.outputs.go == 'true'
         with:
           go-version: "~1.19"
 
       - name: Echo Go Cache Paths
+        if: needs.changes.outputs.go == 'true'
         id: go-cache-paths
         run: |
           echo "::set-output name=go-build::$(go env GOCACHE)"
           echo "::set-output name=go-mod::$(go env GOMODCACHE)"
 
       - name: Go Build Cache
+        if: needs.changes.outputs.go == 'true'
         uses: actions/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
+        if: needs.changes.outputs.go == 'true'
         uses: actions/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
+        if: needs.changes.outputs.go == 'true'
         uses: jaxxstorm/action-install-gh-release@v1.7.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -338,11 +343,13 @@ jobs:
           tag: v1.7.0
 
       - uses: hashicorp/setup-terraform@v2
+        if: needs.changes.outputs.go == 'true'
         with:
           terraform_version: 1.1.9
           terraform_wrapper: false
 
       - name: Test with Mock Database
+        if: needs.changes.outputs.go == 'true'
         id: test
         shell: bash
         run: |
@@ -368,7 +375,7 @@ jobs:
         # that is no guarantee, see:
         # https://github.com/codecov/codecov-action/issues/788
         continue-on-error: true
-        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
+        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork && needs.changes.outputs.go == 'true'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
