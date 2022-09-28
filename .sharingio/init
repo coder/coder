@@ -43,3 +43,5 @@ coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
 # echo yes | unbuffer -p coder login https://coder.prerepair.pair.sharing.io
 # echo yes | unbuffer -p coder login https://coder.prerepair.pair.sharing.io
 # TODO : upload / update the kubernetes template
+# Add completion
+echo '. <(coder completion bash)' >>~/.bashrc

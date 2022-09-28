@@ -20,6 +20,15 @@ coder:
     # coder.serviceAccount.workspacePerms is true.
     - name: CODER_TEMPLATE_AUTOIMPORT
       value: "kubernetes"
-
+    - name: CODER_VERBOSE
+      value: "true"
+    - name: CODER_AUDIT_LOGGING
+      value: "false"
+    - name: CODER_TELEMETRY
+      value: "false"
+    - name: CODER_TELEMETRY_TRACE
+      value: "false"
+    - name: CODER_WILDCARD_ACCESS_URL
+      value: "*.coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"
   tls:
     secretName: null
