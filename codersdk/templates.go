@@ -23,15 +23,13 @@ type Template struct {
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount            int                     `json:"active_user_count"`
-	Description                string                  `json:"description"`
-	Icon                       string                  `json:"icon"`
-	MaxTTLMillis               int64                   `json:"max_ttl_ms"`
-	MinAutostartIntervalMillis int64                   `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.UUID               `json:"created_by_id"`
-	CreatedByName              string                  `json:"created_by_name"`
-	UserRoles                  map[string]TemplateRole `json:"user_roles"`
-	IsPrivate                  bool                    `json:"is_private"`
+	ActiveUserCount            int       `json:"active_user_count"`
+	Description                string    `json:"description"`
+	Icon                       string    `json:"icon"`
+	MaxTTLMillis               int64     `json:"max_ttl_ms"`
+	MinAutostartIntervalMillis int64     `json:"min_autostart_interval_ms"`
+	CreatedByID                uuid.UUID `json:"created_by_id"`
+	CreatedByName              string    `json:"created_by_name"`
 }
 
 type UpdateActiveTemplateVersion struct {
@@ -62,14 +60,17 @@ type TemplateUser struct {
 	Role TemplateRole `json:"role"`
 }
 
+type UpdateTemplateACL struct {
+	UserPerms  map[string]TemplateRole `json:"user_perms,omitempty"`
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty"`
+}
+
 type UpdateTemplateMeta struct {
-	Name                       string                  `json:"name,omitempty" validate:"omitempty,username"`
-	Description                string                  `json:"description,omitempty"`
-	Icon                       string                  `json:"icon,omitempty"`
-	MaxTTLMillis               int64                   `json:"max_ttl_ms,omitempty"`
-	MinAutostartIntervalMillis int64                   `json:"min_autostart_interval_ms,omitempty"`
-	UserPerms                  map[string]TemplateRole `json:"user_perms,omitempty"`
-	GroupPerms                 map[string]TemplateRole `json:"group_perms,omitempty"`
+	Name                       string `json:"name,omitempty" validate:"omitempty,username"`
+	Description                string `json:"description,omitempty"`
+	Icon                       string `json:"icon,omitempty"`
+	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
+	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
 }
 
 // Template returns a single template.
@@ -112,6 +113,18 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	var updated Template
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
+}
+
+func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
 }
 
 func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {

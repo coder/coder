@@ -448,8 +448,6 @@ export interface Template {
   readonly min_autostart_interval_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
-  readonly user_roles: Record<string, TemplateRole>
-  readonly is_private: boolean
 }
 
 // From codersdk/templates.go
@@ -503,14 +501,18 @@ export interface UpdateRoles {
 }
 
 // From codersdk/templates.go
+export interface UpdateTemplateACL {
+  readonly user_perms?: Record<string, TemplateRole>
+  readonly group_perms?: Record<string, TemplateRole>
+}
+
+// From codersdk/templates.go
 export interface UpdateTemplateMeta {
   readonly name?: string
   readonly description?: string
   readonly icon?: string
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
-  readonly user_perms?: Record<string, TemplateRole>
-  readonly group_perms?: Record<string, TemplateRole>
 }
 
 // From codersdk/users.go

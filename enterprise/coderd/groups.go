@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -247,7 +248,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filter groups based on rbac permissions
-	groups, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, groups)
+	groups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, groups)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching groups.",
@@ -290,5 +291,42 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 		Name:           g.Name,
 		OrganizationID: g.OrganizationID,
 		Members:        convertUsers(users, orgs),
+	}
+}
+
+func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
+	convertedUser := codersdk.User{
+		ID:              user.ID,
+		Email:           user.Email,
+		CreatedAt:       user.CreatedAt,
+		LastSeenAt:      user.LastSeenAt,
+		Username:        user.Username,
+		Status:          codersdk.UserStatus(user.Status),
+		OrganizationIDs: organizationIDs,
+		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
+		AvatarURL:       user.AvatarURL.String,
+	}
+
+	for _, roleName := range user.RBACRoles {
+		rbacRole, _ := rbac.RoleByName(roleName)
+		convertedUser.Roles = append(convertedUser.Roles, convertRole(rbacRole))
+	}
+
+	return convertedUser
+}
+
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
+	converted := make([]codersdk.User, 0, len(users))
+	for _, u := range users {
+		userOrganizationIDs := organizationIDsByUserID[u.ID]
+		converted = append(converted, convertUser(u, userOrganizationIDs))
+	}
+	return converted
+}
+
+func convertRole(role rbac.Role) codersdk.Role {
+	return codersdk.Role{
+		DisplayName: role.DisplayName,
+		Name:        role.Name,
 	}
 }

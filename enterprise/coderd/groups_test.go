@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/testutil"
 )
 
@@ -19,7 +20,7 @@ func TestCreateGroup(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -35,7 +36,7 @@ func TestCreateGroup(t *testing.T) {
 	t.Run("Conflict", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -56,7 +57,7 @@ func TestCreateGroup(t *testing.T) {
 	t.Run("allUsers", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -76,7 +77,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("Name", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -95,7 +96,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("AddUsers", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -118,7 +119,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("RemoveUsers", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -150,7 +151,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("UserNotExist", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -171,7 +172,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("MalformedUUID", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -192,7 +193,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("AddDuplicateUser", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -215,7 +216,7 @@ func TestPatchGroup(t *testing.T) {
 	t.Run("allUsers", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -241,7 +242,7 @@ func TestGroup(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -258,7 +259,7 @@ func TestGroup(t *testing.T) {
 	t.Run("WithUsers", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -290,7 +291,7 @@ func TestGroups(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -341,7 +342,7 @@ func TestDeleteGroup(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
@@ -363,7 +364,7 @@ func TestDeleteGroup(t *testing.T) {
 	t.Run("allUsers", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, _ := testutil.Context(t)
