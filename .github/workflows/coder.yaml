@@ -128,6 +128,8 @@ jobs:
     name: "style/lint/typescript"
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.ts == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -517,6 +519,8 @@ jobs:
     name: "test/js"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.ts == 'true'
     steps:
       - uses: actions/checkout@v3
 
