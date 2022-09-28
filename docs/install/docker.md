@@ -24,7 +24,7 @@ docker run --rm -it \
 **<sup>Note:</sup>** <sup>Coder runs as a non-root user, we use `--group-add` to
 ensure Coder has permissions to manage Docker via `docker.sock`. If the host
 systems `/var/run/docker.sock` is not group writeable or does not belong to the
-`docker` group, this method may not work.</sup>
+`docker` group, the above may not work as-is.</sup>
 
 Coder configuration is defined via environment variables.
 Learn more about Coder's [configuration options](../admin/configure.md).
