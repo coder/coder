@@ -180,7 +180,6 @@ export interface CreateTemplateRequest {
   readonly parameter_values?: CreateParameterRequest[]
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
-  readonly is_private: boolean
 }
 
 // From codersdk/templateversions.go
@@ -454,8 +453,19 @@ export interface Template {
 }
 
 // From codersdk/templates.go
+export interface TemplateACL {
+  readonly users: TemplateUser[]
+  readonly group: TemplateGroup[]
+}
+
+// From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/templates.go
+export interface TemplateGroup extends Group {
+  readonly role: TemplateRole
 }
 
 // From codersdk/templates.go
@@ -500,7 +510,7 @@ export interface UpdateTemplateMeta {
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
   readonly user_perms?: Record<string, TemplateRole>
-  readonly is_private?: boolean
+  readonly group_perms?: Record<string, TemplateRole>
 }
 
 // From codersdk/users.go
