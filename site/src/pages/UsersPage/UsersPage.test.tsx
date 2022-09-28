@@ -18,9 +18,7 @@ import {
   SuspendedMockUser,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
-import { Language as UsersViewLanguage } from "./UsersPageView"
 
 const { t } = i18n
 
@@ -172,36 +170,6 @@ describe("UsersPage", () => {
     render(<UsersPage />)
     const users = await screen.findAllByText(/.*@coder.com/)
     expect(users.length).toEqual(3)
-  })
-
-  it("shows 'Create user' button to an authorized user", async () => {
-    render(<UsersPage />)
-    const createUserButton = await screen.findByText(UsersViewLanguage.createButton)
-    // wait for users page to finish loading
-    await screen.findAllByLabelText("more")
-    expect(createUserButton).toBeDefined()
-  })
-
-  it("does not show 'Create user' button to unauthorized user", async () => {
-    server.use(
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-        const permissions = Object.keys(permissionsToCheck)
-        const response = permissions.reduce((obj, permission) => {
-          return {
-            ...obj,
-            [permission]: true,
-            createUser: false,
-          }
-        }, {})
-
-        return res(ctx.status(200), ctx.json(response))
-      }),
-    )
-    render(<UsersPage />)
-    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
-    // wait for users page to finish loading
-    await screen.findAllByLabelText("more")
-    expect(createUserButton).toBeNull()
   })
 
   describe("suspend user", () => {
