@@ -128,11 +128,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},
-		"GET:/api/v2/workspaces/": {
-			StatusCode:   http.StatusOK,
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
@@ -250,6 +245,9 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+
+		// Endpoints that use the SQLQuery filter.
+		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
