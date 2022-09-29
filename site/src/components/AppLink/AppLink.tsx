@@ -1,57 +1,81 @@
 import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import Link from "@material-ui/core/Link"
+import Tooltip from "@material-ui/core/Tooltip"
 import { makeStyles } from "@material-ui/core/styles"
 import ComputerIcon from "@material-ui/icons/Computer"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import { FC, PropsWithChildren } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../util/random"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 
 export const Language = {
   appTitle: (appName: string, identifier: string): string => `${appName} - ${identifier}`,
 }
 
 export interface AppLinkProps {
-  userName: TypesGen.User["username"]
+  appsHost?: string,
+  username: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
   agentName: TypesGen.WorkspaceAgent["name"]
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
+  appRelativePath: TypesGen.WorkspaceApp["relative_path"]
   health: TypesGen.WorkspaceApp["health"]
 }
 
 export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
-  userName,
+  appsHost,
+  username,
   workspaceName,
   agentName,
   appName,
   appIcon,
   appCommand,
+  appRelativePath,
   health,
 }) => {
   const styles = useStyles()
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `/@${userName}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}/`
+  let href = `/@${username}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}/`
   if (appCommand) {
-    href = `/@${userName}/${workspaceName}.${agentName}/terminal?command=${encodeURIComponent(
+    href = `/@${username}/${workspaceName}.${agentName}/terminal?command=${encodeURIComponent(
       appCommand,
     )}`
+  }
+  if (appsHost && !appRelativePath) {
+    const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
+    href = `${window.location.protocol}://${subdomain}.${appsHost}/`
   }
 
   let canClick = true
   let icon = appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />
+  let tooltip: string | undefined = undefined
   if (health === "initializing") {
     canClick = false
     icon = <CircularProgress size={16} />
+    tooltip = "Initializing..."
   }
   if (health === "unhealthy") {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
+    tooltip = "Unhealthy"
   }
+  if (!appsHost && !appRelativePath) {
+    canClick = false
+    icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />
+    tooltip = "Your admin has not configured wildcard application access"
+  }
+
+  const button = (
+    <Button size="small" startIcon={icon} className={styles.button} disabled={!canClick}>
+      {appName}
+    </Button>
+  )
 
   return (
     <Link
@@ -71,9 +95,18 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
           : undefined
       }
     >
-      <Button size="small" startIcon={icon} className={styles.button} disabled={!canClick}>
-        {appName}
-      </Button>
+      <ChooseOne>
+        <Cond condition={Boolean(tooltip)}>
+          <Tooltip title={tooltip || "no tooltip"}>
+            <span>
+              {button}
+            </span>
+          </Tooltip>
+        </Cond>
+        <Cond>
+          {button}
+        </Cond>
+      </ChooseOne>
     </Link>
   )
 }
@@ -94,5 +127,9 @@ const useStyles = makeStyles((theme) => ({
 
   unhealthyIcon: {
     color: theme.palette.warning.light,
+  },
+
+  notConfiguredIcon: {
+    color: theme.palette.grey[300],
   },
 }))

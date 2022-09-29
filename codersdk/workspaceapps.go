@@ -21,6 +21,11 @@ type WorkspaceApp struct {
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon,omitempty"`
+	// RelativePath denotes whether the app should be accessed via a path on the
+	// `coder server` or via a hostname-based dev URL. If this is set to false
+	// and there is no app wildcard configured on the server, the app will not
+	// be accessible in the UI.
+	RelativePath bool `json:"relative_path"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`
