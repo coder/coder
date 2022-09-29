@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"net"
+	"net/http"
 	"net/netip"
 	"strconv"
 	"time"
@@ -26,6 +27,16 @@ var (
 	TailnetSSHPort             = 1
 	TailnetReconnectingPTYPort = 2
 	TailnetSpeedtestPort       = 3
+	// TailnetStatisticsPort serves a HTTP server with endpoints for gathering
+	// agent statistics.
+	TailnetStatisticsPort = 4
+
+	// MinimumListeningPort is the minimum port that the listening-ports
+	// endpoint will return to the client, and the minimum port that is accepted
+	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
+	// moment, and we reserve some extra ports for future use. Port 9 and up are
+	// available for the user.
+	MinimumListeningPort = 9
 )
 
 // ReconnectingPTYRequest is sent from the client to the server
@@ -152,4 +163,60 @@ func (c *AgentConn) DialContext(ctx context.Context, network string, addr string
 		return c.Conn.DialContextUDP(ctx, ipp)
 	}
 	return c.Conn.DialContextTCP(ctx, ipp)
+}
+
+func (c *AgentConn) statisticsClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			// Disable keep alives as we're usually only making a single
+			// request, and this triggers goleak in tests
+			DisableKeepAlives: true,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetStatisticsPort)))
+				if err != nil {
+					return nil, xerrors.Errorf("dial statistics: %w", err)
+				}
+
+				return conn, nil
+			},
+		},
+	}
+}
+
+type ListeningPortsResponse struct {
+	// If there are no ports in the list, nothing should be displayed in the UI.
+	// There must not be a "no ports available" message or anything similar, as
+	// there will always be no ports displayed on platforms where our port
+	// detection logic is unsupported.
+	Ports []ListeningPort `json:"ports"`
+}
+
+type ListeningPortNetwork string
+
+const (
+	ListeningPortNetworkTCP ListeningPortNetwork = "tcp"
+)
+
+type ListeningPort struct {
+	ProcessName string               `json:"process_name"`
+	Network     ListeningPortNetwork `json:"network"` // only "tcp" at the moment
+	Port        uint16               `json:"port"`
+}
+
+func (c *AgentConn) ListeningPorts(ctx context.Context) (ListeningPortsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent-stats/api/v0/listening-ports", nil)
+	if err != nil {
+		return ListeningPortsResponse{}, xerrors.Errorf("new request: %w", err)
+	}
+	res, err := c.statisticsClient().Do(req)
+	if err != nil {
+		return ListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListeningPortsResponse{}, readBodyAsError(res)
+	}
+
+	var resp ListeningPortsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

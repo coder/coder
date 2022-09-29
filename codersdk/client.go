@@ -16,7 +16,7 @@ import (
 
 // These cookies are Coder-specific. If a new one is added or changed, the name
 // shouldn't be likely to conflict with any user-application set cookies.
-// Be sure to strip additional cookies in httpapi.StripCoder Cookies!
+// Be sure to strip additional cookies in httpapi.StripCoderCookies!
 const (
 	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
 	SessionTokenKey = "coder_session_token"
