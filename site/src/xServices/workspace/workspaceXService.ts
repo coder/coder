@@ -1,4 +1,5 @@
 import { getErrorMessage } from "api/errors"
+import { workspaceScheduleBannerMachine } from "xServices/workspaceSchedule/workspaceScheduleBannerXService"
 import { assign, createMachine, send } from "xstate"
 import * as API from "../../api/api"
 import * as Types from "../../api/types"
@@ -78,6 +79,8 @@ export type WorkspaceEvent =
   | { type: "CANCEL" }
   | { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"] }
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
+  | { type: "INCREASE_DEADLINE"; hours: number }
+  | { type: "DECREASE_DEADLINE"; hours: number }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -216,6 +219,7 @@ export const workspaceMachine = createMachine(
             },
           ],
         },
+        tags: "loading"
       },
       ready: {
         type: "parallel",
@@ -440,6 +444,19 @@ export const workspaceMachine = createMachine(
               },
             },
           },
+          schedule: {
+            invoke: {
+              id: "scheduleBannerMachine",
+              src: workspaceScheduleBannerMachine,
+              data: {
+                workspace: (context: WorkspaceContext) => context.workspace,
+                template: (context: WorkspaceContext) => context.template
+              }
+            },
+            on: {
+              REFRESH_WORKSPACE: { actions: "sendWorkspaceToSchedule" }
+            }
+          }
         },
       },
       error: {
@@ -551,6 +568,28 @@ export const workspaceMachine = createMachine(
         const message = getErrorMessage(data, "Error getting the applications host.")
         displayError(message)
       },
+      // assignScheduleBannerRef: assign((context) => {
+      //   if (!context.workspace || !context.template) {
+      //     throw Error("Cannot manage workspace schedule without workspace and template.")
+      //   }
+      //   const scheduleContext = {
+      //     workspace: context.workspace,
+      //     template: context.template,
+      //     deadline: getDeadline(context.workspace)
+      //   }
+      //   const scheduleBannerRef = spawn(workspaceScheduleBannerMachine.withContext(scheduleContext), "scheduleBannerMachine")
+      //   return { ...context, scheduleBannerRef }
+      // }),
+      // stopScheduleBannerRef: (context) => {
+      //   context.scheduleBannerRef?.stop && context.scheduleBannerRef.stop()
+      // },
+      // clearScheduleBannerRef: assign({
+      //   scheduleBannerRef: (_) => undefined
+      // }),
+      sendWorkspaceToSchedule: send((context) => ({
+        type: "REFRESH_WORKSPACE",
+        workspace: context.workspace,
+      }), { to: "scheduleBannerMachine" })
     },
     guards: {
       moreBuildsAvailable,

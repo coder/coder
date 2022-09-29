@@ -2,51 +2,33 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useActor, useMachine, useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import dayjs from "dayjs"
-import minMax from "dayjs/plugin/minMax"
 import { FC, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
+import { ResolveTypegenMeta, State } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
-import { canExtendDeadline, canReduceDeadline, maxDeadline, minDeadline } from "../../util/schedule"
 import { getFaviconByStatus } from "../../util/workspace"
 import { XServiceContext } from "../../xServices/StateContext"
-import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
-import { workspaceScheduleBannerMachine } from "../../xServices/workspaceSchedule/workspaceScheduleBannerXService"
-
-dayjs.extend(minMax)
+import { WorkspaceContext, WorkspaceEvent, workspaceMachine } from "../../xServices/workspace/workspaceXService"
 
 export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const { t } = useTranslation("workspacePage")
-  const xServices = useContext(XServiceContext)
-  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
     getWorkspaceError,
-    template,
     getTemplateWarning,
-    refreshWorkspaceWarning,
-    builds,
-    getBuildsError,
-    permissions,
     checkPermissionsError,
-    buildError,
-    cancellationError,
-    applicationsHost,
   } = workspaceState.context
-  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
-  const [bannerState, bannerSend] = useMachine(workspaceScheduleBannerMachine)
-  const [buildInfoState] = useActor(xServices.buildInfoXService)
   const styles = useStyles()
 
   /**
@@ -65,13 +47,41 @@ export const WorkspacePage: FC = () => {
         {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
       </div>
     )
-  } else if (!workspace || !permissions) {
-    return <FullScreenLoader />
-  } else if (!template) {
-    return <FullScreenLoader />
+  } else if (workspace && workspaceState.matches("ready")) {
+    return <WorkspaceReadyPage workspaceState={workspaceState} workspaceSend={workspaceSend} />
   } else {
-    const deadline = dayjs(workspace.latest_build.deadline).utc()
-    const favicon = getFaviconByStatus(workspace.latest_build)
+    return <FullScreenLoader />
+  }
+}
+
+interface WorkspaceReadyPageProps {
+  workspaceState: State<WorkspaceContext, WorkspaceEvent, any, any, ResolveTypegenMeta<any, WorkspaceEvent, any, any>>
+  workspaceSend: (event: WorkspaceEvent) => void
+}
+
+export const WorkspaceReadyPage = ({ workspaceState, workspaceSend }: WorkspaceReadyPageProps): JSX.Element => {
+  const [bannerState, bannerSend] = useActor(workspaceState.children["scheduleBannerMachine"])
+  console.log(bannerState.matches("atMinDeadline"))
+  const xServices = useContext(XServiceContext)
+  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+  const [buildInfoState] = useActor(xServices.buildInfoXService)
+  const {
+    workspace,
+    refreshWorkspaceWarning,
+    builds,
+    getBuildsError,
+    buildError,
+    cancellationError,
+    applicationsHost,
+    permissions
+  } = workspaceState.context
+  if (workspace === undefined) {
+    throw Error("Workspace is undefined")
+  }
+  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
+  const { t } = useTranslation("workspacePage")
+  const favicon = getFaviconByStatus(workspace.latest_build)
+
     return (
       <>
         <Helmet>
@@ -85,41 +95,38 @@ export const WorkspacePage: FC = () => {
             isLoading: bannerState.hasTag("loading"),
             onExtend: () => {
               bannerSend({
-                type: "UPDATE_DEADLINE",
-                workspaceId: workspace.id,
-                newDeadline: dayjs.min(deadline.add(4, "hours"), maxDeadline(workspace, template)),
+                type: "INCREASE_DEADLINE",
+                hours: 4,
               })
             },
           }}
           scheduleProps={{
             onDeadlineMinus: () => {
               bannerSend({
-                type: "UPDATE_DEADLINE",
-                workspaceId: workspace.id,
-                newDeadline: dayjs.max(deadline.add(-1, "hours"), minDeadline()),
+                type: "DECREASE_DEADLINE",
+                hours: 1,
               })
             },
             onDeadlinePlus: () => {
               bannerSend({
-                type: "UPDATE_DEADLINE",
-                workspaceId: workspace.id,
-                newDeadline: dayjs.min(deadline.add(1, "hours"), maxDeadline(workspace, template)),
+                type: "INCREASE_DEADLINE",
+                hours: 1,
               })
             },
             deadlineMinusEnabled: () => {
-              return canReduceDeadline(deadline)
+              return !bannerState.matches("atMinDeadline")
             },
             deadlinePlusEnabled: () => {
-              return canExtendDeadline(deadline, workspace, template)
+              return !bannerState.matches("atMaxDeadline")
             },
           }}
           isUpdating={workspaceState.hasTag("updating")}
           workspace={workspace}
-          handleStart={() => workspaceSend("START")}
-          handleStop={() => workspaceSend("STOP")}
-          handleDelete={() => workspaceSend("ASK_DELETE")}
-          handleUpdate={() => workspaceSend("UPDATE")}
-          handleCancel={() => workspaceSend("CANCEL")}
+          handleStart={() => workspaceSend({ type: "START" })}
+          handleStop={() => workspaceSend({ type: "STOP" })}
+          handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
+          handleUpdate={() => workspaceSend({ type: "UPDATE" })}
+          handleCancel={() => workspaceSend({ type: "CANCEL" })}
           resources={workspace.latest_build.resources}
           builds={builds}
           canUpdateWorkspace={canUpdateWorkspace}
@@ -138,15 +145,14 @@ export const WorkspacePage: FC = () => {
           name={workspace.name}
           info={t("deleteDialog.info", { timeAgo: dayjs(workspace.created_at).fromNow() })}
           isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
-          onCancel={() => workspaceSend("CANCEL_DELETE")}
+          onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
           onConfirm={() => {
-            workspaceSend("DELETE")
+            workspaceSend({ type: "DELETE" })
           }}
         />
       </>
     )
   }
-}
 
 const useStyles = makeStyles((theme) => ({
   error: {
