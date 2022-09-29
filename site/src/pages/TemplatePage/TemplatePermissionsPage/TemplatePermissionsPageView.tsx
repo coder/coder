@@ -32,11 +32,11 @@ const AddTemplateUserOrGroup: React.FC<{
 }> = ({ isLoading, onSubmit }) => {
   const styles = useStyles()
   const [selectedOption, setSelectedOption] = useState<UserOrGroupAutocompleteValue>(null)
-  const [selectedRole, setSelectedRole] = useState<TemplateRole>("read")
+  const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
 
   const resetValues = () => {
     setSelectedOption(null)
-    setSelectedRole("read")
+    setSelectedRole("view")
   }
 
   return (
@@ -65,7 +65,7 @@ const AddTemplateUserOrGroup: React.FC<{
         />
 
         <Select
-          defaultValue="read"
+          defaultValue="view"
           variant="outlined"
           className={styles.select}
           disabled={isLoading}
@@ -73,11 +73,8 @@ const AddTemplateUserOrGroup: React.FC<{
             setSelectedRole(event.target.value as TemplateRole)
           }}
         >
-          <MenuItem key="read" value="read">
-            Read
-          </MenuItem>
-          <MenuItem key="write" value="write">
-            Write
+          <MenuItem key="view" value="view">
+            View
           </MenuItem>
           <MenuItem key="admin" value="admin">
             Admin
@@ -193,11 +190,8 @@ export const TemplatePermissionsPageView: FC<
                             onUpdateGroup(group, event.target.value as TemplateRole)
                           }}
                         >
-                          <MenuItem key="read" value="read">
-                            Read
-                          </MenuItem>
-                          <MenuItem key="write" value="write">
-                            Write
+                          <MenuItem key="view" value="view">
+                            View
                           </MenuItem>
                           <MenuItem key="admin" value="admin">
                             Admin
@@ -253,11 +247,8 @@ export const TemplatePermissionsPageView: FC<
                             onUpdateUser(user, event.target.value as TemplateRole)
                           }}
                         >
-                          <MenuItem key="read" value="read">
-                            Read
-                          </MenuItem>
-                          <MenuItem key="write" value="write">
-                            Write
+                          <MenuItem key="view" value="view">
+                            View
                           </MenuItem>
                           <MenuItem key="admin" value="admin">
                             Admin
