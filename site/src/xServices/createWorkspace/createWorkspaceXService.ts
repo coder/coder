@@ -1,4 +1,9 @@
-import { createWorkspace, getTemplates, getTemplateVersionSchema, checkAuthorization } from "api/api"
+import {
+  checkAuthorization,
+  createWorkspace,
+  getTemplates,
+  getTemplateVersionSchema,
+} from "api/api"
 import {
   CreateWorkspaceRequest,
   ParameterSchema,
@@ -7,8 +12,6 @@ import {
   Workspace,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
-
-
 
 type CreateWorkspaceContext = {
   organizationId: string
@@ -101,7 +104,7 @@ export const createWorkspaceMachine = createMachine(
             actions: ["assignCheckPermissionsError"],
             target: "error",
           },
-        }
+        },
       },
       fillingParams: {
         on: {
@@ -148,12 +151,16 @@ export const createWorkspaceMachine = createMachine(
           throw new Error("No organization ID")
         }
 
-        // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the 
-        // current user can create a workspace on behalf of anyone within the org (only org owners should be able to do this). 
-        // This pattern should not be replicated outside of this narrow use case. 
+        // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the
+        // current user can create a workspace on behalf of anyone within the org (only org owners should be able to do this).
+        // This pattern should not be replicated outside of this narrow use case.
         const permissionsToCheck = {
-          "createWorkspaceForUser": {
-            "object": { "resource_type": "workspace", "organization_id": `${context.organizationId}`, "owner_id": "*", },
+          createWorkspaceForUser: {
+            object: {
+              resource_type: "workspace",
+              organization_id: `${context.organizationId}`,
+              owner_id: "*",
+            },
             action: "create",
           },
         }
