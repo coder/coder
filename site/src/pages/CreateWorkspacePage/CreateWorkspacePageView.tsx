@@ -174,14 +174,14 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 </Stack>
               )}
 
-              {props.quota ? (
+              {props.quota && (
                 <WorkspaceQuota
                   quota={props.quota}
                   error={
                     props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
                   }
                 />
-              ) : null}
+              )}
 
               <FormFooter
                 onCancel={props.onCancel}

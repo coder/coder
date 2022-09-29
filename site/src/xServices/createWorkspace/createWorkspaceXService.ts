@@ -109,8 +109,8 @@ export const createWorkspaceMachine = createMachine(
           },
           onError: {
             actions: ["assignCheckPermissionsError"],
-          }
-        }
+          },
+        },
       },
       gettingWorkspaceQuota: {
         entry: "clearGetWorkspaceQuotaError",
