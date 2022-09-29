@@ -16,7 +16,6 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
-  createWorkspaceForUser: "createWorkspaceForUser",
 } as const
 
 export const permissionsToCheck = {
@@ -55,12 +54,6 @@ export const permissionsToCheck = {
       resource_type: "audit_log",
     },
     action: "read",
-  },
-  [checks.createWorkspaceForUser]: {
-    object: {
-      resource_type: "workspace_creation_for_user",
-    },
-    action: "create",
   },
 } as const
 

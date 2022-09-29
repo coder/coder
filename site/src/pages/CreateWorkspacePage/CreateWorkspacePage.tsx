@@ -30,11 +30,12 @@ const CreateWorkspacePage: FC = () => {
     getTemplateSchemaError,
     getTemplatesError,
     createWorkspaceError,
+    permissions,
   } = createWorkspaceState.context
 
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
-  const { permissions, me } = authState.context
+  const { me } = authState.context
 
   const [owner, setOwner] = useState<User | null>(me ?? null)
 

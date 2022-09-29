@@ -1,4 +1,4 @@
-import { createWorkspace, getTemplates, getTemplateVersionSchema } from "api/api"
+import { createWorkspace, getTemplates, getTemplateVersionSchema, checkAuthorization } from "api/api"
 import {
   CreateWorkspaceRequest,
   ParameterSchema,
@@ -7,6 +7,8 @@ import {
   Workspace,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
+
+
 
 type CreateWorkspaceContext = {
   organizationId: string
@@ -20,6 +22,8 @@ type CreateWorkspaceContext = {
   createWorkspaceError?: Error | unknown
   getTemplatesError?: Error | unknown
   getTemplateSchemaError?: Error | unknown
+  permissions?: any
+  checkPermissionsError?: Error | unknown
 }
 
 type CreateWorkspaceEvent = {
@@ -76,13 +80,28 @@ export const createWorkspaceMachine = createMachine(
           src: "getTemplateSchema",
           onDone: {
             actions: ["assignTemplateSchema"],
-            target: "fillingParams",
+            target: "checkingPermissions",
           },
           onError: {
             actions: ["assignGetTemplateSchemaError"],
             target: "error",
           },
         },
+      },
+      checkingPermissions: {
+        entry: "clearCheckPermissionsError",
+        invoke: {
+          src: "checkPermissions",
+          id: "checkPermissions",
+          onDone: {
+            actions: ["assignPermissions"],
+            target: "fillingParams",
+          },
+          onError: {
+            actions: ["assignCheckPermissionsError"],
+            target: "error",
+          },
+        }
       },
       fillingParams: {
         on: {
@@ -124,6 +143,25 @@ export const createWorkspaceMachine = createMachine(
 
         return getTemplateVersionSchema(selectedTemplate.active_version_id)
       },
+      checkPermissions: async (context) => {
+        if (!context.organizationId) {
+          throw new Error("No organization ID")
+        }
+
+        // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the 
+        // current user can create a workspace on behalf of anyone within the org (only org owners should be able to do this). 
+        // This pattern should not be replicated outside of this narrow use case. 
+        const permissionsToCheck = {
+          "createWorkspaceForUser": {
+            "object": { "resource_type": "workspace", "organization_id": `${context.organizationId}`, "owner_id": "*", },
+            action: "create",
+          },
+        }
+
+        return checkAuthorization({
+          checks: permissionsToCheck,
+        })
+      },
       createWorkspace: (context) => {
         const { createWorkspaceRequest, organizationId, owner } = context
 
@@ -151,6 +189,17 @@ export const createWorkspaceMachine = createMachine(
         // Only show parameters that are allowed to be overridden.
         // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
         templateSchema: (_, event) => event.data.filter((param) => param.allow_override_source),
+      }),
+      assignPermissions: assign({
+        // Setting event.data as Permissions to be more stricted. So we know
+        // what permissions we asked for.
+        permissions: (_, event) => event.data as Permissions,
+      }),
+      assignCheckPermissionsError: assign({
+        checkPermissionsError: (_, event) => event.data,
+      }),
+      clearCheckPermissionsError: assign({
+        checkPermissionsError: (_) => undefined,
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,

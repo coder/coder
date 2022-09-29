@@ -22,12 +22,6 @@ var (
 		Type: "workspace",
 	}
 
-	// ResourceWorkspace Create on behalf of another user.  Org owner.
-	// create - create workspaces
-	ResourceWorkspaceCreationForUser = Object{
-		Type: "workspace_creation_for_user",
-	}
-
 	// ResourceWorkspaceExecution CRUD. Org + User owner
 	//	create = workspace remote execution
 	// 	read = ?
