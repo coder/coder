@@ -13,9 +13,15 @@ export type UserAutocompleteProps = {
   value: User | null
   onChange: (user: User | null) => void
   label?: string
+  inputMargin?: "none" | "dense" | "normal"
 }
 
-export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onChange, label }) => {
+export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
+  value,
+  onChange,
+  label,
+  inputMargin,
+}) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
@@ -79,6 +85,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({ value, onCha
         <TextField
           {...params}
           variant="outlined"
+          margin={inputMargin ?? "normal"}
           label={label ?? undefined}
           placeholder="User email or username"
           InputProps={{

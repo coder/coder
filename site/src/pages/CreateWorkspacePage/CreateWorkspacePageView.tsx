@@ -148,6 +148,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                   value={props.defaultWorkspaceOwner}
                   onChange={(user) => props.setOwner(user)}
                   label={t("ownerLabel")}
+                  inputMargin="dense"
                 />
               )}
 
