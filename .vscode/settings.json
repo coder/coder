@@ -24,6 +24,7 @@
     "drpcmux",
     "drpcserver",
     "Dsts",
+    "eventsourcemock",
     "fatih",
     "Formik",
     "gitsshkey",
