@@ -7,7 +7,7 @@ type Enforcer interface {
 
 type nop struct{}
 
-func NewNop() *nop {
+func NewNop() Enforcer {
 	return &nop{}
 }
 

@@ -212,7 +212,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if entitlements.workspaceQuota != api.entitlements.workspaceQuota {
-		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.Options.UserWorkspaceQuota > 0 {
+		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.UserWorkspaceQuota > 0 {
 			enforcer := NewEnforcer(api.Options.UserWorkspaceQuota)
 			api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 		}
