@@ -91,7 +91,7 @@ const AddTemplateUserOrGroup: React.FC<{
           startIcon={<PersonAdd />}
           loading={isLoading}
         >
-          Add user
+          Add member
         </LoadingButton>
       </Stack>
     </form>
