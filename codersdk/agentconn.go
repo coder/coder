@@ -36,6 +36,10 @@ var (
 	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
 	// moment, and we reserve some extra ports for future use. Port 9 and up are
 	// available for the user.
+	//
+	// This is not enforced in the CLI intentionally as we don't really care
+	// *that* much. The user could bypass this in the CLI by using SSH instead
+	// anyways.
 	MinimumListeningPort = 9
 )
 

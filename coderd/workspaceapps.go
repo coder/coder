@@ -466,14 +466,14 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	// Verify that the port is allowed. See `codersdk.MinimumListeningPort` for
-	// more details.
+	// Verify that the port is allowed. See the docs above
+	// `codersdk.MinimumListeningPort` for more details.
 	port := appURL.Port()
 	if port != "" {
 		portInt, err := strconv.Atoi(port)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("App URL %q has an invalid port %q. Named ports are currently not supported.", internalURL, port),
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("App URL %q has an invalid port %q.", internalURL, port),
 				Detail:  err.Error(),
 			})
 			return

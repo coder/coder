@@ -61,6 +61,10 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, 
 
 	ports := []codersdk.ListeningPort{}
 	for _, tab := range tabs {
+		if tab.LocalAddr.Port < uint16(codersdk.MinimumListeningPort) {
+			continue
+		}
+
 		ports = append(ports, codersdk.ListeningPort{
 			ProcessName: tab.Process.Name,
 			Network:     codersdk.ListeningPortNetworkTCP,
