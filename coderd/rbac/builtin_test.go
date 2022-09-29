@@ -345,7 +345,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions: []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceTemplate.InOrg(orgID).WithGroupACL(
 				map[string][]rbac.Action{
-					"allUsers": {rbac.ActionRead},
+					orgID.String(): {rbac.ActionRead},
 				}),
 
 			AuthorizeMap: map[bool][]authSubject{
