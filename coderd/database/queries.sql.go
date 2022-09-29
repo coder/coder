@@ -1008,19 +1008,14 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	( $1, $2, $1) RETURNING id, name, organization_id
+	( $1, 'allUsers', $1) RETURNING id, name, organization_id
 `
-
-type InsertAllUsersGroupParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-}
 
 // We use the organization_id as the id
 // for simplicity since all users is
 // every member of the org.
-func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, arg InsertAllUsersGroupParams) (Group, error) {
-	row := q.db.QueryRowContext(ctx, insertAllUsersGroup, arg.OrganizationID, arg.Name)
+func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error) {
+	row := q.db.QueryRowContext(ctx, insertAllUsersGroup, organizationID)
 	var i Group
 	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
 	return i, err

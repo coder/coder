@@ -2874,11 +2874,11 @@ func (q *fakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) InsertAllUsersGroup(ctx context.Context, arg database.InsertAllUsersGroupParams) (database.Group, error) {
+func (q *fakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
 	return q.InsertGroup(ctx, database.InsertGroupParams{
-		ID:             arg.OrganizationID,
-		Name:           arg.Name,
-		OrganizationID: arg.OrganizationID,
+		ID:             orgID,
+		Name:           database.AllUsersGroup,
+		OrganizationID: orgID,
 	})
 }
 

@@ -114,7 +114,7 @@ type sqlcQuerier interface {
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
-	InsertAllUsersGroup(ctx context.Context, arg InsertAllUsersGroupParams) (Group, error)
+	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
