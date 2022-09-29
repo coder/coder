@@ -269,6 +269,20 @@ CREATE TABLE site_configs (
     value character varying(8192) NOT NULL
 );
 
+CREATE TABLE template_version_parameters (
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    type text NOT NULL,
+    immutable boolean NOT NULL,
+    default_value text NOT NULL,
+    icon text NOT NULL,
+    options jsonb DEFAULT '[]'::jsonb NOT NULL,
+    validation_regex text,
+    validation_min integer,
+    validation_max integer
+);
+
 CREATE TABLE template_versions (
     id uuid NOT NULL,
     template_id uuid,
@@ -374,6 +388,12 @@ CREATE TABLE workspace_builds (
     reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
 );
 
+CREATE TABLE workspace_parameters (
+    workspace_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
     key character varying(1024) NOT NULL,
@@ -462,6 +482,9 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
+ALTER TABLE ONLY template_version_parameters
+    ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
 
@@ -494,6 +517,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
+
+ALTER TABLE ONLY workspace_parameters
+    ADD CONSTRAINT workspace_parameters_workspace_id_name_key UNIQUE (workspace_id, name);
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
@@ -558,6 +584,9 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_parameters
+    ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
