@@ -328,6 +328,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
   icon: "",
+  relative_path: true,
   health: "disabled",
   healthcheck: {
     url: "",
