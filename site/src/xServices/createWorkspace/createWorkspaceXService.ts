@@ -25,7 +25,7 @@ type CreateWorkspaceContext = {
   createWorkspaceError?: Error | unknown
   getTemplatesError?: Error | unknown
   getTemplateSchemaError?: Error | unknown
-  permissions?: any
+  permissions?: Record<string, boolean>
   checkPermissionsError?: Error | unknown
 }
 
@@ -198,9 +198,7 @@ export const createWorkspaceMachine = createMachine(
         templateSchema: (_, event) => event.data.filter((param) => param.allow_override_source),
       }),
       assignPermissions: assign({
-        // Setting event.data as Permissions to be more stricted. So we know
-        // what permissions we asked for.
-        permissions: (_, event) => event.data as Permissions,
+        permissions: (_, event) => event.data as Record<string, boolean>,
       }),
       assignCheckPermissionsError: assign({
         checkPermissionsError: (_, event) => event.data,
