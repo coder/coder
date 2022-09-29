@@ -34,7 +34,7 @@ export interface CreateWorkspacePageViewProps {
   quota?: TypesGen.WorkspaceQuota
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
-  defaultWorkspaceOwner: TypesGen.User | null
+  owner: TypesGen.User | null
   setOwner: (arg0: TypesGen.User | null) => void
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
@@ -150,7 +150,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
 
               {props.canCreateForUser && (
                 <UserAutocomplete
-                  value={props.defaultWorkspaceOwner}
+                  value={props.owner}
                   onChange={(user) => {
                     props.setOwner(user)
                     props.onSelectOwner(user)

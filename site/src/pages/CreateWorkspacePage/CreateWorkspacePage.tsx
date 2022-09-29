@@ -63,7 +63,7 @@ const CreateWorkspacePage: FC = () => {
           [CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]: getWorkspaceQuotaError,
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
-        defaultWorkspaceOwner={me ?? null}
+        owner={owner}
         setOwner={setOwner}
         onCancel={() => {
           navigate("/templates")

@@ -139,7 +139,7 @@ export const createWorkspaceMachine = createMachine(
           },
           SELECT_OWNER: {
             actions: ["assignOwner"],
-            target: "gettingWorkspaceQuota"
+            target: "gettingWorkspaceQuota",
           },
         },
       },

@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import { Language as FooterLanguage } from "components/FormFooter/FormFooter"
 import i18next from "i18next"
-import { MockTemplate, MockUser, MockWorkspace, MockWorkspaceRequest, MockWorkspaceQuota } from "testHelpers/entities"
+import {
+  MockTemplate,
+  MockUser,
+  MockWorkspace,
+  MockWorkspaceQuota,
+  MockWorkspaceRequest,
+} from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 
