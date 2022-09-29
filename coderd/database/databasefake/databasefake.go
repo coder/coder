@@ -1333,9 +1333,6 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 
 	groups := make([]database.TemplateGroup, 0, len(acl))
 	for k, v := range acl {
-		if k == database.AllUsersGroup {
-			continue
-		}
 		group, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get group by ID: %w", err)

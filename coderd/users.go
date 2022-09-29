@@ -1168,8 +1168,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			req.OrganizationID = organization.ID
 			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
 
-			_, err = tx.InsertGroup(ctx, database.InsertGroupParams{
-				ID:             uuid.New(),
+			_, err = tx.InsertAllUsersGroup(ctx, database.InsertAllUsersGroupParams{
 				OrganizationID: organization.ID,
 				Name:           database.AllUsersGroup,
 			})

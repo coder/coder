@@ -390,8 +390,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		// Update the template to only allow access to the 'test' group.
 		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			GroupPerms: map[string]codersdk.TemplateRole{
-				acl.Groups[0].ID.String(): codersdk.TemplateRoleDeleted,
-				group.ID.String():         codersdk.TemplateRoleView,
+				// The allUsers group shares the same ID as the organization.
+				user.OrganizationID.String(): codersdk.TemplateRoleDeleted,
+				group.ID.String():            codersdk.TemplateRoleView,
 			},
 		})
 		require.NoError(t, err)

@@ -143,19 +143,8 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(req.GroupPerms) > 0 {
-			allUsersGroup, err := tx.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-				OrganizationID: template.OrganizationID,
-				Name:           database.AllUsersGroup,
-			})
-			if err != nil {
-				return xerrors.Errorf("get allUsers group: %w", err)
-			}
-
 			groupACL := template.GroupACL()
 			for k, v := range req.GroupPerms {
-				if k == allUsersGroup.ID.String() {
-					k = database.AllUsersGroup
-				}
 				// An id with an empty string implies
 				// deletion.
 				if v == "" {
@@ -165,7 +154,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 				groupACL[k] = database.TemplateRole(v)
 			}
 
-			err = tx.UpdateTemplateGroupACLByID(r.Context(), template.ID, groupACL)
+			err := tx.UpdateTemplateGroupACLByID(ctx, template.ID, groupACL)
 			if err != nil {
 				return xerrors.Errorf("update template user ACL: %w", err)
 			}
