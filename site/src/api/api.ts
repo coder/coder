@@ -496,10 +496,16 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
-export const getTemplateUserRoles = async (
+export const getTemplateACL = async (templateId: string): Promise<TypesGen.TemplateACL> => {
+  const response = await axios.get(`/api/v2/templates/${templateId}/acl`)
+  return response.data
+}
+
+export const updateTemplateACL = async (
   templateId: string,
-): Promise<TypesGen.TemplateUser[]> => {
-  const response = await axios.get(`/api/v2/templates/${templateId}/user-roles`)
+  data: TypesGen.UpdateTemplateACL,
+): Promise<TypesGen.TemplateACL> => {
+  const response = await axios.patch(`/api/v2/templates/${templateId}/acl`, data)
   return response.data
 }
 

@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async"
 import { useOutletContext } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { Permissions } from "xServices/auth/authXService"
-import { templateUsersMachine } from "xServices/template/templateUsersXService"
+import { templateACLMachine } from "xServices/template/templateACLXService"
 import { TemplateContext } from "xServices/template/templateXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
@@ -13,7 +13,7 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
     templateContext: TemplateContext
     permissions: Permissions
   }>()
-  const { template, deleteTemplateError } = templateContext
+  const { template } = templateContext
 
   if (!template) {
     throw new Error(
@@ -21,8 +21,8 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
     )
   }
 
-  const [state, send] = useMachine(templateUsersMachine, { context: { templateId: template.id } })
-  const { templateUsers, userToBeUpdated } = state.context
+  const [state, send] = useMachine(templateACLMachine, { context: { templateId: template.id } })
+  const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
   const canUpdatesUsers = true
 
   return (
@@ -31,9 +31,8 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
         <title>{pageTitle(`${template.name} · Permissions`)}</title>
       </Helmet>
       <TemplatePermissionsPageView
+        templateACL={templateACL}
         canUpdateUsers={canUpdatesUsers}
-        templateUsers={templateUsers}
-        deleteTemplateError={deleteTemplateError}
         onAddUser={(user, role, reset) => {
           send("ADD_USER", { user, role, onDone: reset })
         }}
@@ -44,6 +43,17 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
         updatingUser={userToBeUpdated}
         onRemoveUser={(user) => {
           send("REMOVE_USER", { user })
+        }}
+        onAddGroup={(group, role, reset) => {
+          send("ADD_GROUP", { group, role, onDone: reset })
+        }}
+        isAddingGroup={state.matches("addingGroup")}
+        onUpdateGroup={(group, role) => {
+          send("UPDATE_GROUP_ROLE", { group, role })
+        }}
+        updatingGroup={groupToBeUpdated}
+        onRemoveGroup={(group) => {
+          send("REMOVE_GROUP", { group })
         }}
       />
     </>
