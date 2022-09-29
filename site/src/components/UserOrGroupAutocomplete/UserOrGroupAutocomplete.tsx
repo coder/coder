@@ -36,16 +36,14 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
     },
   })
   const { userResults, groupResults } = searchState.context
-  const [selectedValue, setSelectedValue] = useState<UserOrGroupAutocompleteValue>(value)
-
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
   }, 500)
 
   return (
     <Autocomplete
-      value={selectedValue}
-      id="user-autocomplete"
+      value={value}
+      id="user-or-group-autocomplete"
       open={isAutocompleteOpen}
       onOpen={() => {
         setIsAutocompleteOpen(true)
@@ -58,7 +56,6 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
           sendSearch("CLEAR_RESULTS")
         }
 
-        setSelectedValue(newValue)
         onChange(newValue)
       }}
       getOptionSelected={(option, value) => option.id === value.id}
