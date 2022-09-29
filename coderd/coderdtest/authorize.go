@@ -515,21 +515,21 @@ type RecordingAuthorizer struct {
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-func (r *RecordingAuthorizer) FakeByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object, record bool) error {
-	if record {
-		r.Called = &authCall{
-			SubjectID: subjectID,
-			Roles:     roleNames,
-			Scope:     scope,
-			Action:    action,
-			Object:    object,
-		}
-	}
+// ByRoleNameSQL does not record the call. This matches the postgres behavior
+// of not calling Authorize()
+func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ rbac.Action, _ rbac.Object) error {
 	return r.AlwaysReturn
 }
 
 func (r *RecordingAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
-	return r.FakeByRoleName(ctx, subjectID, roleNames, scope, action, object, true)
+	r.Called = &authCall{
+		SubjectID: subjectID,
+		Roles:     roleNames,
+		Scope:     scope,
+		Action:    action,
+		Object:    object,
+	}
+	return r.AlwaysReturn
 }
 
 func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
@@ -558,7 +558,7 @@ type fakePreparedAuthorizer struct {
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.FakeByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object, true)
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
 }
 
 // Compile returns a compiled version of the authorizer that will work for
@@ -568,7 +568,7 @@ func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
-	return f.Original.FakeByRoleName(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object, false) == nil
+	return f.Original.ByRoleNameSQL(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object) == nil
 }
 
 func (f fakePreparedAuthorizer) RegoString() string {

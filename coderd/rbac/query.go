@@ -29,7 +29,7 @@ type SQLColumn struct {
 	// Type indicates the postgres type of the column. Some expressions will
 	// need to know this in order to determine what SQL to produce.
 	// An example is if the variable is a jsonb array, the "contains" SQL
-	// query is `"value"' @> variable.` instead of `'value' = ANY(variable)`.
+	// query is `variable ? 'value'` instead of `'value' = ANY(variable)`.
 	// This type is only needed to be provided
 	Type TermType
 }
@@ -47,7 +47,7 @@ type SQLConfig struct {
 	//		}
 	//		"input\.object\.group_acl\.(.*)": SQLColumn{
 	//				ColumnSelect: "group_acl->$1",
-	//				Type: VarTypeJsonb
+	//				Type: VarTypeJsonbTextArray
 	//		}
 	Variables []SQLColumn
 }
@@ -394,12 +394,14 @@ func (t opInternalMember2) Eval(object Object) bool {
 func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 	if haystack, ok := t.Haystack.(*termVariable); ok {
 		// This is a special case where the haystack is a jsonb array.
-		// The more general way to solve this would be to implement a fuller type
-		// system and handle type conversions for each supported type.
-		// Then we could determine that the haystack is always an "array" and
-		// implement the "contains" function on the array type.
-		// But that requires a lot more code to handle a lot of cases we don't
-		// actually care about.
+		// There is a more general way to solve this, but that requires a lot
+		// more code to cover a lot more cases that we do not care about.
+		// To handle this more generally we should implement "Array" as a type.
+		// Then have the `contains` function on the Array type. This would defer
+		// knowing the element type to the Array and cover more cases without
+		// having to add more "if" branches here.
+		// But until we need more cases, our basic type system is ok, and
+		// this is the only case we need to handle.
 		if haystack.SQLType(cfg) == VarTypeJsonbTextArray {
 			return fmt.Sprintf("%s ? %s", haystack.SQLString(cfg), t.Needle.SQLString(cfg))
 		}
@@ -433,7 +435,7 @@ func (t termString) SQLString(_ SQLConfig) string {
 	return "'" + t.Value + "'"
 }
 
-func (t termString) SQLType(_ SQLConfig) TermType {
+func (termString) SQLType(_ SQLConfig) TermType {
 	return VarTypeText
 }
 
