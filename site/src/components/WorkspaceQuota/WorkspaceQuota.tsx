@@ -51,7 +51,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
 
   // don't show if limit is 0, this means the feature is disabled.
   if (quota.user_workspace_limit === 0) {
-    return <></>
+    return null
   }
 
   let value = Math.round((quota.user_workspace_count / quota.user_workspace_limit) * 100)
