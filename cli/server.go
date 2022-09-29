@@ -209,7 +209,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			defer listener.Close()
 
 			if tlsEnable {
-				listener, err = configureTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFiles, tlsKeyFiles, tlsClientCAFile)
+				listener, err = configureServerTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFiles, tlsKeyFiles, tlsClientCAFile)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
@@ -1039,7 +1039,7 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 	return certs, nil
 }
 
-func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (net.Listener, error) {
+func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (net.Listener, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
@@ -1096,15 +1096,6 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tl
 		}
 		return nil, nil //nolint:nilnil
 	}
-
-	// Append all certs to the RootCAs list.
-	certPool := x509.NewCertPool()
-	for _, c := range certs {
-		for _, pemBytes := range c.Certificate {
-			certPool.AppendCertsFromPEM(pemBytes)
-		}
-	}
-	tlsConfig.RootCAs = certPool
 
 	if tlsClientCAFile != "" {
 		caPool := x509.NewCertPool()
