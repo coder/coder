@@ -501,7 +501,7 @@ export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse
   return response.data
 }
 
-export const getWorkspaceQuota = async (): Promise<TypesGen.WorkspaceQuota> => {
-  const response = await axios.get(`/api/v2/users/me/workspace-quota`)
+export const getWorkspaceQuota = async (userID: string): Promise<TypesGen.WorkspaceQuota> => {
+  const response = await axios.get(`/api/v2/users/${userID}/workspace-quota`)
   return response.data
 }

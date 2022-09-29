@@ -38,6 +38,7 @@ export interface CreateWorkspacePageViewProps {
   setOwner: (arg0: TypesGen.User | null) => void
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
+  onSelectOwner: (owner: TypesGen.User | null) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
 }
@@ -150,7 +151,10 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
               {props.canCreateForUser && (
                 <UserAutocomplete
                   value={props.defaultWorkspaceOwner}
-                  onChange={(user) => props.setOwner(user)}
+                  onChange={(user) => {
+                    props.setOwner(user)
+                    props.onSelectOwner(user)
+                  }}
                   label={t("ownerLabel")}
                   inputMargin="dense"
                 />

@@ -39,6 +39,11 @@ type CreateWorkspaceEvent = {
   owner: User | null
 }
 
+type SelectOwnerEvent = {
+  type: "SELECT_OWNER"
+  owner: User | null
+}
+
 export const createWorkspaceMachine = createMachine(
   {
     id: "createWorkspaceState",
@@ -46,7 +51,7 @@ export const createWorkspaceMachine = createMachine(
     tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
     schema: {
       context: {} as CreateWorkspaceContext,
-      events: {} as CreateWorkspaceEvent,
+      events: {} as CreateWorkspaceEvent | SelectOwnerEvent,
       services: {} as {
         getTemplates: {
           data: Template[]
@@ -132,6 +137,10 @@ export const createWorkspaceMachine = createMachine(
             actions: ["assignCreateWorkspaceRequest", "assignOwner"],
             target: "creatingWorkspace",
           },
+          SELECT_OWNER: {
+            actions: ["assignOwner"],
+            target: "gettingWorkspaceQuota"
+          },
         },
       },
       creatingWorkspace: {
@@ -198,7 +207,9 @@ export const createWorkspaceMachine = createMachine(
 
         return createWorkspace(organizationId, owner?.id ?? "me", createWorkspaceRequest)
       },
-      getWorkspaceQuota: () => getWorkspaceQuota(),
+      getWorkspaceQuota: (context) => {
+        return getWorkspaceQuota(context.owner?.id ?? "me")
+      },
     },
     guards: {
       areTemplatesEmpty: (_, event) => event.data.length === 0,

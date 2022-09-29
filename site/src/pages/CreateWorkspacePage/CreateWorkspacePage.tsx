@@ -75,6 +75,12 @@ const CreateWorkspacePage: FC = () => {
             owner,
           })
         }}
+        onSelectOwner={(owner) => {
+          send({
+            type: "SELECT_OWNER",
+            owner: owner,
+          })
+        }}
       />
     </>
   )
