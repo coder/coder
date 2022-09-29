@@ -31,7 +31,6 @@ func TestWorkspaceQuota(t *testing.T) {
 		q1, err := client.WorkspaceQuota(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.EqualValues(t, q1.UserWorkspaceLimit, 0)
-
 	})
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
