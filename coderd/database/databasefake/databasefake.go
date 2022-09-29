@@ -517,6 +517,13 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		}
 	}
 
+	var groups []string
+	for _, member := range q.groupMembers {
+		if member.UserID == userID {
+			groups = append(groups, member.GroupID.String())
+		}
+	}
+
 	if user == nil {
 		return database.GetAuthorizationUserRolesRow{}, sql.ErrNoRows
 	}
@@ -526,6 +533,7 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Username: user.Username,
 		Status:   user.Status,
 		Roles:    roles,
+		Groups:   groups,
 	}, nil
 }
 
