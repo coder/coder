@@ -20,7 +20,7 @@ Coder with Docker has the following advantages:
     to access Coder. The rest of the Docker quickstart guide will assume that
     this is your Access URL.
 
-    Also, set `CODER_ADDRESS=0.0.0.0:7080` which is the address coder
+    Also, set `CODER_ADDRESS=*:7080` which is the address coder
     serve the API and dashboard at.
 
     ```bash
@@ -47,16 +47,20 @@ Coder with Docker has the following advantages:
 
     <img src="../images/quickstart/docker/create-workspace.png">
 
-    Now wait a few moments for the workspace to build... After the first build
+    Now wait a few moments for the workspace to build... After the first build,
     the image is cached and subsequent builds will take a few seconds.
 
-1.  All done!
+1.  Your workspace is ready to go!
 
     <img src="../images/quickstart/docker/ides.png">
 
     Open up a web application or [SSH in](../ides.md#ssh-configuration).
 
+1.  If you want to modify the Docker image or template, edit the files in the
+    previously created `./docker` directory, then run `coder templates push`.
+
 ## Next Steps
 
+- [Port-forward](../networking/port-forwarding.md.md)
 - [Learn more about template configuration](../templates.md)
 - [Configure more IDEs](../ides/web-ides.md)

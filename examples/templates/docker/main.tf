@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.2"
+      version = "~> 2.22"
     }
   }
 }
@@ -59,10 +59,14 @@ resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-home"
 }
 
+
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
   build {
-    path = "."
+    path = "./build"
+  }
+  triggers = {
+    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
   }
 }
 
@@ -76,7 +80,12 @@ resource "docker_container" "workspace" {
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
   command = [
-  "sh", "-c", replace(coder_agent.main.init_script, "localhost", "host.docker.internal")]
+    "sh", "-c",
+    <<EOT
+    trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
+    ${replace(coder_agent.main.init_script, "localhost", "host.docker.internal")}
+    EOT
+  ]
   env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
