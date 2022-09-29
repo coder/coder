@@ -218,7 +218,7 @@ func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uui
 	require.NoError(t, err)
 	tv, err := client.TemplateVersion(ctx, newTemplate.ActiveVersionID)
 	require.NoError(t, err)
-	params, err := client.Parameters(ctx, codersdk.ParameterImportJob, tv.Job.ID)
+	params, err := client.DeprecatedParameters(ctx, codersdk.ParameterImportJob, tv.Job.ID)
 	require.NoError(t, err)
 
 	return tv, params

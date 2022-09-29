@@ -98,8 +98,8 @@ type CreateParameterRequest struct {
 	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
 }
 
-func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), req)
+func (c *Client) DeprecatedCreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/deprecated-parameters/%s/%s", scope, id.String()), req)
 	if err != nil {
 		return Parameter{}, err
 	}
@@ -113,8 +113,8 @@ func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id u
 	return param, json.NewDecoder(res.Body).Decode(&param)
 }
 
-func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, name string) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/parameters/%s/%s/%s", scope, id.String(), name), nil)
+func (c *Client) DeprecatedDeleteParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/deprecated-parameters/%s/%s/%s", scope, id.String(), name), nil)
 	if err != nil {
 		return err
 	}
@@ -128,8 +128,8 @@ func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id u
 	return nil
 }
 
-func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id uuid.UUID) ([]Parameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), nil)
+func (c *Client) DeprecatedParameters(ctx context.Context, scope ParameterScope, id uuid.UUID) ([]Parameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/deprecated-parameters/%s/%s", scope, id.String()), nil)
 	if err != nil {
 		return nil, err
 	}

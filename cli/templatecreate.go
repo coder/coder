@@ -198,11 +198,11 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	if err != nil {
 		return nil, nil, err
 	}
-	parameterSchemas, err := client.TemplateVersionSchema(cmd.Context(), version.ID)
+	parameterSchemas, err := client.DeprecatedTemplateVersionSchema(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	parameterValues, err := client.TemplateVersionParameters(cmd.Context(), version.ID)
+	parameterValues, err := client.DeprecatedTemplateVersionParameters(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -218,7 +218,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		}
 
 		// We don't want to compute the params, we only want to copy from this scope
-		values, err := client.Parameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
+		values, err := client.DeprecatedParameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
 		}

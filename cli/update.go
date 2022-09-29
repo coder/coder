@@ -41,7 +41,7 @@ func update() *cobra.Command {
 
 			var existingParams []codersdk.Parameter
 			if !alwaysPrompt {
-				existingParams, err = client.Parameters(cmd.Context(), codersdk.ParameterWorkspace, workspace.ID)
+				existingParams, err = client.DeprecatedParameters(cmd.Context(), codersdk.ParameterWorkspace, workspace.ID)
 				if err != nil {
 					return nil
 				}

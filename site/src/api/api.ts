@@ -169,7 +169,7 @@ export const getTemplateVersionSchema = async (
   versionId: string,
 ): Promise<TypesGen.ParameterSchema[]> => {
   const response = await axios.get<TypesGen.ParameterSchema[]>(
-    `/api/v2/templateversions/${versionId}/schema`,
+    `/api/v2/templateversions/${versionId}/deprecated-schema`,
   )
   return response.data
 }

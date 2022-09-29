@@ -119,7 +119,7 @@ func TestFirstUser(t *testing.T) {
 
 		for _, template := range templates {
 			// Check template parameters.
-			templateParams, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
+			templateParams, err := client.DeprecatedParameters(ctx, codersdk.ParameterTemplate, template.ID)
 			require.NoErrorf(t, err, "get template parameters for %q", template.Name)
 
 			// Ensure all template parameters are present.
@@ -148,7 +148,7 @@ func TestFirstUser(t *testing.T) {
 			require.NoErrorf(t, err, "get template version for %q", template.Name)
 
 			// Compare job parameters to template parameters.
-			jobParams, err := client.Parameters(ctx, codersdk.ParameterImportJob, templateVersion.Job.ID)
+			jobParams, err := client.DeprecatedParameters(ctx, codersdk.ParameterImportJob, templateVersion.Job.ID)
 			require.NoErrorf(t, err, "get template import job parameters for %q", template.Name)
 			for _, v := range jobParams {
 				if _, ok := expectedParams[v.Name]; !ok {

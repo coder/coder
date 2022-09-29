@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deprecatedPostParameter(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
@@ -78,7 +78,7 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertParameterValue(parameterValue))
 }
 
-func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deprecatedParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
@@ -116,7 +116,7 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiParameterValues)
 }
 
-func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deprecatedDeleteParameter(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {

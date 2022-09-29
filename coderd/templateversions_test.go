@@ -219,7 +219,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionSchema(ctx, version.ID)
+		_, err := client.DeprecatedTemplateVersionSchema(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -245,7 +245,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		schemas, err := client.TemplateVersionSchema(ctx, version.ID)
+		schemas, err := client.DeprecatedTemplateVersionSchema(ctx, version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, schemas)
 		require.Len(t, schemas, 1)
@@ -274,7 +274,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		schemas, err := client.TemplateVersionSchema(ctx, version.ID)
+		schemas, err := client.DeprecatedTemplateVersionSchema(ctx, version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, schemas)
 		require.Len(t, schemas, 1)
@@ -293,7 +293,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionParameters(ctx, version.ID)
+		_, err := client.DeprecatedTemplateVersionParameters(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -334,7 +334,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		params, err := client.TemplateVersionParameters(ctx, version.ID)
+		params, err := client.DeprecatedTemplateVersionParameters(ctx, version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, params)
 		require.Len(t, params, 2)

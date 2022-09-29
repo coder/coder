@@ -184,7 +184,7 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 	if err != nil {
 		return nil, err
 	}
-	parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
+	parameterSchemas, err := client.DeprecatedTemplateVersionSchema(ctx, templateVersion.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -66,7 +66,7 @@ func parameterList() *cobra.Command {
 				})
 			}
 
-			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
+			params, err := client.DeprecatedParameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
 			if err != nil {
 				return xerrors.Errorf("fetch params: %w", err)
 			}

@@ -52,9 +52,9 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 	return nil
 }
 
-// TemplateVersionSchema returns schemas for a template version by ID.
-func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
+// DeprecatedTemplateVersionSchema returns schemas for a template version by ID.
+func (c *Client) DeprecatedTemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/deprecated-schema", version), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +66,9 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
-// TemplateVersionParameters returns computed parameters for a template version.
-func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUID) ([]ComputedParameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/parameters", version), nil)
+// DeprecatedTemplateVersionParameters returns computed parameters for a template version.
+func (c *Client) DeprecatedTemplateVersionParameters(ctx context.Context, version uuid.UUID) ([]ComputedParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/deprecated-parameters", version), nil)
 	if err != nil {
 		return nil, err
 	}

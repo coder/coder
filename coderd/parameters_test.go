@@ -25,7 +25,7 @@ func TestPostParameter(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateParameter(ctx, codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
+		_, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -45,7 +45,7 @@ func TestPostParameter(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		_, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -63,7 +63,7 @@ func TestPostParameter(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		_, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -71,7 +71,7 @@ func TestPostParameter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		_, err = client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -94,7 +94,7 @@ func TestParameters(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
+		_, err := client.DeprecatedParameters(ctx, codersdk.ParameterTemplate, template.ID)
 		require.NoError(t, err)
 	})
 	t.Run("List", func(t *testing.T) {
@@ -106,14 +106,14 @@ func TestParameters(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		_, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
-		params, err := client.Parameters(ctx, codersdk.ParameterTemplate, template.ID)
+		params, err := client.DeprecatedParameters(ctx, codersdk.ParameterTemplate, template.ID)
 		require.NoError(t, err)
 		require.Len(t, params, 1)
 	})
@@ -130,7 +130,7 @@ func TestDeleteParameter(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		err := client.DeleteParameter(ctx, codersdk.ParameterTemplate, template.ID, "something")
+		err := client.DeprecatedDeleteParameter(ctx, codersdk.ParameterTemplate, template.ID, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -144,14 +144,14 @@ func TestDeleteParameter(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		param, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+		param, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
-		err = client.DeleteParameter(ctx, codersdk.ParameterTemplate, template.ID, param.Name)
+		err = client.DeprecatedDeleteParameter(ctx, codersdk.ParameterTemplate, template.ID, param.Name)
 		require.NoError(t, err)
 	})
 }

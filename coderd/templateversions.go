@@ -98,7 +98,7 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
-func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deprecatedTemplateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
@@ -146,7 +146,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
 }
 
-func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deprecatedTemplateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {

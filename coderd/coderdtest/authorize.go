@@ -179,7 +179,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
-		"GET:/api/v2/templateversions/{templateversion}/parameters": {
+		"GET:/api/v2/templateversions/{templateversion}/deprecated-parameters": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
@@ -187,7 +187,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
-		"GET:/api/v2/templateversions/{templateversion}/schema": {
+		"GET:/api/v2/templateversions/{templateversion}/deprecated-schema": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
@@ -217,15 +217,15 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceProvisionerDaemon,
 		},
 
-		"POST:/api/v2/parameters/{scope}/{id}": {
+		"POST:/api/v2/deprecated-parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: rbac.ResourceTemplate,
 		},
-		"GET:/api/v2/parameters/{scope}/{id}": {
+		"GET:/api/v2/deprecated-parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate,
 		},
-		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {
+		"DELETE:/api/v2/deprecated-parameters/{scope}/{id}/{name}": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: rbac.ResourceTemplate,
 		},
@@ -358,7 +358,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	})
 	require.NoError(t, err, "template version dry-run")
 
-	templateParam, err := client.CreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+	templateParam, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
 		Name:              "test-param",
 		SourceValue:       "hello world",
 		SourceScheme:      codersdk.ParameterSourceSchemeData,

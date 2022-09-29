@@ -38,7 +38,7 @@ export const handlers = [
   rest.get("/api/v2/templateversions/:templateVersionId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
   }),
-  rest.get("/api/v2/templateversions/:templateVersionId/schema", async (req, res, ctx) => {
+  rest.get("/api/v2/templateversions/:templateVersionId/deprecated-schema", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([]))
   }),
   rest.get("/api/v2/templateversions/:templateVersionId/resources", async (req, res, ctx) => {

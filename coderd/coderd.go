@@ -305,12 +305,12 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
+		r.Route("/deprecated-parameters/{scope}/{id}", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Post("/", api.postParameter)
-			r.Get("/", api.parameters)
+			r.Post("/", api.deprecatedPostParameter)
+			r.Get("/", api.deprecatedParameters)
 			r.Route("/{name}", func(r chi.Router) {
-				r.Delete("/", api.deleteParameter)
+				r.Delete("/", api.deprecatedDeleteParameter)
 			})
 		})
 		r.Route("/templates/{template}", func(r chi.Router) {
@@ -336,8 +336,8 @@ func New(options *Options) *API {
 
 			r.Get("/", api.templateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
-			r.Get("/schema", api.templateVersionSchema)
-			r.Get("/parameters", api.templateVersionParameters)
+			r.Get("/deprecated-schema", api.deprecatedTemplateVersionSchema)
+			r.Get("/deprecated-parameters", api.deprecatedTemplateVersionParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
