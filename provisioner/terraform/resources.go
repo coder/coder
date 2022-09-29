@@ -10,6 +10,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/terraform-provider-coder/provider"
+
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -58,17 +60,17 @@ type metadataItem struct {
 	IsNull    bool   `mapstructure:"is_null"`
 }
 
-// ConvertResources consumes Terraform state and a GraphViz representation produced by
+// ConvertResourcesAndParameters consumes Terraform state and a GraphViz representation produced by
 // `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, error) {
+func ConvertResourcesAndParameters(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, []*proto.Parameter, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
-		return nil, xerrors.Errorf("parse graph: %w", err)
+		return nil, nil, xerrors.Errorf("parse graph: %w", err)
 	}
 	graph, err := gographviz.NewAnalysedGraph(parsedGraph)
 	if err != nil {
-		return nil, xerrors.Errorf("analyze graph: %w", err)
+		return nil, nil, xerrors.Errorf("analyze graph: %w", err)
 	}
 
 	resources := make([]*proto.Resource, 0)
@@ -110,7 +112,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		var attrs agentAttributes
 		err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
 		if err != nil {
-			return nil, xerrors.Errorf("decode agent attributes: %w", err)
+			return nil, nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
 		agent := &proto.Agent{
 			Name:            tfResource.Name,
@@ -146,7 +148,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			break
 		}
 		if agentNode == nil {
-			return nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
+			return nil, nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
 		}
 
 		var agentResource *graphResource
@@ -224,7 +226,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if err != nil {
 			d, _ := json.MarshalIndent(resource.AttributeValues, "", "    ")
 			fmt.Print(string(d))
-			return nil, xerrors.Errorf("decode app attributes: %w", err)
+			return nil, nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
 		if attrs.Name == "" {
 			// Default to the resource name if none is set!
@@ -267,7 +269,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		var attrs metadataAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
-			return nil, xerrors.Errorf("decode metadata attributes: %w", err)
+			return nil, nil, xerrors.Errorf("decode metadata attributes: %w", err)
 		}
 
 		var targetLabel string
@@ -354,7 +356,44 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		})
 	}
 
-	return resources, nil
+	parameters := make([]*proto.Parameter, 0)
+	for _, resource := range tfResourceByLabel {
+		if resource.Type != "coder_parameter" {
+			continue
+		}
+		var param provider.Parameter
+		err = mapstructure.Decode(resource.AttributeValues, &param)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
+		}
+		protoParam := &proto.Parameter{
+			Name:         param.Name,
+			Description:  param.Description,
+			Type:         param.Type,
+			Mutable:      param.Mutable,
+			DefaultValue: param.Default,
+			Icon:         param.Icon,
+		}
+		if len(param.Validation) == 1 {
+			protoParam.ValidationRegex = param.Validation[0].Regex
+			protoParam.ValidationMax = int32(param.Validation[0].Max)
+			protoParam.ValidationMin = int32(param.Validation[0].Min)
+		}
+		if len(param.Option) > 0 {
+			protoParam.Options = make([]*proto.ParameterOption, 0, len(param.Option))
+			for _, option := range param.Option {
+				protoParam.Options = append(protoParam.Options, &proto.ParameterOption{
+					Name:        option.Name,
+					Description: option.Description,
+					Value:       option.Value,
+					Icon:        option.Icon,
+				})
+			}
+		}
+		parameters = append(parameters, protoParam)
+	}
+
+	return resources, parameters, nil
 }
 
 // convertAddressToLabel returns the Terraform address without the count

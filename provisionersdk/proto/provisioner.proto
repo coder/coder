@@ -89,7 +89,7 @@ message Parameter {
     string name = 1;
     string description = 2;
     string type = 3;
-    bool immutable = 4;
+    bool mutable = 4;
     string default_value = 5;
     string icon = 6;
     repeated ParameterOption options = 7;

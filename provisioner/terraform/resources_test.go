@@ -158,9 +158,10 @@ func TestConvertResources(t *testing.T) {
 				tfPlanGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfplan.dot"))
 				require.NoError(t, err)
 
-				resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
+				resources, parameters, err := terraform.ConvertResourcesAndParameters(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(resources)
+				sortParameters(parameters)
 
 				var expectedNoMetadata []*proto.Resource
 				for _, resource := range expected {
@@ -188,9 +189,10 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				resources, err := terraform.ConvertResources(tfState.Values.RootModule, string(tfStateGraph))
+				resources, parameters, err := terraform.ConvertResourcesAndParameters(tfState.Values.RootModule, string(tfStateGraph))
 				require.NoError(t, err)
 				sortResources(resources)
+				sortParameters(parameters)
 				for _, resource := range resources {
 					for _, agent := range resource.Agents {
 						agent.Id = ""
@@ -246,7 +248,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 			t.Parallel()
 			instanceID, err := cryptorand.String(12)
 			require.NoError(t, err)
-			resources, err := terraform.ConvertResources(&tfjson.StateModule{
+			resources, _, err := terraform.ConvertResourcesAndParameters(&tfjson.StateModule{
 				Resources: []*tfjson.StateResource{{
 					Address: "coder_agent.dev",
 					Type:    "coder_agent",
@@ -299,6 +301,17 @@ func sortResources(resources []*proto.Resource) {
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
+		})
+	}
+}
+
+func sortParameters(parameters []*proto.Parameter) {
+	sort.Slice(parameters, func(i, j int) bool {
+		return parameters[i].Name < parameters[j].Name
+	})
+	for _, parameter := range parameters {
+		sort.Slice(parameter.Options, func(i, j int) bool {
+			return parameter.Options[i].Name < parameter.Options[j].Name
 		})
 	}
 }

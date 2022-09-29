@@ -213,30 +213,31 @@ func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr lo
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
-	resources, err := e.planResources(ctx, killCtx, planfilePath)
+	resources, parameters, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, err
 	}
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
-				Resources: resources,
+				Resources:  resources,
+				Parameters: parameters,
 			},
 		},
 	}, nil
 }
 
-func (e executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, error) {
+func (e executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, []*proto.Parameter, error) {
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("graph: %w", err)
+		return nil, nil, xerrors.Errorf("graph: %w", err)
 	}
-	return ConvertResources(plan.PlannedValues.RootModule, rawGraph)
+	return ConvertResourcesAndParameters(plan.PlannedValues.RootModule, rawGraph)
 }
 
 func (e executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
@@ -299,7 +300,7 @@ func (e executor) apply(ctx, killCtx context.Context, env, vars []string, logr l
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
-	resources, err := e.stateResources(ctx, killCtx)
+	resources, parameters, err := e.stateResources(ctx, killCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -311,30 +312,32 @@ func (e executor) apply(ctx, killCtx context.Context, env, vars []string, logr l
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
-				Resources: resources,
-				State:     stateContent,
+				Resources:  resources,
+				Parameters: parameters,
+				State:      stateContent,
 			},
 		},
 	}, nil
 }
 
-func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, error) {
+func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, []*proto.Parameter, error) {
 	state, err := e.state(ctx, killCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("get terraform graph: %w", err)
+		return nil, nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
 	var resources []*proto.Resource
+	var parameters []*proto.Parameter
 	if state.Values != nil {
-		resources, err = ConvertResources(state.Values.RootModule, rawGraph)
+		resources, parameters, err = ConvertResourcesAndParameters(state.Values.RootModule, rawGraph)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return resources, nil
+	return resources, parameters, nil
 }
 
 func (e executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {

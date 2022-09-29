@@ -542,7 +542,7 @@ type TemplateVersionParameter struct {
 	Name              string          `db:"name" json:"name"`
 	Description       string          `db:"description" json:"description"`
 	Type              string          `db:"type" json:"type"`
-	Immutable         bool            `db:"immutable" json:"immutable"`
+	Mutable           bool            `db:"mutable" json:"mutable"`
 	DefaultValue      string          `db:"default_value" json:"default_value"`
 	Icon              string          `db:"icon" json:"icon"`
 	Options           json.RawMessage `db:"options" json:"options"`

@@ -3,7 +3,7 @@ CREATE TABLE template_version_parameters (
     name text not null,
     description text not null,
     type text not null,
-    immutable boolean not null,
+    mutable boolean not null,
     default_value text not null,
     icon text not null,
     options jsonb not null default '[]'::jsonb,
