@@ -2877,6 +2877,14 @@ func (q *fakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) InsertAllUsersGroup(ctx context.Context, arg database.InsertAllUsersGroupParams) (database.Group, error) {
+	return q.InsertGroup(ctx, database.InsertGroupParams{
+		ID:             arg.OrganizationID,
+		Name:           arg.Name,
+		OrganizationID: arg.OrganizationID,
+	})
+}
+
 func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupParams) (database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
