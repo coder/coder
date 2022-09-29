@@ -83,11 +83,6 @@ CREATE TYPE resource_type AS ENUM (
     'api_key'
 );
 
-CREATE TYPE template_role AS ENUM (
-    'view',
-    'admin'
-);
-
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended'
@@ -312,7 +307,7 @@ CREATE TABLE templates (
     created_by uuid NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    group_acl jsonb DEFAULT '{"allUsers": "view"}'::jsonb NOT NULL
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE user_links (

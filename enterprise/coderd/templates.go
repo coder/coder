@@ -46,22 +46,6 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, ok := template.GroupACL()[database.AllUsersGroup]
-	if ok {
-		group, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-			OrganizationID: template.OrganizationID,
-			Name:           database.AllUsersGroup,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		groups = append(groups, database.TemplateGroup{
-			Group: group,
-			Role:  role,
-		})
-	}
-
 	groups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, groups)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -126,14 +110,14 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.InTx(func(tx database.Store) error {
 		if len(req.UserPerms) > 0 {
 			userACL := template.UserACL()
-			for k, v := range req.UserPerms {
+			for id, role := range req.UserPerms {
 				// A user with an empty string implies
 				// deletion.
-				if v == "" {
-					delete(userACL, k)
+				if role == "" {
+					delete(userACL, id)
 					continue
 				}
-				userACL[k] = database.TemplateRole(v)
+				userACL[id] = convertSDKTemplateRole(role)
 			}
 
 			err := tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
@@ -143,29 +127,18 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(req.GroupPerms) > 0 {
-			allUsersGroup, err := tx.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-				OrganizationID: template.OrganizationID,
-				Name:           database.AllUsersGroup,
-			})
-			if err != nil {
-				return xerrors.Errorf("get allUsers group: %w", err)
-			}
-
 			groupACL := template.GroupACL()
-			for k, v := range req.GroupPerms {
-				if k == allUsersGroup.ID.String() {
-					k = database.AllUsersGroup
-				}
+			for id, role := range req.GroupPerms {
 				// An id with an empty string implies
 				// deletion.
-				if v == "" {
-					delete(groupACL, k)
+				if role == "" {
+					delete(groupACL, id)
 					continue
 				}
-				groupACL[k] = database.TemplateRole(v)
+				groupACL[id] = convertSDKTemplateRole(role)
 			}
 
-			err = tx.UpdateTemplateGroupACLByID(r.Context(), template.ID, groupACL)
+			err := tx.UpdateTemplateGroupACLByID(ctx, template.ID, groupACL)
 			if err != nil {
 				return xerrors.Errorf("update template user ACL: %w", err)
 			}
@@ -223,7 +196,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	for _, tu := range tus {
 		users = append(users, codersdk.TemplateUser{
 			User: convertUser(tu.User, orgIDsByUserIDs[tu.User.ID]),
-			Role: codersdk.TemplateRole(tu.Role),
+			Role: convertToTemplateRole(tu.Actions),
 		})
 	}
 
@@ -236,7 +209,7 @@ func convertTemplateGroups(tgs []database.TemplateGroup) []codersdk.TemplateGrou
 	for _, tg := range tgs {
 		groups = append(groups, codersdk.TemplateGroup{
 			Group: convertGroup(tg.Group, nil),
-			Role:  codersdk.TemplateRole(tg.Role),
+			Role:  convertToTemplateRole(tg.Actions),
 		})
 	}
 
@@ -244,21 +217,32 @@ func convertTemplateGroups(tgs []database.TemplateGroup) []codersdk.TemplateGrou
 }
 
 func validateTemplateRole(role codersdk.TemplateRole) error {
-	dbRole := convertSDKTemplateRole(role)
-	if dbRole == "" && role != codersdk.TemplateRoleDeleted {
+	actions := convertSDKTemplateRole(role)
+	if actions == nil && role != codersdk.TemplateRoleDeleted {
 		return xerrors.Errorf("role %q is not a valid Template role", role)
 	}
 
 	return nil
 }
 
-func convertSDKTemplateRole(role codersdk.TemplateRole) database.TemplateRole {
-	switch role {
-	case codersdk.TemplateRoleAdmin:
-		return database.TemplateRoleAdmin
-	case codersdk.TemplateRoleView:
-		return database.TemplateRoleView
+func convertToTemplateRole(actions []rbac.Action) codersdk.TemplateRole {
+	switch {
+	case len(actions) == 1 && actions[0] == rbac.ActionRead:
+		return codersdk.TemplateRoleView
+	case len(actions) == 1 && actions[0] == rbac.WildcardSymbol:
+		return codersdk.TemplateRoleAdmin
 	}
 
 	return ""
+}
+
+func convertSDKTemplateRole(role codersdk.TemplateRole) []rbac.Action {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return []rbac.Action{rbac.WildcardSymbol}
+	case codersdk.TemplateRoleView:
+		return []rbac.Action{rbac.ActionRead}
+	}
+
+	return nil
 }

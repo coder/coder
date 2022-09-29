@@ -74,6 +74,18 @@ INSERT INTO groups (
 VALUES
 	( $1, $2, $3) RETURNING *;
 
+-- We use the organization_id as the id
+-- for simplicity since all users is 
+-- every member of the org.
+-- name: InsertAllUsersGroup :one
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+VALUES
+	( sqlc.arg(organization_id), 'allUsers', sqlc.arg(organization_id)) RETURNING *;
+
 -- name: UpdateGroupByID :one
 UPDATE
 	groups

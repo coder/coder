@@ -1305,8 +1305,8 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 		}
 
 		users = append(users, database.TemplateUser{
-			User: user,
-			Role: v,
+			User:    user,
+			Actions: v,
 		})
 	}
 
@@ -1333,9 +1333,6 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 
 	groups := make([]database.TemplateGroup, 0, len(acl))
 	for k, v := range acl {
-		if k == database.AllUsersGroup {
-			continue
-		}
 		group, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get group by ID: %w", err)
@@ -1347,8 +1344,8 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 		}
 
 		groups = append(groups, database.TemplateGroup{
-			Group: group,
-			Role:  v,
+			Group:   group,
+			Actions: v,
 		})
 	}
 
@@ -1837,7 +1834,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	}
 	template = template.SetUserACL(database.TemplateACL{})
 	template = template.SetGroupACL(database.TemplateACL{
-		database.AllUsersGroup: database.TemplateRoleView,
+		arg.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
 	})
 	q.templates = append(q.templates, template)
 	return template, nil
@@ -2875,6 +2872,14 @@ func (q *fakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	}
 
 	return database.Group{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
+	return q.InsertGroup(ctx, database.InsertGroupParams{
+		ID:             orgID,
+		Name:           database.AllUsersGroup,
+		OrganizationID: orgID,
+	})
 }
 
 func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupParams) (database.Group, error) {
