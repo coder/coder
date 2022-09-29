@@ -7,51 +7,6 @@ package provisioner;
 // Empty indicates a successful request/response.
 message Empty {}
 
-// ParameterSource represents the source location for a parameter to get it's value from.
-message ParameterSource {
-    enum Scheme {
-        DATA = 0;
-    }
-    Scheme scheme = 1;
-    string value = 2;
-}
-
-// ParameterDestination represents the target location for a provisioner to set the value.
-message ParameterDestination {
-    enum Scheme {
-        ENVIRONMENT_VARIABLE = 0;
-        PROVISIONER_VARIABLE = 1;
-    }
-    Scheme scheme = 1;
-}
-
-// ParameterValue represents the resolved source and destination of a parameter.
-message ParameterValue {
-    ParameterDestination.Scheme destination_scheme = 1;
-    string name = 2;
-    string value = 3;
-}
-
-// ParameterSchema represents validation and type information for a parsed parameter.
-message ParameterSchema {
-    string name = 1;
-    string description = 2;
-    ParameterSource default_source = 3;
-    bool allow_override_source = 4;
-    ParameterDestination default_destination = 5;
-    bool allow_override_destination = 6;
-    bool redisplay_value = 7;
-
-    enum TypeSystem {
-        None = 0;
-        HCL = 1;
-    }
-    TypeSystem validation_type_system = 8;
-    string validation_value_type = 9;
-    string validation_error = 10;
-    string validation_condition = 11;
-}
-
 // LogLevel represents severity of the log.
 enum LogLevel {
     TRACE = 0;
@@ -121,20 +76,32 @@ message Resource {
 	string icon = 6;
 }
 
-// Parse consumes source-code from a directory to produce inputs.
-message Parse {
-    message Request {
-        string directory = 1;
-    }
-    message Complete {
-        repeated ParameterSchema parameter_schemas = 2;
-    }
-    message Response {
-        oneof type {
-            Log log = 1;
-            Complete complete = 2;
-        }
-    }
+// ParameterOption represents a singular option that a parameter may expose.
+message ParameterOption {
+    string name = 1;
+    string description = 2;
+    string value = 3;
+    string icon = 4;
+}
+
+// Parameter represents a variable that is exposed.
+message Parameter {
+    string name = 1;
+    string description = 2;
+    string type = 3;
+    bool immutable = 4;
+    string default_value = 5;
+    string icon = 6;
+    repeated ParameterOption options = 7;
+    string validation_regex = 8;
+    int32 validation_min = 9;
+    int32 validation_max = 10;
+}
+
+// ParameterValue holds the key/value mapping of a parameter!
+message ParameterValue {
+    string name = 1;
+    string value = 2;
 }
 
 enum WorkspaceTransition {
@@ -172,6 +139,7 @@ message Provision {
         bytes state = 1;
         string error = 2;
         repeated Resource resources = 3;
+        repeated Parameter parameters = 4;
     }
     message Response {
         oneof type {
@@ -182,6 +150,54 @@ message Provision {
 }
 
 service Provisioner {
-    rpc Parse(Parse.Request) returns (stream Parse.Response);
+    rpc DeprecatedParse(DeprecatedParse.Request) returns (stream DeprecatedParse.Response);
     rpc Provision(stream Provision.Request) returns (stream Provision.Response);
+}
+
+// DEPRECATED
+// The values below can be removed in November 2022.
+// These were used for parsing Terraform variables and providing values.
+// We're changing to a data-source model, so these are left for compatibility.
+
+// DeprecatedParse consumes source-code from a directory to produce inputs.
+message DeprecatedParse {
+    message Request {
+        string directory = 1;
+    }
+    message Complete {
+        repeated DeprecatedParameterSchema parameter_schemas = 2;
+    }
+    message Response {
+        oneof type {
+            Log log = 1;
+            Complete complete = 2;
+        }
+    }
+}
+
+// DeprecatedParameterSource represents the source location for a parameter to get it's value from.
+message DeprecatedParameterSource {
+    enum Scheme {
+        DATA = 0;
+    }
+    Scheme scheme = 1;
+    string value = 2;
+}
+
+// DeprecatedParameterSchema represents validation and type information for a parsed parameter.
+message DeprecatedParameterSchema {
+    string name = 1;
+    string description = 2;
+    DeprecatedParameterSource default_source = 3;
+    bool allow_override_source = 4;
+    bool redisplay_value = 5;
+
+    enum TypeSystem {
+        None = 0;
+        HCL = 1;
+    }
+    TypeSystem validation_type_system = 6;
+    string validation_value_type = 7;
+    string validation_error = 8;
+    string validation_condition = 9;
 }

@@ -13,9 +13,9 @@ CREATE TABLE template_version_parameters (
     unique (template_version_id, name)
 );
 
-CREATE TABLE workspace_parameters (
-    workspace_id uuid not null,
+CREATE TABLE workspace_build_parameters (
+    workspace_build_id uuid not null references workspace_builds (id) on delete cascade,
     name text not null,
     value text not null,
-    unique (workspace_id, name)
+    unique (workspace_build_id, name)
 );

@@ -592,11 +592,11 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 }
 
 // Parses parameter schemas from source.
-func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.ParameterSchema, error) {
+func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.DeprecatedParameterSchema, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	stream, err := r.provisioner.Parse(ctx, &sdkproto.Parse_Request{
+	stream, err := r.provisioner.DeprecatedParse(ctx, &sdkproto.DeprecatedParse_Request{
 		Directory: r.workDirectory,
 	})
 	if err != nil {
@@ -609,7 +609,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 			return nil, xerrors.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
-		case *sdkproto.Parse_Response_Log:
+		case *sdkproto.DeprecatedParse_Response_Log:
 			r.logger.Debug(context.Background(), "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
@@ -628,7 +628,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 			if err != nil {
 				return nil, xerrors.Errorf("update job: %w", err)
 			}
-		case *sdkproto.Parse_Response_Complete:
+		case *sdkproto.DeprecatedParse_Response_Complete:
 			r.logger.Info(context.Background(), "parse complete",
 				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas))
 

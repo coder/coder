@@ -373,6 +373,12 @@ CREATE TABLE workspace_apps (
     health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
 );
 
+CREATE TABLE workspace_build_parameters (
+    workspace_build_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
 CREATE TABLE workspace_builds (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -386,12 +392,6 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
-);
-
-CREATE TABLE workspace_parameters (
-    workspace_id uuid NOT NULL,
-    name text NOT NULL,
-    value text NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (
@@ -509,6 +509,9 @@ ALTER TABLE ONLY workspace_apps
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_build_parameters
+    ADD CONSTRAINT workspace_build_parameters_workspace_build_id_name_key UNIQUE (workspace_build_id, name);
+
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 
@@ -517,9 +520,6 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
-
-ALTER TABLE ONLY workspace_parameters
-    ADD CONSTRAINT workspace_parameters_workspace_id_name_key UNIQUE (workspace_id, name);
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
@@ -611,6 +611,9 @@ ALTER TABLE ONLY workspace_agents
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_build_parameters
+    ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

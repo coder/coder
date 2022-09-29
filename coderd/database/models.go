@@ -537,6 +537,20 @@ type TemplateVersion struct {
 	CreatedBy      uuid.NullUUID `db:"created_by" json:"created_by"`
 }
 
+type TemplateVersionParameter struct {
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	Name              string          `db:"name" json:"name"`
+	Description       string          `db:"description" json:"description"`
+	Type              string          `db:"type" json:"type"`
+	Immutable         bool            `db:"immutable" json:"immutable"`
+	DefaultValue      string          `db:"default_value" json:"default_value"`
+	Icon              string          `db:"icon" json:"icon"`
+	Options           json.RawMessage `db:"options" json:"options"`
+	ValidationRegex   sql.NullString  `db:"validation_regex" json:"validation_regex"`
+	ValidationMin     sql.NullInt32   `db:"validation_min" json:"validation_min"`
+	ValidationMax     sql.NullInt32   `db:"validation_max" json:"validation_max"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
@@ -625,6 +639,12 @@ type WorkspaceBuild struct {
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
+}
+
+type WorkspaceBuildParameter struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             string    `db:"name" json:"name"`
+	Value            string    `db:"value" json:"value"`
 }
 
 type WorkspaceResource struct {

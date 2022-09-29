@@ -21,7 +21,7 @@ func TestParse(t *testing.T) {
 	testCases := []struct {
 		Name     string
 		Files    map[string]string
-		Response *proto.Parse_Response
+		Response *proto.DeprecatedParse_Response
 		// If ErrorContains is not empty, then response.Recv() should return an
 		// error containing this string before a Complete response is returned.
 		ErrorContains string
@@ -33,17 +33,14 @@ func TestParse(t *testing.T) {
 				description = "Testing!"
 			}`,
 			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
+			Response: &proto.DeprecatedParse_Response{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 							Name:                "A",
 							RedisplayValue:      true,
 							AllowOverrideSource: true,
 							Description:         "Testing!",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
 						}},
 					},
 				},
@@ -56,19 +53,16 @@ func TestParse(t *testing.T) {
 				default = "wow"
 			}`,
 			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
+			Response: &proto.DeprecatedParse_Response{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 							Name:                "A",
 							RedisplayValue:      true,
 							AllowOverrideSource: true,
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
+							DefaultSource: &proto.DeprecatedParameterSource{
+								Scheme: proto.DeprecatedParameterSource_DATA,
 								Value:  "wow",
-							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 							},
 						}},
 					},
@@ -84,18 +78,15 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
+			Response: &proto.DeprecatedParse_Response{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 							Name:                 "A",
 							RedisplayValue:       true,
 							ValidationCondition:  `var.A == "value"`,
-							ValidationTypeSystem: proto.ParameterSchema_HCL,
+							ValidationTypeSystem: proto.DeprecatedParameterSchema_HCL,
 							AllowOverrideSource:  true,
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
 						}},
 					},
 				},
@@ -116,45 +107,33 @@ func TestParse(t *testing.T) {
 				"main2.tf": `variable "baz" { }
 				variable "quux" { }`,
 			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
+			Response: &proto.DeprecatedParse_Response{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{
 							{
 								Name:                "foo",
 								RedisplayValue:      true,
 								AllowOverrideSource: true,
 								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
 							},
 							{
 								Name:                "bar",
 								RedisplayValue:      true,
 								AllowOverrideSource: true,
 								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
 							},
 							{
 								Name:                "baz",
 								RedisplayValue:      true,
 								AllowOverrideSource: true,
 								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
 							},
 							{
 								Name:                "quux",
 								RedisplayValue:      true,
 								AllowOverrideSource: true,
 								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
 							},
 						},
 					},
@@ -175,7 +154,7 @@ func TestParse(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			response, err := api.Parse(ctx, &proto.Parse_Request{
+			response, err := api.DeprecatedParse(ctx, &proto.DeprecatedParse_Request{
 				Directory: directory,
 			})
 			require.NoError(t, err)

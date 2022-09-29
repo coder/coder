@@ -15,8 +15,8 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-// Parse extracts Terraform variables from source-code.
-func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+// DeprecatedParse extracts Terraform variables from source-code.
+func (*server) DeprecatedParse(request *proto.DeprecatedParse_Request, stream proto.DRPCProvisioner_DeprecatedParseStream) error {
 	// Load the module and print any parse errors.
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {
@@ -32,7 +32,7 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		return compareSourcePos(variables[i].Pos, variables[j].Pos)
 	})
 
-	parameters := make([]*proto.ParameterSchema, 0, len(variables))
+	parameters := make([]*proto.DeprecatedParameterSchema, 0, len(variables))
 	for _, v := range variables {
 		schema, err := convertVariableToParameter(v)
 		if err != nil {
@@ -42,9 +42,9 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		parameters = append(parameters, schema)
 	}
 
-	return stream.Send(&proto.Parse_Response{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{
+	return stream.Send(&proto.DeprecatedParse_Response{
+		Type: &proto.DeprecatedParse_Response_Complete{
+			Complete: &proto.DeprecatedParse_Complete{
 				ParameterSchemas: parameters,
 			},
 		},
@@ -52,16 +52,13 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 }
 
 // Converts a Terraform variable to a provisioner parameter.
-func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSchema, error) {
-	schema := &proto.ParameterSchema{
+func convertVariableToParameter(variable *tfconfig.Variable) (*proto.DeprecatedParameterSchema, error) {
+	schema := &proto.DeprecatedParameterSchema{
 		Name:                variable.Name,
 		Description:         variable.Description,
 		RedisplayValue:      !variable.Sensitive,
 		AllowOverrideSource: !variable.Sensitive,
 		ValidationValueType: variable.Type,
-		DefaultDestination: &proto.ParameterDestination{
-			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		},
 	}
 
 	if variable.Default != nil {
@@ -74,8 +71,8 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 			defaultData = string(defaultDataRaw)
 		}
 
-		schema.DefaultSource = &proto.ParameterSource{
-			Scheme: proto.ParameterSource_DATA,
+		schema.DefaultSource = &proto.DeprecatedParameterSource{
+			Scheme: proto.DeprecatedParameterSource_DATA,
 			Value:  defaultData,
 		}
 	}
@@ -90,7 +87,7 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		}
 		schema.ValidationCondition = string(filedata[validation.Condition.Range().Start.Byte:validation.Condition.Range().End.Byte])
 		schema.ValidationError = validation.ErrorMessage
-		schema.ValidationTypeSystem = proto.ParameterSchema_HCL
+		schema.ValidationTypeSystem = proto.DeprecatedParameterSchema_HCL
 	}
 
 	return schema, nil

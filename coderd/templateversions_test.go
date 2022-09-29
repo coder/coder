@@ -229,14 +229,11 @@ func TestTemplateVersionSchema(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
+			Parse: []*proto.DeprecatedParse_Response{{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 							Name: "example",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
 						}},
 					},
 				},
@@ -258,17 +255,14 @@ func TestTemplateVersionSchema(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
+			Parse: []*proto.DeprecatedParse_Response{{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 							Name:                 "example",
-							ValidationTypeSystem: proto.ParameterSchema_HCL,
+							ValidationTypeSystem: proto.DeprecatedParameterSchema_HCL,
 							ValidationValueType:  "string",
 							ValidationCondition:  `contains(["first", "second"], var.example)`,
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
 						}},
 					},
 				},
@@ -309,30 +303,24 @@ func TestTemplateVersionParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
+			Parse: []*proto.DeprecatedParse_Response{{
+				Type: &proto.DeprecatedParse_Response_Complete{
+					Complete: &proto.DeprecatedParse_Complete{
+						ParameterSchemas: []*proto.DeprecatedParameterSchema{
 							{
 								Name:           "example",
 								RedisplayValue: true,
-								DefaultSource: &proto.ParameterSource{
-									Scheme: proto.ParameterSource_DATA,
+								DefaultSource: &proto.DeprecatedParameterSource{
+									Scheme: proto.DeprecatedParameterSource_DATA,
 									Value:  "hello",
-								},
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 								},
 							},
 							{
 								Name:           "abcd",
 								RedisplayValue: true,
-								DefaultSource: &proto.ParameterSource{
-									Scheme: proto.ParameterSource_DATA,
+								DefaultSource: &proto.DeprecatedParameterSource{
+									Scheme: proto.DeprecatedParameterSource_DATA,
 									Value:  "world",
-								},
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 								},
 							},
 						},

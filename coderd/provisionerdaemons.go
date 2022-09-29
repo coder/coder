@@ -240,10 +240,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Convert types to their corresponding protobuf types.
-		protoParameters, err := convertComputedParameterValues(parameters)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
-		}
+		protoParameters := convertComputedParameterValues(parameters)
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -290,11 +287,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Convert types to their corresponding protobuf types.
-		protoParameters, err := convertComputedParameterValues(parameters)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("convert computed parameters to protobuf: %s", err))
-		}
-
+		protoParameters := convertComputedParameterValues(parameters)
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 				ParameterValues: protoParameters,
@@ -429,7 +422,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
 				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
 
-				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
+				AllowOverrideDestination: false,
 				AllowOverrideSource:      protoParameter.AllowOverrideSource,
 
 				Index: int32(index),
@@ -444,15 +437,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 				parameterSchema.DefaultSourceScheme = parameterSourceScheme
 				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
 			}
-
-			// It's possible a parameter doesn't define a default destination!
-			if protoParameter.DefaultDestination != nil {
-				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
-				}
-				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
-			}
+			parameterSchema.DefaultDestinationScheme = database.ParameterDestinationSchemeProvisionerVariable
 
 			_, err = server.Database.InsertParameterSchema(ctx, parameterSchema)
 			if err != nil {
@@ -479,11 +464,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
 		for _, computedParameter := range parameters {
-			converted, err := convertComputedParameterValue(computedParameter)
-			if err != nil {
-				return nil, xerrors.Errorf("convert parameter: %s", err)
-			}
-			protoParameters = append(protoParameters, converted)
+			protoParameters = append(protoParameters, convertComputedParameterValue(computedParameter))
 		}
 
 		return &proto.UpdateJobResponse{
@@ -862,34 +843,23 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	return nil
 }
 
-func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
+func convertValidationTypeSystem(typeSystem sdkproto.DeprecatedParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
 	switch typeSystem {
-	case sdkproto.ParameterSchema_None:
+	case sdkproto.DeprecatedParameterSchema_None:
 		return database.ParameterTypeSystemNone, nil
-	case sdkproto.ParameterSchema_HCL:
+	case sdkproto.DeprecatedParameterSchema_HCL:
 		return database.ParameterTypeSystemHCL, nil
 	default:
 		return database.ParameterTypeSystem(""), xerrors.Errorf("unknown type system: %d", typeSystem)
 	}
 }
 
-func convertParameterSourceScheme(sourceScheme sdkproto.ParameterSource_Scheme) (database.ParameterSourceScheme, error) {
+func convertParameterSourceScheme(sourceScheme sdkproto.DeprecatedParameterSource_Scheme) (database.ParameterSourceScheme, error) {
 	switch sourceScheme {
-	case sdkproto.ParameterSource_DATA:
+	case sdkproto.DeprecatedParameterSource_DATA:
 		return database.ParameterSourceSchemeData, nil
 	default:
 		return database.ParameterSourceScheme(""), xerrors.Errorf("unknown parameter source scheme: %d", sourceScheme)
-	}
-}
-
-func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDestination_Scheme) (database.ParameterDestinationScheme, error) {
-	switch destinationScheme {
-	case sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE:
-		return database.ParameterDestinationSchemeEnvironmentVariable, nil
-	case sdkproto.ParameterDestination_PROVISIONER_VARIABLE:
-		return database.ParameterDestinationSchemeProvisionerVariable, nil
-	default:
-		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
 	}
 }
 
@@ -921,35 +891,19 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	}
 }
 
-func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
+func convertComputedParameterValues(parameters []parameter.ComputedValue) []*sdkproto.ParameterValue {
 	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
 	for i, computedParameter := range parameters {
-		converted, err := convertComputedParameterValue(computedParameter)
-		if err != nil {
-			return nil, xerrors.Errorf("convert parameter: %w", err)
-		}
-		protoParameters[i] = converted
+		protoParameters[i] = convertComputedParameterValue(computedParameter)
 	}
-
-	return protoParameters, nil
+	return protoParameters
 }
 
-func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {
-	var scheme sdkproto.ParameterDestination_Scheme
-	switch param.DestinationScheme {
-	case database.ParameterDestinationSchemeEnvironmentVariable:
-		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
-	case database.ParameterDestinationSchemeProvisionerVariable:
-		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
-	default:
-		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
-	}
-
+func convertComputedParameterValue(param parameter.ComputedValue) *sdkproto.ParameterValue {
 	return &sdkproto.ParameterValue{
-		DestinationScheme: scheme,
-		Name:              param.Name,
-		Value:             param.SourceValue,
-	}, nil
+		Name:  param.Name,
+		Value: param.SourceValue,
+	}
 }
 
 func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkproto.WorkspaceTransition, error) {

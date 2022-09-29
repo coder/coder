@@ -41,16 +41,16 @@ func TestEcho(t *testing.T) {
 	t.Run("Parse", func(t *testing.T) {
 		t.Parallel()
 
-		responses := []*proto.Parse_Response{{
-			Type: &proto.Parse_Response_Log{
+		responses := []*proto.DeprecatedParse_Response{{
+			Type: &proto.DeprecatedParse_Response_Log{
 				Log: &proto.Log{
 					Output: "log-output",
 				},
 			},
 		}, {
-			Type: &proto.Parse_Response_Complete{
-				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
+			Type: &proto.DeprecatedParse_Response_Complete{
+				Complete: &proto.DeprecatedParse_Complete{
+					ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 						Name: "parameter-schema",
 					}},
 				},
@@ -60,7 +60,7 @@ func TestEcho(t *testing.T) {
 			Parse: responses,
 		})
 		require.NoError(t, err)
-		client, err := api.Parse(ctx, &proto.Parse_Request{
+		client, err := api.DeprecatedParse(ctx, &proto.DeprecatedParse_Request{
 			Directory: unpackTar(t, fs, data),
 		})
 		require.NoError(t, err)

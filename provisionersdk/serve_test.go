@@ -35,7 +35,7 @@ func TestProvisionerSDK(t *testing.T) {
 		}()
 
 		api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
-		stream, err := api.Parse(context.Background(), &proto.Parse_Request{})
+		stream, err := api.DeprecatedParse(context.Background(), &proto.DeprecatedParse_Request{})
 		require.NoError(t, err)
 		_, err = stream.Recv()
 		require.Equal(t, drpcerr.Unimplemented, int(drpcerr.Code(err)))

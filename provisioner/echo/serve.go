@@ -38,9 +38,9 @@ func formatExecValue(key, value string) string {
 
 var (
 	// ParseComplete is a helper to indicate an empty parse completion.
-	ParseComplete = []*proto.Parse_Response{{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{},
+	ParseComplete = []*proto.DeprecatedParse_Response{{
+		Type: &proto.DeprecatedParse_Response_Complete{
+			Complete: &proto.DeprecatedParse_Complete{},
 		},
 	}}
 	// ProvisionComplete is a helper to indicate an empty provision completion.
@@ -50,17 +50,14 @@ var (
 		},
 	}}
 
-	ParameterSuccess = []*proto.ParameterSchema{
+	ParameterSuccess = []*proto.DeprecatedParameterSchema{
 		{
 			AllowOverrideSource: true,
 			Name:                ParameterExecKey,
 			Description:         "description 1",
-			DefaultSource: &proto.ParameterSource{
-				Scheme: proto.ParameterSource_DATA,
+			DefaultSource: &proto.DeprecatedParameterSource{
+				Scheme: proto.DeprecatedParameterSource_DATA,
 				Value:  formatExecValue(successKey, ""),
-			},
-			DefaultDestination: &proto.ParameterDestination{
-				Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 			},
 		},
 	}
@@ -81,7 +78,7 @@ type echo struct {
 }
 
 // Parse reads requests from the provided directory to stream responses.
-func (e *echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+func (e *echo) DeprecatedParse(request *proto.DeprecatedParse_Request, stream proto.DRPCProvisioner_DeprecatedParseStream) error {
 	for index := 0; ; index++ {
 		path := filepath.Join(request.Directory, fmt.Sprintf("%d.parse.protobuf", index))
 		_, err := e.filesystem.Stat(path)
@@ -96,7 +93,7 @@ func (e *echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		if err != nil {
 			return xerrors.Errorf("read file %q: %w", path, err)
 		}
-		var response proto.Parse_Response
+		var response proto.DeprecatedParse_Response
 		err = protobuf.Unmarshal(data, &response)
 		if err != nil {
 			return xerrors.Errorf("unmarshal: %w", err)
@@ -175,7 +172,7 @@ func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 }
 
 type Responses struct {
-	Parse           []*proto.Parse_Response
+	Parse           []*proto.DeprecatedParse_Response
 	Provision       []*proto.Provision_Response
 	ProvisionDryRun []*proto.Provision_Response
 }

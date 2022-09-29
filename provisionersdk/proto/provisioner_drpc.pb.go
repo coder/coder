@@ -38,7 +38,7 @@ func (drpcEncoding_File_provisionersdk_proto_provisioner_proto) JSONUnmarshal(bu
 type DRPCProvisionerClient interface {
 	DRPCConn() drpc.Conn
 
-	Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error)
+	DeprecatedParse(ctx context.Context, in *DeprecatedParse_Request) (DRPCProvisioner_DeprecatedParseClient, error)
 	Provision(ctx context.Context) (DRPCProvisioner_ProvisionClient, error)
 }
 
@@ -52,12 +52,12 @@ func NewDRPCProvisionerClient(cc drpc.Conn) DRPCProvisionerClient {
 
 func (c *drpcProvisionerClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcProvisionerClient) Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
+func (c *drpcProvisionerClient) DeprecatedParse(ctx context.Context, in *DeprecatedParse_Request) (DRPCProvisioner_DeprecatedParseClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/DeprecatedParse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcProvisioner_ParseClient{stream}
+	x := &drpcProvisioner_DeprecatedParseClient{stream}
 	if err := x.MsgSend(in, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
 		return nil, err
 	}
@@ -67,24 +67,24 @@ func (c *drpcProvisionerClient) Parse(ctx context.Context, in *Parse_Request) (D
 	return x, nil
 }
 
-type DRPCProvisioner_ParseClient interface {
+type DRPCProvisioner_DeprecatedParseClient interface {
 	drpc.Stream
-	Recv() (*Parse_Response, error)
+	Recv() (*DeprecatedParse_Response, error)
 }
 
-type drpcProvisioner_ParseClient struct {
+type drpcProvisioner_DeprecatedParseClient struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisioner_ParseClient) Recv() (*Parse_Response, error) {
-	m := new(Parse_Response)
+func (x *drpcProvisioner_DeprecatedParseClient) Recv() (*DeprecatedParse_Response, error) {
+	m := new(DeprecatedParse_Response)
 	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcProvisioner_ParseClient) RecvMsg(m *Parse_Response) error {
+func (x *drpcProvisioner_DeprecatedParseClient) RecvMsg(m *DeprecatedParse_Response) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
@@ -124,13 +124,13 @@ func (x *drpcProvisioner_ProvisionClient) RecvMsg(m *Provision_Response) error {
 }
 
 type DRPCProvisionerServer interface {
-	Parse(*Parse_Request, DRPCProvisioner_ParseStream) error
+	DeprecatedParse(*DeprecatedParse_Request, DRPCProvisioner_DeprecatedParseStream) error
 	Provision(DRPCProvisioner_ProvisionStream) error
 }
 
 type DRPCProvisionerUnimplementedServer struct{}
 
-func (s *DRPCProvisionerUnimplementedServer) Parse(*Parse_Request, DRPCProvisioner_ParseStream) error {
+func (s *DRPCProvisionerUnimplementedServer) DeprecatedParse(*DeprecatedParse_Request, DRPCProvisioner_DeprecatedParseStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -145,14 +145,14 @@ func (DRPCProvisionerDescription) NumMethods() int { return 2 }
 func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
+		return "/provisioner.Provisioner/DeprecatedParse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCProvisionerServer).
-					Parse(
-						in1.(*Parse_Request),
-						&drpcProvisioner_ParseStream{in2.(drpc.Stream)},
+					DeprecatedParse(
+						in1.(*DeprecatedParse_Request),
+						&drpcProvisioner_DeprecatedParseStream{in2.(drpc.Stream)},
 					)
-			}, DRPCProvisionerServer.Parse, true
+			}, DRPCProvisionerServer.DeprecatedParse, true
 	case 1:
 		return "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
@@ -170,16 +170,16 @@ func DRPCRegisterProvisioner(mux drpc.Mux, impl DRPCProvisionerServer) error {
 	return mux.Register(impl, DRPCProvisionerDescription{})
 }
 
-type DRPCProvisioner_ParseStream interface {
+type DRPCProvisioner_DeprecatedParseStream interface {
 	drpc.Stream
-	Send(*Parse_Response) error
+	Send(*DeprecatedParse_Response) error
 }
 
-type drpcProvisioner_ParseStream struct {
+type drpcProvisioner_DeprecatedParseStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisioner_ParseStream) Send(m *Parse_Response) error {
+func (x *drpcProvisioner_DeprecatedParseStream) Send(m *DeprecatedParse_Response) error {
 	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 

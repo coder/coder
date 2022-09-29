@@ -130,7 +130,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.Provisioners{
 			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
-				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
+				deprecatedParse: func(request *sdkproto.DeprecatedParse_Request, stream sdkproto.DRPCProvisioner_DeprecatedParseStream) error {
 					closerMutex.Lock()
 					defer closerMutex.Unlock()
 					return closer.Close()
@@ -213,7 +213,7 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.Provisioners{
 			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
-				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
+				deprecatedParse: func(request *sdkproto.DeprecatedParse_Request, stream sdkproto.DRPCProvisioner_DeprecatedParseStream) error {
 					<-stream.Context().Done()
 					return nil
 				},
@@ -273,13 +273,13 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.Provisioners{
 			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
-				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
+				deprecatedParse: func(request *sdkproto.DeprecatedParse_Request, stream sdkproto.DRPCProvisioner_DeprecatedParseStream) error {
 					data, err := os.ReadFile(filepath.Join(request.Directory, "test.txt"))
 					require.NoError(t, err)
 					require.Equal(t, "content", string(data))
 
-					err = stream.Send(&sdkproto.Parse_Response{
-						Type: &sdkproto.Parse_Response_Log{
+					err = stream.Send(&sdkproto.DeprecatedParse_Response{
+						Type: &sdkproto.DeprecatedParse_Response_Log{
 							Log: &sdkproto.Log{
 								Level:  sdkproto.LogLevel_INFO,
 								Output: "hello",
@@ -288,9 +288,9 @@ func TestProvisionerd(t *testing.T) {
 					})
 					require.NoError(t, err)
 
-					err = stream.Send(&sdkproto.Parse_Response{
-						Type: &sdkproto.Parse_Response_Complete{
-							Complete: &sdkproto.Parse_Complete{},
+					err = stream.Send(&sdkproto.DeprecatedParse_Response{
+						Type: &sdkproto.DeprecatedParse_Response_Complete{
+							Complete: &sdkproto.DeprecatedParse_Complete{},
 						},
 					})
 					require.NoError(t, err)
@@ -342,14 +342,12 @@ func TestProvisionerd(t *testing.T) {
 
 			parameterValues = []*sdkproto.ParameterValue{
 				{
-					DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-					Name:              "test_var",
-					Value:             "dean was here",
+					Name:  "test_var",
+					Value: "dean was here",
 				},
 				{
-					DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-					Name:              "test_var_2",
-					Value:             "1234",
+					Name:  "test_var_2",
+					Value: "1234",
 				},
 			}
 			metadata = &sdkproto.Provision_Metadata{}
@@ -1011,12 +1009,12 @@ func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkprot
 }
 
 type provisionerTestServer struct {
-	parse     func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error
-	provision func(stream sdkproto.DRPCProvisioner_ProvisionStream) error
+	deprecatedParse func(request *sdkproto.DeprecatedParse_Request, stream sdkproto.DRPCProvisioner_DeprecatedParseStream) error
+	provision       func(stream sdkproto.DRPCProvisioner_ProvisionStream) error
 }
 
-func (p *provisionerTestServer) Parse(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
-	return p.parse(request, stream)
+func (p *provisionerTestServer) DeprecatedParse(request *sdkproto.DeprecatedParse_Request, stream sdkproto.DRPCProvisioner_DeprecatedParseStream) error {
+	return p.deprecatedParse(request, stream)
 }
 
 func (p *provisionerTestServer) Provision(stream sdkproto.DRPCProvisioner_ProvisionStream) error {

@@ -258,17 +258,14 @@ func TestTemplateCreate(t *testing.T) {
 	})
 }
 
-func createTestParseResponse() []*proto.Parse_Response {
-	return []*proto.Parse_Response{{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{
-				ParameterSchemas: []*proto.ParameterSchema{{
+func createTestParseResponse() []*proto.DeprecatedParse_Response {
+	return []*proto.DeprecatedParse_Response{{
+		Type: &proto.DeprecatedParse_Response_Complete{
+			Complete: &proto.DeprecatedParse_Complete{
+				ParameterSchemas: []*proto.DeprecatedParameterSchema{{
 					AllowOverrideSource: true,
 					Name:                "region",
 					Description:         "description",
-					DefaultDestination: &proto.ParameterDestination{
-						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-					},
 				}},
 			},
 		},

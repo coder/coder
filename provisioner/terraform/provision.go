@@ -175,14 +175,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 func provisionVars(start *proto.Provision_Start) ([]string, error) {
 	vars := []string{}
 	for _, param := range start.ParameterValues {
-		switch param.DestinationScheme {
-		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			continue
-		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		default:
-			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
-		}
+		vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
 	}
 	return vars, nil
 }
@@ -200,16 +193,6 @@ func provisionEnv(start *proto.Provision_Start) ([]string, error) {
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
-	}
-	for _, param := range start.ParameterValues {
-		switch param.DestinationScheme {
-		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			continue
-		default:
-			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
-		}
 	}
 	return env, nil
 }

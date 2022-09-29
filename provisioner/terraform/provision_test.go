@@ -115,9 +115,8 @@ func TestProvision_Cancel(t *testing.T) {
 						Directory: dir,
 						DryRun:    false,
 						ParameterValues: []*proto.ParameterValue{{
-							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							Name:              "A",
-							Value:             "example",
+							Name:  "A",
+							Value: "example",
 						}},
 						Metadata: &proto.Provision_Metadata{},
 					},
@@ -193,9 +192,8 @@ func TestProvision(t *testing.T) {
 				Type: &proto.Provision_Request_Start{
 					Start: &proto.Provision_Start{
 						ParameterValues: []*proto.ParameterValue{{
-							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							Name:              "A",
-							Value:             "example",
+							Name:  "A",
+							Value: "example",
 						}},
 					},
 				},
@@ -296,26 +294,6 @@ func TestProvision(t *testing.T) {
 				},
 			},
 			ExpectLogContains: "nothing to do",
-		},
-		{
-			Name: "unsupported-parameter-scheme",
-			Files: map[string]string{
-				"main.tf": "",
-			},
-			Request: &proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						ParameterValues: []*proto.ParameterValue{
-							{
-								DestinationScheme: 88,
-								Name:              "UNSUPPORTED",
-								Value:             "sadface",
-							},
-						},
-					},
-				},
-			},
-			ErrorContains: "unsupported parameter type",
 		},
 	}
 
