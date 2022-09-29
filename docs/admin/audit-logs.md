@@ -5,7 +5,7 @@ their deployment.
 
 ## Tracked Events
 
-We tracks **create, update and delete** events for the following resources:
+We track **create, update and delete** events for the following resources:
 
 - GitSSHKey
 - Template
