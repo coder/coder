@@ -71,10 +71,8 @@ func (t Template) SetUserACL(acl TemplateACL) Template {
 
 func templateRoleToActions(t TemplateRole) []rbac.Action {
 	switch t {
-	case TemplateRoleRead:
+	case TemplateRoleView:
 		return []rbac.Action{rbac.ActionRead}
-	case TemplateRoleWrite:
-		return []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}
 	case TemplateRoleAdmin:
 		// TODO: Why does rbac.Wildcard not work here?
 		return []rbac.Action{rbac.ActionRead, rbac.ActionUpdate, rbac.ActionCreate, rbac.ActionDelete}
