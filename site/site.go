@@ -108,11 +108,11 @@ type csrfState struct {
 func ShouldCacheFile(reqFile string) bool {
 	// Images, favicons and uniquely content hashed bundle assets should be
 	// cached. By default, we cache everything in the site/out directory except
-	// for deny-listed items enumerated here. The reason for this approach is
-	// that cache invalidation techniques should be used by default for all
-	// webpack-processed assets. The scenarios where we don't use cache
-	// invalidation techniques are one-offs or things that should have
-	// invalidation in the future.
+	// for deny-listed items enumerated here. The reason for this approach is that
+	// cache invalidation techniques should be used by default for all build
+	// processed assets. The scenarios where we don't use cache invalidation
+	// techniques are one-offs or things that should have invalidation in the
+	// future.
 	denyListedSuffixes := []string{
 		// ALL *.html files
 		".html",

@@ -6,7 +6,6 @@
   "scripts": {
     "postinstall": "yarn typegen",
     "build": "NODE_ENV=production yarn vite build",
-    "build:analyze": "NODE_ENV=production webpack --profile --progress --json --config=webpack.prod.ts > out/stats.json && webpack-bundle-analyzer out/stats.json out",
     "check:all": "yarn format:check && yarn lint && yarn test",
     "chromatic": "chromatic",
     "dev": "vite",
@@ -99,9 +98,7 @@
     "@xstate/cli": "0.3.0",
     "canvas": "2.10.0",
     "chromatic": "6.9.0",
-    "copy-webpack-plugin": "10.2.4",
     "css-loader": "6.7.1",
-    "css-minimizer-webpack-plugin": "3.4.1",
     "eslint": "8.23.0",
     "eslint-config-prettier": "8.5.0",
     "eslint-import-resolver-alias": "1.1.2",
@@ -114,7 +111,6 @@
     "eslint-plugin-react": "7.31.1",
     "eslint-plugin-react-hooks": "4.6.0",
     "eslint-plugin-unicorn": "43.0.2",
-    "html-webpack-plugin": "5.5.0",
     "jest": "27.5.1",
     "jest-canvas-mock": "2.4.0",
     "jest-junit": "14.0.0",
@@ -131,10 +127,7 @@
     "ts-jest": "27.1.4",
     "ts-loader": "9.3.1",
     "ts-node": "10.9.1",
-    "typescript": "4.8.2",
-    "webpack": "5.74.0",
-    "webpack-bundle-analyzer": "4.6.1",
-    "webpack-cli": "4.10.0"
+    "typescript": "4.8.2"
   },
   "browserslist": [
     "chrome 66",
