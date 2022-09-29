@@ -68,10 +68,19 @@ jobs:
               - "**.sh"
             gen:
               - coderd/database/dump.sql
+              - coderd/database/gen/dump/main.go
+              - coderd/database/gen/enum/main.go
+              - coderd/database/generate.sh
+              - coderd/database/migrations/*.sql
               - coderd/database/querier.go
+              - coderd/database/queries/*.sql
+              - coderd/database/sqlc.yaml
               - provisionersdk/proto/provisioner.pb.go
+              - provisionersdk/proto/provisioner.proto
               - provisionerd/proto/provisionerd.pb.go
+              - provisionerd/proto/provisionerd.proto
               - site/src/api/typesGenerated.ts
+              - scripts/apitypings/main.go
             go:
               - "**.go"
             tf:
