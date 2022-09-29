@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSource from "eventsourcemock"
@@ -94,7 +93,7 @@ describe("WorkspacePage", () => {
     const stopWorkspaceMock = jest
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
-    testButton(Language.stop, stopWorkspaceMock)
+    await testButton(Language.stop, stopWorkspaceMock)
   })
 
   it("requests a delete job when the user presses Delete and confirms", async () => {
@@ -128,7 +127,7 @@ describe("WorkspacePage", () => {
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    testButton(Language.start, startWorkspaceMock)
+    await testButton(Language.start, startWorkspaceMock)
   })
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
