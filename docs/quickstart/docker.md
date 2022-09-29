@@ -15,13 +15,13 @@ Coder with Docker has the following advantages:
 
 1.  [Install and launch Coder](../install)
 
-    You will specify `CODER_ACCESS_URL=http://localhost:7080` since we're using
+    Specify `CODER_ACCESS_URL=http://localhost:7080` since we're using
     local Docker workspaces exclusively. `CODER_ACCESS_URL` is the external URL
     to access Coder. The rest of the Docker quickstart guide will assume that
     this is your Access URL.
 
-    You will also specify `CODER_ADDRESS=0.0.0.0:7080` which is the address to
-    serve the API and dashboard.
+    Also, set `CODER_ADDRESS=0.0.0.0:7080` which is the address coder
+    serve the API and dashboard at.
 
     ```bash
     coder server --address $CODER_ADDRESS --access-url $CODER_ACCESS_URL
@@ -30,39 +30,14 @@ Coder with Docker has the following advantages:
 1.  Run `coder login http://localhost:7080` in a new terminal and follow the
     interactive instructions to create your user.
 
-1.  Pull the example template:
+1.  Pull the example template using the interactive `coder templates init`:
 
     ```bash
-    echo "docker" | coder templates init
-    cd docker
-    # You should see a `main.tf` file in this directory
+    $ coder templates init
+    $ cd docker
     ```
 
-1.  Open up `main.tf` in your preferred editor to edit the images
-
-    You can skip this step if you're fine with our default, generic OS images.
-
-    Search for the following section in `main.tf`:
-
-    ```hcl
-    ...
-    variable "docker_image" {
-     description = "Which Docker image would you like to use for your workspace?"
-     # The codercom/enterprise-* images are only built for amd64
-     default = "codercom/enterprise-base:ubuntu"
-     validation {
-         condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu",
-                                 "codercom/enterprise-intellij:ubuntu", "codercom/enterprise-golang:ubuntu"], var.docker_image)
-         error_message = "Invalid Docker image!"
-     }
-    }
-    ...
-    ```
-
-    And edit the strings in `condition = contains([...])` and `default = ...`
-    with your preferred images.
-
-1.  Push up the template to Coder with `coder templates create`
+1.  Push up the template with `coder templates create`
 1.  Open the dashboard in your browser (http://localhost:7080) to create your
     first workspace:
 
