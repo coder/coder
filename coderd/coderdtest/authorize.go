@@ -521,7 +521,7 @@ func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []str
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
