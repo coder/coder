@@ -102,21 +102,20 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
           />
-        ) : (
-          null
-        )}
+        ) : null}
         {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] ? (
           <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
           />
-        ) : (
-          null
-        )}
+        ) : null}
       </Stack>
     )
   }
 
-  const canSubmit = props.quota && props.quota.user_workspace_limit > 0 && props.quota.user_workspace_count < props.quota.user_workspace_limit
+  const canSubmit =
+    props.quota &&
+    props.quota.user_workspace_limit > 0 &&
+    props.quota.user_workspace_count < props.quota.user_workspace_limit
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
@@ -182,9 +181,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                     props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
                   }
                 />
-              ) : (
-                null
-              )}
+              ) : null}
 
               <FormFooter
                 onCancel={props.onCancel}
