@@ -14,6 +14,7 @@ export type UserAutocompleteProps = {
   onChange: (user: User | null) => void
   label?: string
   inputMargin?: "none" | "dense" | "normal"
+  inputStyles?: string
 }
 
 export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
@@ -21,6 +22,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
   onChange,
   label,
   inputMargin,
+  inputStyles,
 }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
@@ -88,6 +90,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
           margin={inputMargin ?? "normal"}
           label={label ?? undefined}
           placeholder="User email or username"
+          className={inputStyles}
           InputProps={{
             ...params.InputProps,
             onChange: handleFilterChange,
