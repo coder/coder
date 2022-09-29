@@ -1015,14 +1015,14 @@ func printLogo(cmd *cobra.Command, spooky bool) {
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
+	if len(tlsCertFiles) != len(tlsKeyFiles) {
+		return nil, xerrors.New("--tls-cert-file and --tls-key-file must be used the same amount of times")
+	}
 	if len(tlsCertFiles) == 0 {
-		return nil, xerrors.New("tls-cert-file is required when tls is enabled")
+		return nil, xerrors.New("--tls-cert-file is required when tls is enabled")
 	}
 	if len(tlsKeyFiles) == 0 {
-		return nil, xerrors.New("tls-key-file is required when tls is enabled")
-	}
-	if len(tlsCertFiles) != len(tlsKeyFiles) {
-		return nil, xerrors.New("tls-cert-file and tls-key-file must be used the same amount of times")
+		return nil, xerrors.New("--tls-key-file is required when tls is enabled")
 	}
 
 	certs := make([]tls.Certificate, len(tlsCertFiles))
@@ -1089,8 +1089,8 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tl
 			}
 		}
 
-		// Return the first certificate if we have one, or return nil so the server
-		// doesn't fail.
+		// Return the first certificate if we have one, or return nil so the
+		// server doesn't fail.
 		if len(certs) > 0 {
 			return &certs[0], nil
 		}
