@@ -365,6 +365,67 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.Len(t, acl.Users, 0)
 	})
 
+	t.Run("CustomGroupHasAccess", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		// Create a group to add to the template.
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "test",
+		})
+		require.NoError(t, err)
+
+		// Check that the only current group is the allUsers group.
+		acl, err := client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Len(t, acl.Groups, 1)
+
+		// Update the template to only allow access to the 'test' group.
+		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			GroupPerms: map[string]codersdk.TemplateRole{
+				acl.Groups[0].ID.String(): codersdk.TemplateRoleDeleted,
+				group.ID.String():         codersdk.TemplateRoleView,
+			},
+		})
+		require.NoError(t, err)
+
+		// Get the ACL list for the template and assert the test group is
+		// present.
+		acl, err = client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+
+		require.Len(t, acl.Groups, 1)
+		require.Len(t, acl.Users, 0)
+		require.Equal(t, group.ID, acl.Groups[0].ID)
+
+		// Try to get the template as the regular user. This should
+		// fail since we haven't been added to the template yet.
+		_, err = client1.Template(ctx, template.ID)
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		// Patch the group to add the regular user.
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user1.ID.String()},
+		})
+		require.NoError(t, err)
+		require.Len(t, group.Members, 1)
+		require.Equal(t, user1.ID, group.Members[0].ID)
+
+		// Fetching the template should succeed since our group has view access.
+		_, err = client1.Template(ctx, template.ID)
+		require.NoError(t, err)
+	})
+
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
