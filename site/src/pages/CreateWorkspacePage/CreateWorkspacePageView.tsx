@@ -149,6 +149,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                   onChange={(user) => props.setOwner(user)}
                   label={t("ownerLabel")}
                   inputMargin="dense"
+                  showAvatar
                 />
               )}
 
