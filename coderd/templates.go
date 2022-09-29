@@ -300,7 +300,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 
 		err = tx.UpdateTemplateGroupACLByID(ctx, dbTemplate.ID, database.TemplateACL{
-			dbTemplate.OrganizationID.String(): database.TemplateRoleView,
+			dbTemplate.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
 		})
 		if err != nil {
 			return xerrors.Errorf("update template group acl: %w", err)
@@ -718,7 +718,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		err = tx.UpdateTemplateGroupACLByID(ctx, template.ID, database.TemplateACL{
-			opts.orgID.String(): database.TemplateRoleView,
+			opts.orgID.String(): []rbac.Action{rbac.ActionRead},
 		})
 		if err != nil {
 			return xerrors.Errorf("update template group acl: %w", err)

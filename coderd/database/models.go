@@ -294,25 +294,6 @@ func (e *ResourceType) Scan(src interface{}) error {
 	return nil
 }
 
-type TemplateRole string
-
-const (
-	TemplateRoleView  TemplateRole = "view"
-	TemplateRoleAdmin TemplateRole = "admin"
-)
-
-func (e *TemplateRole) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TemplateRole(s)
-	case string:
-		*e = TemplateRole(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TemplateRole: %T", src)
-	}
-	return nil
-}
-
 type UserStatus string
 
 const (

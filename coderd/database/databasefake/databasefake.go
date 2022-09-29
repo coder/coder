@@ -1305,8 +1305,8 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 		}
 
 		users = append(users, database.TemplateUser{
-			User: user,
-			Role: v,
+			User:    user,
+			Actions: v,
 		})
 	}
 
@@ -1344,8 +1344,8 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 		}
 
 		groups = append(groups, database.TemplateGroup{
-			Group: group,
-			Role:  v,
+			Group:   group,
+			Actions: v,
 		})
 	}
 
@@ -1834,7 +1834,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	}
 	template = template.SetUserACL(database.TemplateACL{})
 	template = template.SetGroupACL(database.TemplateACL{
-		database.AllUsersGroup: database.TemplateRoleView,
+		arg.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
 	})
 	q.templates = append(q.templates, template)
 	return template, nil

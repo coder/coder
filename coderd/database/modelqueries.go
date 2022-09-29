@@ -24,7 +24,7 @@ type templateQuerier interface {
 
 type TemplateUser struct {
 	User
-	Role TemplateRole `db:"role"`
+	Actions Actions `db:"actions"`
 }
 
 func (q *sqlQuerier) UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
@@ -52,7 +52,7 @@ WHERE
 func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error) {
 	const query = `
 	SELECT
-		perms.value as role, users.*
+		perms.value as actions, users.*
 	FROM
 		users
 	JOIN
@@ -78,7 +78,7 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 	var tus []TemplateUser
 	err := q.db.SelectContext(ctx, &tus, query, id.String())
 	if err != nil {
-		return nil, xerrors.Errorf("select context: %w", err)
+		return nil, xerrors.Errorf("select user actions: %w", err)
 	}
 
 	return tus, nil
@@ -86,7 +86,7 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 
 type TemplateGroup struct {
 	Group
-	Role TemplateRole
+	Actions Actions `db:"actions"`
 }
 
 func (q *sqlQuerier) UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
@@ -114,7 +114,7 @@ WHERE
 func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error) {
 	const query = `
 	SELECT
-		perms.value as role, groups.*
+		perms.value as actions, groups.*
 	FROM
 		groups
 	JOIN
@@ -140,7 +140,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 	var tgs []TemplateGroup
 	err := q.db.SelectContext(ctx, &tgs, query, id.String())
 	if err != nil {
-		return nil, xerrors.Errorf("select context: %w", err)
+		return nil, xerrors.Errorf("select group roles: %w", err)
 	}
 
 	return tgs, nil

@@ -83,11 +83,6 @@ CREATE TYPE resource_type AS ENUM (
     'api_key'
 );
 
-CREATE TYPE template_role AS ENUM (
-    'view',
-    'admin'
-);
-
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended'

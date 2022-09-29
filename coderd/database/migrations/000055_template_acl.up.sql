@@ -3,11 +3,6 @@ BEGIN;
 ALTER TABLE templates ADD COLUMN user_acl jsonb NOT NULL default '{}';
 ALTER TABLE templates ADD COLUMN group_acl jsonb NOT NULL default '{}';
 
-CREATE TYPE template_role AS ENUM (
-	'view',
-	'admin'
-);
-
 CREATE TABLE groups (
 	id uuid NOT NULL,
 	name text NOT NULL,

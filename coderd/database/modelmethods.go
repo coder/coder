@@ -10,16 +10,7 @@ import (
 const AllUsersGroup = "allUsers"
 
 // TemplateACL is a map of user_ids to permissions.
-type TemplateACL map[string]TemplateRole
-
-func (u TemplateACL) Actions() map[string][]rbac.Action {
-	aclRBAC := make(map[string][]rbac.Action, len(u))
-	for k, v := range u {
-		aclRBAC[k] = templateRoleToActions(v)
-	}
-
-	return aclRBAC
-}
+type TemplateACL map[string][]rbac.Action
 
 func (t Template) UserACL() TemplateACL {
 	var acl TemplateACL
@@ -69,17 +60,6 @@ func (t Template) SetUserACL(acl TemplateACL) Template {
 	return t
 }
 
-func templateRoleToActions(t TemplateRole) []rbac.Action {
-	switch t {
-	case TemplateRoleView:
-		return []rbac.Action{rbac.ActionRead}
-	case TemplateRoleAdmin:
-		// TODO: Why does rbac.Wildcard not work here?
-		return []rbac.Action{rbac.ActionRead, rbac.ActionUpdate, rbac.ActionCreate, rbac.ActionDelete}
-	}
-	return nil
-}
-
 func (s APIKeyScope) ToRBAC() rbac.Scope {
 	switch s {
 	case APIKeyScopeAll:
@@ -94,8 +74,8 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 func (t Template) RBACObject() rbac.Object {
 	obj := rbac.ResourceTemplate
 	return obj.InOrg(t.OrganizationID).
-		WithACLUserList(t.UserACL().Actions()).
-		WithGroupACL(t.GroupACL().Actions())
+		WithACLUserList(t.UserACL()).
+		WithGroupACL(t.GroupACL())
 }
 
 func (TemplateVersion) RBACObject(template Template) rbac.Object {
