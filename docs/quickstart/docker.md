@@ -20,17 +20,19 @@ Coder with Docker has the following advantages:
     to access Coder. The rest of the Docker quickstart guide will assume that
     this is your Access URL.
 
-    Also, set `CODER_ADDRESS=*:7080` which is the address coder
+    Also, set `CODER_ADDRESS=:7080` which is the address coder
     serve the API and dashboard at.
 
     ```bash
-    coder server --address $CODER_ADDRESS --access-url $CODER_ACCESS_URL
+    $ export CODER_ADDRESS=:7080
+    $ export CODER_ACCESS_URL=http://localhost:7080
+    $ coder server --address $CODER_ADDRESS --access-url $CODER_ACCESS_URL
     ```
 
 1.  Run `coder login http://localhost:7080` in a new terminal and follow the
     interactive instructions to create your user.
 
-1.  Pull the example template using the interactive `coder templates init`:
+1.  Pull the "Docker" example template using the interactive `coder templates init`:
 
     ```bash
     $ coder templates init

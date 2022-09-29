@@ -11,7 +11,7 @@ Follow the on-screen instructions to proceed.
 
 ## Editing the image
 
-Simply edit the `Dockerfile` and run `coder templates push` to update workspaces.
+Edit the `Dockerfile` and run `coder templates push` to update workspaces.
 
 ## code-server
 
