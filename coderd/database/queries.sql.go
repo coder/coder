@@ -1001,6 +1001,31 @@ func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Gro
 	return items, nil
 }
 
+const insertAllUsersGroup = `-- name: InsertAllUsersGroup :one
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+VALUES
+	( $1, $2, $1) RETURNING id, name, organization_id
+`
+
+type InsertAllUsersGroupParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+// We use the organization_id as the id
+// for simplicity since all users is
+// every member of the org.
+func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, arg InsertAllUsersGroupParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, insertAllUsersGroup, arg.OrganizationID, arg.Name)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
 const insertGroup = `-- name: InsertGroup :one
 INSERT INTO groups (
 	id,

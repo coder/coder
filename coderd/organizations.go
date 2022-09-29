@@ -83,10 +83,9 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("create organization admin: %w", err)
 		}
 
-		_, err = tx.InsertGroup(ctx, database.InsertGroupParams{
-			ID:             uuid.New(),
-			Name:           database.AllUsersGroup,
+		_, err = tx.InsertAllUsersGroup(ctx, database.InsertAllUsersGroupParams{
 			OrganizationID: organization.ID,
+			Name:           database.AllUsersGroup,
 		})
 		if err != nil {
 			return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
