@@ -105,7 +105,7 @@ export const createWorkspaceMachine = createMachine(
           id: "checkPermissions",
           onDone: {
             actions: ["assignPermissions"],
-            target: "fillingParams",
+            target: "gettingWorkspaceQuota",
           },
           onError: {
             actions: ["assignCheckPermissionsError"],
