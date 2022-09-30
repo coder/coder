@@ -320,7 +320,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	workspaceCount, err := api.Database.GetWorkspaceCountByUserID(ctx, user.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error fetching workspace count."),
+			Message: "Internal error fetching workspace count.",
 			Detail:  err.Error(),
 		})
 		return
