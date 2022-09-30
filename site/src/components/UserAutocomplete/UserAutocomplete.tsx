@@ -1,13 +1,14 @@
 import CircularProgress from "@material-ui/core/CircularProgress"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import Autocomplete from "@material-ui/lab/Autocomplete"
 import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
-import { ChangeEvent, useEffect, useState } from "react"
+import { ChangeEvent, FC, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
+import { AutocompleteAvatar } from "./AutocompleteAvatar"
 
 export type UserAutocompleteProps = {
   value: User | null
@@ -15,16 +16,18 @@ export type UserAutocompleteProps = {
   label?: string
   inputMargin?: "none" | "dense" | "normal"
   inputStyles?: string
+  showAvatar?: boolean
 }
 
-export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
+export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   value,
   onChange,
   label,
   inputMargin,
   inputStyles,
+  showAvatar = false,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({ showAvatar })
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
@@ -94,6 +97,9 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
           InputProps={{
             ...params.InputProps,
             onChange: handleFilterChange,
+            startAdornment: (
+              <>{showAvatar && selectedValue && <AutocompleteAvatar user={selectedValue} />}</>
+            ),
             endAdornment: (
               <>
                 {searchState.matches("searching") ? <CircularProgress size={16} /> : null}
@@ -106,9 +112,14 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
     />
   )
 }
-export const useStyles = makeStyles((theme) => {
+
+interface styleProps {
+  showAvatar: boolean
+}
+
+export const useStyles = makeStyles<Theme, styleProps>((theme) => {
   return {
-    autocomplete: {
+    autocomplete: (props) => ({
       width: "100%",
 
       "& .MuiFormControl-root": {
@@ -118,14 +129,14 @@ export const useStyles = makeStyles((theme) => {
       "& .MuiInputBase-root": {
         width: "100%",
         // Match button small height
-        height: 40,
+        height: props.showAvatar ? 60 : 40,
       },
 
       "& input": {
         fontSize: 16,
         padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
       },
-    },
+    }),
 
     avatar: {
       width: theme.spacing(4.5),
