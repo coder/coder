@@ -16,6 +16,7 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
+  createGroup: "createGroup",
 } as const
 
 export const permissionsToCheck = {
@@ -54,6 +55,12 @@ export const permissionsToCheck = {
       resource_type: "audit_log",
     },
     action: "read",
+  },
+  [checks.createGroup]: {
+    object: {
+      resource_type: "group",
+    },
+    action: "create",
   },
 } as const
 

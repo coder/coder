@@ -17,6 +17,7 @@ import { EmptyState } from "components/EmptyState/EmptyState"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useOrganizationId } from "hooks/useOrganizationId"
+import { usePermissions } from "hooks/usePermissions"
 import React from "react"
 import { Helmet } from "react-helmet-async"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
@@ -35,6 +36,7 @@ export const GroupsPage: React.FC = () => {
   const isEmpty = Boolean(groups && groups.length === 0)
   const navigate = useNavigate()
   const styles = useStyles()
+  const { createGroup: canCreateGroup } = usePermissions()
 
   return (
     <>
@@ -61,11 +63,17 @@ export const GroupsPage: React.FC = () => {
                   <TableCell colSpan={999}>
                     <EmptyState
                       message="No groups yet"
-                      description="Create your first group"
+                      description={
+                        canCreateGroup
+                          ? "Create your first group"
+                          : "You don't have permission to create a group"
+                      }
                       cta={
-                        <Link underline="none" component={RouterLink} to="/groups/create">
-                          <Button startIcon={<AddCircleOutline />}>Create group</Button>
-                        </Link>
+                        canCreateGroup && (
+                          <Link underline="none" component={RouterLink} to="/groups/create">
+                            <Button startIcon={<AddCircleOutline />}>Create group</Button>
+                          </Link>
+                        )
                       }
                     />
                   </TableCell>

@@ -13,7 +13,7 @@ import { Stack } from "../../components/Stack/Stack"
 
 export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
-  const { createUser: canCreateUser } = usePermissions()
+  const { createUser: canCreateUser, createGroup: canCreateGroup } = usePermissions()
   const navigate = useNavigate()
 
   return (
@@ -21,8 +21,8 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
       <Margins>
         <PageHeader
           actions={
-            canCreateUser ? (
-              <>
+            <>
+              {canCreateUser && (
                 <Button
                   onClick={() => {
                     navigate("/users/create")
@@ -31,11 +31,13 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
                 >
                   Create user
                 </Button>
+              )}
+              {canCreateGroup && (
                 <Link underline="none" component={RouterLink} to="/groups/create">
                   <Button startIcon={<GroupAdd />}>Create group</Button>
                 </Link>
-              </>
-            ) : undefined
+              )}
+            </>
           }
         >
           <PageHeaderTitle>Users</PageHeaderTitle>
