@@ -58,6 +58,8 @@ func TestTemplateACL(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+
+		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -68,6 +70,8 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, acl.Groups, 1)
+		require.Len(t, acl.Groups[0].Members, 2)
+		require.Contains(t, acl.Groups[0].Members, user1)
 		require.Len(t, acl.Users, 0)
 	})
 
@@ -228,7 +232,6 @@ func TestTemplateACL(t *testing.T) {
 			Role:  codersdk.TemplateRoleView,
 		})
 	})
-
 }
 
 func TestUpdateTemplateACL(t *testing.T) {

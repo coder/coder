@@ -40,13 +40,13 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
+	dbGroups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	groups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, groups)
+	dbGroups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, dbGroups)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -71,9 +71,29 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
+	groups := make([]codersdk.TemplateGroup, 0, len(dbGroups))
+	for _, group := range dbGroups {
+		var members []database.User
+
+		if group.Name == database.AllUsersGroup {
+			members, err = api.Database.GetAllOrganizationMembers(ctx, group.OrganizationID)
+		} else {
+			members, err = api.Database.GetGroupMembers(ctx, group.ID)
+		}
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		groups = append(groups, codersdk.TemplateGroup{
+			Group: convertGroup(group.Group, members),
+			Role:  convertToTemplateRole(group.Actions),
+		})
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateACL{
 		Users:  convertTemplateUsers(users, organizationIDsByUserID),
-		Groups: convertTemplateGroups(groups),
+		Groups: groups,
 	})
 }
 
@@ -201,19 +221,6 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	}
 
 	return users
-}
-
-func convertTemplateGroups(tgs []database.TemplateGroup) []codersdk.TemplateGroup {
-	groups := make([]codersdk.TemplateGroup, 0, len(tgs))
-
-	for _, tg := range tgs {
-		groups = append(groups, codersdk.TemplateGroup{
-			Group: convertGroup(tg.Group, nil),
-			Role:  convertToTemplateRole(tg.Actions),
-		})
-	}
-
-	return groups
 }
 
 func validateTemplateRole(role codersdk.TemplateRole) error {
