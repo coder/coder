@@ -72,7 +72,11 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 				)
 		) AS perms
 	ON
-		users.id::text = perms.key;
+		users.id::text = perms.key
+	WHERE
+		users.deleted = false
+	AND
+		users.status = 'active';
 	`
 
 	var tus []TemplateUser
