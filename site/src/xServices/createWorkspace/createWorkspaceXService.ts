@@ -210,7 +210,7 @@ export const createWorkspaceMachine = createMachine(
       },
       getWorkspaceQuota: (context) => {
         if (!context.workspaceQuotaEnabled) {
-          return Promise.resolve(undefined)
+          return Promise.resolve({} as WorkspaceQuota)
         }
 
         return getWorkspaceQuota(context.owner?.id ?? "me")
