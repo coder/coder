@@ -120,7 +120,7 @@ export const deadlineExtensionMax = dayjs.duration(24, "hours")
  * @param tpl template
  * @returns the latest datetime at which the workspace can be automatically shut down.
  */
-export function getMaxDeadline(ws: Workspace|undefined, tpl: Template): dayjs.Dayjs {
+export function getMaxDeadline(ws: Workspace | undefined, tpl: Template): dayjs.Dayjs {
   // note: we count runtime from updated_at as started_at counts from the start of
   // the workspace build process, which can take a while.
   if (ws === undefined) {
@@ -136,10 +136,9 @@ export function getMaxDeadline(ws: Workspace|undefined, tpl: Template): dayjs.Da
  * Depends on the current time and a global constant.
  * @returns the earliest datetime at which the workspace can be automatically shut down.
  */
-export function getMinDeadline (): dayjs.Dayjs {
+export function getMinDeadline(): dayjs.Dayjs {
   return dayjs().add(deadlineExtensionMin)
 }
 
-export const getDeadline = (workspace: Workspace): dayjs.Dayjs => (
+export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
   dayjs(workspace.latest_build.deadline).utc()
-)

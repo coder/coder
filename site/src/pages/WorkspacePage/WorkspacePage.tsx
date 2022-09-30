@@ -16,19 +16,19 @@ import { firstOrItem } from "../../util/array"
 import { pageTitle } from "../../util/page"
 import { getFaviconByStatus } from "../../util/workspace"
 import { XServiceContext } from "../../xServices/StateContext"
-import { WorkspaceContext, WorkspaceEvent, workspaceMachine } from "../../xServices/workspace/workspaceXService"
+import {
+  WorkspaceContext,
+  WorkspaceEvent,
+  workspaceMachine,
+} from "../../xServices/workspace/workspaceXService"
 
 export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
-  const {
-    workspace,
-    getWorkspaceError,
-    getTemplateWarning,
-    checkPermissionsError,
-  } = workspaceState.context
+  const { workspace, getWorkspaceError, getTemplateWarning, checkPermissionsError } =
+    workspaceState.context
   const styles = useStyles()
 
   /**
@@ -55,11 +55,20 @@ export const WorkspacePage: FC = () => {
 }
 
 interface WorkspaceReadyPageProps {
-  workspaceState: State<WorkspaceContext, WorkspaceEvent, any, any, ResolveTypegenMeta<any, WorkspaceEvent, any, any>>
+  workspaceState: State<
+    WorkspaceContext,
+    WorkspaceEvent,
+    any,
+    any,
+    ResolveTypegenMeta<any, WorkspaceEvent, any, any>
+  >
   workspaceSend: (event: WorkspaceEvent) => void
 }
 
-export const WorkspaceReadyPage = ({ workspaceState, workspaceSend }: WorkspaceReadyPageProps): JSX.Element => {
+export const WorkspaceReadyPage = ({
+  workspaceState,
+  workspaceSend,
+}: WorkspaceReadyPageProps): JSX.Element => {
   const [bannerState, bannerSend] = useActor(workspaceState.children["scheduleBannerMachine"])
   console.log(bannerState.matches("atMinDeadline"))
   const xServices = useContext(XServiceContext)
@@ -73,7 +82,7 @@ export const WorkspaceReadyPage = ({ workspaceState, workspaceSend }: WorkspaceR
     buildError,
     cancellationError,
     applicationsHost,
-    permissions
+    permissions,
   } = workspaceState.context
   if (workspace === undefined) {
     throw Error("Workspace is undefined")
@@ -82,77 +91,77 @@ export const WorkspaceReadyPage = ({ workspaceState, workspaceSend }: WorkspaceR
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
 
-    return (
-      <>
-        <Helmet>
-          <title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
-          <link rel="alternate icon" type="image/png" href={`/favicons/${favicon}.png`} />
-          <link rel="icon" type="image/svg+xml" href={`/favicons/${favicon}.svg`} />
-        </Helmet>
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+        <link rel="alternate icon" type="image/png" href={`/favicons/${favicon}.png`} />
+        <link rel="icon" type="image/svg+xml" href={`/favicons/${favicon}.svg`} />
+      </Helmet>
 
-        <Workspace
-          bannerProps={{
-            isLoading: bannerState.hasTag("loading"),
-            onExtend: () => {
-              bannerSend({
-                type: "INCREASE_DEADLINE",
-                hours: 4,
-              })
-            },
-          }}
-          scheduleProps={{
-            onDeadlineMinus: () => {
-              bannerSend({
-                type: "DECREASE_DEADLINE",
-                hours: 1,
-              })
-            },
-            onDeadlinePlus: () => {
-              bannerSend({
-                type: "INCREASE_DEADLINE",
-                hours: 1,
-              })
-            },
-            deadlineMinusEnabled: () => {
-              return !bannerState.matches("atMinDeadline")
-            },
-            deadlinePlusEnabled: () => {
-              return !bannerState.matches("atMaxDeadline")
-            },
-          }}
-          isUpdating={workspaceState.hasTag("updating")}
-          workspace={workspace}
-          handleStart={() => workspaceSend({ type: "START" })}
-          handleStop={() => workspaceSend({ type: "STOP" })}
-          handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
-          handleUpdate={() => workspaceSend({ type: "UPDATE" })}
-          handleCancel={() => workspaceSend({ type: "CANCEL" })}
-          resources={workspace.latest_build.resources}
-          builds={builds}
-          canUpdateWorkspace={canUpdateWorkspace}
-          hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
-          workspaceErrors={{
-            [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
-            [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
-            [WorkspaceErrors.BUILD_ERROR]: buildError,
-            [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
-          }}
-          buildInfo={buildInfoState.context.buildInfo}
-          applicationsHost={applicationsHost}
-        />
-        <DeleteDialog
-          entity="workspace"
-          name={workspace.name}
-          info={t("deleteDialog.info", { timeAgo: dayjs(workspace.created_at).fromNow() })}
-          isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
-          onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
-          onConfirm={() => {
-            workspaceSend({ type: "DELETE" })
-          }}
-        />
-      </>
-    )
-  }
+      <Workspace
+        bannerProps={{
+          isLoading: bannerState.hasTag("loading"),
+          onExtend: () => {
+            bannerSend({
+              type: "INCREASE_DEADLINE",
+              hours: 4,
+            })
+          },
+        }}
+        scheduleProps={{
+          onDeadlineMinus: () => {
+            bannerSend({
+              type: "DECREASE_DEADLINE",
+              hours: 1,
+            })
+          },
+          onDeadlinePlus: () => {
+            bannerSend({
+              type: "INCREASE_DEADLINE",
+              hours: 1,
+            })
+          },
+          deadlineMinusEnabled: () => {
+            return !bannerState.matches("atMinDeadline")
+          },
+          deadlinePlusEnabled: () => {
+            return !bannerState.matches("atMaxDeadline")
+          },
+        }}
+        isUpdating={workspaceState.hasTag("updating")}
+        workspace={workspace}
+        handleStart={() => workspaceSend({ type: "START" })}
+        handleStop={() => workspaceSend({ type: "STOP" })}
+        handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
+        handleUpdate={() => workspaceSend({ type: "UPDATE" })}
+        handleCancel={() => workspaceSend({ type: "CANCEL" })}
+        resources={workspace.latest_build.resources}
+        builds={builds}
+        canUpdateWorkspace={canUpdateWorkspace}
+        hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
+        workspaceErrors={{
+          [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
+          [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
+          [WorkspaceErrors.BUILD_ERROR]: buildError,
+          [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
+        }}
+        buildInfo={buildInfoState.context.buildInfo}
+        applicationsHost={applicationsHost}
+      />
+      <DeleteDialog
+        entity="workspace"
+        name={workspace.name}
+        info={t("deleteDialog.info", { timeAgo: dayjs(workspace.created_at).fromNow() })}
+        isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
+        onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
+        onConfirm={() => {
+          workspaceSend({ type: "DELETE" })
+        }}
+      />
+    </>
+  )
+}
 
 const useStyles = makeStyles((theme) => ({
   error: {

@@ -219,7 +219,7 @@ export const workspaceMachine = createMachine(
             },
           ],
         },
-        tags: "loading"
+        tags: "loading",
       },
       ready: {
         type: "parallel",
@@ -450,13 +450,13 @@ export const workspaceMachine = createMachine(
               src: workspaceScheduleBannerMachine,
               data: {
                 workspace: (context: WorkspaceContext) => context.workspace,
-                template: (context: WorkspaceContext) => context.template
-              }
+                template: (context: WorkspaceContext) => context.template,
+              },
             },
             on: {
-              REFRESH_WORKSPACE: { actions: "sendWorkspaceToSchedule" }
-            }
-          }
+              REFRESH_WORKSPACE: { actions: "sendWorkspaceToSchedule" },
+            },
+          },
         },
       },
       error: {
@@ -586,10 +586,13 @@ export const workspaceMachine = createMachine(
       // clearScheduleBannerRef: assign({
       //   scheduleBannerRef: (_) => undefined
       // }),
-      sendWorkspaceToSchedule: send((context) => ({
-        type: "REFRESH_WORKSPACE",
-        workspace: context.workspace,
-      }), { to: "scheduleBannerMachine" })
+      sendWorkspaceToSchedule: send(
+        (context) => ({
+          type: "REFRESH_WORKSPACE",
+          workspace: context.workspace,
+        }),
+        { to: "scheduleBannerMachine" },
+      ),
     },
     guards: {
       moreBuildsAvailable,

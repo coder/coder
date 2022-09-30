@@ -34,9 +34,9 @@ export type WorkspaceScheduleBannerEvent =
       hours: number
     }
   | {
-    type: "REFRESH_WORKSPACE"
-    workspace: Workspace
-  }
+      type: "REFRESH_WORKSPACE"
+      workspace: Workspace
+    }
 
 export type WorkspaceScheduleBannerMachineRef = ActorRefFrom<typeof workspaceScheduleBannerMachine>
 
@@ -51,7 +51,7 @@ export const workspaceScheduleBannerMachine = createMachine(
     },
     initial: "initialize",
     on: {
-      REFRESH_WORKSPACE: { actions: "assignWorkspace" }
+      REFRESH_WORKSPACE: { actions: "assignWorkspace" },
     },
     states: {
       initialize: {
@@ -126,7 +126,9 @@ export const workspaceScheduleBannerMachine = createMachine(
   {
     guards: {
       isAtMaxDeadline: (context) => {
-        return context.deadline?.isSame(getMaxDeadline(context.workspace, context.template)) || false
+        return (
+          context.deadline?.isSame(getMaxDeadline(context.workspace, context.template)) || false
+        )
       },
       isAtMinDeadline: (context) => {
         return context.deadline?.isSame(getMinDeadline()) || false
@@ -142,8 +144,8 @@ export const workspaceScheduleBannerMachine = createMachine(
       },
       assignWorkspace: assign((_, event) => ({
         workspace: event.workspace,
-        deadline: getDeadline(event.workspace)
-      }))
+        deadline: getDeadline(event.workspace),
+      })),
     },
 
     services: {
@@ -152,7 +154,10 @@ export const workspaceScheduleBannerMachine = createMachine(
           throw Error("Deadline is undefined.")
         }
         const proposedDeadline = context.deadline.add(event.hours, "hours")
-        const newDeadline = dayjs.min(proposedDeadline, getMaxDeadline(context.workspace, context.template))
+        const newDeadline = dayjs.min(
+          proposedDeadline,
+          getMaxDeadline(context.workspace, context.template),
+        )
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },
       decreaseDeadline: async (context, event) => {
