@@ -1,4 +1,3 @@
-// import Avatar from "@material-ui/core/Avatar"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
@@ -8,7 +7,6 @@ import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useEffect, useState } from "react"
-// import { firstLetter } from "util/firstLetter"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 import { AutocompleteAvatar } from "./AutocompleteAvatar"
 
