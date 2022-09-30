@@ -282,6 +282,25 @@ func TestGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})
+
+	t.Run("RegularUserReadGroup", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		ggroup, err := client1.Group(ctx, group.ID)
+		require.NoError(t, err)
+		require.Equal(t, group, ggroup)
+	})
 }
 
 // TODO: test auth.
