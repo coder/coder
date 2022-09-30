@@ -24,10 +24,6 @@ module.exports = {
     },
   ],
 
-  // Storybook uses babel under the hood, while we currently use ts-loader.
-  // Sometimes, you may encounter an error in a Storybook that contains syntax
-  // that requires a babel plugin.
-  //
   // SEE: https://storybook.js.org/docs/react/configure/babel
   babel: async (options) => ({
     ...options,
