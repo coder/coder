@@ -546,9 +546,9 @@ type TemplateVersionParameter struct {
 	DefaultValue      string          `db:"default_value" json:"default_value"`
 	Icon              string          `db:"icon" json:"icon"`
 	Options           json.RawMessage `db:"options" json:"options"`
-	ValidationRegex   sql.NullString  `db:"validation_regex" json:"validation_regex"`
-	ValidationMin     sql.NullInt32   `db:"validation_min" json:"validation_min"`
-	ValidationMax     sql.NullInt32   `db:"validation_max" json:"validation_max"`
+	ValidationRegex   string          `db:"validation_regex" json:"validation_regex"`
+	ValidationMin     int32           `db:"validation_min" json:"validation_min"`
+	ValidationMax     int32           `db:"validation_max" json:"validation_max"`
 }
 
 type User struct {

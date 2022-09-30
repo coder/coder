@@ -179,6 +179,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
+		"GET:/api/v2/templateversions/{templateversion}/parameters": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+		},
 		"GET:/api/v2/templateversions/{templateversion}/deprecated-parameters": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),

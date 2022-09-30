@@ -1,5 +1,5 @@
 CREATE TABLE template_version_parameters (
-    template_version_id uuid not null references template_versions (id) on delete cascade,
+    template_version_id uuid not null references provisioner_jobs (id) on delete cascade,
     name text not null,
     description text not null,
     type text not null,
@@ -7,9 +7,9 @@ CREATE TABLE template_version_parameters (
     default_value text not null,
     icon text not null,
     options jsonb not null default '[]'::jsonb,
-    validation_regex text,
-    validation_min integer,
-    validation_max integer,
+    validation_regex text not null,
+    validation_min integer not null,
+    validation_max integer not null,
     unique (template_version_id, name)
 );
 

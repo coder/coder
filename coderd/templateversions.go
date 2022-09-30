@@ -20,6 +20,8 @@ import (
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -186,6 +188,50 @@ func (api *API) deprecatedTemplateVersionParameters(rw http.ResponseWriter, r *h
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, values)
+}
+
+func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	dbParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	parameters := make([]codersdk.TemplateVersionParameter, 0)
+	for _, dbParameter := range dbParameters {
+		parameter, err := convertTemplateVersionParameter(dbParameter)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error converting template version parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		parameters = append(parameters, parameter)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, parameters)
 }
 
 func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
@@ -767,6 +813,13 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
+		templateVersionID := uuid.New()
+		jobInput, err := json.Marshal(templateVersionImportJob{
+			TemplateVersionID: templateVersionID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal job input: %w", err)
+		}
 		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
@@ -777,7 +830,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			StorageSource:  file.Hash,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			Input:          []byte{'{', '}'},
+			Input:          jobInput,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -796,7 +849,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 
 		templateVersion, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:             uuid.New(),
+			ID:             templateVersionID,
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
@@ -905,4 +958,33 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedByID:    version.CreatedBy.UUID,
 		CreatedByName:  createdByName,
 	}
+}
+
+func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
+	var protoOptions []*sdkproto.ParameterOption
+	err := json.Unmarshal(param.Options, &protoOptions)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
+	for _, option := range protoOptions {
+		options = append(options, codersdk.TemplateVersionParameterOption{
+			Name:        option.Name,
+			Description: option.Description,
+			Value:       option.Value,
+			Icon:        option.Icon,
+		})
+	}
+	return codersdk.TemplateVersionParameter{
+		Name:            param.Name,
+		Description:     param.Description,
+		Type:            param.Type,
+		Mutable:         param.Mutable,
+		DefaultValue:    param.DefaultValue,
+		Icon:            param.Icon,
+		Options:         options,
+		ValidationRegex: param.ValidationRegex,
+		ValidationMin:   param.ValidationMin,
+		ValidationMax:   param.ValidationMax,
+	}, nil
 }

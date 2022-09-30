@@ -63,6 +63,7 @@ message CompletedJob {
     message TemplateImport {
         repeated provisioner.Resource start_resources = 1;
         repeated provisioner.Resource stop_resources = 2;
+        repeated provisioner.Parameter parameters = 3;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;

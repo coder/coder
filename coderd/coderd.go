@@ -336,6 +336,7 @@ func New(options *Options) *API {
 
 			r.Get("/", api.templateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
+			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/deprecated-schema", api.deprecatedTemplateVersionSchema)
 			r.Get("/deprecated-parameters", api.deprecatedTemplateVersionParameters)
 			r.Get("/resources", api.templateVersionResources)

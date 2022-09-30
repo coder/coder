@@ -76,7 +76,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("WithParameters", func(t *testing.T) {
+	t.Run("WithDeprecatedParameters", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
@@ -208,7 +208,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	})
 }
 
-func TestTemplateVersionSchema(t *testing.T) {
+func TestDeprecatedTemplateVersionSchema(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
@@ -283,6 +283,52 @@ func TestTemplateVersionSchema(t *testing.T) {
 }
 
 func TestTemplateVersionParameters(t *testing.T) {
+	t.Parallel()
+	t.Run("ListRunning", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionParameters(ctx, version.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+	})
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionDryRun: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.Parameter{{
+							Name: "Something",
+							Type: "string",
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		params, err := client.TemplateVersionParameters(ctx, version.ID)
+		require.NoError(t, err)
+		require.NotNil(t, params)
+		require.Len(t, params, 1)
+		require.Equal(t, "Something", params[0].Name)
+	})
+}
+
+func TestDeprecatedTemplateVersionParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()

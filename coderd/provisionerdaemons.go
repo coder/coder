@@ -130,6 +130,10 @@ type templateVersionDryRunJob struct {
 	ParameterValues   []database.ParameterValue `json:"parameter_values"`
 }
 
+type templateVersionImportJob struct {
+	TemplateVersionID uuid.UUID `json:"template_version_id"`
+}
+
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
 	AccessURL    *url.URL
@@ -568,6 +572,12 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_TemplateImport_:
+		var input templateVersionImportJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal job data: %w", err)
+		}
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -583,6 +593,33 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
+			}
+		}
+
+		for _, parameter := range jobType.TemplateImport.Parameters {
+			server.Logger.Info(ctx, "inserting template import job parameter",
+				slog.F("job_id", job.ID.String()),
+				slog.F("parameter_name", parameter.Name),
+			)
+			options, err := json.Marshal(parameter.Options)
+			if err != nil {
+				return nil, xerrors.Errorf("marshal parameter options: %w", err)
+			}
+			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
+				TemplateVersionID: input.TemplateVersionID,
+				Name:              parameter.Name,
+				Description:       parameter.Description,
+				Type:              parameter.Type,
+				Mutable:           parameter.Mutable,
+				DefaultValue:      parameter.DefaultValue,
+				Icon:              parameter.Icon,
+				Options:           options,
+				ValidationRegex:   parameter.ValidationRegex,
+				ValidationMin:     parameter.ValidationMin,
+				ValidationMax:     parameter.ValidationMax,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert parameter: %w", err)
 			}
 		}
 

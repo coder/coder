@@ -131,13 +131,6 @@ export interface BuildInfoResponse {
   readonly version: string
 }
 
-// From codersdk/parameters.go
-export interface ComputedParameter extends Parameter {
-  readonly source_value: string
-  readonly schema_id: string
-  readonly default_source_value: boolean
-}
-
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
   readonly email: string
@@ -157,22 +150,13 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go
-export interface CreateParameterRequest {
-  readonly copy_from_parameter?: string
-  readonly name: string
-  readonly source_value: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly destination_scheme: ParameterDestinationScheme
-}
-
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string
   readonly description?: string
   readonly icon?: string
   readonly template_version_id: string
-  readonly parameter_values?: CreateParameterRequest[]
+  readonly parameter_values?: DeprecatedCreateParameterRequest[]
   readonly max_ttl_ms?: number
   readonly min_autostart_interval_ms?: number
 }
@@ -180,7 +164,7 @@ export interface CreateTemplateRequest {
 // From codersdk/templateversions.go
 export interface CreateTemplateVersionDryRunRequest {
   readonly WorkspaceName: string
-  readonly ParameterValues: CreateParameterRequest[]
+  readonly ParameterValues: DeprecatedCreateParameterRequest[]
 }
 
 // From codersdk/organizations.go
@@ -190,7 +174,7 @@ export interface CreateTemplateVersionRequest {
   readonly storage_method: ProvisionerStorageMethod
   readonly storage_source: string
   readonly provisioner: ProvisionerType
-  readonly parameter_values?: CreateParameterRequest[]
+  readonly parameter_values?: DeprecatedCreateParameterRequest[]
 }
 
 // From codersdk/audit.go
@@ -215,7 +199,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly dry_run?: boolean
   readonly state?: string
   readonly orphan?: boolean
-  readonly parameter_values?: CreateParameterRequest[]
+  readonly parameter_values?: DeprecatedCreateParameterRequest[]
 }
 
 // From codersdk/organizations.go
@@ -224,7 +208,7 @@ export interface CreateWorkspaceRequest {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
-  readonly parameter_values?: CreateParameterRequest[]
+  readonly parameter_values?: DeprecatedCreateParameterRequest[]
 }
 
 // From codersdk/templates.go
@@ -237,6 +221,55 @@ export interface DAUEntry {
 export interface DERPRegion {
   readonly preferred: boolean
   readonly latency_ms: number
+}
+
+// From codersdk/parameters.go
+export interface DeprecatedComputedParameter extends DeprecatedParameter {
+  readonly source_value: string
+  readonly schema_id: string
+  readonly default_source_value: boolean
+}
+
+// From codersdk/parameters.go
+export interface DeprecatedCreateParameterRequest {
+  readonly copy_from_parameter?: string
+  readonly name: string
+  readonly source_value: string
+  readonly source_scheme: DeprecatedParameterSourceScheme
+  readonly destination_scheme: DeprecatedParameterDestinationScheme
+}
+
+// From codersdk/parameters.go
+export interface DeprecatedParameter {
+  readonly id: string
+  readonly scope: DeprecatedParameterScope
+  readonly scope_id: string
+  readonly name: string
+  readonly source_scheme: DeprecatedParameterSourceScheme
+  readonly destination_scheme: DeprecatedParameterDestinationScheme
+  readonly created_at: string
+  readonly updated_at: string
+}
+
+// From codersdk/parameters.go
+export interface DeprecatedParameterSchema {
+  readonly id: string
+  readonly created_at: string
+  readonly job_id: string
+  readonly name: string
+  readonly description: string
+  readonly default_source_scheme: DeprecatedParameterSourceScheme
+  readonly default_source_value: string
+  readonly allow_override_source: boolean
+  readonly default_destination_scheme: DeprecatedParameterDestinationScheme
+  readonly allow_override_destination: boolean
+  readonly default_refresh: string
+  readonly redisplay_value: boolean
+  readonly validation_error: string
+  readonly validation_condition: string
+  readonly validation_type_system: string
+  readonly validation_value_type: string
+  readonly validation_contains?: string[]
 }
 
 // From codersdk/features.go
@@ -320,39 +353,6 @@ export interface Pagination {
   readonly after_id?: string
   readonly limit?: number
   readonly offset?: number
-}
-
-// From codersdk/parameters.go
-export interface Parameter {
-  readonly id: string
-  readonly scope: ParameterScope
-  readonly scope_id: string
-  readonly name: string
-  readonly source_scheme: ParameterSourceScheme
-  readonly destination_scheme: ParameterDestinationScheme
-  readonly created_at: string
-  readonly updated_at: string
-}
-
-// From codersdk/parameters.go
-export interface ParameterSchema {
-  readonly id: string
-  readonly created_at: string
-  readonly job_id: string
-  readonly name: string
-  readonly description: string
-  readonly default_source_scheme: ParameterSourceScheme
-  readonly default_source_value: string
-  readonly allow_override_source: boolean
-  readonly default_destination_scheme: ParameterDestinationScheme
-  readonly allow_override_destination: boolean
-  readonly default_refresh: string
-  readonly redisplay_value: boolean
-  readonly validation_error: string
-  readonly validation_condition: string
-  readonly validation_type_system: string
-  readonly validation_value_type: string
-  readonly validation_contains?: string[]
 }
 
 // From codersdk/provisionerdaemons.go
@@ -447,6 +447,28 @@ export interface TemplateVersion {
   readonly readme: string
   readonly created_by_id: string
   readonly created_by_name: string
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionParameter {
+  readonly name: string
+  readonly description: string
+  readonly type: string
+  readonly mutable: boolean
+  readonly default_value: string
+  readonly icon: string
+  readonly options: TemplateVersionParameterOption[]
+  readonly validation_regex: string
+  readonly validation_min: number
+  readonly validation_max: number
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionParameterOption {
+  readonly name: string
+  readonly description: string
+  readonly value: string
+  readonly icon: string
 }
 
 // From codersdk/templates.go
@@ -668,6 +690,21 @@ export type AuditAction = "create" | "delete" | "write"
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
 
+// From codersdk/parameters.go
+export type DeprecatedParameterDestinationScheme =
+  | "environment_variable"
+  | "none"
+  | "provisioner_variable"
+
+// From codersdk/parameters.go
+export type DeprecatedParameterScope = "import_job" | "template" | "workspace"
+
+// From codersdk/parameters.go
+export type DeprecatedParameterSourceScheme = "data" | "none"
+
+// From codersdk/parameters.go
+export type DeprecatedParameterTypeSystem = "hcl" | "none"
+
 // From codersdk/features.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled"
 
@@ -679,18 +716,6 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/users.go
 export type LoginType = "github" | "oidc" | "password"
-
-// From codersdk/parameters.go
-export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
-
-// From codersdk/parameters.go
-export type ParameterScope = "import_job" | "template" | "workspace"
-
-// From codersdk/parameters.go
-export type ParameterSourceScheme = "data" | "none"
-
-// From codersdk/parameters.go
-export type ParameterTypeSystem = "hcl" | "none"
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =

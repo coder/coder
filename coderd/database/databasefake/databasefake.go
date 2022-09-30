@@ -41,6 +41,7 @@ func New() database.Store {
 			provisionerJobResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
 			provisionerJobs:                make([]database.ProvisionerJob, 0),
 			templateVersions:               make([]database.TemplateVersion, 0),
+			templateVersionParameters:      make([]database.TemplateVersionParameter, 0),
 			templates:                      make([]database.Template, 0),
 			workspaceBuilds:                make([]database.WorkspaceBuild, 0),
 			workspaceApps:                  make([]database.WorkspaceApp, 0),
@@ -93,6 +94,7 @@ type data struct {
 	provisionerJobResourceMetadata []database.WorkspaceResourceMetadatum
 	provisionerJobs                []database.ProvisionerJob
 	templateVersions               []database.TemplateVersion
+	templateVersionParameters      []database.TemplateVersionParameter
 	templates                      []database.Template
 	workspaceBuilds                []database.WorkspaceBuild
 	workspaceApps                  []database.WorkspaceApp
@@ -1136,6 +1138,20 @@ func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, a
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	parameters := make([]database.TemplateVersionParameter, 0)
+	for _, param := range q.templateVersionParameters {
+		if param.TemplateVersionID != templateVersionID {
+			continue
+		}
+		parameters = append(parameters, param)
+	}
+	return parameters, nil
+}
+
 func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1731,6 +1747,27 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return version, nil
+}
+
+func (q *fakeQuerier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	param := database.TemplateVersionParameter{
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		Description:       arg.Description,
+		Type:              arg.Type,
+		Mutable:           arg.Mutable,
+		DefaultValue:      arg.DefaultValue,
+		Icon:              arg.Icon,
+		Options:           arg.Options,
+		ValidationRegex:   arg.ValidationRegex,
+		ValidationMin:     arg.ValidationMin,
+		ValidationMax:     arg.ValidationMax,
+	}
+	q.templateVersionParameters = append(q.templateVersionParameters, param)
+	return param, nil
 }
 
 func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {

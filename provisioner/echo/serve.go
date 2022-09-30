@@ -185,6 +185,9 @@ func Tar(responses *Responses) ([]byte, error) {
 	if responses.ProvisionDryRun == nil {
 		responses.ProvisionDryRun = responses.Provision
 	}
+	if responses.Parse == nil {
+		responses.Parse = ParseComplete
+	}
 
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
