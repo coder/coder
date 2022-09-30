@@ -76,4 +76,17 @@ func TestCompileQuery(t *testing.T) {
 			`user_acl->me ? 'read')`,
 			expression.SQLString(DefaultConfig()), "complex")
 	})
+
+	t.Run("SetDereference", func(t *testing.T) {
+		t.Parallel()
+		expression, err := Compile(&rego.PartialQueries{
+			Queries: []ast.Body{
+				ast.MustParseBodyWithOpts(`"*" in input.object.acl_group_list[input.object.org_owner]`, opts),
+			},
+			Support: []*ast.Module{},
+		})
+		require.NoError(t, err, "compile")
+		require.Equal(t, `group_acl->organization_id :: text ? '*'`,
+			expression.SQLString(DefaultConfig()), "set dereference")
+	})
 }

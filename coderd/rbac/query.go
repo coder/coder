@@ -56,12 +56,12 @@ func DefaultConfig() SQLConfig {
 	return SQLConfig{
 		Variables: []SQLColumn{
 			{
-				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_group_list\.([^.]*)$`),
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_group_list\.?(.*)$`),
 				ColumnSelect: "group_acl->$1",
 				Type:         VarTypeJsonbTextArray,
 			},
 			{
-				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_user_list\.([^.]*)$`),
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_user_list\.?(.*)$`),
 				ColumnSelect: "user_acl->$1",
 				Type:         VarTypeJsonbTextArray,
 			},
@@ -226,19 +226,42 @@ func processTerm(term *ast.Term) (Term, error) {
 			Value: bool(v),
 		}, nil
 	case ast.Ref:
+		obj := &termObject{
+			base:      base,
+			Variables: []termVariable{},
+		}
+		var idx int
 		// A ref is a set of terms. If the first term is a var, then the
 		// following terms are the path to the value.
-		if v0, ok := v[0].Value.(ast.Var); ok {
-			name := trimQuotes(v0.String())
-			for _, p := range v[1:] {
-				name += "." + trimQuotes(p.String())
+		var builder strings.Builder
+		for _, term := range v {
+			if idx == 0 {
+				if _, ok := v[0].Value.(ast.Var); !ok {
+					return nil, xerrors.Errorf("invalid term (%s): ref must start with a var, started with %T", v[0].String(), v[0])
+				}
 			}
-			return &termVariable{
-				base: base,
-				Name: name,
-			}, nil
+
+			if _, ok := term.Value.(ast.Ref); ok {
+				// New obj
+				obj.Variables = append(obj.Variables, termVariable{
+					base: base,
+					Name: builder.String(),
+				})
+				builder.Reset()
+				idx = 0
+			}
+			if builder.Len() != 0 {
+				builder.WriteString(".")
+			}
+			builder.WriteString(trimQuotes(term.String()))
+			idx++
 		}
-		return nil, xerrors.Errorf("invalid term: ref must start with a var, started with %T", v[0])
+
+		obj.Variables = append(obj.Variables, termVariable{
+			base: base,
+			Name: builder.String(),
+		})
+		return obj, nil
 	case ast.Var:
 		return &termVariable{
 			Name: trimQuotes(v.String()),
@@ -392,7 +415,7 @@ func (t opInternalMember2) Eval(object Object) bool {
 }
 
 func (t opInternalMember2) SQLString(cfg SQLConfig) string {
-	if haystack, ok := t.Haystack.(*termVariable); ok {
+	if haystack, ok := t.Haystack.(*termObject); ok {
 		// This is a special case where the haystack is a jsonb array.
 		// There is a more general way to solve this, but that requires a lot
 		// more code to cover a lot more cases that we do not care about.
@@ -437,6 +460,57 @@ func (t termString) SQLString(_ SQLConfig) string {
 
 func (termString) SQLType(_ SQLConfig) TermType {
 	return VarTypeText
+}
+
+// termObject is a variable that can be dereferenced. We count some rego objects
+// as single variables, eg: input.object.org_owner. In reality, it is a nested
+// object.
+// In rego, we can dereference the object with the "." operator, which we can
+// handle with regex.
+// Or we can dereference the object with the "[]", which we can handle with this
+// term type.
+type termObject struct {
+	base
+	Variables []termVariable
+}
+
+func (t termObject) EvalTerm(obj Object) interface{} {
+	if len(t.Variables) == 0 {
+		return t.Variables[0].EvalTerm(obj)
+	}
+	panic("no nested structures are supported yet")
+}
+
+func (t termObject) SQLType(cfg SQLConfig) TermType {
+	// Without a full type system, let's just assume the type of the first var
+	// is the resulting type. This is correct for our use case.
+	// Solving this more generally requires a full type system, which is
+	// excessive for our mostly static policy.
+	return t.Variables[0].SQLType(cfg)
+}
+
+func (t termObject) SQLString(cfg SQLConfig) string {
+	if len(t.Variables) == 1 {
+		return t.Variables[0].SQLString(cfg)
+	}
+	// Combine the last 2 variables into 1 variable.
+	end := t.Variables[len(t.Variables)-1]
+	before := t.Variables[len(t.Variables)-2]
+
+	return termObject{
+		base: t.base,
+		Variables: append(
+			t.Variables[:len(t.Variables)-2],
+			termVariable{
+				base: base{
+					Rego: before.base.Rego + "[" + end.base.Rego + "]",
+				},
+				// Convert the end to SQL string. We evaluate each term
+				// one at a time.
+				Name: before.Name + "." + end.SQLString(cfg),
+			},
+		),
+	}.SQLString(cfg)
 }
 
 type termVariable struct {
