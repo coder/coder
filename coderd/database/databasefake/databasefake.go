@@ -711,7 +711,7 @@ func (q *fakeQuerier) GetWorkspaceCountByUserID(_ context.Context, id uuid.UUID)
 			count++
 		}
 	}
-	return count, sql.ErrNoRows
+	return count, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
