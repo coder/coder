@@ -7,6 +7,7 @@ import { Loader } from "components/Loader/Loader"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
+import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { i18n } from "i18n"
 import { FC, useState } from "react"
@@ -18,6 +19,7 @@ export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
+  GET_WORKSPACE_QUOTA_ERROR = "getWorkspaceQuotaError",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -29,9 +31,10 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
+  workspaceQuota?: TypesGen.WorkspaceQuota
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
-  defaultWorkspaceOwner: TypesGen.User | null
+  owner: TypesGen.User | null
   setOwner: (arg0: TypesGen.User | null) => void
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
@@ -99,19 +102,20 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
           />
-        ) : (
-          <></>
-        )}
+        ) : null}
         {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] ? (
           <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
           />
-        ) : (
-          <></>
-        )}
+        ) : null}
       </Stack>
     )
   }
+
+  const canSubmit =
+    props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
+      ? props.workspaceQuota.user_workspace_count < props.workspaceQuota.user_workspace_limit
+      : true
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
@@ -145,8 +149,8 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
 
               {props.canCreateForUser && (
                 <UserAutocomplete
-                  value={props.defaultWorkspaceOwner}
-                  onChange={(user) => props.setOwner(user)}
+                  value={props.owner}
+                  onChange={props.setOwner}
                   label={t("ownerLabel")}
                   inputMargin="dense"
                   showAvatar
@@ -171,7 +175,20 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 </Stack>
               )}
 
-              <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
+              {props.workspaceQuota && (
+                <WorkspaceQuota
+                  quota={props.workspaceQuota}
+                  error={
+                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
+                  }
+                />
+              )}
+
+              <FormFooter
+                onCancel={props.onCancel}
+                isLoading={props.creatingWorkspace}
+                submitDisabled={!canSubmit}
+              />
             </>
           )}
         </Stack>

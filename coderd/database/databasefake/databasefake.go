@@ -698,6 +698,22 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceCountByUserID(_ context.Context, id uuid.UUID) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var count int64
+	for _, workspace := range q.workspaces {
+		if workspace.OwnerID.String() == id.String() {
+			if workspace.Deleted {
+				continue
+			}
+
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

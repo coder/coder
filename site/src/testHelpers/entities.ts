@@ -850,3 +850,8 @@ export const MockAuditLog2: TypesGen.AuditLog = {
     },
   },
 }
+
+export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
+  user_workspace_count: 0,
+  user_workspace_limit: 100,
+}

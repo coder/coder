@@ -641,6 +641,12 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
+// From codersdk/workspacequota.go
+export interface WorkspaceQuota {
+  readonly user_workspace_count: number
+  readonly user_workspace_limit: number
+}
+
 // From codersdk/workspaceresources.go
 export interface WorkspaceResource {
   readonly id: string
