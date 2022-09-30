@@ -31,7 +31,7 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
-  quota?: TypesGen.WorkspaceQuota
+  workspaceQuota?: TypesGen.WorkspaceQuota
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
   owner: TypesGen.User | null
@@ -114,9 +114,9 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   }
 
   const canSubmit =
-    props.quota &&
-    props.quota.user_workspace_limit > 0 &&
-    props.quota.user_workspace_count < props.quota.user_workspace_limit
+    props.workspaceQuota &&
+    props.workspaceQuota.user_workspace_limit > 0 &&
+    props.workspaceQuota.user_workspace_count < props.workspaceQuota.user_workspace_limit
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
@@ -178,9 +178,9 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 </Stack>
               )}
 
-              {props.quota && (
+              {props.workspaceQuota && (
                 <WorkspaceQuota
-                  quota={props.quota}
+                  quota={props.workspaceQuota}
                   error={
                     props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
                   }

@@ -19,6 +19,7 @@ type CreateWorkspaceContext = {
   organizationId: string
   owner: User | null
   templateName: string
+  workspaceQuotaEnabled: boolean
   templates?: Template[]
   selectedTemplate?: Template
   templateSchema?: ParameterSchema[]
@@ -208,6 +209,10 @@ export const createWorkspaceMachine = createMachine(
         return createWorkspace(organizationId, owner?.id ?? "me", createWorkspaceRequest)
       },
       getWorkspaceQuota: (context) => {
+        if (!context.workspaceQuotaEnabled) {
+          return Promise.resolve(undefined)
+        }
+
         return getWorkspaceQuota(context.owner?.id ?? "me")
       },
     },

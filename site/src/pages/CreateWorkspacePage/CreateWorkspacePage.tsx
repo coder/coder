@@ -1,4 +1,5 @@
-import { useActor, useMachine } from "@xstate/react"
+import { useActor, useMachine, useSelector, shallowEqual } from "@xstate/react"
+import { FeatureNames } from "api/types"
 import { User } from "api/typesGenerated"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC, useContext, useState } from "react"
@@ -6,22 +7,31 @@ import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
+import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "xServices/StateContext"
 import { CreateWorkspaceErrors, CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: FC = () => {
+  const xServices = useContext(XServiceContext)
   const organizationId = useOrganizationId()
   const { template } = useParams()
   const templateName = template ? template : ""
   const navigate = useNavigate()
+  const featureVisibility = useSelector(
+    xServices.entitlementsXService,
+    selectFeatureVisibility,
+    shallowEqual,
+  )
+  const workspaceQuotaEnabled = featureVisibility[FeatureNames.WorkspaceQuota]
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
-    context: { organizationId, templateName },
+    context: { organizationId, templateName, workspaceQuotaEnabled },
     actions: {
       onCreateWorkspace: (_, event) => {
         navigate(`/@${event.data.owner_name}/${event.data.name}`)
       },
     },
   })
+
 
   const {
     templates,
@@ -35,7 +45,6 @@ const CreateWorkspacePage: FC = () => {
     getWorkspaceQuotaError,
   } = createWorkspaceState.context
 
-  const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context
 
@@ -55,7 +64,7 @@ const CreateWorkspacePage: FC = () => {
         templates={templates}
         selectedTemplate={selectedTemplate}
         templateSchema={templateSchema}
-        quota={workspaceQuota}
+        workspaceQuota={workspaceQuota}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
           [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: getTemplateSchemaError,
