@@ -97,11 +97,17 @@ func BenchmarkRBACFilter(b *testing.B) {
 
 func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int) []rbac.Object {
 	// Create a "random" but deterministic set of objects.
+	aclList := map[string][]rbac.Action{
+		uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
+		uuid.NewString(): {rbac.ActionCreate},
+	}
 	objectList := make([]rbac.Object, size)
 	for i := range objectList {
 		objectList[i] = rbac.ResourceWorkspace.
 			InOrg(orgs[i%len(orgs)]).
-			WithOwner(users[i%len(users)].String())
+			WithOwner(users[i%len(users)].String()).
+			WithACLUserList(aclList).
+			WithGroupACL(aclList)
 	}
 
 	return objectList
