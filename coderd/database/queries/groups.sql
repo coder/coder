@@ -32,7 +32,6 @@ ON
 WHERE
 	group_members.user_id = $1;
 
-
 -- name: GetGroupMembers :many
 SELECT
 	users.*
