@@ -1,12 +1,12 @@
 ## Requirements 
 
-This quickstart assumes you have access to admin level access to AWS. 
+This quickstart assumes you have access to `AdministratorAccess` policy to AWS. 
 
 ## Setting Up Security Groups for EC2
 
-To set up a security group for an EC2 instance, navigate to the AWS EC2 Dashboard. In the side panel click `Security Groups` .
+To set up a security group for an EC2 instance, navigate to the AWS EC2 Dashboard. In the side panel click `Security Groups`.
 
-In the upper right hand corner, click `Create Security Group` . In the creator screen, name the security group something relevant to the EC2 instance you will create.
+In the upper right hand corner, click `Create Security Group`. In the creator screen, name the security group something relevant to the EC2 instance you will create.
 
 <img src="../images/quickstart/aws/aws1.png">
 
