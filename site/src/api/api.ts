@@ -543,3 +543,8 @@ export const patchGroup = async (
 export const deleteGroup = async (groupId: string): Promise<void> => {
   await axios.delete(`/api/v2/groups/${groupId}`)
 }
+
+export const getWorkspaceQuota = async (userID: string): Promise<TypesGen.WorkspaceQuota> => {
+  const response = await axios.get(`/api/v2/workspace-quota/${userID}`)
+  return response.data
+}

@@ -857,3 +857,8 @@ export const MockGroup: TypesGen.Group = {
   organization_id: MockOrganization.id,
   members: [],
 }
+
+export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
+  user_workspace_count: 0,
+  user_workspace_limit: 100,
+}
