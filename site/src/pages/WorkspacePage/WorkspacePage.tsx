@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -25,19 +26,23 @@ export const WorkspacePage: FC = () => {
     username && workspaceName && workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, workspaceSend])
 
-  if (workspaceState.matches("error")) {
-    return (
-      <div className={styles.error}>
-        {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-        {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
-        {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
-      </div>
-    )
-  } else if (workspace && workspaceState.matches("ready")) {
-    return <WorkspaceReadyPage workspaceState={workspaceState} workspaceSend={workspaceSend} />
-  } else {
-    return <FullScreenLoader />
-  }
+  return (
+    <ChooseOne>
+      <Cond condition={workspaceState.matches("error")}>
+        <div className={styles.error}>
+          {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
+          {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
+          {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
+        </div>
+      </Cond>
+      <Cond condition={Boolean(workspace) && workspaceState.matches("ready")}>
+        <WorkspaceReadyPage workspaceState={workspaceState} workspaceSend={workspaceSend} />
+      </Cond>
+      <Cond>
+        <FullScreenLoader />
+      </Cond>
+    </ChooseOne>
+  )
 }
 
 const useStyles = makeStyles((theme) => ({
