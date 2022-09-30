@@ -26,7 +26,7 @@ const CreateWorkspacePage: FC = () => {
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
-    context: { organizationId, templateName, workspaceQuotaEnabled, owner: (me ?? null) },
+    context: { organizationId, templateName, workspaceQuotaEnabled, owner: me ?? null },
     actions: {
       onCreateWorkspace: (_, event) => {
         navigate(`/@${event.data.owner_name}/${event.data.name}`)
