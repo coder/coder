@@ -1,4 +1,4 @@
-import { useActor, useMachine, useSelector, shallowEqual } from "@xstate/react"
+import { shallowEqual, useActor, useMachine, useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { User } from "api/typesGenerated"
 import { useOrganizationId } from "hooks/useOrganizationId"
@@ -31,7 +31,6 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   })
-
 
   const {
     templates,
