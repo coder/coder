@@ -11,15 +11,15 @@ import (
 )
 
 type customQuerier interface {
-	AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
+	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
 }
 
-// AuthorizedGetWorkspaces returns all workspaces that the user is authorized to access.
+// GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
-func (q *sqlQuerier) AuthorizedGetWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
+func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: AuthorizedGetWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.DefaultConfig()))
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.DefaultConfig()))
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.OwnerID,

@@ -522,11 +522,11 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 
 func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
 	// A nil auth filter means no auth filter.
-	workspaces, err := q.AuthorizedGetWorkspaces(ctx, arg, nil)
+	workspaces, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
 	return workspaces, err
 }
 
-func (q *fakeQuerier) AuthorizedGetWorkspaces(_ context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

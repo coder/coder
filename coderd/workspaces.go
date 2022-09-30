@@ -122,7 +122,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.AuthorizedGetWorkspaces(ctx, filter, sqlFilter)
+	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
