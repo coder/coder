@@ -123,7 +123,7 @@ func create() *cobra.Command {
 
 			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
 				Template:         template,
-				ExistingParams:   []codersdk.Parameter{},
+				ExistingParams:   []codersdk.DeprecatedParameter{},
 				ParameterFile:    parameterFile,
 				NewWorkspaceName: workspaceName,
 			})
@@ -171,14 +171,14 @@ func create() *cobra.Command {
 
 type prepWorkspaceBuildArgs struct {
 	Template         codersdk.Template
-	ExistingParams   []codersdk.Parameter
+	ExistingParams   []codersdk.DeprecatedParameter
 	ParameterFile    string
 	NewWorkspaceName string
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user.
-func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.CreateParameterRequest, error) {
+func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.DeprecatedCreateParameterRequest, error) {
 	ctx := cmd.Context()
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
@@ -201,7 +201,7 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 		}
 	}
 	disclaimerPrinted := false
-	parameters := make([]codersdk.CreateParameterRequest, 0)
+	parameters := make([]codersdk.DeprecatedCreateParameterRequest, 0)
 PromptParamLoop:
 	for _, parameterSchema := range parameterSchemas {
 		if !parameterSchema.AllowOverrideSource {
@@ -228,10 +228,10 @@ PromptParamLoop:
 			return nil, err
 		}
 
-		parameters = append(parameters, codersdk.CreateParameterRequest{
+		parameters = append(parameters, codersdk.DeprecatedCreateParameterRequest{
 			Name:              parameterSchema.Name,
 			SourceValue:       parameterValue,
-			SourceScheme:      codersdk.ParameterSourceSchemeData,
+			SourceScheme:      codersdk.DeprecatedParameterSourceSchemeData,
 			DestinationScheme: parameterSchema.DefaultDestinationScheme,
 		})
 	}

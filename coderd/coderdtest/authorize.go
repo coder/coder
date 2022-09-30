@@ -298,7 +298,7 @@ type AuthTester struct {
 	WorkspaceResource     codersdk.WorkspaceResource
 	File                  codersdk.UploadResponse
 	TemplateVersionDryRun codersdk.ProvisionerJob
-	TemplateParam         codersdk.Parameter
+	TemplateParam         codersdk.DeprecatedParameter
 	URLParams             map[string]string
 }
 
@@ -354,15 +354,15 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 	require.NoError(t, err, "workspace resources")
 	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		ParameterValues: []codersdk.CreateParameterRequest{},
+		ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 	})
 	require.NoError(t, err, "template version dry-run")
 
-	templateParam, err := client.DeprecatedCreateParameter(ctx, codersdk.ParameterTemplate, template.ID, codersdk.CreateParameterRequest{
+	templateParam, err := client.DeprecatedCreateParameter(ctx, codersdk.DeprecatedParameterTemplate, template.ID, codersdk.DeprecatedCreateParameterRequest{
 		Name:              "test-param",
 		SourceValue:       "hello world",
-		SourceScheme:      codersdk.ParameterSourceSchemeData,
-		DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+		SourceScheme:      codersdk.DeprecatedParameterSourceSchemeData,
+		DestinationScheme: codersdk.DeprecatedParameterDestinationSchemeProvisionerVariable,
 	})
 	require.NoError(t, err, "create template param")
 	urlParameters := map[string]string{

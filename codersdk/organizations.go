@@ -43,7 +43,7 @@ type CreateTemplateVersionRequest struct {
 	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	ParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 // CreateTemplateRequest provides options when creating a template.
@@ -63,8 +63,8 @@ type CreateTemplateRequest struct {
 	// This is required on creation to enable a user-flow of validating a
 	// template works. There is no reason the data-model cannot support empty
 	// templates, but it doesn't make sense for users.
-	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	VersionID       uuid.UUID                          `json:"template_version_id" validate:"required"`
+	ParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
 
 	// MaxTTLMillis allows optionally specifying the maximum allowable TTL
 	// for all workspaces created from this template.
@@ -84,7 +84,7 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	ParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

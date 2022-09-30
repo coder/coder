@@ -33,7 +33,7 @@ func (api *API) deprecatedPostParameter(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var createRequest codersdk.CreateParameterRequest
+	var createRequest codersdk.DeprecatedCreateParameterRequest
 	if !httpapi.Read(ctx, rw, r, &createRequest) {
 		return
 	}
@@ -108,7 +108,7 @@ func (api *API) deprecatedParameters(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiParameterValues := make([]codersdk.Parameter, 0, len(parameterValues))
+	apiParameterValues := make([]codersdk.DeprecatedParameter, 0, len(parameterValues))
 	for _, parameterValue := range parameterValues {
 		apiParameterValues = append(apiParameterValues, convertParameterValue(parameterValue))
 	}
@@ -162,26 +162,26 @@ func (api *API) deprecatedDeleteParameter(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.ParameterSchema, error) {
+func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.DeprecatedParameterSchema, error) {
 	contains := []string{}
 	if parameterSchema.ValidationCondition != "" {
 		var err error
 		contains, _, err = parameter.Contains(parameterSchema.ValidationCondition)
 		if err != nil {
-			return codersdk.ParameterSchema{}, xerrors.Errorf("parse validation condition for %q: %w", parameterSchema.Name, err)
+			return codersdk.DeprecatedParameterSchema{}, xerrors.Errorf("parse validation condition for %q: %w", parameterSchema.Name, err)
 		}
 	}
 
-	return codersdk.ParameterSchema{
+	return codersdk.DeprecatedParameterSchema{
 		ID:                       parameterSchema.ID,
 		CreatedAt:                parameterSchema.CreatedAt,
 		JobID:                    parameterSchema.JobID,
 		Name:                     parameterSchema.Name,
 		Description:              parameterSchema.Description,
-		DefaultSourceScheme:      codersdk.ParameterSourceScheme(parameterSchema.DefaultSourceScheme),
+		DefaultSourceScheme:      codersdk.DeprecatedParameterSourceScheme(parameterSchema.DefaultSourceScheme),
 		DefaultSourceValue:       parameterSchema.DefaultSourceValue,
 		AllowOverrideSource:      parameterSchema.AllowOverrideSource,
-		DefaultDestinationScheme: codersdk.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
+		DefaultDestinationScheme: codersdk.DeprecatedParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
 		AllowOverrideDestination: parameterSchema.AllowOverrideDestination,
 		DefaultRefresh:           parameterSchema.DefaultRefresh,
 		RedisplayValue:           parameterSchema.RedisplayValue,
@@ -193,16 +193,16 @@ func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.
 	}, nil
 }
 
-func convertParameterValue(parameterValue database.ParameterValue) codersdk.Parameter {
-	return codersdk.Parameter{
+func convertParameterValue(parameterValue database.ParameterValue) codersdk.DeprecatedParameter {
+	return codersdk.DeprecatedParameter{
 		ID:                parameterValue.ID,
 		CreatedAt:         parameterValue.CreatedAt,
 		UpdatedAt:         parameterValue.UpdatedAt,
-		Scope:             codersdk.ParameterScope(parameterValue.Scope),
+		Scope:             codersdk.DeprecatedParameterScope(parameterValue.Scope),
 		ScopeID:           parameterValue.ScopeID,
 		Name:              parameterValue.Name,
-		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
-		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
+		SourceScheme:      codersdk.DeprecatedParameterSourceScheme(parameterValue.SourceScheme),
+		DestinationScheme: codersdk.DeprecatedParameterDestinationScheme(parameterValue.DestinationScheme),
 	}
 }
 

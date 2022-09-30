@@ -210,7 +210,7 @@ func TestTemplatePush(t *testing.T) {
 	})
 }
 
-func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uuid.UUID) (codersdk.TemplateVersion, []codersdk.Parameter) {
+func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uuid.UUID) (codersdk.TemplateVersion, []codersdk.DeprecatedParameter) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -218,7 +218,7 @@ func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uui
 	require.NoError(t, err)
 	tv, err := client.TemplateVersion(ctx, newTemplate.ActiveVersionID)
 	require.NoError(t, err)
-	params, err := client.DeprecatedParameters(ctx, codersdk.ParameterImportJob, tv.Job.ID)
+	params, err := client.DeprecatedParameters(ctx, codersdk.DeprecatedParameterImportJob, tv.Job.ID)
 	require.NoError(t, err)
 
 	return tv, params

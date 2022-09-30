@@ -53,7 +53,7 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 }
 
 // DeprecatedTemplateVersionSchema returns schemas for a template version by ID.
-func (c *Client) DeprecatedTemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
+func (c *Client) DeprecatedTemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]DeprecatedParameterSchema, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/deprecated-schema", version), nil)
 	if err != nil {
 		return nil, err
@@ -62,12 +62,12 @@ func (c *Client) DeprecatedTemplateVersionSchema(ctx context.Context, version uu
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []ParameterSchema
+	var params []DeprecatedParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // DeprecatedTemplateVersionParameters returns computed parameters for a template version.
-func (c *Client) DeprecatedTemplateVersionParameters(ctx context.Context, version uuid.UUID) ([]ComputedParameter, error) {
+func (c *Client) DeprecatedTemplateVersionParameters(ctx context.Context, version uuid.UUID) ([]DeprecatedComputedParameter, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/deprecated-parameters", version), nil)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (c *Client) DeprecatedTemplateVersionParameters(ctx context.Context, versio
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []ComputedParameter
+	var params []DeprecatedComputedParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
@@ -108,7 +108,7 @@ func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID
 // CreateTemplateVersionDryRun.
 type CreateTemplateVersionDryRunRequest struct {
 	WorkspaceName   string
-	ParameterValues []CreateParameterRequest
+	ParameterValues []DeprecatedCreateParameterRequest
 }
 
 // CreateTemplateVersionDryRun begins a dry-run provisioner job against the

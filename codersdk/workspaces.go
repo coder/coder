@@ -42,7 +42,7 @@ type CreateWorkspaceBuildRequest struct {
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	ParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 type WorkspaceOptions struct {

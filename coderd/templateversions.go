@@ -131,7 +131,7 @@ func (api *API) deprecatedTemplateVersionSchema(rw http.ResponseWriter, r *http.
 		})
 		return
 	}
-	apiSchemas := make([]codersdk.ParameterSchema, 0)
+	apiSchemas := make([]codersdk.DeprecatedParameterSchema, 0)
 	for _, schema := range schemas {
 		apiSchema, err := convertParameterSchema(schema)
 		if err != nil {
@@ -737,11 +737,11 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 					return xerrors.Errorf("copy parameter scope is %q, must be %q", copy.Scope, database.ParameterScopeImportJob)
 				}
 				// Add the copied param to the list to process
-				req.ParameterValues = append(req.ParameterValues, codersdk.CreateParameterRequest{
+				req.ParameterValues = append(req.ParameterValues, codersdk.DeprecatedCreateParameterRequest{
 					Name:              copy.Name,
 					SourceValue:       copy.SourceValue,
-					SourceScheme:      codersdk.ParameterSourceScheme(copy.SourceScheme),
-					DestinationScheme: codersdk.ParameterDestinationScheme(copy.DestinationScheme),
+					SourceScheme:      codersdk.DeprecatedParameterSourceScheme(copy.SourceScheme),
+					DestinationScheme: codersdk.DeprecatedParameterDestinationScheme(copy.DestinationScheme),
 				})
 			}
 		}

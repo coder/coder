@@ -158,7 +158,7 @@ type createValidTemplateVersionArgs struct {
 	ReuseParameters bool
 }
 
-func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.DeprecatedCreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.DeprecatedCreateParameterRequest, error) {
 	before := time.Now()
 	client := args.Client
 
@@ -210,7 +210,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	// lastParameterValues are pulled from the current active template version if
 	// templateID is provided. This allows pulling params from the last
 	// version instead of prompting if we are updating template versions.
-	lastParameterValues := make(map[string]codersdk.Parameter)
+	lastParameterValues := make(map[string]codersdk.DeprecatedParameter)
 	if args.ReuseParameters && args.Template != nil {
 		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
 		if err != nil {
@@ -218,7 +218,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		}
 
 		// We don't want to compute the params, we only want to copy from this scope
-		values, err := client.DeprecatedParameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
+		values, err := client.DeprecatedParameters(cmd.Context(), codersdk.DeprecatedParameterImportJob, activeVersion.Job.ID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
 		}
@@ -228,7 +228,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	}
 
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
-		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
+		valuesBySchemaID := map[string]codersdk.DeprecatedComputedParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
@@ -245,7 +245,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 
 		// pulled params come from the last template version
 		pulled := make([]string, 0)
-		missingSchemas := make([]codersdk.ParameterSchema, 0)
+		missingSchemas := make([]codersdk.DeprecatedParameterSchema, 0)
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
@@ -258,7 +258,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			if inherit, ok := lastParameterValues[parameterSchema.Name]; ok && !fileOk {
 				// If the value is not in the param file, and can be pulled from the last template version,
 				// then don't mark it as missing.
-				parameters = append(parameters, codersdk.CreateParameterRequest{
+				parameters = append(parameters, codersdk.DeprecatedCreateParameterRequest{
 					CloneID: inherit.ID,
 				})
 				pulled = append(pulled, fmt.Sprintf("%q", parameterSchema.Name))
@@ -279,10 +279,10 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			if err != nil {
 				return nil, nil, err
 			}
-			parameters = append(parameters, codersdk.CreateParameterRequest{
+			parameters = append(parameters, codersdk.DeprecatedCreateParameterRequest{
 				Name:              parameterSchema.Name,
 				SourceValue:       parameterValue,
-				SourceScheme:      codersdk.ParameterSourceSchemeData,
+				SourceScheme:      codersdk.DeprecatedParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())

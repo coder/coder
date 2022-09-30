@@ -11,80 +11,80 @@ import (
 	"github.com/google/uuid"
 )
 
-type ParameterScope string
+type DeprecatedParameterScope string
 
 const (
-	ParameterTemplate  ParameterScope = "template"
-	ParameterWorkspace ParameterScope = "workspace"
-	ParameterImportJob ParameterScope = "import_job"
+	DeprecatedParameterTemplate  DeprecatedParameterScope = "template"
+	DeprecatedParameterWorkspace DeprecatedParameterScope = "workspace"
+	DeprecatedParameterImportJob DeprecatedParameterScope = "import_job"
 )
 
-type ParameterSourceScheme string
+type DeprecatedParameterSourceScheme string
 
 const (
-	ParameterSourceSchemeNone ParameterSourceScheme = "none"
-	ParameterSourceSchemeData ParameterSourceScheme = "data"
+	DeprecatedParameterSourceSchemeNone DeprecatedParameterSourceScheme = "none"
+	DeprecatedParameterSourceSchemeData DeprecatedParameterSourceScheme = "data"
 )
 
-type ParameterDestinationScheme string
+type DeprecatedParameterDestinationScheme string
 
 const (
-	ParameterDestinationSchemeNone                ParameterDestinationScheme = "none"
-	ParameterDestinationSchemeEnvironmentVariable ParameterDestinationScheme = "environment_variable"
-	ParameterDestinationSchemeProvisionerVariable ParameterDestinationScheme = "provisioner_variable"
+	DeprecatedParameterDestinationSchemeNone                DeprecatedParameterDestinationScheme = "none"
+	DeprecatedParameterDestinationSchemeEnvironmentVariable DeprecatedParameterDestinationScheme = "environment_variable"
+	DeprecatedParameterDestinationSchemeProvisionerVariable DeprecatedParameterDestinationScheme = "provisioner_variable"
 )
 
-type ParameterTypeSystem string
+type DeprecatedParameterTypeSystem string
 
 const (
-	ParameterTypeSystemNone ParameterTypeSystem = "none"
-	ParameterTypeSystemHCL  ParameterTypeSystem = "hcl"
+	DeprecatedParameterTypeSystemNone DeprecatedParameterTypeSystem = "none"
+	DeprecatedParameterTypeSystemHCL  DeprecatedParameterTypeSystem = "hcl"
 )
 
-type ComputedParameter struct {
-	Parameter
+type DeprecatedComputedParameter struct {
+	DeprecatedParameter
 	SourceValue        string    `json:"source_value"`
 	SchemaID           uuid.UUID `json:"schema_id"`
 	DefaultSourceValue bool      `json:"default_source_value"`
 }
 
-// Parameter represents a set value for the scope.
-type Parameter struct {
-	ID                uuid.UUID                  `json:"id" table:"id"`
-	Scope             ParameterScope             `json:"scope" table:"scope"`
-	ScopeID           uuid.UUID                  `json:"scope_id" table:"scope id"`
-	Name              string                     `json:"name" table:"name"`
-	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none"`
-	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none"`
-	CreatedAt         time.Time                  `json:"created_at" table:"created at"`
-	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at"`
+// DeprecatedParameter represents a set value for the scope.
+type DeprecatedParameter struct {
+	ID                uuid.UUID                            `json:"id" table:"id"`
+	Scope             DeprecatedParameterScope             `json:"scope" table:"scope"`
+	ScopeID           uuid.UUID                            `json:"scope_id" table:"scope id"`
+	Name              string                               `json:"name" table:"name"`
+	SourceScheme      DeprecatedParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none"`
+	DestinationScheme DeprecatedParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none"`
+	CreatedAt         time.Time                            `json:"created_at" table:"created at"`
+	UpdatedAt         time.Time                            `json:"updated_at" table:"updated at"`
 }
 
-type ParameterSchema struct {
-	ID                       uuid.UUID                  `json:"id"`
-	CreatedAt                time.Time                  `json:"created_at"`
-	JobID                    uuid.UUID                  `json:"job_id"`
-	Name                     string                     `json:"name"`
-	Description              string                     `json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `json:"default_source_scheme"`
-	DefaultSourceValue       string                     `json:"default_source_value"`
-	AllowOverrideSource      bool                       `json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `json:"default_destination_scheme"`
-	AllowOverrideDestination bool                       `json:"allow_override_destination"`
-	DefaultRefresh           string                     `json:"default_refresh"`
-	RedisplayValue           bool                       `json:"redisplay_value"`
-	ValidationError          string                     `json:"validation_error"`
-	ValidationCondition      string                     `json:"validation_condition"`
-	ValidationTypeSystem     string                     `json:"validation_type_system"`
-	ValidationValueType      string                     `json:"validation_value_type"`
+type DeprecatedParameterSchema struct {
+	ID                       uuid.UUID                            `json:"id"`
+	CreatedAt                time.Time                            `json:"created_at"`
+	JobID                    uuid.UUID                            `json:"job_id"`
+	Name                     string                               `json:"name"`
+	Description              string                               `json:"description"`
+	DefaultSourceScheme      DeprecatedParameterSourceScheme      `json:"default_source_scheme"`
+	DefaultSourceValue       string                               `json:"default_source_value"`
+	AllowOverrideSource      bool                                 `json:"allow_override_source"`
+	DefaultDestinationScheme DeprecatedParameterDestinationScheme `json:"default_destination_scheme"`
+	AllowOverrideDestination bool                                 `json:"allow_override_destination"`
+	DefaultRefresh           string                               `json:"default_refresh"`
+	RedisplayValue           bool                                 `json:"redisplay_value"`
+	ValidationError          string                               `json:"validation_error"`
+	ValidationCondition      string                               `json:"validation_condition"`
+	ValidationTypeSystem     string                               `json:"validation_type_system"`
+	ValidationValueType      string                               `json:"validation_value_type"`
 
 	// This is a special array of items provided if the validation condition
 	// explicitly states the value must be one of a set.
 	ValidationContains []string `json:"validation_contains,omitempty"`
 }
 
-// CreateParameterRequest is used to create a new parameter value for a scope.
-type CreateParameterRequest struct {
+// DeprecatedCreateParameterRequest is used to create a new parameter value for a scope.
+type DeprecatedCreateParameterRequest struct {
 	// CloneID allows copying the value of another parameter.
 	// The other param must be related to the same template_id for this to
 	// succeed.
@@ -92,28 +92,28 @@ type CreateParameterRequest struct {
 	// from the other parameter.
 	CloneID uuid.UUID `json:"copy_from_parameter,omitempty" validate:""`
 
-	Name              string                     `json:"name" validate:"required"`
-	SourceValue       string                     `json:"source_value" validate:"required"`
-	SourceScheme      ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
-	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
+	Name              string                               `json:"name" validate:"required"`
+	SourceValue       string                               `json:"source_value" validate:"required"`
+	SourceScheme      DeprecatedParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
+	DestinationScheme DeprecatedParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
 }
 
-func (c *Client) DeprecatedCreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {
+func (c *Client) DeprecatedCreateParameter(ctx context.Context, scope DeprecatedParameterScope, id uuid.UUID, req DeprecatedCreateParameterRequest) (DeprecatedParameter, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/deprecated-parameters/%s/%s", scope, id.String()), req)
 	if err != nil {
-		return Parameter{}, err
+		return DeprecatedParameter{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Parameter{}, readBodyAsError(res)
+		return DeprecatedParameter{}, readBodyAsError(res)
 	}
 
-	var param Parameter
+	var param DeprecatedParameter
 	return param, json.NewDecoder(res.Body).Decode(&param)
 }
 
-func (c *Client) DeprecatedDeleteParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, name string) error {
+func (c *Client) DeprecatedDeleteParameter(ctx context.Context, scope DeprecatedParameterScope, id uuid.UUID, name string) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/deprecated-parameters/%s/%s/%s", scope, id.String(), name), nil)
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func (c *Client) DeprecatedDeleteParameter(ctx context.Context, scope ParameterS
 	return nil
 }
 
-func (c *Client) DeprecatedParameters(ctx context.Context, scope ParameterScope, id uuid.UUID) ([]Parameter, error) {
+func (c *Client) DeprecatedParameters(ctx context.Context, scope DeprecatedParameterScope, id uuid.UUID) ([]DeprecatedParameter, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/deprecated-parameters/%s/%s", scope, id.String()), nil)
 	if err != nil {
 		return nil, err
@@ -139,6 +139,6 @@ func (c *Client) DeprecatedParameters(ctx context.Context, scope ParameterScope,
 		return nil, readBodyAsError(res)
 	}
 
-	var parameters []Parameter
+	var parameters []DeprecatedParameter
 	return parameters, json.NewDecoder(res.Body).Decode(&parameters)
 }

@@ -98,11 +98,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
-			ParameterValues: []codersdk.CreateParameterRequest{{
+			ParameterValues: []codersdk.DeprecatedCreateParameterRequest{{
 				Name:              "example",
 				SourceValue:       "value",
-				SourceScheme:      codersdk.ParameterSourceSchemeData,
-				DestinationScheme: codersdk.ParameterDestinationSchemeProvisionerVariable,
+				SourceScheme:      codersdk.DeprecatedParameterSourceSchemeData,
+				DestinationScheme: codersdk.DeprecatedParameterDestinationSchemeProvisionerVariable,
 			}},
 		})
 		require.NoError(t, err)
@@ -599,7 +599,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		// Create template version dry-run
 		after := time.Now()
 		job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-			ParameterValues: []codersdk.CreateParameterRequest{},
+			ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 		})
 		require.NoError(t, err)
 
@@ -657,7 +657,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		defer cancel()
 
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-			ParameterValues: []codersdk.CreateParameterRequest{},
+			ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -700,7 +700,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{},
+				ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 			})
 			require.NoError(t, err)
 
@@ -740,7 +740,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{},
+				ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 			})
 			require.NoError(t, err)
 
@@ -792,7 +792,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			// Create the dry-run
 			job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
-				ParameterValues: []codersdk.CreateParameterRequest{},
+				ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 			})
 			require.NoError(t, err)
 

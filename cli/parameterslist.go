@@ -33,21 +33,21 @@ func parameterList() *cobra.Command {
 			}
 
 			var scopeID uuid.UUID
-			switch codersdk.ParameterScope(scope) {
-			case codersdk.ParameterWorkspace:
+			switch codersdk.DeprecatedParameterScope(scope) {
+			case codersdk.DeprecatedParameterWorkspace:
 				workspace, err := namedWorkspace(cmd, client, name)
 				if err != nil {
 					return err
 				}
 				scopeID = workspace.ID
-			case codersdk.ParameterTemplate:
+			case codersdk.DeprecatedParameterTemplate:
 				template, err := client.TemplateByName(cmd.Context(), organization.ID, name)
 				if err != nil {
 					return xerrors.Errorf("get workspace template: %w", err)
 				}
 				scopeID = template.ID
-			case codersdk.ParameterImportJob, "template_version":
-				scope = string(codersdk.ParameterImportJob)
+			case codersdk.DeprecatedParameterImportJob, "template_version":
+				scope = string(codersdk.DeprecatedParameterImportJob)
 				scopeID, err = uuid.Parse(name)
 				if err != nil {
 					return xerrors.Errorf("%q must be a uuid for this scope type", name)
@@ -61,12 +61,12 @@ func parameterList() *cobra.Command {
 				}
 
 			default:
-				return xerrors.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.ParameterScope{
-					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterImportJob,
+				return xerrors.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.DeprecatedParameterScope{
+					codersdk.DeprecatedParameterWorkspace, codersdk.DeprecatedParameterTemplate, codersdk.DeprecatedParameterImportJob,
 				})
 			}
 
-			params, err := client.DeprecatedParameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
+			params, err := client.DeprecatedParameters(cmd.Context(), codersdk.DeprecatedParameterScope(scope), scopeID)
 			if err != nil {
 				return xerrors.Errorf("fetch params: %w", err)
 			}
