@@ -7,7 +7,7 @@ import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
-import { ResolveTypegenMeta, State } from "xstate"
+import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -17,7 +17,6 @@ import { pageTitle } from "../../util/page"
 import { getFaviconByStatus } from "../../util/workspace"
 import { XServiceContext } from "../../xServices/StateContext"
 import {
-  WorkspaceContext,
   WorkspaceEvent,
   workspaceMachine,
 } from "../../xServices/workspace/workspaceXService"
@@ -55,13 +54,7 @@ export const WorkspacePage: FC = () => {
 }
 
 interface WorkspaceReadyPageProps {
-  workspaceState: State<
-    WorkspaceContext,
-    WorkspaceEvent,
-    any,
-    any,
-    ResolveTypegenMeta<any, WorkspaceEvent, any, any>
-  >
+  workspaceState: StateFrom<typeof workspaceMachine>
   workspaceSend: (event: WorkspaceEvent) => void
 }
 
@@ -70,7 +63,6 @@ export const WorkspaceReadyPage = ({
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [bannerState, bannerSend] = useActor(workspaceState.children["scheduleBannerMachine"])
-  console.log(bannerState.matches("atMinDeadline"))
   const xServices = useContext(XServiceContext)
   const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
