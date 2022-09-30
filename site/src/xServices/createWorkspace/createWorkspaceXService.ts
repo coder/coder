@@ -210,7 +210,11 @@ export const createWorkspaceMachine = createMachine(
       },
       getWorkspaceQuota: (context) => {
         if (!context.workspaceQuotaEnabled) {
-          return Promise.resolve({} as WorkspaceQuota)
+          // resolving with a limit of 0 will disable the component
+          return Promise.resolve({
+            user_workspace_count: 0,
+            user_workspace_limit: 0,
+          })
         }
 
         return getWorkspaceQuota(context.owner?.id ?? "me")
