@@ -113,9 +113,9 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   }
 
   const canSubmit =
-    props.workspaceQuota &&
-    props.workspaceQuota.user_workspace_limit > 0 &&
-    props.workspaceQuota.user_workspace_count < props.workspaceQuota.user_workspace_limit
+    props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
+      ? props.workspaceQuota.user_workspace_count < props.workspaceQuota.user_workspace_limit
+      : true
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
