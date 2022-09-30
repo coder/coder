@@ -70,7 +70,7 @@ var (
 		},
 
 		// member grants all actions to all resources owned by the user
-		member: func(_ string) Role {
+		member: func(orgID string) Role {
 			return Role{
 				Name:        member,
 				DisplayName: "",
@@ -170,6 +170,10 @@ var (
 						{
 							// Can read available roles.
 							ResourceType: ResourceOrgRoleAssignment.Type,
+							Action:       ActionRead,
+						},
+						{
+							ResourceType: ResourceGroup.Type,
 							Action:       ActionRead,
 						},
 					},
