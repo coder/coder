@@ -314,6 +314,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	workspaceCount, err := api.Database.GetWorkspaceCountByUserID(ctx, user.ID)
@@ -322,6 +323,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Message: fmt.Sprintf("Internal error fetching workspace count."),
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	// make sure the user has not hit their quota limit
