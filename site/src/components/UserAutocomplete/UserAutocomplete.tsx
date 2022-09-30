@@ -11,8 +11,11 @@ import { combineClasses } from "util/combineClasses"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 
 export type UserAutocompleteProps = {
-  value?: User | null
+  value: User | null
   onChange: (user: User | null) => void
+  label?: string
+  inputMargin?: "none" | "dense" | "normal"
+  inputStyles?: string
   className?: string
 }
 
@@ -20,6 +23,9 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
   value,
   onChange,
   className,
+  label,
+  inputMargin,
+  inputStyles,
 }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
@@ -81,9 +87,11 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
       renderInput={(params) => (
         <TextField
           {...params}
-          margin="none"
           variant="outlined"
+          margin={inputMargin ?? "normal"}
+          label={label ?? undefined}
           placeholder="User email or username"
+          className={inputStyles}
           InputProps={{
             ...params.InputProps,
             onChange: handleFilterChange,
@@ -116,7 +124,7 @@ export const useStyles = makeStyles((theme) => {
       },
 
       "& input": {
-        fontSize: 14,
+        fontSize: 16,
         padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
       },
     },
