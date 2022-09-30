@@ -149,7 +149,7 @@ func TestTemplateACL(t *testing.T) {
 		require.Len(t, acl.Users, 0, "deleted users should be filtered")
 	})
 
-	// Test that we do not return deleted or suspended users.
+	// Test that we do not return suspended users.
 	t.Run("FilterSuspendedUsers", func(t *testing.T) {
 		t.Parallel()
 
@@ -183,7 +183,7 @@ func TestTemplateACL(t *testing.T) {
 		require.Len(t, acl.Users, 0, "suspended users should be filtered")
 	})
 
-	// Test that we do not return deleted or suspended users.
+	// Test that we do not return deleted groups.
 	t.Run("FilterDeletedGroups", func(t *testing.T) {
 		t.Parallel()
 
