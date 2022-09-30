@@ -67,11 +67,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
-		r.Route("/users", func(r chi.Router) {
+		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/workspace-quota", api.workspaceQuota)
+				r.Get("/", api.workspaceQuota)
 			})
 		})
 	})

@@ -13,7 +13,7 @@ type WorkspaceQuota struct {
 }
 
 func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQuota, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace-quota", userID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace-quota/%s", userID), nil)
 	if err != nil {
 		return WorkspaceQuota{}, err
 	}
