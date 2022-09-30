@@ -114,6 +114,121 @@ func TestTemplateACL(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
+
+	// Test that we do not return deleted users.
+	t.Run("FilterDeletedUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user1.ID.String(): codersdk.TemplateRoleView,
+			},
+		})
+		require.NoError(t, err)
+
+		acl, err := client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Contains(t, acl.Users, codersdk.TemplateUser{
+			User: user1,
+			Role: codersdk.TemplateRoleView,
+		})
+
+		err = client.DeleteUser(ctx, user1.ID)
+		require.NoError(t, err)
+
+		acl, err = client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Len(t, acl.Users, 0, "deleted users should be filtered")
+	})
+
+	// Test that we do not return suspended users.
+	t.Run("FilterSuspendedUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user1.ID.String(): codersdk.TemplateRoleView,
+			},
+		})
+		require.NoError(t, err)
+
+		acl, err := client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Contains(t, acl.Users, codersdk.TemplateUser{
+			User: user1,
+			Role: codersdk.TemplateRoleView,
+		})
+
+		_, err = client.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		acl, err = client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Len(t, acl.Users, 0, "suspended users should be filtered")
+	})
+
+	// Test that we do not return deleted groups.
+	t.Run("FilterDeletedGroups", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "test",
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			GroupPerms: map[string]codersdk.TemplateRole{
+				group.ID.String(): codersdk.TemplateRoleView,
+			},
+		})
+		require.NoError(t, err)
+
+		acl, err := client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		// Length should be 2 for test group and the implicit allUsers group.
+		require.Len(t, acl.Groups, 2)
+
+		require.Contains(t, acl.Groups, codersdk.TemplateGroup{
+			Group: group,
+			Role:  codersdk.TemplateRoleView,
+		})
+
+		err = client.DeleteGroup(ctx, group.ID)
+		require.NoError(t, err)
+
+		acl, err = client.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		// Length should be 1 for the allUsers group.
+		require.Len(t, acl.Groups, 1)
+		require.NotContains(t, acl.Groups, codersdk.TemplateGroup{
+			Group: group,
+			Role:  codersdk.TemplateRoleView,
+		})
+	})
+
 }
 
 func TestUpdateTemplateACL(t *testing.T) {

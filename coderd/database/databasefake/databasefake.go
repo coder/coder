@@ -1304,6 +1304,10 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 			continue
 		}
 
+		if user.Deleted || user.Status == database.UserStatusSuspended {
+			continue
+		}
+
 		users = append(users, database.TemplateUser{
 			User:    user,
 			Actions: v,
