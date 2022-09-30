@@ -237,7 +237,12 @@ func (e executor) planResources(ctx, killCtx context.Context, planfilePath strin
 	if err != nil {
 		return nil, nil, xerrors.Errorf("graph: %w", err)
 	}
-	return ConvertResourcesAndParameters(plan.PlannedValues.RootModule, rawGraph)
+	modules := []*tfjson.StateModule{}
+	if plan.PriorState != nil {
+		modules = append(modules, plan.PriorState.Values.RootModule)
+	}
+	modules = append(modules, plan.PlannedValues.RootModule)
+	return ConvertResourcesAndParameters(modules, rawGraph)
 }
 
 func (e executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
@@ -332,7 +337,9 @@ func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resourc
 	var resources []*proto.Resource
 	var parameters []*proto.Parameter
 	if state.Values != nil {
-		resources, parameters, err = ConvertResourcesAndParameters(state.Values.RootModule, rawGraph)
+		resources, parameters, err = ConvertResourcesAndParameters([]*tfjson.StateModule{
+			state.Values.RootModule,
+		}, rawGraph)
 		if err != nil {
 			return nil, nil, err
 		}

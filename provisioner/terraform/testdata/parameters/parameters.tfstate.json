@@ -1,0 +1,85 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.2.8",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "arm64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "f7fe5fb5-68eb-4df0-bf69-dc1c536429a5",
+            "init_script": "",
+            "os": "windows",
+            "startup_script": null,
+            "token": "e9f84ffb-4972-4f5e-bea9-2211f821df22"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_parameter.example",
+          "mode": "data",
+          "type": "coder_parameter",
+          "name": "example",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "default": null,
+            "description": null,
+            "icon": null,
+            "id": "c6c42d66-d677-4c75-8a5f-b03f2af7b7cb",
+            "mutable": false,
+            "name": "Example",
+            "option": [
+              {
+                "description": "",
+                "icon": "",
+                "name": "First Option",
+                "value": "first"
+              },
+              {
+                "description": "",
+                "icon": "",
+                "name": "Second Option",
+                "value": "second"
+              }
+            ],
+            "type": "string",
+            "validation": null,
+            "value": ""
+          },
+          "sensitive_values": {
+            "option": [
+              {},
+              {}
+            ]
+          }
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "2221359697377043150",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.dev"
+          ]
+        }
+      ]
+    }
+  }
+}

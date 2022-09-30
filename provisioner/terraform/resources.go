@@ -63,7 +63,7 @@ type metadataItem struct {
 // ConvertResourcesAndParameters consumes Terraform state and a GraphViz representation produced by
 // `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertResourcesAndParameters(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, []*proto.Parameter, error) {
+func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph string) ([]*proto.Resource, []*proto.Parameter, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("parse graph: %w", err)
@@ -102,7 +102,9 @@ func ConvertResourcesAndParameters(module *tfjson.StateModule, rawGraph string) 
 			}
 		}
 	}
-	findTerraformResources(module)
+	for _, module := range modules {
+		findTerraformResources(module)
+	}
 
 	// Find all agents!
 	for _, tfResource := range tfResourceByLabel {

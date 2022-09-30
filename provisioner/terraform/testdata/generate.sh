@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 for d in */; do
+	d="parameters"
 	pushd "$d"
 	name=$(basename "$(pwd)")
 	terraform init -upgrade
@@ -16,4 +17,5 @@ for d in */; do
 	rm terraform.tfstate
 	terraform graph >"$name".tfstate.dot
 	popd
+	exit 0
 done

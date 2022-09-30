@@ -22,125 +22,166 @@ func TestConvertResources(t *testing.T) {
 	t.Parallel()
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
+	type testCase struct {
+		resources  []*proto.Resource
+		parameters []*proto.Parameter
+	}
 	// nolint:paralleltest
-	for folderName, expected := range map[string][]*proto.Resource{
+	for folderName, expected := range map[string]testCase{
 		// When a resource depends on another, the shortest route
 		// to a resource should always be chosen for the agent.
-		"chaining-resources": {{
-			Name: "a",
-			Type: "null_resource",
-		}, {
-			Name: "b",
-			Type: "null_resource",
-			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+		"chaining-resources": {
+			resources: []*proto.Resource{{
+				Name: "a",
+				Type: "null_resource",
+			}, {
+				Name: "b",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Auth:            &proto.Agent_Token{},
+				}},
 			}},
-		}},
+		},
 		// This can happen when resources hierarchically conflict.
 		// When multiple resources exist at the same level, the first
 		// listed in state will be chosen.
-		"conflicting-resources": {{
-			Name: "first",
-			Type: "null_resource",
-			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+		"conflicting-resources": {
+			resources: []*proto.Resource{{
+				Name: "first",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Auth:            &proto.Agent_Token{},
+				}},
+			}, {
+				Name: "second",
+				Type: "null_resource",
 			}},
-		}, {
-			Name: "second",
-			Type: "null_resource",
-		}},
+		},
 		// Ensures the instance ID authentication type surfaces.
-		"instance-id": {{
-			Name: "main",
-			Type: "null_resource",
-			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_InstanceId{},
+		"instance-id": {
+			resources: []*proto.Resource{{
+				Name: "main",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Auth:            &proto.Agent_InstanceId{},
+				}},
 			}},
-		}},
+		},
 		// Ensures that calls to resources through modules work
 		// as expected.
-		"calling-module": {{
-			Name: "example",
-			Type: "null_resource",
-			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+		"calling-module": {
+			resources: []*proto.Resource{{
+				Name: "example",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Auth:            &proto.Agent_Token{},
+				}},
 			}},
-		}},
+		},
 		// Ensures the attachment of multiple agents to a single
 		// resource is successful.
-		"multiple-agents": {{
-			Name: "dev",
-			Type: "null_resource",
-			Agents: []*proto.Agent{{
-				Name:            "dev1",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
-			}, {
-				Name:            "dev2",
-				OperatingSystem: "darwin",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
-			}, {
-				Name:            "dev3",
-				OperatingSystem: "windows",
-				Architecture:    "arm64",
-				Auth:            &proto.Agent_Token{},
-			}},
-		}},
-		// Ensures multiple applications can be set for a single agent.
-		"multiple-apps": {{
-			Name: "dev",
-			Type: "null_resource",
-			Agents: []*proto.Agent{{
-				Name:            "dev1",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Apps: []*proto.App{{
-					Name: "app1",
+		"multiple-agents": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Auth:            &proto.Agent_Token{},
 				}, {
-					Name: "app2",
-					Healthcheck: &proto.Healthcheck{
-						Url:       "http://localhost:13337/healthz",
-						Interval:  5,
-						Threshold: 6,
-					},
+					Name:            "dev2",
+					OperatingSystem: "darwin",
+					Architecture:    "amd64",
+					Auth:            &proto.Agent_Token{},
+				}, {
+					Name:            "dev3",
+					OperatingSystem: "windows",
+					Architecture:    "arm64",
+					Auth:            &proto.Agent_Token{},
 				}},
-				Auth: &proto.Agent_Token{},
 			}},
-		}},
+		},
+		// Ensures multiple applications can be set for a single agent.
+		"multiple-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{{
+						Name: "app1",
+					}, {
+						Name: "app2",
+						Healthcheck: &proto.Healthcheck{
+							Url:       "http://localhost:13337/healthz",
+							Interval:  5,
+							Threshold: 6,
+						},
+					}},
+					Auth: &proto.Agent_Token{},
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
-		"resource-metadata": {{
-			Name: "about",
-			Type: "null_resource",
-			Hide: true,
-			Icon: "/icon/server.svg",
-			Metadata: []*proto.Resource_Metadata{{
-				Key:   "hello",
-				Value: "world",
-			}, {
-				Key:    "null",
-				IsNull: true,
-			}, {
-				Key: "empty",
-			}, {
-				Key:       "secret",
-				Value:     "squirrel",
-				Sensitive: true,
+		"resource-metadata": {
+			resources: []*proto.Resource{{
+				Name: "about",
+				Type: "null_resource",
+				Hide: true,
+				Icon: "/icon/server.svg",
+				Metadata: []*proto.Resource_Metadata{{
+					Key:   "hello",
+					Value: "world",
+				}, {
+					Key:    "null",
+					IsNull: true,
+				}, {
+					Key: "empty",
+				}, {
+					Key:       "secret",
+					Value:     "squirrel",
+					Sensitive: true,
+				}},
 			}},
-		}},
+		},
+		"parameters": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "windows",
+					Architecture:    "arm64",
+					Auth:            &proto.Agent_Token{},
+				}},
+			}},
+			parameters: []*proto.Parameter{{
+				Name: "Example",
+				Type: "string",
+				Options: []*proto.ParameterOption{{
+					Name:  "First Option",
+					Value: "first",
+				}, {
+					Name:  "Second Option",
+					Value: "second",
+				}},
+			}},
+		},
 	} {
 		folderName := folderName
 		expected := expected
@@ -158,13 +199,18 @@ func TestConvertResources(t *testing.T) {
 				tfPlanGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfplan.dot"))
 				require.NoError(t, err)
 
-				resources, parameters, err := terraform.ConvertResourcesAndParameters(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
+				modules := []*tfjson.StateModule{}
+				if tfPlan.PriorState != nil {
+					modules = append(modules, tfPlan.PriorState.Values.RootModule)
+				}
+				modules = append(modules, tfPlan.PlannedValues.RootModule)
+				resources, parameters, err := terraform.ConvertResourcesAndParameters(modules, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(resources)
 				sortParameters(parameters)
 
-				var expectedNoMetadata []*proto.Resource
-				for _, resource := range expected {
+				expectedNoMetadata := make([]*proto.Resource, 0)
+				for _, resource := range expected.resources {
 					resourceCopy, _ := protobuf.Clone(resource).(*proto.Resource)
 					// plan cannot know whether values are null or not
 					for _, metadata := range resourceCopy.Metadata {
@@ -178,6 +224,15 @@ func TestConvertResources(t *testing.T) {
 				resourcesGot, err := json.Marshal(resources)
 				require.NoError(t, err)
 				require.Equal(t, string(resourcesWant), string(resourcesGot))
+
+				if expected.parameters == nil {
+					expected.parameters = []*proto.Parameter{}
+				}
+				parametersWant, err := json.Marshal(expected.parameters)
+				require.NoError(t, err)
+				parametersGot, err := json.Marshal(parameters)
+				require.NoError(t, err)
+				require.Equal(t, string(parametersWant), string(parametersGot))
 			})
 			t.Run("Provision", func(t *testing.T) {
 				t.Parallel()
@@ -189,7 +244,7 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				resources, parameters, err := terraform.ConvertResourcesAndParameters(tfState.Values.RootModule, string(tfStateGraph))
+				resources, parameters, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
 				require.NoError(t, err)
 				sortResources(resources)
 				sortParameters(parameters)
@@ -204,7 +259,7 @@ func TestConvertResources(t *testing.T) {
 						}
 					}
 				}
-				resourcesWant, err := json.Marshal(expected)
+				resourcesWant, err := json.Marshal(expected.resources)
 				require.NoError(t, err)
 				resourcesGot, err := json.Marshal(resources)
 				require.NoError(t, err)
@@ -248,7 +303,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 			t.Parallel()
 			instanceID, err := cryptorand.String(12)
 			require.NoError(t, err)
-			resources, _, err := terraform.ConvertResourcesAndParameters(&tfjson.StateModule{
+			resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: "coder_agent.dev",
 					Type:    "coder_agent",
@@ -269,7 +324,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 					},
 				}},
 				// This is manually created to join the edges.
-			}, `digraph {
+			}}, `digraph {
 	compound = "true"
 	newrank = "true"
 	subgraph "root" {
