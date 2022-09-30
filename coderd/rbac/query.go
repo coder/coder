@@ -497,6 +497,8 @@ func (t termObject) SQLString(cfg SQLConfig) string {
 	end := t.Variables[len(t.Variables)-1]
 	before := t.Variables[len(t.Variables)-2]
 
+	// Recursively solve the SQLString by removing the last nested reference.
+	// This continues until we have a single variable.
 	return termObject{
 		base: t.base,
 		Variables: append(
