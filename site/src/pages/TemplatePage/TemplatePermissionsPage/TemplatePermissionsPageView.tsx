@@ -8,29 +8,35 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import PersonAdd from "@material-ui/icons/PersonAdd"
-import { TemplateRole, TemplateUser, User } from "api/typesGenerated"
+import { Group, TemplateACL, TemplateGroup, TemplateRole, TemplateUser } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
-import { UserAutocompleteInline } from "components/UserAutocomplete/UserAutocomplete"
+import {
+  UserOrGroupAutocomplete,
+  UserOrGroupAutocompleteValue,
+} from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete"
 import { FC, useState } from "react"
 
-const AddTemplateUser: React.FC<{
+const AddTemplateUserOrGroup: React.FC<{
   isLoading: boolean
-  onSubmit: (user: User, role: TemplateRole, reset: () => void) => void
+  onSubmit: (
+    userOrGroup: TemplateUser | TemplateGroup,
+    role: TemplateRole,
+    reset: () => void,
+  ) => void
 }> = ({ isLoading, onSubmit }) => {
   const styles = useStyles()
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [selectedRole, setSelectedRole] = useState<TemplateRole>("read")
+  const [selectedOption, setSelectedOption] = useState<UserOrGroupAutocompleteValue>(null)
+  const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
 
   const resetValues = () => {
-    setSelectedUser(null)
-    setSelectedRole("read")
+    setSelectedOption(null)
+    setSelectedRole("view")
   }
 
   return (
@@ -38,21 +44,28 @@ const AddTemplateUser: React.FC<{
       onSubmit={(e) => {
         e.preventDefault()
 
-        if (selectedUser && selectedRole) {
-          onSubmit(selectedUser, selectedRole, resetValues)
+        if (selectedOption && selectedRole) {
+          onSubmit(
+            {
+              ...selectedOption,
+              role: selectedRole,
+            },
+            selectedRole,
+            resetValues,
+          )
         }
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1}>
-        <UserAutocompleteInline
-          value={selectedUser}
+        <UserOrGroupAutocomplete
+          value={selectedOption}
           onChange={(newValue) => {
-            setSelectedUser(newValue)
+            setSelectedOption(newValue)
           }}
         />
 
         <Select
-          defaultValue="read"
+          defaultValue="view"
           variant="outlined"
           className={styles.select}
           disabled={isLoading}
@@ -60,11 +73,8 @@ const AddTemplateUser: React.FC<{
             setSelectedRole(event.target.value as TemplateRole)
           }}
         >
-          <MenuItem key="read" value="read">
-            Read
-          </MenuItem>
-          <MenuItem key="write" value="write">
-            Write
+          <MenuItem key="view" value="view">
+            View
           </MenuItem>
           <MenuItem key="admin" value="admin">
             Admin
@@ -72,13 +82,13 @@ const AddTemplateUser: React.FC<{
         </Select>
 
         <LoadingButton
-          disabled={!selectedRole || !selectedUser}
+          disabled={!selectedRole || !selectedOption}
           type="submit"
           size="small"
           startIcon={<PersonAdd />}
           loading={isLoading}
         >
-          Add user
+          Add member
         </LoadingButton>
       </Stack>
     </form>
@@ -86,63 +96,129 @@ const AddTemplateUser: React.FC<{
 }
 
 export interface TemplatePermissionsPageViewProps {
-  deleteTemplateError: Error | unknown
-  templateUsers: TemplateUser[] | undefined
-  onAddUser: (user: User, role: TemplateRole, reset: () => void) => void
+  templateACL: TemplateACL | undefined
+  // User
+  onAddUser: (user: TemplateUser, role: TemplateRole, reset: () => void) => void
   isAddingUser: boolean
   canUpdateUsers: boolean
-  onUpdateUser: (user: User, role: TemplateRole) => void
+  onUpdateUser: (user: TemplateUser, role: TemplateRole) => void
   updatingUser: TemplateUser | undefined
-  onRemoveUser: (user: User) => void
+  onRemoveUser: (user: TemplateUser) => void
+  // Group
+  onAddGroup: (group: TemplateGroup, role: TemplateRole, reset: () => void) => void
+  isAddingGroup: boolean
+  onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void
+  updatingGroup: TemplateGroup | undefined
+  onRemoveGroup: (group: Group) => void
 }
 
 export const TemplatePermissionsPageView: FC<
   React.PropsWithChildren<TemplatePermissionsPageViewProps>
 > = ({
-  deleteTemplateError,
-  templateUsers,
+  templateACL,
+  canUpdateUsers,
+  // User
   onAddUser,
   isAddingUser,
   updatingUser,
   onUpdateUser,
-  canUpdateUsers,
   onRemoveUser,
+  // Group
+  onAddGroup,
+  isAddingGroup,
+  updatingGroup,
+  onUpdateGroup,
+  onRemoveGroup,
 }) => {
   const styles = useStyles()
-  const deleteError = deleteTemplateError ? (
-    <ErrorSummary error={deleteTemplateError} dismissible />
-  ) : null
+  const isEmpty = Boolean(
+    templateACL && templateACL.users.length === 0 && templateACL.group.length === 0,
+  )
 
   return (
     <Stack spacing={2.5}>
-      {deleteError}
-      <AddTemplateUser isLoading={isAddingUser} onSubmit={onAddUser} />
+      <AddTemplateUserOrGroup
+        isLoading={isAddingUser || isAddingGroup}
+        onSubmit={(value, role, resetAutocomplete) =>
+          "members" in value
+            ? onAddGroup(value, role, resetAutocomplete)
+            : onAddUser(value, role, resetAutocomplete)
+        }
+      />
       <TableContainer>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="60%">User</TableCell>
+              <TableCell width="60%">Member</TableCell>
               <TableCell width="40%">Role</TableCell>
               <TableCell width="1%" />
             </TableRow>
           </TableHead>
           <TableBody>
             <ChooseOne>
-              <Cond condition={!templateUsers}>
+              <Cond condition={!templateACL}>
                 <TableLoader />
               </Cond>
-              <Cond condition={Boolean(templateUsers && templateUsers.length === 0)}>
+              <Cond condition={isEmpty}>
                 <TableRow>
                   <TableCell colSpan={999}>
                     <EmptyState
-                      message="No users yet"
-                      description="Add a user using the controls above"
+                      message="No members yet"
+                      description="Add a member using the controls above"
                     />
                   </TableCell>
                 </TableRow>
               </Cond>
-              <Cond condition={Boolean(templateUsers && templateUsers.length > 0)}>
-                {templateUsers?.map((user) => (
+              <Cond>
+                {templateACL?.group.map((group) => (
+                  <TableRow key={group.id}>
+                    <TableCell>
+                      <AvatarData
+                        title={group.name}
+                        subtitle={`${group.members.length} members`}
+                        highlightTitle
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {canUpdateUsers ? (
+                        <Select
+                          value={group.role}
+                          variant="outlined"
+                          className={styles.updateSelect}
+                          disabled={updatingGroup && updatingGroup.id === group.id}
+                          onChange={(event) => {
+                            onUpdateGroup(group, event.target.value as TemplateRole)
+                          }}
+                        >
+                          <MenuItem key="view" value="view">
+                            View
+                          </MenuItem>
+                          <MenuItem key="admin" value="admin">
+                            Admin
+                          </MenuItem>
+                        </Select>
+                      ) : (
+                        group.role
+                      )}
+                    </TableCell>
+
+                    {canUpdateUsers && (
+                      <TableCell>
+                        <TableRowMenu
+                          data={group}
+                          menuItems={[
+                            {
+                              label: "Remove",
+                              onClick: () => onRemoveGroup(group),
+                            },
+                          ]}
+                        />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+
+                {templateACL?.users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <AvatarData
@@ -171,11 +247,8 @@ export const TemplatePermissionsPageView: FC<
                             onUpdateUser(user, event.target.value as TemplateRole)
                           }}
                         >
-                          <MenuItem key="read" value="read">
-                            Read
-                          </MenuItem>
-                          <MenuItem key="write" value="write">
-                            Write
+                          <MenuItem key="view" value="view">
+                            View
                           </MenuItem>
                           <MenuItem key="admin" value="admin">
                             Admin

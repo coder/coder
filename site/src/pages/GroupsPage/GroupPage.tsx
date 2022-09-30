@@ -100,7 +100,7 @@ export const GroupPage: React.FC = () => {
           <Loader />
         </Cond>
 
-        <Cond condition>
+        <Cond>
           <Margins>
             <PageHeader
               actions={
@@ -152,7 +152,7 @@ export const GroupPage: React.FC = () => {
                         </TableRow>
                       </Cond>
 
-                      <Cond condition>
+                      <Cond>
                         {group?.members.map((member) => (
                           <TableRow key={member.id}>
                             <TableCell width="99%">

@@ -62,22 +62,22 @@ export const SettingsGroupPage: React.FC = () => {
   if (!groupId) {
     throw new Error("Group ID not defined.")
   }
+
   const navigate = useNavigate()
+
+  const navigateToGroup = () => {
+    navigate(`/groups/${groupId}`)
+  }
+
   const [editState, sendEditEvent] = useMachine(editGroupMachine, {
     context: {
       groupId,
     },
     actions: {
-      onUpdate: () => {
-        navigate(`/groups/${groupId}`)
-      },
+      onUpdate: navigateToGroup,
     },
   })
   const { updateGroupFormErrors, group } = editState.context
-
-  const onCancel = () => {
-    navigate("/groups")
-  }
 
   return (
     <>
@@ -90,11 +90,11 @@ export const SettingsGroupPage: React.FC = () => {
           <FullScreenLoader />
         </Cond>
 
-        <Cond condition>
+        <Cond>
           <Margins>
             <UpdateGroupForm
               group={group as Group}
-              onCancel={onCancel}
+              onCancel={navigateToGroup}
               errors={updateGroupFormErrors}
               isLoading={editState.matches("updating")}
               onSubmit={(data) => {

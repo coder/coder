@@ -25,7 +25,6 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
-  const [selectedValue, setSelectedValue] = useState<User | null>(value || null)
 
   // seed list of options on the first page load if a user pases in a value
   // since some organizations have long lists of users, we do not load all options on page load.
@@ -42,7 +41,7 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      value={selectedValue}
+      value={value}
       id="user-autocomplete"
       open={isAutocompleteOpen}
       onOpen={() => {
@@ -56,7 +55,6 @@ export const UserAutocomplete: React.FC<UserAutocompleteProps> = ({
           sendSearch("CLEAR_RESULTS")
         }
 
-        setSelectedValue(newValue)
         onChange(newValue)
       }}
       getOptionSelected={(option: User, value: User) => option.username === value.username}
