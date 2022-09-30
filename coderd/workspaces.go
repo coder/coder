@@ -294,33 +294,39 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: user.ID,
+		Name:    createWorkspace.Name,
 	})
+	if err == nil {
+		// If the workspace already exists, don't allow creation.
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
+			Validations: []codersdk.ValidationError{{
+				Field:  "name",
+				Detail: "This value is already in use and should be unique.",
+			}},
+		})
+		return
+	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
 		})
-		return
 	}
-	for _, workspace := range workspaces {
-		if workspace.Name == createWorkspace.Name {
-			// If the workspace already exists, don't allow creation.
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
-				Validations: []codersdk.ValidationError{{
-					Field:  "name",
-					Detail: "This value is already in use and should be unique.",
-				}},
-			})
-			return
-		}
+
+	workspaceCount, err := api.Database.GetWorkspaceCountByUserID(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf("Internal error fetching workspace count."),
+			Detail:  err.Error(),
+		})
 	}
 
 	// make sure the user has not hit their quota limit
 	e := *api.WorkspaceQuotaEnforcer.Load()
-	canCreate := e.CanCreateWorkspace(len(workspaces))
+	canCreate := e.CanCreateWorkspace(int(workspaceCount))
 	if !canCreate {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("User workspace limit of %d is already reached.", e.UserWorkspaceLimit()),
@@ -364,7 +370,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	var (
-		workspace      database.Workspace
 		provisionerJob database.ProvisionerJob
 		workspaceBuild database.WorkspaceBuild
 	)

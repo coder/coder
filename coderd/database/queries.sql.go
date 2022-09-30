@@ -4971,6 +4971,24 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 	return i, err
 }
 
+const getWorkspaceCountByUserID = `-- name: GetWorkspaceCountByUserID :one
+SELECT
+	COUNT(id)
+FROM
+	workspaces
+WHERE
+	owner_id = $1
+	-- Ignore deleted workspaces
+	AND deleted != true
+`
+
+func (q *sqlQuerier) GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceCountByUserID, ownerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getWorkspaceOwnerCountsByTemplateIDs = `-- name: GetWorkspaceOwnerCountsByTemplateIDs :many
 SELECT
 	template_id,
