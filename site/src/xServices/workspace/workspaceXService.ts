@@ -568,24 +568,6 @@ export const workspaceMachine = createMachine(
         const message = getErrorMessage(data, "Error getting the applications host.")
         displayError(message)
       },
-      // assignScheduleBannerRef: assign((context) => {
-      //   if (!context.workspace || !context.template) {
-      //     throw Error("Cannot manage workspace schedule without workspace and template.")
-      //   }
-      //   const scheduleContext = {
-      //     workspace: context.workspace,
-      //     template: context.template,
-      //     deadline: getDeadline(context.workspace)
-      //   }
-      //   const scheduleBannerRef = spawn(workspaceScheduleBannerMachine.withContext(scheduleContext), "scheduleBannerMachine")
-      //   return { ...context, scheduleBannerRef }
-      // }),
-      // stopScheduleBannerRef: (context) => {
-      //   context.scheduleBannerRef?.stop && context.scheduleBannerRef.stop()
-      // },
-      // clearScheduleBannerRef: assign({
-      //   scheduleBannerRef: (_) => undefined
-      // }),
       sendWorkspaceToSchedule: send(
         (context) => ({
           type: "REFRESH_WORKSPACE",
