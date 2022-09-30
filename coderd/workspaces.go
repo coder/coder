@@ -372,7 +372,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
 		}
-		for _, parameterValue := range createWorkspace.ParameterValues {
+		for _, parameterValue := range createWorkspace.DeprecatedParameterValues {
 			// If the value is empty, we don't want to save it on database so
 			// Terraform can use the default value
 			if parameterValue.SourceValue == "" {

@@ -300,6 +300,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var parameters []codersdk.WorkspaceBuildParameter
 	var state []byte
 	// If custom state, deny request since user could be corrupting or leaking
 	// cloud state.
@@ -311,6 +312,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		state = createBuild.ProvisionerState
+	}
+	if createBuild.Parameters != nil {
+		parameters = createBuild.Parameters
 	}
 
 	if createBuild.Orphan {
@@ -382,6 +386,23 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if state == nil {
 		state = priorHistory.ProvisionerState
 	}
+	if parameters == nil {
+		buildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching prior workspace build parameters.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		parameters = make([]codersdk.WorkspaceBuildParameter, 0, len(buildParameters))
+		for _, param := range buildParameters {
+			parameters = append(parameters, codersdk.WorkspaceBuildParameter{
+				Name:  param.Name,
+				Value: param.Value,
+			})
+		}
+	}
 
 	var workspaceBuild database.WorkspaceBuild
 	var provisionerJob database.ProvisionerJob
@@ -398,7 +419,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 		// Write/Update any new params
 		now := database.Now()
-		for _, param := range createBuild.ParameterValues {
+		for _, param := range createBuild.DeprecatedParameterValues {
 			for _, exists := range existing {
 				// If the param exists, delete the old param before inserting the new one
 				if exists.Name == param.Name {
@@ -426,6 +447,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		workspaceBuildID := uuid.New()
+		names := make([]string, 0, len(parameters))
+		values := make([]string, 0, len(parameters))
+		for _, param := range parameters {
+			names = append(names, param.Name)
+			values = append(values, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameter: %w", err)
+		}
+
 		input, err := json.Marshal(workspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
 		})

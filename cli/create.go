@@ -141,11 +141,11 @@ func create() *cobra.Command {
 
 			after := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
-				TemplateID:        template.ID,
-				Name:              workspaceName,
-				AutostartSchedule: schedSpec,
-				TTLMillis:         ptr.Ref(stopAfter.Milliseconds()),
-				ParameterValues:   parameters,
+				TemplateID:                template.ID,
+				Name:                      workspaceName,
+				AutostartSchedule:         schedSpec,
+				TTLMillis:                 ptr.Ref(stopAfter.Milliseconds()),
+				DeprecatedParameterValues: parameters,
 			})
 			if err != nil {
 				return err

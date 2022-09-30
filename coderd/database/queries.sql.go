@@ -4694,6 +4694,59 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 	return err
 }
 
+const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
+SELECT
+    workspace_build_id, name, value
+FROM
+    workspace_build_parameters
+WHERE
+    workspace_build_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParameters, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuildParameter
+	for rows.Next() {
+		var i WorkspaceBuildParameter
+		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
+INSERT INTO
+    workspace_build_parameters (workspace_build_id, name, value)
+SELECT 
+    $1 :: uuid AS workspace_build_id,
+    unnset($2 :: text[]) AS name,
+    unnset($3 :: text[]) AS value
+RETURNING workspace_build_id, name, value
+`
+
+type InsertWorkspaceBuildParametersParams struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             []string  `db:"name" json:"name"`
+	Value            []string  `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceBuildParameters, arg.WorkspaceBuildID, pq.Array(arg.Name), pq.Array(arg.Value))
+	return err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon

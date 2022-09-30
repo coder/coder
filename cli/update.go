@@ -59,9 +59,9 @@ func update() *cobra.Command {
 
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID: template.ActiveVersionID,
-				Transition:        workspace.LatestBuild.Transition,
-				ParameterValues:   parameters,
+				TemplateVersionID:         template.ActiveVersionID,
+				Transition:                workspace.LatestBuild.Transition,
+				DeprecatedParameterValues: parameters,
 			})
 			if err != nil {
 				return err

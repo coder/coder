@@ -82,9 +82,9 @@ type CreateWorkspaceRequest struct {
 	Name              string    `json:"name" validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
-	// ParameterValues allows for additional parameters to be provided
+	// DeprecatedParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
+	DeprecatedParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

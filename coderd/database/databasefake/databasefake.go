@@ -44,6 +44,7 @@ func New() database.Store {
 			templateVersionParameters:      make([]database.TemplateVersionParameter, 0),
 			templates:                      make([]database.Template, 0),
 			workspaceBuilds:                make([]database.WorkspaceBuild, 0),
+			workspaceBuildParameters:       make([]database.WorkspaceBuildParameter, 0),
 			workspaceApps:                  make([]database.WorkspaceApp, 0),
 			workspaces:                     make([]database.Workspace, 0),
 			licenses:                       make([]database.License, 0),
@@ -97,6 +98,7 @@ type data struct {
 	templateVersionParameters      []database.TemplateVersionParameter
 	templates                      []database.Template
 	workspaceBuilds                []database.WorkspaceBuild
+	workspaceBuildParameters       []database.WorkspaceBuildParameter
 	workspaceApps                  []database.WorkspaceApp
 	workspaces                     []database.Workspace
 	licenses                       []database.License
@@ -853,6 +855,20 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Con
 		return workspaceBuild, nil
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	params := make([]database.WorkspaceBuildParameter, 0)
+	for _, param := range params {
+		if param.WorkspaceBuildID != workspaceBuildID {
+			continue
+		}
+		params = append(params, param)
+	}
+	return params, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceBuild, error) {
@@ -2064,6 +2080,20 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, name := range arg.Name {
+		q.workspaceBuildParameters = append(q.workspaceBuildParameters, database.WorkspaceBuildParameter{
+			WorkspaceBuildID: arg.WorkspaceBuildID,
+			Name:             name,
+			Value:            arg.Value[index],
+		})
+	}
+	return nil
 }
 
 func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {

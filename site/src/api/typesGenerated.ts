@@ -198,6 +198,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
+  readonly parameters?: WorkspaceBuildParameter[]
   readonly orphan?: boolean
   readonly parameter_values?: DeprecatedCreateParameterRequest[]
 }
@@ -646,6 +647,12 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
+}
+
+// From codersdk/workspacebuilds.go
+export interface WorkspaceBuildParameter {
+  readonly name: string
+  readonly value: string
 }
 
 // From codersdk/workspaces.go

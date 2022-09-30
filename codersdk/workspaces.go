@@ -37,12 +37,18 @@ type CreateWorkspaceBuildRequest struct {
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
+	// Parameters are an optional list of parameters to use for the workspace build.
+	// If not provided, the prior build parameter list will be used.
+	//
+	// A build will fail to create if the template defines parameters that are invalid or missing.
+	Parameters []WorkspaceBuildParameter `json:"parameters,omitempty"`
 	// Orphan may be set for the Destroy transition.
 	Orphan bool `json:"orphan,omitempty"`
-	// ParameterValues are optional. It will write params to the 'workspace' scope.
+
+	// DeprecatedParameterValues are optional. It will write params to the 'workspace' scope.
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
-	ParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
+	DeprecatedParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 type WorkspaceOptions struct {
