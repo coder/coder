@@ -157,10 +157,18 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			var dbErr error
 			// Only support referencing some resources by ID.
 			switch v.Object.ResourceType {
+			case rbac.ResourceWorkspaceExecution.Type:
+				wrkSpace, err := api.Database.GetWorkspaceByID(ctx, id)
+				if err == nil {
+					dbObj = wrkSpace.ExecutionRBAC()
+				}
+				dbErr = err
 			case rbac.ResourceWorkspace.Type:
 				dbObj, dbErr = api.Database.GetWorkspaceByID(ctx, id)
 			case rbac.ResourceTemplate.Type:
 				dbObj, dbErr = api.Database.GetTemplateByID(ctx, id)
+			case rbac.ResourceUser.Type:
+				dbObj, dbErr = api.Database.GetUserByID(ctx, id)
 			default:
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message:     fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType),
