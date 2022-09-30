@@ -74,12 +74,8 @@ export const WorkspaceReadyPage = ({
               hours: 1,
             })
           },
-          deadlineMinusEnabled: () => {
-            return !bannerState.matches("atMinDeadline")
-          },
-          deadlinePlusEnabled: () => {
-            return !bannerState.matches("atMaxDeadline")
-          },
+          deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),
+          deadlinePlusEnabled: () => !bannerState.matches("atMaxDeadline"),
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}
