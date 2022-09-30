@@ -232,7 +232,6 @@ func TestTemplateACL(t *testing.T) {
 			Role:  codersdk.TemplateRoleView,
 		})
 	})
-
 }
 
 func TestUpdateTemplateACL(t *testing.T) {

@@ -223,19 +223,6 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	return users
 }
 
-func convertTemplateGroups(tgs []database.TemplateGroup) []codersdk.TemplateGroup {
-	groups := make([]codersdk.TemplateGroup, 0, len(tgs))
-
-	for _, tg := range tgs {
-		groups = append(groups, codersdk.TemplateGroup{
-			Group: convertGroup(tg.Group, nil),
-			Role:  convertToTemplateRole(tg.Actions),
-		})
-	}
-
-	return groups
-}
-
 func validateTemplateRole(role codersdk.TemplateRole) error {
 	actions := convertSDKTemplateRole(role)
 	if actions == nil && role != codersdk.TemplateRoleDeleted {
