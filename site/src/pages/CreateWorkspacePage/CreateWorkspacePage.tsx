@@ -1,10 +1,12 @@
-import { useMachine } from "@xstate/react"
-import { FC } from "react"
+import { useActor, useMachine } from "@xstate/react"
+import { User } from "api/typesGenerated"
+import { useOrganizationId } from "hooks/useOrganizationId"
+import { FC, useContext, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
-import { useOrganizationId } from "../../hooks/useOrganizationId"
-import { pageTitle } from "../../util/page"
-import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
+import { pageTitle } from "util/page"
+import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
+import { XServiceContext } from "xServices/StateContext"
 import { CreateWorkspaceErrors, CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: FC = () => {
@@ -28,7 +30,14 @@ const CreateWorkspacePage: FC = () => {
     getTemplateSchemaError,
     getTemplatesError,
     createWorkspaceError,
+    permissions,
   } = createWorkspaceState.context
+
+  const xServices = useContext(XServiceContext)
+  const [authState] = useActor(xServices.authXService)
+  const { me } = authState.context
+
+  const [owner, setOwner] = useState<User | null>(me ?? null)
 
   return (
     <>
@@ -49,6 +58,9 @@ const CreateWorkspacePage: FC = () => {
           [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: getTemplateSchemaError,
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
         }}
+        canCreateForUser={permissions?.createWorkspaceForUser}
+        defaultWorkspaceOwner={me ?? null}
+        setOwner={setOwner}
         onCancel={() => {
           navigate("/templates")
         }}
@@ -56,6 +68,7 @@ const CreateWorkspacePage: FC = () => {
           send({
             type: "CREATE_WORKSPACE",
             request,
+            owner,
           })
         }}
       />

@@ -58,7 +58,7 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
       </Stack>
 
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forward#dashboard">
+        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
           Learn more about port forward
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
@@ -125,7 +125,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
           <Cond condition={host !== ""}>
             <EnabledView {...props} />
           </Cond>
-          <Cond condition={host === ""}>
+          <Cond>
             <DisabledView {...props} />
           </Cond>
         </ChooseOne>

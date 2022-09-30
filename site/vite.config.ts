@@ -7,9 +7,14 @@ export default defineConfig({
   publicDir: path.resolve(__dirname, "./static"),
   build: {
     outDir: path.resolve(__dirname, "./out"),
+    // We need to keep the /bin folder and GITKEEP files
+    emptyOutDir: false,
   },
   define: {
-    "process.env": process.env,
+    "process.env": {
+      NODE_ENV: process.env.NODE_ENV,
+      INSPECT_XSTATE: process.env.INSPECT_XSTATE,
+    },
   },
   server: {
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
