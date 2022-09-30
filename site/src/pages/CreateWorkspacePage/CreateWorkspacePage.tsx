@@ -1,8 +1,7 @@
 import { shallowEqual, useActor, useMachine, useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
-import { User } from "api/typesGenerated"
 import { useOrganizationId } from "hooks/useOrganizationId"
-import { FC, useContext, useState } from "react"
+import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
@@ -23,8 +22,11 @@ const CreateWorkspacePage: FC = () => {
     shallowEqual,
   )
   const workspaceQuotaEnabled = featureVisibility[FeatureNames.WorkspaceQuota]
+
+  const [authState] = useActor(xServices.authXService)
+  const { me } = authState.context
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
-    context: { organizationId, templateName, workspaceQuotaEnabled },
+    context: { organizationId, templateName, workspaceQuotaEnabled, owner: (me ?? null) },
     actions: {
       onCreateWorkspace: (_, event) => {
         navigate(`/@${event.data.owner_name}/${event.data.name}`)
@@ -42,12 +44,8 @@ const CreateWorkspacePage: FC = () => {
     permissions,
     workspaceQuota,
     getWorkspaceQuotaError,
+    owner,
   } = createWorkspaceState.context
-
-  const [authState] = useActor(xServices.authXService)
-  const { me } = authState.context
-
-  const [owner, setOwner] = useState<User | null>(me ?? null)
 
   return (
     <>
@@ -72,7 +70,12 @@ const CreateWorkspacePage: FC = () => {
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
         owner={owner}
-        setOwner={setOwner}
+        setOwner={(user) => {
+          send({
+            type: "SELECT_OWNER",
+            owner: user,
+          })
+        }}
         onCancel={() => {
           navigate("/templates")
         }}
@@ -81,12 +84,6 @@ const CreateWorkspacePage: FC = () => {
             type: "CREATE_WORKSPACE",
             request,
             owner,
-          })
-        }}
-        onSelectOwner={(owner) => {
-          send({
-            type: "SELECT_OWNER",
-            owner: owner,
           })
         }}
       />
