@@ -9,7 +9,7 @@ import {
   deadlineExtensionMin,
   extractTimezone,
   getMaxDeadline,
-  minDeadline,
+  getMinDeadline,
   stripTimezone,
 } from "./schedule"
 
@@ -76,7 +76,7 @@ describe("maxDeadline", () => {
 
 describe("minDeadline", () => {
   it("should never be less than 30 minutes", () => {
-    const delta = minDeadline().diff(now)
+    const delta = getMinDeadline().diff(now)
     expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
   })
 })

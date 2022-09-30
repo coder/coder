@@ -6,7 +6,13 @@ import { getErrorMessage } from "api/errors"
 import { Template, Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
-import { getDeadline, getMaxDeadline, getMinDeadline } from "util/schedule"
+import {
+  canExtendDeadline,
+  canReduceDeadline,
+  getDeadline,
+  getMaxDeadline,
+  getMinDeadline,
+} from "util/schedule"
 import { ActorRefFrom, assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
@@ -125,14 +131,12 @@ export const workspaceScheduleBannerMachine = createMachine(
   },
   {
     guards: {
-      isAtMaxDeadline: (context) => {
-        return (
-          context.deadline?.isSame(getMaxDeadline(context.workspace, context.template)) || false
-        )
-      },
-      isAtMinDeadline: (context) => {
-        return context.deadline?.isSame(getMinDeadline()) || false
-      },
+      isAtMaxDeadline: (context) =>
+        context.deadline
+          ? !canExtendDeadline(context.deadline, context.workspace, context.template)
+          : false,
+      isAtMinDeadline: (context) =>
+        context.deadline ? !canReduceDeadline(context.deadline) : false,
     },
     actions: {
       // This error does not have a detail, so using the snackbar is okay

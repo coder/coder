@@ -140,5 +140,17 @@ export function getMinDeadline(): dayjs.Dayjs {
   return dayjs().add(deadlineExtensionMin)
 }
 
+export function canExtendDeadline(
+  deadline: dayjs.Dayjs,
+  workspace: Workspace,
+  template: Template,
+): boolean {
+  return deadline < getMaxDeadline(workspace, template)
+}
+
+export function canReduceDeadline(deadline: dayjs.Dayjs): boolean {
+  return deadline > getMinDeadline()
+}
+
 export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
   dayjs(workspace.latest_build.deadline).utc()
