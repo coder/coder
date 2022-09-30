@@ -169,7 +169,7 @@ export const workspaceScheduleBannerMachine = createMachine(
           throw Error("Deadline is undefined.")
         }
         const proposedDeadline = context.deadline.subtract(event.hours, "hours")
-        const newDeadline = dayjs.min(proposedDeadline, getMinDeadline())
+        const newDeadline = dayjs.max(proposedDeadline, getMinDeadline())
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },
     },
