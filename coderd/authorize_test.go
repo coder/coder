@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/coder/coder/coderd/database"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -19,7 +21,9 @@ func TestCheckPermissions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
 
-	adminClient := coderdtest.New(t, nil)
+	adminClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
 	// Create adminClient, member, and org adminClient
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
@@ -29,12 +33,27 @@ func TestCheckPermissions(t *testing.T) {
 	orgAdminUser, err := orgAdminClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
+	version := coderdtest.CreateTemplateVersion(t, adminClient, adminUser.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
+	template := coderdtest.CreateTemplate(t, adminClient, adminUser.OrganizationID, version.ID)
+
+	// This unit test needs the enterprise version of coder to update the ACL
+	// list. This is just to setup the object to make sure the ACL lists are
+	// honored when checking a single resource.
+	// Because the enterprise api is not available, I use the database
+	// directly.
+	err = api.Database.UpdateTemplateUserACLByID(ctx, template.ID, database.TemplateACL{
+		memberUser.ID.String(): []rbac.Action{rbac.WildcardSymbol},
+	})
+	require.NoError(t, err)
+
 	// With admin, member, and org admin
 	const (
-		readAllUsers      = "read-all-users"
-		readOrgWorkspaces = "read-org-workspaces"
-		readMyself        = "read-myself"
-		readOwnWorkspaces = "read-own-workspaces"
+		readAllUsers           = "read-all-users"
+		readOrgWorkspaces      = "read-org-workspaces"
+		readMyself             = "read-myself"
+		readOwnWorkspaces      = "read-own-workspaces"
+		updateSpecificTemplate = "read-specific-template"
 	)
 	params := map[string]codersdk.AuthorizationCheck{
 		readAllUsers: {
@@ -64,6 +83,13 @@ func TestCheckPermissions(t *testing.T) {
 			},
 			Action: "read",
 		},
+		updateSpecificTemplate: {
+			Object: codersdk.AuthorizationObject{
+				ResourceType: rbac.ResourceTemplate.Type,
+				ResourceID:   template.ID.String(),
+			},
+			Action: "write",
+		},
 	}
 
 	testCases := []struct {
@@ -77,10 +103,11 @@ func TestCheckPermissions(t *testing.T) {
 			Client: adminClient,
 			UserID: adminUser.UserID,
 			Check: map[string]bool{
-				readAllUsers:      true,
-				readMyself:        true,
-				readOwnWorkspaces: true,
-				readOrgWorkspaces: true,
+				readAllUsers:           true,
+				readMyself:             true,
+				readOwnWorkspaces:      true,
+				readOrgWorkspaces:      true,
+				updateSpecificTemplate: true,
 			},
 		},
 		{
@@ -88,10 +115,11 @@ func TestCheckPermissions(t *testing.T) {
 			Client: orgAdminClient,
 			UserID: orgAdminUser.ID,
 			Check: map[string]bool{
-				readAllUsers:      false,
-				readMyself:        true,
-				readOwnWorkspaces: true,
-				readOrgWorkspaces: true,
+				readAllUsers:           false,
+				readMyself:             true,
+				readOwnWorkspaces:      true,
+				readOrgWorkspaces:      true,
+				updateSpecificTemplate: true,
 			},
 		},
 		{
@@ -99,10 +127,11 @@ func TestCheckPermissions(t *testing.T) {
 			Client: memberClient,
 			UserID: memberUser.ID,
 			Check: map[string]bool{
-				readAllUsers:      false,
-				readMyself:        true,
-				readOwnWorkspaces: true,
-				readOrgWorkspaces: false,
+				readAllUsers:           false,
+				readMyself:             true,
+				readOwnWorkspaces:      true,
+				readOrgWorkspaces:      false,
+				updateSpecificTemplate: true,
 			},
 		},
 	}
