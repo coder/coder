@@ -4,23 +4,25 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/testutil"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
-func TestCheckPermissions(t *testing.T) {
+func TestCheckACLPermissions(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
 
-	adminClient := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+	adminClient := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
 	})
 	// Create adminClient, member, and org adminClient
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
@@ -35,48 +37,23 @@ func TestCheckPermissions(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
 	template := coderdtest.CreateTemplate(t, adminClient, adminUser.OrganizationID, version.ID)
 
-	// With admin, member, and org admin
+	err = adminClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+		UserPerms: map[string]codersdk.TemplateRole{
+			memberUser.ID.String(): codersdk.TemplateRoleAdmin,
+		},
+	})
+	require.NoError(t, err)
+
 	const (
-		readAllUsers           = "read-all-users"
-		readOrgWorkspaces      = "read-org-workspaces"
-		readMyself             = "read-myself"
-		readOwnWorkspaces      = "read-own-workspaces"
-		updateSpecificTemplate = "update-specific-template"
+		updateSpecificTemplate = "read-specific-template"
 	)
 	params := map[string]codersdk.AuthorizationCheck{
-		readAllUsers: {
-			Object: codersdk.AuthorizationObject{
-				ResourceType: "users",
-			},
-			Action: "read",
-		},
-		readMyself: {
-			Object: codersdk.AuthorizationObject{
-				ResourceType: "users",
-				OwnerID:      "me",
-			},
-			Action: "read",
-		},
-		readOwnWorkspaces: {
-			Object: codersdk.AuthorizationObject{
-				ResourceType: "workspaces",
-				OwnerID:      "me",
-			},
-			Action: "read",
-		},
-		readOrgWorkspaces: {
-			Object: codersdk.AuthorizationObject{
-				ResourceType:   "workspaces",
-				OrganizationID: adminUser.OrganizationID.String(),
-			},
-			Action: "read",
-		},
 		updateSpecificTemplate: {
 			Object: codersdk.AuthorizationObject{
 				ResourceType: rbac.ResourceTemplate.Type,
 				ResourceID:   template.ID.String(),
 			},
-			Action: "update",
+			Action: "write",
 		},
 	}
 
@@ -91,10 +68,6 @@ func TestCheckPermissions(t *testing.T) {
 			Client: adminClient,
 			UserID: adminUser.UserID,
 			Check: map[string]bool{
-				readAllUsers:           true,
-				readMyself:             true,
-				readOwnWorkspaces:      true,
-				readOrgWorkspaces:      true,
 				updateSpecificTemplate: true,
 			},
 		},
@@ -103,10 +76,6 @@ func TestCheckPermissions(t *testing.T) {
 			Client: orgAdminClient,
 			UserID: orgAdminUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           false,
-				readMyself:             true,
-				readOwnWorkspaces:      true,
-				readOrgWorkspaces:      true,
 				updateSpecificTemplate: true,
 			},
 		},
@@ -115,11 +84,7 @@ func TestCheckPermissions(t *testing.T) {
 			Client: memberClient,
 			UserID: memberUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           false,
-				readMyself:             true,
-				readOwnWorkspaces:      true,
-				readOrgWorkspaces:      false,
-				updateSpecificTemplate: false,
+				updateSpecificTemplate: true,
 			},
 		},
 	}
