@@ -108,8 +108,10 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	// Prevent using too many resources by ID. This prevents database abuse
 	// from this endpoint. This also prevents misuse of this endpoint, as
 	// resource_id should be used for single objects, not for a list of them.
-	var idFetch = 0
-	maxFetch := 10
+	var (
+		idFetch  int
+		maxFetch = 10
+	)
 	for _, v := range params.Checks {
 		if v.Object.ResourceID != "" {
 			idFetch++
