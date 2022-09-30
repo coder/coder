@@ -70,7 +70,7 @@ var (
 		},
 
 		// member grants all actions to all resources owned by the user
-		member: func(orgID string) Role {
+		member: func(_ string) Role {
 			return Role{
 				Name:        member,
 				DisplayName: "",
