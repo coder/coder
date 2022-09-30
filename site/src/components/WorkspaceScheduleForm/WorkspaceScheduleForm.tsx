@@ -309,6 +309,7 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
                   name="autoStopEnabled"
                   checked={form.values.autoStopEnabled}
                   onChange={handleToggleAutoStop}
+                  color="primary"
                 />
               }
               label={Language.stopSwitch}
