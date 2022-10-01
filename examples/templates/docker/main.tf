@@ -83,7 +83,7 @@ resource "docker_container" "workspace" {
     "sh", "-c",
     <<EOT
     trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
-    ${replace(coder_agent.main.init_script, "localhost", "host.docker.internal")}
+    ${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}
     EOT
   ]
   env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
