@@ -46,7 +46,7 @@ Coder Docker image URI
 Coder listen port (must be > 1024)
 */}}
 {{- define "coder.port" }}
-{{- if .Values.coder.tls.secretName -}}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName -}}
 8443
 {{- else -}}
 8080
@@ -57,7 +57,7 @@ Coder listen port (must be > 1024)
 Coder service port
 */}}
 {{- define "coder.servicePort" }}
-{{- if .Values.coder.tls.secretName -}}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName -}}
 443
 {{- else -}}
 80
@@ -68,7 +68,7 @@ Coder service port
 Port name
 */}}
 {{- define "coder.portName" }}
-{{- if .Values.coder.tls.secretName -}}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName -}}
 https
 {{- else -}}
 http
@@ -131,7 +131,7 @@ Coder TLS environment variables.
 {{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
 - name: CODER_TLS_ENABLE
   value: "true"
-- name: CODER_TLS_CERT_FIlE
+- name: CODER_TLS_CERT_FILE
   value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.crt{{- end }}{{ if .Values.coder.tls.secretName -}}/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}/tls.crt{{- end }}"
 - name: CODER_TLS_KEY_FILE
   value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.key{{- end }}{{ if .Values.coder.tls.secretName -}}/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}/tls.key{{- end }}"
