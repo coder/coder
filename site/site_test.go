@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -478,4 +479,34 @@ func TestServeAPIResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, apiResponse.StatusCode, body.Code)
 	require.Equal(t, apiResponse.Message, body.Message)
+}
+
+func TestRenderStaticErrorPage(t *testing.T) {
+	t.Parallel()
+
+	d := site.ErrorPageData{
+		Status:       http.StatusBadGateway,
+		Title:        "Bad Gateway 1234",
+		Description:  "shout out colin",
+		RetryEnabled: true,
+		DashboardURL: "https://example.com",
+	}
+
+	rw := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/", nil)
+	site.RenderStaticErrorPage(rw, r, d)
+
+	resp := rw.Result()
+	defer resp.Body.Close()
+	require.Equal(t, d.Status, resp.StatusCode)
+	require.Contains(t, resp.Header.Get("Content-Type"), "text/html")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	bodyStr := string(body)
+	require.Contains(t, bodyStr, strconv.Itoa(d.Status))
+	require.Contains(t, bodyStr, d.Title)
+	require.Contains(t, bodyStr, d.Description)
+	require.Contains(t, bodyStr, "Retry")
+	require.Contains(t, bodyStr, d.DashboardURL)
 }

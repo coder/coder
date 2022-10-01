@@ -234,8 +234,7 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 	_, ok := httpmw.APIKeyOptional(r)
 	if ok {
 		if !api.Authorize(r, rbac.ActionCreate, workspace.ApplicationConnectRBAC()) {
-			// TODO: This should be a static error page.
-			httpapi.ResourceNotFound(rw)
+			renderApplicationNotFound(rw, r, api.AccessURL)
 			return false
 		}
 
@@ -500,9 +499,12 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			return
 		}
 
-		httpapi.Write(ctx, w, http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to proxy request to application.",
-			Detail:  err.Error(),
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusBadGateway,
+			Title:        "Bad Gateway",
+			Description:  "Failed to proxy request to application: " + err.Error(),
+			RetryEnabled: true,
+			DashboardURL: api.AccessURL.String(),
 		})
 	}
 
@@ -647,4 +649,16 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 	}
 
 	return key, payload.APIKey, nil
+}
+
+// renderApplicationNotFound should always be used when the app is not found or
+// the current user doesn't have permission to access it.
+func renderApplicationNotFound(rw http.ResponseWriter, r *http.Request, accessURL *url.URL) {
+	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+		Status:       http.StatusNotFound,
+		Title:        "Application not found",
+		Description:  "The application or workspace you are trying to access does not exist.",
+		RetryEnabled: false,
+		DashboardURL: accessURL.String(),
+	})
 }

@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1" //#nosec // Not used for cryptography.
+	_ "embed"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	htmltemplate "html/template"
 	"io"
 	"io/fs"
 	"net/http"
@@ -24,7 +26,27 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
+
+// We always embed the error page HTML because it it doesn't need to be built,
+// and it's tiny and doesn't contribute much to the binary size.
+var (
+	//go:embed static/error.html
+	errorHTML string
+
+	errorTemplate *htmltemplate.Template
+)
+
+func init() {
+	var err error
+	errorTemplate, err = htmltemplate.New("error").Parse(errorHTML)
+	if err != nil {
+		panic(err)
+	}
+}
 
 type apiResponseContextKey struct{}
 
@@ -626,5 +648,36 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 		}
 
 		n++
+	}
+}
+
+// ErrorPageData contains the variables that are found in
+// site/static/error.html.
+type ErrorPageData struct {
+	Status       int
+	Title        string
+	Description  string
+	RetryEnabled bool
+	DashboardURL string
+}
+
+// RenderStaticErrorPage renders the static error page. This is used by app
+// requests to avoid dependence on the dashboard but maintain the ability to
+// render a friendly error page on subdomains.
+func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPageData) {
+	type outerData struct {
+		Error ErrorPageData
+	}
+
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(data.Status)
+
+	err := errorTemplate.Execute(rw, outerData{Error: data})
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to render error page: " + err.Error(),
+			Detail:  fmt.Sprintf("Original error was: %d %s, %s", data.Status, data.Title, data.Description),
+		})
+		return
 	}
 }
