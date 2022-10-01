@@ -3,7 +3,6 @@ package site_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -440,45 +439,6 @@ func TestExtractOrReadBinFS(t *testing.T) {
 
 		assert.NotEqual(t, dontWant, got, "file should be overwritten on hash mismatch")
 	})
-}
-
-func TestServeAPIResponse(t *testing.T) {
-	t.Parallel()
-
-	// Create a test server
-	rootFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{
-			Data: []byte(`{"code":{{ .APIResponse.StatusCode }},"message":"{{ .APIResponse.Message }}"}`),
-		},
-	}
-	binFS := http.FS(fstest.MapFS{})
-
-	apiResponse := site.APIResponse{
-		StatusCode: http.StatusBadGateway,
-		Message:    "This could be an error message!",
-	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r = r.WithContext(site.WithAPIResponse(r.Context(), apiResponse))
-		site.Handler(rootFS, binFS).ServeHTTP(w, r)
-	}))
-	defer srv.Close()
-
-	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	var body struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	}
-	data, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	t.Logf("resp: %q", data)
-	err = json.Unmarshal(data, &body)
-	require.NoError(t, err)
-	require.Equal(t, apiResponse.StatusCode, body.Code)
-	require.Equal(t, apiResponse.Message, body.Message)
 }
 
 func TestRenderStaticErrorPage(t *testing.T) {

@@ -3,7 +3,6 @@ package site
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"crypto/sha1" //#nosec // Not used for cryptography.
 	_ "embed"
 	"encoding/hex"
@@ -46,15 +45,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-}
-
-type apiResponseContextKey struct{}
-
-// WithAPIResponse returns a context with the APIResponse value attached.
-// This is used to inject API response data to the index.html for additional
-// metadata in error pages.
-func WithAPIResponse(ctx context.Context, apiResponse APIResponse) context.Context {
-	return context.WithValue(ctx, apiResponseContextKey{}, apiResponse)
 }
 
 // Handler returns an HTTP handler for serving the static site.
@@ -109,14 +99,8 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	APIResponse APIResponse
-	CSP         cspState
-	CSRF        csrfState
-}
-
-type APIResponse struct {
-	StatusCode int
-	Message    string
+	CSP  cspState
+	CSRF csrfState
 }
 
 type cspState struct {
@@ -162,15 +146,6 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	state := htmlState{
 		// Token is the CSRF token for the given request
 		CSRF: csrfState{Token: nosurf.Token(req)},
-	}
-
-	apiResponseRaw := req.Context().Value(apiResponseContextKey{})
-	if apiResponseRaw != nil {
-		apiResponse, ok := apiResponseRaw.(APIResponse)
-		if !ok {
-			panic("dev error: api response in context isn't the correct type")
-		}
-		state.APIResponse = apiResponse
 	}
 
 	// First check if it's a file we have in our templates

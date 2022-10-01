@@ -66,10 +66,9 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		Workspace: workspace,
 		Agent:     agent,
 		// We do not support port proxying for paths.
-		AppName:          chi.URLParam(r, "workspaceapp"),
-		Port:             0,
-		Path:             chiPath,
-		DashboardOnError: true,
+		AppName: chi.URLParam(r, "workspaceapp"),
+		Port:    0,
+		Path:    chiPath,
 	}, rw, r)
 }
 
@@ -162,12 +161,11 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				}
 
 				api.proxyWorkspaceApplication(proxyApplication{
-					Workspace:        workspace,
-					Agent:            agent,
-					AppName:          app.AppName,
-					Port:             app.Port,
-					Path:             r.URL.Path,
-					DashboardOnError: false,
+					Workspace: workspace,
+					Agent:     agent,
+					AppName:   app.AppName,
+					Port:      app.Port,
+					Path:      r.URL.Path,
 				}, rw, r)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -412,11 +410,6 @@ type proxyApplication struct {
 	Port    uint16
 	// Path must either be empty or have a leading slash.
 	Path string
-
-	// DashboardOnError determines whether or not the dashboard should be
-	// rendered on error. This should be set for proxy path URLs but not
-	// hostname based URLs.
-	DashboardOnError bool
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
@@ -488,17 +481,6 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if proxyApp.DashboardOnError {
-			// To pass friendly errors to the frontend, special meta tags are
-			// overridden in the index.html with the content passed here.
-			r = r.WithContext(site.WithAPIResponse(ctx, site.APIResponse{
-				StatusCode: http.StatusBadGateway,
-				Message:    err.Error(),
-			}))
-			api.siteHandler.ServeHTTP(w, r)
-			return
-		}
-
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,
 			Title:        "Bad Gateway",
