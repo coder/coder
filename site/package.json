@@ -97,7 +97,7 @@
     "@typescript-eslint/parser": "5.36.2",
     "@xstate/cli": "0.3.0",
     "canvas": "2.10.0",
-    "chromatic": "6.9.0",
+    "chromatic": "6.10.1",
     "eslint": "8.23.0",
     "eslint-config-prettier": "8.5.0",
     "eslint-import-resolver-alias": "1.1.2",
