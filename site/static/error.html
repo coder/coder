@@ -1,10 +1,14 @@
+{{/*
+  This template is used by application handlers to render friendly error pages
+  when there is a proxy error (for example, when the target app isn't running).
+*/}}
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>502 - Bad Gateway</title>
+    <title>{{ .Error.Status }} - {{ .Error.Title }}</title>
     <style>
       * {
         padding: 0;
@@ -51,6 +55,7 @@
       .button-group {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 12px;
         margin-top: 24px;
       }
@@ -119,19 +124,14 @@
         </defs>
       </svg>
 
-      <h1>502 - Bad Gateway</h1>
-      <p>No service is running on port 3000. Make sure your process is running and try again.</p>
+      <h1>{{ .Error.Status }} - {{ .Error.Title }}</h1>
+      <p>{{ .Error.Description }}</p>
       <div class="button-group">
-        <button id="retry">Retry</button>
-        <a href="https://dev.coder.com"> Back to site </a>
+        {{- if .Error.RetryEnabled }}
+        <button onclick="window.location.reload()">Retry</button>
+        {{ end }}
+        <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>
     </div>
-
-    <script>
-      const retryButton = document.querySelector("#retry")
-      retryButton.addEventListener("click", () => {
-        window.location.reload()
-      })
-    </script>
   </body>
 </html>
