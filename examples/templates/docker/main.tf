@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.5.0-pre"
+      version = "0.4.15"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.2"
+      version = "~> 2.22"
     }
   }
 }
@@ -54,36 +54,25 @@ resource "coder_app" "code-server" {
   }
 }
 
-data "coder_parameter" "image" {
-  name = "Image"
-  description = "Select a Docker image to use for your workspace."
-  mutable = true
-  icon = "/emojis/1f5bc-fe0f.png"
-  option {
-    name = "Ubuntu"
-    value = "codercom/enterprise-base:ubuntu"
-  }
-  option {
-    name = "Node"
-    value = "codercom/enterprise-node:ubuntu"
-  }
-  option {
-    name = "Java"
-    value = "codercom/enterprise-intellij:ubuntu"
-  }
-  option {
-    name = "Go"
-    value = "codercom/enterprise-golang:ubuntu"
-  }
-}
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}-home"
 }
 
+
+resource "docker_image" "main" {
+  name = "coder-${data.coder_workspace.me.id}"
+  build {
+    path = "./build"
+  }
+  triggers = {
+    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
+  }
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = data.coder_parameter.image.value
+  image = docker_image.main.name
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -91,7 +80,12 @@ resource "docker_container" "workspace" {
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
   command = [
-  "sh", "-c", replace(coder_agent.main.init_script, "localhost", "host.docker.internal")]
+    "sh", "-c",
+    <<EOT
+    trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
+    ${replace(coder_agent.main.init_script, "localhost", "host.docker.internal")}
+    EOT
+  ]
   env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"
@@ -101,15 +95,5 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
-  }
-}
-
-resource "coder_metadata" "container_info" {
-  count       = data.coder_workspace.me.start_count
-  resource_id = docker_container.workspace[0].id
-
-  item {
-    key   = "image"
-    value = data.coder_parameter.image.value
   }
 }

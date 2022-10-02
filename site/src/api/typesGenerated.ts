@@ -574,6 +574,7 @@ export interface Workspace {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly last_used_at: string
+  readonly status: WorkspaceStatus
 }
 
 // From codersdk/workspaceresources.go
@@ -671,6 +672,12 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
+// From codersdk/workspacequota.go
+export interface WorkspaceQuota {
+  readonly user_workspace_count: number
+  readonly user_workspace_limit: number
+}
+
 // From codersdk/workspaceresources.go
 export interface WorkspaceResource {
   readonly id: string
@@ -761,6 +768,19 @@ export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
+
+// From codersdk/workspaces.go
+export type WorkspaceStatus =
+  | "canceled"
+  | "canceling"
+  | "deleted"
+  | "deleting"
+  | "failed"
+  | "pending"
+  | "running"
+  | "starting"
+  | "stopped"
+  | "stopping"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"

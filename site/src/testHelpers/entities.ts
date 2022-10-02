@@ -268,6 +268,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
   last_used_at: "",
+  status: "running",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -322,6 +323,13 @@ export const MockQueuedWorkspace: TypesGen.Workspace = {
     job: MockPendingProvisionerJob,
     transition: "start",
   },
+}
+
+// requests the MockWorkspace
+export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
+  name: "test",
+  parameter_values: [],
+  template_id: "test-template",
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
@@ -842,4 +850,9 @@ export const MockAuditLog2: TypesGen.AuditLog = {
       secret: false,
     },
   },
+}
+
+export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
+  user_workspace_count: 0,
+  user_workspace_limit: 100,
 }
