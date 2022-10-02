@@ -1,9 +1,15 @@
 import { assign, createMachine } from "xstate"
-import { createWorkspace, getTemplates, getTemplateVersionSchema } from "../../api/api"
+import {
+  createWorkspace,
+  getTemplates,
+  getTemplateVersionParameters,
+  getTemplateVersionSchema,
+} from "../../api/api"
 import {
   CreateWorkspaceRequest,
-  ParameterSchema,
+  DeprecatedParameterSchema,
   Template,
+  TemplateVersionParameter,
   Workspace,
 } from "../../api/typesGenerated"
 
@@ -12,7 +18,9 @@ type CreateWorkspaceContext = {
   templateName: string
   templates?: Template[]
   selectedTemplate?: Template
-  templateSchema?: ParameterSchema[]
+  templateSchema?: DeprecatedParameterSchema[]
+  templateVersionParameters?: TemplateVersionParameter[]
+  templateVersionParametersError?: Error | unknown
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
   createWorkspaceError?: Error | unknown
@@ -38,7 +46,10 @@ export const createWorkspaceMachine = createMachine(
           data: Template[]
         }
         getTemplateSchema: {
-          data: ParameterSchema[]
+          data: DeprecatedParameterSchema[]
+        }
+        getTemplateVersionParameters: {
+          data: TemplateVersionParameter[]
         }
         createWorkspace: {
           data: Workspace
@@ -73,10 +84,24 @@ export const createWorkspaceMachine = createMachine(
           src: "getTemplateSchema",
           onDone: {
             actions: ["assignTemplateSchema"],
-            target: "fillingParams",
+            target: "gettingTemplateVersionParameters",
           },
           onError: {
             actions: ["assignGetTemplateSchemaError"],
+            target: "error",
+          },
+        },
+      },
+      gettingTemplateVersionParameters: {
+        entry: "clearTemplateVersionParametersError",
+        invoke: {
+          src: "getTemplateVersionParameters",
+          onDone: {
+            actions: ["assignTemplateVersionParameters"],
+            target: "fillingParams",
+          },
+          onError: {
+            actions: ["assignTemplateVersionParametersError"],
             target: "error",
           },
         },
@@ -121,6 +146,15 @@ export const createWorkspaceMachine = createMachine(
 
         return getTemplateVersionSchema(selectedTemplate.active_version_id)
       },
+      getTemplateVersionParameters: (context) => {
+        const { selectedTemplate } = context
+
+        if (!selectedTemplate) {
+          throw new Error("No selected template")
+        }
+
+        return getTemplateVersionParameters(selectedTemplate.active_version_id)
+      },
       createWorkspace: (context) => {
         const { createWorkspaceRequest, organizationId } = context
 
@@ -148,6 +182,15 @@ export const createWorkspaceMachine = createMachine(
         // Only show parameters that are allowed to be overridden.
         // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
         templateSchema: (_, event) => event.data.filter((param) => param.allow_override_source),
+      }),
+      assignTemplateVersionParameters: assign({
+        templateVersionParameters: (_, event) => event.data,
+      }),
+      assignTemplateVersionParametersError: assign({
+        templateVersionParametersError: (_, event) => event.data,
+      }),
+      clearTemplateVersionParametersError: assign({
+        templateVersionParametersError: (_) => undefined,
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,

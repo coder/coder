@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { WorkspaceParameter } from "components/WorkspaceParameter/WorkspaceParameter"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useState } from "react"
 import * as Yup from "yup"
@@ -31,7 +32,8 @@ export interface CreateWorkspacePageViewProps {
   templateName: string
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
-  templateSchema?: TypesGen.ParameterSchema[]
+  templateSchema?: TypesGen.DeprecatedParameterSchema[]
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
@@ -46,7 +48,9 @@ export const validationSchema = Yup.object({
 export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (
   props,
 ) => {
-  const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
+  const [deprecatedParameterValues, setDeprecatedParameterValues] = useState<
+    Record<string, string>
+  >({})
   useStyles()
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
@@ -63,11 +67,11 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           throw new Error("No template schema loaded")
         }
 
-        const createRequests: TypesGen.CreateParameterRequest[] = []
+        const createRequests: TypesGen.DeprecatedCreateParameterRequest[] = []
         props.templateSchema.forEach((schema) => {
           let value = schema.default_source_value
-          if (schema.name in parameterValues) {
-            value = parameterValues[schema.name]
+          if (schema.name in deprecatedParameterValues) {
+            value = deprecatedParameterValues[schema.name]
           }
           createRequests.push({
             name: schema.name,
@@ -149,8 +153,8 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                       disabled={form.isSubmitting}
                       key={schema.id}
                       onChange={(value) => {
-                        setParameterValues({
-                          ...parameterValues,
+                        setDeprecatedParameterValues({
+                          ...deprecatedParameterValues,
                           [schema.name]: value,
                         })
                       }}
@@ -163,6 +167,12 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
               <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
             </>
           )}
+
+          {props.selectedTemplate &&
+            props.templateParameters &&
+            props.templateParameters.map((parameter) => (
+              <WorkspaceParameter templateParameter={parameter} key={parameter.name} />
+            ))}
         </Stack>
       </form>
     </FullPageForm>

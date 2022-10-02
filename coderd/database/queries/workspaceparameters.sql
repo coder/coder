@@ -3,8 +3,8 @@ INSERT INTO
     workspace_build_parameters (workspace_build_id, name, value)
 SELECT 
     @workspace_build_id :: uuid AS workspace_build_id,
-    unnset(@name :: text[]) AS name,
-    unnset(@value :: text[]) AS value
+    unnest(@name :: text[]) AS name,
+    unnest(@value :: text[]) AS value
 RETURNING *;
 
 -- name: GetWorkspaceBuildParameters :many

@@ -167,9 +167,18 @@ export const getTemplateVersion = async (versionId: string): Promise<TypesGen.Te
 
 export const getTemplateVersionSchema = async (
   versionId: string,
-): Promise<TypesGen.ParameterSchema[]> => {
-  const response = await axios.get<TypesGen.ParameterSchema[]>(
+): Promise<TypesGen.DeprecatedParameterSchema[]> => {
+  const response = await axios.get<TypesGen.DeprecatedParameterSchema[]>(
     `/api/v2/templateversions/${versionId}/deprecated-schema`,
+  )
+  return response.data
+}
+
+export const getTemplateVersionParameters = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionParameter[]> => {
+  const response = await axios.get<TypesGen.TemplateVersionParameter[]>(
+    `/api/v2/templateversions/${versionId}/parameters`,
   )
   return response.data
 }

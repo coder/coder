@@ -4731,8 +4731,8 @@ INSERT INTO
     workspace_build_parameters (workspace_build_id, name, value)
 SELECT 
     $1 :: uuid AS workspace_build_id,
-    unnset($2 :: text[]) AS name,
-    unnset($3 :: text[]) AS value
+    unnest($2 :: text[]) AS name,
+    unnest($3 :: text[]) AS value
 RETURNING workspace_build_id, name, value
 `
 

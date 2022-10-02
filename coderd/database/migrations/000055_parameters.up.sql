@@ -1,5 +1,5 @@
 CREATE TABLE template_version_parameters (
-    template_version_id uuid not null references provisioner_jobs (id) on delete cascade,
+    template_version_id uuid not null references template_versions (id) on delete cascade,
     name text not null,
     description text not null,
     type text not null,

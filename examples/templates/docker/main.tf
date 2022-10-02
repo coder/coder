@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.15"
+      version = "0.5.0-pre"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -54,15 +54,26 @@ resource "coder_app" "code-server" {
   }
 }
 
-
-variable "docker_image" {
-  description = "Which Docker image would you like to use for your workspace?"
-  # The codercom/enterprise-* images are only built for amd64
-  default = "codercom/enterprise-base:ubuntu"
-  validation {
-    condition = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu",
-    "codercom/enterprise-intellij:ubuntu", "codercom/enterprise-golang:ubuntu"], var.docker_image)
-    error_message = "Invalid Docker image!"
+data "coder_parameter" "image" {
+  name = "Image"
+  description = "Select a Docker image to use for your workspace."
+  mutable = true
+  icon = "/emojis/1f5bc-fe0f.png"
+  option {
+    name = "Ubuntu"
+    value = "codercom/enterprise-base:ubuntu"
+  }
+  option {
+    name = "Node"
+    value = "codercom/enterprise-node:ubuntu"
+  }
+  option {
+    name = "Java"
+    value = "codercom/enterprise-intellij:ubuntu"
+  }
+  option {
+    name = "Go"
+    value = "codercom/enterprise-golang:ubuntu"
   }
 }
 
@@ -72,7 +83,7 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = var.docker_image
+  image = data.coder_parameter.image.value
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -99,6 +110,6 @@ resource "coder_metadata" "container_info" {
 
   item {
     key   = "image"
-    value = var.docker_image
+    value = data.coder_parameter.image.value
   }
 }
