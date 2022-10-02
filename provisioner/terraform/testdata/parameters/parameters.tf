@@ -8,16 +8,16 @@ terraform {
 }
 
 data "coder_parameter" "example" {
-    name = "Example"
-    type = "string"
-    option {
-      name = "First Option"
-      value = "first"
-    }
-    option {
-      name = "Second Option"
-      value = "second"
-    }
+  name = "Example"
+  type = "string"
+  option {
+    name  = "First Option"
+    value = "first"
+  }
+  option {
+    name  = "Second Option"
+    value = "second"
+  }
 }
 
 resource "coder_agent" "dev" {

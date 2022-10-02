@@ -34,6 +34,7 @@ type TemplateVersionParameter struct {
 	DefaultValue    string                           `json:"default_value"`
 	Icon            string                           `json:"icon"`
 	Options         []TemplateVersionParameterOption `json:"options"`
+	ValidationError string                           `json:"validation_error"`
 	ValidationRegex string                           `json:"validation_regex"`
 	ValidationMin   int32                            `json:"validation_min"`
 	ValidationMax   int32                            `json:"validation_max"`
