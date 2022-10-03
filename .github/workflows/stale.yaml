@@ -13,7 +13,7 @@ jobs:
     steps:
       # v5.1.0 has a weird bug that makes stalebot add then remove its own label
       # https://github.com/actions/stale/pull/775
-      - uses: actions/stale@v5.0.0
+      - uses: actions/stale@v6.0.0
         with:
           stale-issue-label: stale
           stale-pr-label: stale
