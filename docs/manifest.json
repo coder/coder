@@ -78,6 +78,11 @@
           "title": "Azure",
           "description": "Setup Coder with Azure",
           "path": "./quickstart/azure.md"
+        },
+        {
+          "title": "GCP",
+          "description": "Setup Coder with GCP",
+          "path": "./quickstart/gcp.md"
         }
       ]
     },
