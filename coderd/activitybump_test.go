@@ -92,7 +92,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		// Benign operations like retrieving workspace must not
 		// bump the deadline.
-		_, err := client.Workspace(ctx, workspace.LatestBuild.ID)
+		_, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
 		assertBumped(false)
