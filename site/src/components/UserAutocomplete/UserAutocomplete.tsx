@@ -44,7 +44,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
-  }, 1000)
+  }, 250)
 
   return (
     <Autocomplete

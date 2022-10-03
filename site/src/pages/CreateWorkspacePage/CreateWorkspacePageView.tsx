@@ -54,7 +54,6 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   props,
 ) => {
   const { t } = useTranslation("createWorkspacePage")
-
   const [deprecatedParameterValues, setDeprecatedParameterValues] = useState<
     Record<string, string>
   >({})
@@ -139,7 +138,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           />
 
           {props.loadingTemplateSchema && <Loader />}
-          {props.selectedTemplate && props.templateSchema && (
+          {props.selectedTemplate && props.templateSchema && props.templateParameters && (
             <>
               <TextField
                 {...getFieldHelpers("name")}
@@ -179,6 +178,10 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 </Stack>
               )}
 
+              {props.templateParameters.map((parameter) => (
+                <WorkspaceParameter templateParameter={parameter} key={parameter.name} />
+              ))}
+
               {props.workspaceQuota && (
                 <WorkspaceQuota
                   quota={props.workspaceQuota}
@@ -195,12 +198,6 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
               />
             </>
           )}
-
-          {props.selectedTemplate &&
-            props.templateParameters &&
-            props.templateParameters.map((parameter) => (
-              <WorkspaceParameter templateParameter={parameter} key={parameter.name} />
-            ))}
         </Stack>
       </form>
     </FullPageForm>
