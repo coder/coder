@@ -64,6 +64,11 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
+        },
+        {
+          "title": "GCP",
+          "description": "Setup Coder with GCP",
+          "path": "./quickstart/gcp.md"
         }
       ]
     },
