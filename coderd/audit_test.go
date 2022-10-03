@@ -112,6 +112,21 @@ func TestAuditLogsFilter(t *testing.T) {
 				SearchQuery:    "resource_id:" + userResourceID.String(),
 				ExpectedResult: 2,
 			},
+			{
+				Name:           "FilterInvalidSingleValue",
+				SearchQuery:    "invalid",
+				ExpectedResult: 0,
+			},
+			{
+				Name:           "FilterWithInvalidResourceType",
+				SearchQuery:    "resource_type:invalid",
+				ExpectedResult: 0,
+			},
+			{
+				Name:           "FilterWithInvalidAction",
+				SearchQuery:    "action:invalid",
+				ExpectedResult: 0,
+			},
 		}
 
 		for _, testCase := range testCases {

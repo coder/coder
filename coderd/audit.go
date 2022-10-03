@@ -259,12 +259,38 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
-		ResourceType: parser.String(searchParams, "", "resource_type"),
+		ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
 		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
-		Action:       parser.String(searchParams, "", "action"),
+		Action:       actionFromString(parser.String(searchParams, "", "action")),
 		Username:     parser.String(searchParams, "", "username"),
 		Email:        parser.String(searchParams, "", "email"),
 	}
 
 	return filter, parser.Errors
+}
+
+func resourceTypeFromString(resourceTypeString string) string {
+	switch resourceTypeString {
+	// Resource types from https://github.com/coder/coder/blob/d11d83cc98e04774456217e5388df5211de56fa3/codersdk/audit.go#L14
+	case "organization":
+	case "template":
+	case "template_version":
+	case "user":
+	case "workspace":
+	case "git_ssh_key":
+	case "api_key":
+		return resourceTypeString
+	}
+	return ""
+}
+
+func actionFromString(actionString string) string {
+	switch actionString {
+	case "create":
+	case "write":
+	case "delete":
+		return actionString
+	default:
+	}
+	return ""
 }
