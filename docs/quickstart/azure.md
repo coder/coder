@@ -104,10 +104,3 @@ coder templates create
 
 Congrats! You can now navigate to your Coder dashboard and use this Linux on Azure template to create a new workspace!
 
-## Troubleshooting
-
-If you’re not sure if Coder is running correctly as a system service, use the command `systemctl status coder` to show the status of the Coder process.
-
-To stop running Coder as a system service, run the following command: `systemctl stop coder`. 
-
-When you run ` journalctl -u coder.service -b`, there’s a chance that it may not show any logs, preventing you from seeing the url for the running Coder instance. Use the command `systemctl stop coder` to stop the Coder system service, and run the command to start Coder as a system service again. You can also use the command `systemctl restart coder` to quickly restart the service. 
