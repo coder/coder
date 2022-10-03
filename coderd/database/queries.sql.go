@@ -2125,18 +2125,20 @@ const updateProvisionerJobWithCancelByID = `-- name: UpdateProvisionerJobWithCan
 UPDATE
 	provisioner_jobs
 SET
-	canceled_at = $2
+	canceled_at = $2,
+	completed_at = $3
 WHERE
 	id = $1
 `
 
 type UpdateProvisionerJobWithCancelByIDParams struct {
-	ID         uuid.UUID    `db:"id" json:"id"`
-	CanceledAt sql.NullTime `db:"canceled_at" json:"canceled_at"`
+	ID          uuid.UUID    `db:"id" json:"id"`
+	CanceledAt  sql.NullTime `db:"canceled_at" json:"canceled_at"`
+	CompletedAt sql.NullTime `db:"completed_at" json:"completed_at"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt)
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt, arg.CompletedAt)
 	return err
 }
 

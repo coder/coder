@@ -216,6 +216,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
   resources: [],
+  status: "running",
 }
 
 export const MockFailedWorkspaceBuild = (
@@ -237,6 +238,7 @@ export const MockFailedWorkspaceBuild = (
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
   resources: [],
+  status: "running",
 })
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -268,7 +270,6 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
   last_used_at: "",
-  status: "running",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {

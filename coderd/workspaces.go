@@ -996,42 +996,7 @@ func convertWorkspace(
 		AutostartSchedule: autostartSchedule,
 		TTLMillis:         ttlMillis,
 		LastUsedAt:        workspace.LastUsedAt,
-		Status:            convertStatus(workspaceBuild),
 	}
-}
-
-func convertStatus(build codersdk.WorkspaceBuild) codersdk.WorkspaceStatus {
-	switch build.Job.Status {
-	case codersdk.ProvisionerJobPending:
-		return codersdk.WorkspaceStatusPending
-	case codersdk.ProvisionerJobRunning:
-		switch build.Transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusStarting
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopping
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleting
-		}
-	case codersdk.ProvisionerJobSucceeded:
-		switch build.Transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusRunning
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopped
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleted
-		}
-	case codersdk.ProvisionerJobCanceling:
-		return codersdk.WorkspaceStatusCanceling
-	case codersdk.ProvisionerJobCanceled:
-		return codersdk.WorkspaceStatusCanceled
-	case codersdk.ProvisionerJobFailed:
-		return codersdk.WorkspaceStatusFailed
-	}
-
-	// return error status since we should never get here
-	return codersdk.WorkspaceStatusFailed
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {

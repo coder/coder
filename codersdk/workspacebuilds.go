@@ -19,6 +19,21 @@ const (
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
 )
 
+type WorkspaceStatus string
+
+const (
+	WorkspaceStatusPending   WorkspaceStatus = "pending"
+	WorkspaceStatusStarting  WorkspaceStatus = "starting"
+	WorkspaceStatusRunning   WorkspaceStatus = "running"
+	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
+	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
+	WorkspaceStatusFailed    WorkspaceStatus = "failed"
+	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
+	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
+	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
+	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
+)
+
 type BuildReason string
 
 const (
@@ -52,6 +67,7 @@ type WorkspaceBuild struct {
 	Reason             BuildReason         `db:"reason" json:"reason"`
 	Resources          []WorkspaceResource `json:"resources"`
 	Deadline           NullTime            `json:"deadline,omitempty"`
+	Status             WorkspaceStatus     `json:"status"`
 }
 
 // WorkspaceBuild returns a single workspace build for a workspace.
