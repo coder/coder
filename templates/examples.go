@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"embed"
-	"fmt"
 	"io"
 	"io/fs"
 	"path/filepath"
@@ -60,13 +59,11 @@ func walkDir(exampleDirectory func(path string), fileFS fs.FS, path string) erro
 		}
 
 		for _, file := range files {
-			n := file.Name()
 			if strings.EqualFold(file.Name(), "main.tf") {
 				// This is an example dir
 				exampleDirectory(path)
 				return nil
 			} else if file.IsDir() {
-				fmt.Println("walk", filepath.Join(path, file.Name()), n)
 				err := walkDir(exampleDirectory, fileFS, filepath.Join(path, file.Name()))
 				if err != nil {
 					return err
