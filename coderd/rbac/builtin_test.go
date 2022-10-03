@@ -174,13 +174,23 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name: "MyWorkspaceInOrg",
+			Name: "ReadMyWorkspaceInOrg",
 			// When creating the WithID won't be set, but it does not change the result.
-			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgMemberMe, orgAdmin, templateAdmin},
 				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			},
+		},
+		{
+			Name: "C_RDMyWorkspaceInOrg",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
+			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, templateAdmin},
 			},
 		},
 		{
