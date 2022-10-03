@@ -61,10 +61,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.Equal(t, tmpDir, resources[0].Agents[0].Directory)
-		_, err = client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
+		_, err = client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
 	})
 }
