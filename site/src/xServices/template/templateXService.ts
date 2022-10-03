@@ -25,7 +25,7 @@ export interface TemplateContext {
   activeTemplateVersion?: TemplateVersion
   templateResources?: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
-  templateDAUs: TemplateDAUsResponse
+  templateDAUs?: TemplateDAUsResponse
   permissions?: AuthorizationResponse
   deleteTemplateError?: Error | unknown
   getTemplateError?: Error | unknown
@@ -34,7 +34,7 @@ export interface TemplateContext {
 type TemplateEvent = { type: "DELETE" } | { type: "CONFIRM_DELETE" } | { type: "CANCEL_DELETE" }
 
 const getPermissionsToCheck = (templateId: string) => ({
-  updateTemplate: {
+  canUpdateTemplate: {
     object: {
       resource_type: "template",
       resource_id: templateId,

@@ -5,6 +5,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { useMachine, useSelector } from "@xstate/react"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
@@ -47,11 +48,22 @@ export const TemplateLayout: FC = () => {
       organizationId,
     },
   })
-  const { template, activeTemplateVersion, templateResources, templateDAUs } = templateState.context
+  const {
+    template,
+    activeTemplateVersion,
+    templateResources,
+    templateDAUs,
+    permissions: templatePermissions,
+  } = templateState.context
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
   const isLoading =
-    !template || !activeTemplateVersion || !templateResources || !permissions || !templateDAUs
+    !template ||
+    !activeTemplateVersion ||
+    !templateResources ||
+    !permissions ||
+    !templateDAUs ||
+    !templatePermissions
 
   if (isLoading) {
     return <Loader />
@@ -80,18 +92,18 @@ export const TemplateLayout: FC = () => {
       <Margins>
         <PageHeader
           actions={
-            <>
-              <Link
-                underline="none"
-                component={RouterLink}
-                to={`/templates/${template.name}/settings`}
-              >
-                <Button variant="outlined" startIcon={<SettingsOutlined />}>
-                  {Language.settingsButton}
-                </Button>
-              </Link>
+            <ChooseOne>
+              <Cond condition={templatePermissions.canUpdateTemplate}>
+                <Link
+                  underline="none"
+                  component={RouterLink}
+                  to={`/templates/${template.name}/settings`}
+                >
+                  <Button variant="outlined" startIcon={<SettingsOutlined />}>
+                    {Language.settingsButton}
+                  </Button>
+                </Link>
 
-              {permissions.deleteTemplates ? (
                 <DropdownButton
                   primaryAction={createWorkspaceButton(styles.actionButton)}
                   secondaryActions={[
@@ -102,10 +114,10 @@ export const TemplateLayout: FC = () => {
                   ]}
                   canCancel={false}
                 />
-              ) : (
-                createWorkspaceButton()
-              )}
-            </>
+              </Cond>
+
+              <Cond>{createWorkspaceButton()}</Cond>
+            </ChooseOne>
           }
         >
           <Stack direction="row" spacing={3} className={styles.pageTitle}>
