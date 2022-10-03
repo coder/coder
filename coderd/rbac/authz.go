@@ -49,7 +49,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 			if rbacObj.Type != objectType {
 				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
 			}
-			err := auth.ByRoleName(ctx, subjID, subjRoles, scope, action, o.RBACObject())
+			err := auth.ByRoleName(ctx, subjID, subjRoles, scope, groups, action, o.RBACObject())
 			if err == nil {
 				filtered = append(filtered, o)
 			}
@@ -57,7 +57,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 		return filtered, nil
 	}
 
-	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, action, objectType)
+	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}
