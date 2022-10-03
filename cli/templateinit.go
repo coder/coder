@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisionersdk"
+	examples "github.com/coder/coder/templates"
 )
 
 func templateInit() *cobra.Command {

@@ -27,7 +27,7 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/examples"
+	examples "github.com/coder/coder/templates"
 )
 
 // Returns whether the initial user has been created or not.
