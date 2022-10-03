@@ -88,6 +88,13 @@ CREATE TYPE user_status AS ENUM (
     'suspended'
 );
 
+CREATE TYPE workspace_app_health AS ENUM (
+    'disabled',
+    'initializing',
+    'healthy',
+    'unhealthy'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -310,7 +317,8 @@ CREATE TABLE users (
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::public.login_type NOT NULL,
     avatar_url text,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -344,7 +352,11 @@ CREATE TABLE workspace_apps (
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
-    relative_path boolean DEFAULT false NOT NULL
+    relative_path boolean DEFAULT false NOT NULL,
+    healthcheck_url text DEFAULT ''::text NOT NULL,
+    healthcheck_interval integer DEFAULT 0 NOT NULL,
+    healthcheck_threshold integer DEFAULT 0 NOT NULL,
+    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
 );
 
 CREATE TABLE workspace_builds (
@@ -519,6 +531,8 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 

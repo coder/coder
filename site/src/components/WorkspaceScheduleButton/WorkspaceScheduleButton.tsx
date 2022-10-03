@@ -106,7 +106,9 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           onClick={() => {
             setIsOpen(true)
           }}
-          className={styles.scheduleButton}
+          className={`${styles.scheduleButton} ${
+            shouldDisplayScheduleLabel(workspace) ? "label" : ""
+          }`}
         >
           {t("workspaceScheduleButton.schedule")}
         </Button>
@@ -136,8 +138,8 @@ const useStyles = makeStyles((theme) => ({
   wrapper: {
     display: "inline-flex",
     alignItems: "center",
-    border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
+    border: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
@@ -165,15 +167,22 @@ const useStyles = makeStyles((theme) => ({
   },
   scheduleButton: {
     border: "none",
-    borderLeft: `1px solid ${theme.palette.divider}`,
-    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    borderRadius: `${theme.shape.borderRadius}px`,
     flexShrink: 0,
+
+    "&.label": {
+      borderLeft: `1px solid ${theme.palette.divider}`,
+      borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    },
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
-      borderLeft: 0,
-      borderTop: `1px solid ${theme.palette.divider}`,
-      borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+
+      "&.label": {
+        borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+        borderLeft: 0,
+        borderTop: `1px solid ${theme.palette.divider}`,
+      },
     },
   },
   iconButton: {

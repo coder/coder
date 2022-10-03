@@ -74,6 +74,16 @@ WHERE
 GROUP BY
 	template_id;
 
+-- name: GetWorkspaceCountByUserID :one
+SELECT
+	COUNT(id)
+FROM
+	workspaces
+WHERE
+	owner_id = @owner_id
+	-- Ignore deleted workspaces
+	AND deleted != true;
+
 -- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (

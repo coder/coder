@@ -311,7 +311,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	defer q.mutex.RUnlock()
 
 	for _, user := range q.users {
-		if (user.Email == arg.Email || user.Username == arg.Username) && user.Deleted == arg.Deleted {
+		if (strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username)) && user.Deleted == arg.Deleted {
 			return user, nil
 		}
 	}
@@ -696,6 +696,22 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceCountByUserID(_ context.Context, id uuid.UUID) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var count int64
+	for _, workspace := range q.workspaces {
+		if workspace.OwnerID.String() == id.String() {
+			if workspace.Deleted {
+				continue
+			}
+
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -1956,6 +1972,22 @@ func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserLastSeenAt(_ context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.LastSeenAt = arg.LastSeenAt
+		user.UpdatedAt = arg.UpdatedAt
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2019,17 +2051,36 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 
 	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
-		ID:           arg.ID,
-		AgentID:      arg.AgentID,
-		CreatedAt:    arg.CreatedAt,
-		Name:         arg.Name,
-		Icon:         arg.Icon,
-		Command:      arg.Command,
-		Url:          arg.Url,
-		RelativePath: arg.RelativePath,
+		ID:                   arg.ID,
+		AgentID:              arg.AgentID,
+		CreatedAt:            arg.CreatedAt,
+		Name:                 arg.Name,
+		Icon:                 arg.Icon,
+		Command:              arg.Command,
+		Url:                  arg.Url,
+		RelativePath:         arg.RelativePath,
+		HealthcheckUrl:       arg.HealthcheckUrl,
+		HealthcheckInterval:  arg.HealthcheckInterval,
+		HealthcheckThreshold: arg.HealthcheckThreshold,
+		Health:               arg.Health,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, app := range q.workspaceApps {
+		if app.ID != arg.ID {
+			continue
+		}
+		app.Health = arg.Health
+		q.workspaceApps[index] = app
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

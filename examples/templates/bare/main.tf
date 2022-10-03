@@ -47,4 +47,10 @@ resource "coder_app" "fake-app" {
   icon     = "/icon/code.svg"
   agent_id = "fake-compute"
   url      = "http://localhost:8080"
+
+  healthcheck {
+    url       = "http://localhost:1337/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }

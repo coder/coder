@@ -63,12 +63,12 @@ provision:
     #!/bin/bash
     set -eux -o pipefail
     command -v terraform >/dev/null 2>&1 && exit 0
-    wget -qO - terraform.gpg https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/terraform-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/terraform-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" > /etc/apt/sources.list.d/terraform.list
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update -y
-    apt-get install terraform=1.1.9
-    apt-mark hold terraform
+    DEBIAN_FRONTEND=noninteractive apt-get install -qqy unzip
+    rm -fv /tmp/terraform.zip || true
+    wget -qO /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.3.0/terraform_1.3.0_linux_$(dpkg --print-architecture).zip"
+    unzip /tmp/terraform.zip -d /usr/local/bin/
+    chmod +x /usr/local/bin/terraform
+    rm -fv /tmp/terraform.zip || true
 - mode: system
   script: |
     #!/bin/bash

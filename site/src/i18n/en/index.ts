@@ -1,5 +1,6 @@
 import auditLog from "./auditLog.json"
 import common from "./common.json"
+import createWorkspacePage from "./createWorkspacePage.json"
 import templatePage from "./templatePage.json"
 import templatesPage from "./templatesPage.json"
 import workspacePage from "./workspacePage.json"
@@ -10,4 +11,5 @@ export const en = {
   auditLog,
   templatePage,
   templatesPage,
+  createWorkspacePage,
 }

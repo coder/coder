@@ -95,7 +95,6 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
 
 const useStyles = makeStyles((theme) => ({
   codeWithoutLanguage: {
-    display: "block",
     overflowX: "auto",
     padding: "0.5em",
     background: theme.palette.background.default,

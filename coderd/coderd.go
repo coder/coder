@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -55,6 +56,7 @@ type Options struct {
 	CacheDir string
 
 	Auditor                        audit.Auditor
+	WorkspaceQuotaEnforcer         workspacequota.Enforcer
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -120,6 +122,9 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
+	if options.WorkspaceQuotaEnforcer == nil {
+		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -145,10 +150,12 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
+		metricsCache:           metricsCache,
+		Auditor:                atomic.Pointer[audit.Auditor]{},
+		WorkspaceQuotaEnforcer: atomic.Pointer[workspacequota.Enforcer]{},
 	}
 	api.Auditor.Store(&options.Auditor)
+	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -292,7 +299,6 @@ func New(options *Options) *API {
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
@@ -301,6 +307,7 @@ func New(options *Options) *API {
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
+						r.Post("/workspaces", api.postWorkspacesByOrganization)
 					})
 				})
 			})
@@ -414,8 +421,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
+				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Get("/report-stats", api.workspaceAgentReportStats)
@@ -514,6 +523,7 @@ type API struct {
 	*Options
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
+	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"

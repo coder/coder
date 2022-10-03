@@ -148,7 +148,6 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 	templateVersion := httpmw.TemplateVersionParam(r)
 	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
 		httpapi.ResourceNotFound(rw)
@@ -171,8 +170,6 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	}
 	values, err := parameter.Compute(ctx, api.Database, parameter.ComputeScope{
 		TemplateImportJobID: job.ID,
-		OrganizationID:      job.OrganizationID,
-		UserID:              apiKey.UserID,
 	}, &parameter.ComputeOptions{
 		// We *never* want to send the client secret parameter values.
 		HideRedisplayValues: true,
@@ -794,13 +791,17 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
+		if req.Name == "" {
+			req.Name = namesgenerator.GetRandomName(1)
+		}
+
 		templateVersion, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			Name:           namesgenerator.GetRandomName(1),
+			Name:           req.Name,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy: uuid.NullUUID{

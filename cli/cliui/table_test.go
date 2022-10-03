@@ -327,6 +327,28 @@ baz   baz1        baz3              Aug  2 15:49:10
 	})
 }
 
+func Test_TableHeaders(t *testing.T) {
+	t.Parallel()
+	s := []tableTest1{}
+	expectedFields := []string{
+		"name",
+		"age",
+		"roles",
+		"sub_1_name",
+		"sub_1_age",
+		"sub_2_name",
+		"sub_2_age",
+		"sub_3_inner_name",
+		"sub_3_inner_age",
+		"sub_4",
+		"time",
+		"time_ptr",
+	}
+	headers, err := cliui.TableHeaders(s)
+	require.NoError(t, err)
+	require.EqualValues(t, expectedFields, headers)
+}
+
 // compareTables normalizes the incoming table lines
 func compareTables(t *testing.T, expected, out string) {
 	t.Helper()
