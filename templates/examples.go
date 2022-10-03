@@ -4,10 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"embed"
+	"fmt"
 	"io"
 	"io/fs"
-	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gohugoio/hugo/parser/pageparser"
@@ -26,92 +27,115 @@ var (
 )
 
 type Example struct {
-	ID          string `json:"id"`
-	URL         string `json:"url"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Markdown    string `json:"markdown"`
+	ID            string `json:"id"`
+	URL           string `json:"url"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Markdown      string `json:"markdown"`
+	DirectoryPath string `json:"directory_path"`
 }
 
 const rootDir = "quickstart"
+
+// WalkForExamples will walk recursively through the examples directory and call
+// exampleDirectory() on each directory that contains a main.tf file.
+func WalkForExamples(files fs.FS, rootDir string, exampleDirectory func(path string)) error {
+	return walkDir(exampleDirectory, files, rootDir)
+}
+
+func walkDir(exampleDirectory func(path string), fileFS fs.FS, path string) error {
+	file, err := fileFS.Open(path)
+	if err != nil {
+		return xerrors.Errorf("open file %q: %w", path, err)
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return xerrors.Errorf("stat file %q: %w", path, err)
+	}
+
+	if info.IsDir() {
+		files, err := fs.ReadDir(files, path)
+		if err != nil {
+			return xerrors.Errorf("read dir %q: %w", path, err)
+		}
+
+		for _, file := range files {
+			n := file.Name()
+			if strings.EqualFold(file.Name(), "main.tf") {
+				// This is an example dir
+				exampleDirectory(path)
+				return nil
+			} else if file.IsDir() {
+				fmt.Println("walk", filepath.Join(path, file.Name()), n)
+				err := walkDir(exampleDirectory, fileFS, filepath.Join(path, file.Name()))
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
 
 // List returns all embedded examples.
 func List() ([]Example, error) {
 	var returnError error
 	parseExamples.Do(func() {
-		files, err := fs.Sub(files, rootDir)
-		if err != nil {
-			returnError = xerrors.Errorf("get example fs: %w", err)
-		}
+		err := WalkForExamples(files, rootDir, func(path string) {
+			exampleID := filepath.Base(path)
+			exampleURL := exampleBasePath + exampleID
+			// Each one of these is a example!
+			readme, err := fs.ReadFile(files, filepath.Join(path, "README.md"))
+			if err != nil {
+				returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
+				return
+			}
 
-		groups, err := fs.ReadDir(files, ".")
+			frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
+			if err != nil {
+				returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
+				return
+			}
+
+			nameRaw, exists := frontMatter.FrontMatter["name"]
+			if !exists {
+				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
+				return
+			}
+
+			name, valid := nameRaw.(string)
+			if !valid {
+				returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
+				return
+			}
+
+			descriptionRaw, exists := frontMatter.FrontMatter["description"]
+			if !exists {
+				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
+				return
+			}
+
+			description, valid := descriptionRaw.(string)
+			if !valid {
+				returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
+				return
+			}
+
+			examples = append(examples, Example{
+				ID:            exampleID,
+				URL:           exampleURL,
+				Name:          name,
+				Description:   description,
+				Markdown:      string(frontMatter.Content),
+				DirectoryPath: path,
+			})
+		})
 		if err != nil {
-			returnError = xerrors.Errorf("read dir: %w", err)
+			returnError = xerrors.Errorf("walking embedded files: %w", err)
 			return
 		}
-
-		var dirs []Example
-		for _, group := range groups {
-			if group.IsDir() {
-				groupDirs, err := fs.Sub(files, filepath.Join(rootDir, group.Name()))
-			}
-		}
-
-		for true {
-			for _, dir := range dirs {
-				if !dir.IsDir() {
-					continue
-				}
-				exampleID := dir.Name()
-				exampleURL := exampleBasePath + exampleID
-				// Each one of these is a example!
-				readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))
-				if err != nil {
-					returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
-					return
-				}
-
-				frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
-				if err != nil {
-					returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
-					return
-				}
-
-				nameRaw, exists := frontMatter.FrontMatter["name"]
-				if !exists {
-					returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
-					return
-				}
-
-				name, valid := nameRaw.(string)
-				if !valid {
-					returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
-					return
-				}
-
-				descriptionRaw, exists := frontMatter.FrontMatter["description"]
-				if !exists {
-					returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
-					return
-				}
-
-				description, valid := descriptionRaw.(string)
-				if !valid {
-					returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
-					return
-				}
-
-				examples = append(examples, Example{
-					ID:          exampleID,
-					URL:         exampleURL,
-					Name:        name,
-					Description: description,
-					Markdown:    string(frontMatter.Content),
-				})
-			}
-		}
-
 	})
+
 	return examples, returnError
 }
 
@@ -125,18 +149,17 @@ func Archive(exampleID string) ([]byte, error) {
 
 		var selected Example
 		for _, example := range examples {
-			if example.ID != exampleID {
-				continue
+			if example.ID == exampleID {
+				selected = example
+				break
 			}
-			selected = example
-			break
 		}
 
 		if selected.ID == "" {
 			return nil, xerrors.Errorf("example with id %q not found", exampleID)
 		}
 
-		exampleFiles, err := fs.Sub(files, path.Join(rootDir, exampleID))
+		exampleFiles, err := fs.Sub(files, selected.DirectoryPath)
 		if err != nil {
 			return nil, xerrors.Errorf("get example fs: %w", err)
 		}
