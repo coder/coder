@@ -26,6 +26,7 @@ func server() *cobra.Command {
 			BrowserOnly:        browserOnly,
 			SCIMAPIKey:         []byte(scimAuthHeader),
 			UserWorkspaceQuota: userWorkspaceQuota,
+			RBACEnabled:        true,
 			Options:            options,
 		})
 		if err != nil {
