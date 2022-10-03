@@ -171,6 +171,8 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 				dbObj, dbErr = api.Database.GetTemplateByID(ctx, id)
 			case rbac.ResourceUser.Type:
 				dbObj, dbErr = api.Database.GetUserByID(ctx, id)
+			case rbac.ResourceGroup.Type:
+				dbObj, dbErr = api.Database.GetGroupByID(ctx, id)
 			default:
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message:     fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType),
