@@ -485,3 +485,50 @@ func TestWorkspaceBuildState(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantState, gotState)
 }
+
+func TestWorkspaceBuildStatus(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	closeDaemon.Close()
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	// initial returned state is "pending"
+	require.EqualValues(t, codersdk.WorkspaceStatusPending, workspace.LatestBuild.Status)
+
+	closeDaemon = coderdtest.NewProvisionerDaemon(t, api)
+	// after successful build is "running"
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	workspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+
+	// after successful stop is "stopped"
+	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusStopped, workspace.LatestBuild.Status)
+
+	_ = closeDaemon.Close()
+	// after successful cancel is "canceled"
+	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusCanceled, workspace.LatestBuild.Status)
+
+	_ = coderdtest.NewProvisionerDaemon(t, api)
+	// after successful delete is "deleted"
+	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionDelete)
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
+}

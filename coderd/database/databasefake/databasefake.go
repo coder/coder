@@ -2238,6 +2238,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 			continue
 		}
 		job.CanceledAt = arg.CanceledAt
+		job.CompletedAt = arg.CompletedAt
 		q.provisionerJobs[index] = job
 		return nil
 	}
