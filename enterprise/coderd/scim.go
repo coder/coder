@@ -34,13 +34,13 @@ func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 }
 
 // TODO reduce the duplication across all of these.
-func (api *API) groupsEnabledMW(next http.Handler) http.Handler {
+func (api *API) rbacEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
-		groups := api.entitlements.groups
+		rbac := api.entitlements.rbac
 		api.entitlementsMu.RUnlock()
 
-		if groups == codersdk.EntitlementNotEntitled {
+		if rbac == codersdk.EntitlementNotEntitled {
 			httpapi.RouteNotFound(rw)
 			return
 		}

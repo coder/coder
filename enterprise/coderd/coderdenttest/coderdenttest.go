@@ -58,7 +58,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		AuditLogging:               true,
-		GroupsEnabled:              true,
+		RBACEnabled:                true,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		UserWorkspaceQuota:         options.UserWorkspaceQuota,
@@ -93,7 +93,7 @@ type LicenseOptions struct {
 	BrowserOnly    bool
 	SCIM           bool
 	WorkspaceQuota bool
-	GroupsEnabled  bool
+	RBACEnabled    bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -131,7 +131,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	}
 
 	groups := int64(0)
-	if options.GroupsEnabled {
+	if options.RBACEnabled {
 		groups = 1
 	}
 

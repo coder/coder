@@ -22,7 +22,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -63,7 +63,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -87,7 +87,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -137,7 +137,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -175,7 +175,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -213,7 +213,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -265,7 +265,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -308,7 +308,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -369,7 +369,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -394,7 +394,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -419,7 +419,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -445,7 +445,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -480,7 +480,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -522,7 +522,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -544,7 +544,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -609,7 +609,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			GroupsEnabled: true,
+			RBACEnabled: true,
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)

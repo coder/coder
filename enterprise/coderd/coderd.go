@@ -79,7 +79,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
-				api.groupsEnabledMW,
+				api.rbacEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(api.Database),
 			)
@@ -89,7 +89,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 		r.Route("/groups/{group}", func(r chi.Router) {
 			r.Use(
-				api.groupsEnabledMW,
+				api.rbacEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractGroupParam(api.Database),
 			)
@@ -132,8 +132,8 @@ func New(ctx context.Context, options *Options) (*API, error) {
 type Options struct {
 	*coderd.Options
 
-	GroupsEnabled bool
-	AuditLogging  bool
+	RBACEnabled  bool
+	AuditLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly        bool
 	SCIMAPIKey         []byte
@@ -159,7 +159,7 @@ type entitlements struct {
 	browserOnly    codersdk.Entitlement
 	scim           codersdk.Entitlement
 	workspaceQuota codersdk.Entitlement
-	groups         codersdk.Entitlement
+	rbac           codersdk.Entitlement
 }
 
 func (api *API) Close() error {
@@ -187,7 +187,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		scim:           codersdk.EntitlementNotEntitled,
 		browserOnly:    codersdk.EntitlementNotEntitled,
 		workspaceQuota: codersdk.EntitlementNotEntitled,
-		groups:         codersdk.EntitlementNotEntitled,
+		rbac:           codersdk.EntitlementNotEntitled,
 	}
 
 	// Here we loop through licenses to detect enabled features.
@@ -230,7 +230,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			entitlements.workspaceQuota = entitlement
 		}
 		if claims.Features.Groups > 0 {
-			entitlements.groups = entitlement
+			entitlements.rbac = entitlement
 		}
 	}
 
@@ -326,13 +326,13 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 			"Workspace quotas are enabled but your license for this feature is expired.")
 	}
 
-	resp.Features[codersdk.FeatureGroups] = codersdk.Feature{
-		Entitlement: entitlements.groups,
-		Enabled:     api.GroupsEnabled,
+	resp.Features[codersdk.FeatureRBAC] = codersdk.Feature{
+		Entitlement: entitlements.rbac,
+		Enabled:     api.RBACEnabled,
 	}
-	if entitlements.groups == codersdk.EntitlementGracePeriod && api.GroupsEnabled {
+	if entitlements.rbac == codersdk.EntitlementGracePeriod && api.RBACEnabled {
 		resp.Warnings = append(resp.Warnings,
-			"Groups are enabled but your license for this feature is expired.")
+			"RBAC is enabled but your license for this feature is expired.")
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
