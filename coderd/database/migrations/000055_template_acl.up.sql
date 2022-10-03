@@ -19,4 +19,30 @@ CREATE TABLE group_members (
 	UNIQUE(user_id, group_id)
 );
 
+-- Insert a group for every organization (which should just be 1).
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+) SELECT
+	id, 'allUsers' as name, id
+FROM
+	organizations;
+
+-- Insert allUsers groups into every existing template to avoid breaking
+-- existing deployments.
+UPDATE
+	templates
+SET
+	group_acl = (
+		SELECT
+			json_build_object(
+				organizations.id, array_to_json('{"read"}'::text[])
+			)
+		FROM
+			organizations
+		WHERE
+			templates.organization_id = organizations.id
+	);
+
 COMMIT;
