@@ -82,6 +82,7 @@ func TestGetLicense(t *testing.T) {
 			AuditLog:    true,
 			SCIM:        true,
 			BrowserOnly: true,
+			RBACEnabled: true,
 		})
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
@@ -90,6 +91,7 @@ func TestGetLicense(t *testing.T) {
 			SCIM:        true,
 			BrowserOnly: true,
 			UserLimit:   200,
+			RBACEnabled: false,
 		})
 
 		licenses, err := client.Licenses(ctx)
@@ -103,6 +105,7 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureSCIM:           json.Number("1"),
 			codersdk.FeatureBrowserOnly:    json.Number("1"),
 			codersdk.FeatureWorkspaceQuota: json.Number("0"),
+			codersdk.FeatureRBAC:           json.Number("1"),
 		}, licenses[0].Claims["features"])
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
@@ -112,6 +115,7 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureSCIM:           json.Number("1"),
 			codersdk.FeatureBrowserOnly:    json.Number("1"),
 			codersdk.FeatureWorkspaceQuota: json.Number("0"),
+			codersdk.FeatureRBAC:           json.Number("0"),
 		}, licenses[1].Claims["features"])
 	})
 }
