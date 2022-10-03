@@ -27,6 +27,7 @@ import { Helmet } from "react-helmet-async"
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { groupMachine } from "xServices/groups/groupXService"
+import { Maybe } from "components/Conditionals/Maybe"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
@@ -87,8 +88,9 @@ export const GroupPage: React.FC = () => {
       },
     },
   })
-  const { group } = state.context
-  const isLoading = group === undefined
+  const { group, permissions } = state.context
+  const isLoading = group === undefined || permissions === undefined
+  const canUpdateGroup = permissions ? permissions.canUpdateGroup : false
 
   return (
     <>
@@ -104,7 +106,7 @@ export const GroupPage: React.FC = () => {
           <Margins>
             <PageHeader
               actions={
-                <>
+                <Maybe condition={canUpdateGroup}>
                   <Link to="settings" underline="none" component={RouterLink}>
                     <Button startIcon={<SettingsOutlined />}>Settings</Button>
                   </Link>
@@ -116,7 +118,7 @@ export const GroupPage: React.FC = () => {
                   >
                     Delete
                   </Button>
-                </>
+                </Maybe>
               }
             >
               <PageHeaderTitle>{group?.name}</PageHeaderTitle>
@@ -124,12 +126,14 @@ export const GroupPage: React.FC = () => {
             </PageHeader>
 
             <Stack spacing={2.5}>
-              <AddGroupMember
-                isLoading={state.matches("addingMember")}
-                onSubmit={(user, reset) => {
-                  send({ type: "ADD_MEMBER", userId: user.id, callback: reset })
-                }}
-              />
+              <Maybe condition={canUpdateGroup}>
+                <AddGroupMember
+                  isLoading={state.matches("addingMember")}
+                  onSubmit={(user, reset) => {
+                    send({ type: "ADD_MEMBER", userId: user.id, callback: reset })
+                  }}
+                />
+              </Maybe>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -163,17 +167,19 @@ export const GroupPage: React.FC = () => {
                               />
                             </TableCell>
                             <TableCell width="1%">
-                              <TableRowMenu
-                                data={member}
-                                menuItems={[
-                                  {
-                                    label: "Remove",
-                                    onClick: () => {
-                                      send({ type: "REMOVE_MEMBER", userId: member.id })
+                              <Maybe condition={canUpdateGroup}>
+                                <TableRowMenu
+                                  data={member}
+                                  menuItems={[
+                                    {
+                                      label: "Remove",
+                                      onClick: () => {
+                                        send({ type: "REMOVE_MEMBER", userId: member.id })
+                                      },
                                     },
-                                  },
-                                ]}
-                              />
+                                  ]}
+                                />
+                              </Maybe>
                             </TableCell>
                           </TableRow>
                         ))}

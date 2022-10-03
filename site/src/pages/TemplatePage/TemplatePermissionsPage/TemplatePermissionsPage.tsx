@@ -13,17 +13,14 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
     templateContext: TemplateContext
     permissions: Permissions
   }>()
-  const { template } = templateContext
+  const { template, permissions } = templateContext
 
-  if (!template) {
-    throw new Error(
-      "This page should not be displayed until template, activeTemplateVersion or templateResources being loaded.",
-    )
+  if (!template || !permissions) {
+    throw new Error("This page should not be displayed until template or permissions being loaded.")
   }
 
   const [state, send] = useMachine(templateACLMachine, { context: { templateId: template.id } })
   const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
-  const canUpdatesUsers = true
 
   return (
     <>
@@ -32,7 +29,7 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
       </Helmet>
       <TemplatePermissionsPageView
         templateACL={templateACL}
-        canUpdateUsers={canUpdatesUsers}
+        canUpdatePermissions={permissions.canUpdateTemplate}
         onAddUser={(user, role, reset) => {
           send("ADD_USER", { user, role, onDone: reset })
         }}

@@ -1,6 +1,6 @@
-import { deleteGroup, getGroup, patchGroup } from "api/api"
+import { deleteGroup, getGroup, patchGroup, checkAuthorization } from "api/api"
 import { getErrorMessage } from "api/errors"
-import { Group } from "api/typesGenerated"
+import { AuthorizationResponse, Group } from "api/typesGenerated"
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 
@@ -11,12 +11,16 @@ export const groupMachine = createMachine(
       context: {} as {
         groupId: string
         group?: Group
+        permissions?: AuthorizationResponse
         addMemberCallback?: () => void
         removingMember?: string
       },
       services: {} as {
         loadGroup: {
           data: Group
+        }
+        loadPermissions: {
+          data: AuthorizationResponse
         }
         addMember: {
           data: Group
@@ -52,17 +56,32 @@ export const groupMachine = createMachine(
     initial: "loading",
     states: {
       loading: {
-        invoke: {
-          src: "loadGroup",
-          onDone: {
-            actions: ["assignGroup"],
-            target: "idle",
+        type: "parallel",
+        states: {
+          data: {
+            invoke: {
+              src: "loadGroup",
+              onDone: {
+                actions: ["assignGroup"],
+              },
+              onError: {
+                actions: ["displayLoadGroupError"],
+              },
+            },
           },
-          onError: {
-            actions: ["displayLoadGroupError"],
-            target: "idle",
+          permissions: {
+            invoke: {
+              src: "loadPermissions",
+              onDone: {
+                actions: ["assignPermissions"],
+              },
+              onError: {
+                actions: ["displayLoadPermissionsError"],
+              },
+            },
           },
         },
+        onDone: "idle",
       },
       idle: {
         on: {
@@ -127,6 +146,18 @@ export const groupMachine = createMachine(
   {
     services: {
       loadGroup: ({ groupId }) => getGroup(groupId),
+      loadPermissions: ({ groupId }) =>
+        checkAuthorization({
+          checks: {
+            canUpdateGroup: {
+              object: {
+                resource_type: "group",
+                resource_id: groupId,
+              },
+              action: "update",
+            },
+          },
+        }),
       addMember: ({ group }, { userId }) => {
         if (!group) {
           throw new Error("Group not defined.")
@@ -157,7 +188,7 @@ export const groupMachine = createMachine(
         addMemberCallback: (_, { callback }) => callback,
       }),
       displayLoadGroupError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to the group.")
+        const message = getErrorMessage(data, "Failed to load the group.")
         displayError(message)
       },
       displayAddMemberError: (_, { data }) => {
@@ -191,6 +222,13 @@ export const groupMachine = createMachine(
       },
       displayDeleteGroupError: (_, { data }) => {
         const message = getErrorMessage(data, "Failed to delete group.")
+        displayError(message)
+      },
+      assignPermissions: assign({
+        permissions: (_, { data }) => data,
+      }),
+      displayLoadPermissionsError: (_, { data }) => {
+        const message = getErrorMessage(data, "Failed to load the permissions.")
         displayError(message)
       },
     },
