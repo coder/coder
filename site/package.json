@@ -38,7 +38,7 @@
     "@xstate/react": "3.0.1",
     "axios": "0.26.1",
     "can-ndjson-stream": "1.0.2",
-    "chart.js": "3.5.0",
+    "chart.js": "3.9.1",
     "chartjs-adapter-date-fns": "2.0.0",
     "cron-parser": "4.6.0",
     "cronstrue": "2.11.0",
