@@ -33,6 +33,22 @@ func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 	})
 }
 
+// TODO reduce the duplication across all of these.
+func (api *API) groupsEnabledMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		api.entitlementsMu.RLock()
+		groups := api.entitlements.groups
+		api.entitlementsMu.RUnlock()
+
+		if groups == codersdk.EntitlementNotEntitled {
+			httpapi.RouteNotFound(rw)
+			return
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}
+
 func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 	hdr := []byte(r.Header.Get("Authorization"))
 

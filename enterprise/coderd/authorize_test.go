@@ -27,6 +27,10 @@ func TestCheckACLPermissions(t *testing.T) {
 	})
 	// Create adminClient, member, and org adminClient
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
+	_ = coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+		GroupsEnabled: true,
+	})
+
 	memberClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 	memberUser, err := memberClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)

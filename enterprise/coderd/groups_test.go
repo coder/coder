@@ -23,6 +23,9 @@ func TestCreateGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -39,6 +42,9 @@ func TestCreateGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -60,6 +66,9 @@ func TestCreateGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: database.AllUsersGroup,
@@ -80,6 +89,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -99,6 +111,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 
@@ -122,6 +137,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -154,6 +172,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -175,6 +196,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -196,6 +220,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -219,6 +246,9 @@ func TestPatchGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -245,6 +275,9 @@ func TestGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -262,6 +295,9 @@ func TestGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 
@@ -289,6 +325,9 @@ func TestGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
@@ -375,6 +414,9 @@ func TestGroups(t *testing.T) {
 
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -427,6 +469,9 @@ func TestDeleteGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -449,6 +494,9 @@ func TestDeleteGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			GroupsEnabled: true,
+		})
 		ctx, _ := testutil.Context(t)
 		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)

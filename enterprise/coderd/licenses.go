@@ -50,6 +50,7 @@ type Features struct {
 	BrowserOnly    int64 `json:"browser_only"`
 	SCIM           int64 `json:"scim"`
 	WorkspaceQuota int64 `json:"workspace_quota"`
+	Groups         int64 `json:"groups"`
 }
 
 type Claims struct {
