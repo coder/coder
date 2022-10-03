@@ -1,10 +1,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { Language as ErrorSummaryLanguage } from "components/ErrorSummary/ErrorSummary"
-import * as API from "../../../api/api"
-import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
-import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
-import { renderWithAuth } from "../../../testHelpers/renderHelpers"
-import * as AuthXService from "../../../xServices/auth/authXService"
+import * as API from "api/api"
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar"
+import * as SecurityForm from "components/SettingsSecurityForm/SettingsSecurityForm"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import { SecurityPage } from "./SecurityPage"
 
 const renderPage = () => {
@@ -35,21 +34,6 @@ const fillAndSubmitForm = async () => {
 }
 
 describe("SecurityPage", () => {
-  describe("when it is a success", () => {
-    it("shows the success message", async () => {
-      jest
-        .spyOn(API, "updateUserPassword")
-        .mockImplementationOnce((_userId, _data) => Promise.resolve(undefined))
-      const { user } = renderPage()
-      await fillAndSubmitForm()
-
-      const successMessage = await screen.findByText(AuthXService.Language.successSecurityUpdate)
-      expect(successMessage).toBeDefined()
-      expect(API.updateUserPassword).toBeCalledTimes(1)
-      expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
-    })
-  })
-
   describe("when the old_password is incorrect", () => {
     it("shows an error", async () => {
       jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({

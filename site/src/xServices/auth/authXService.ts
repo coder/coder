@@ -352,7 +352,7 @@ export const authMachine =
                     onDone: [
                       {
                         actions: "notifySuccessSecurityUpdate",
-                        target: "#authState.signedIn.security.idle.noError",
+                        target: "#authState.signingOut",
                       },
                     ],
                     onError: [
