@@ -1029,7 +1029,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deployments should not host devurl tokens on the same domain as the
+	// Deployments should not host app tokens on the same domain as the
 	// primary deployment. But in the case they are, we should also delete this
 	// token.
 	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
