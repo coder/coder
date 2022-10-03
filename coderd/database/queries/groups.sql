@@ -42,7 +42,11 @@ JOIN
 ON
 	users.id = group_members.user_id
 WHERE
-	group_members.group_id = $1;
+	group_members.group_id = $1
+AND
+	users.status = 'active'
+AND
+	users.deleted = 'false';
 
 -- name: GetAllOrganizationMembers :many
 SELECT
