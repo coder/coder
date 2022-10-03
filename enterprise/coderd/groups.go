@@ -218,15 +218,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		users []database.User
-		err   error
-	)
-	if group.Name == database.AllUsersGroup {
-		users, err = api.Database.GetAllOrganizationMembers(ctx, group.OrganizationID)
-	} else {
-		users, err = api.Database.GetGroupMembers(ctx, group.ID)
-	}
+	users, err := api.Database.GetGroupMembers(ctx, group.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -259,13 +251,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		var members []database.User
-
-		if group.Name == database.AllUsersGroup {
-			members, err = api.Database.GetAllOrganizationMembers(ctx, group.OrganizationID)
-		} else {
-			members, err = api.Database.GetGroupMembers(ctx, group.ID)
-		}
+		members, err := api.Database.GetGroupMembers(ctx, group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

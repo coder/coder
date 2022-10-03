@@ -2961,7 +2961,8 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 
 	var groups []database.Group
 	for _, group := range q.groups {
-		if group.OrganizationID == organizationID {
+		// Omit the allUsers group.
+		if group.OrganizationID == organizationID && group.ID != organizationID {
 			groups = append(groups, group)
 		}
 	}

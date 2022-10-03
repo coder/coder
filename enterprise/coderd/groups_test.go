@@ -451,18 +451,9 @@ func TestGroups(t *testing.T) {
 
 		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, groups, 3, "Should contain allUsers + 2 created groups")
+		require.Len(t, groups, 2)
 		require.Contains(t, groups, group1)
 		require.Contains(t, groups, group2)
-
-		for _, group := range groups {
-			if group.Name == database.AllUsersGroup {
-				require.Contains(t, group.Members, user2)
-				require.Contains(t, group.Members, user3)
-				require.Contains(t, group.Members, user4)
-				require.Contains(t, group.Members, user5)
-			}
-		}
 	})
 }
 
@@ -504,11 +495,7 @@ func TestDeleteGroup(t *testing.T) {
 			RBACEnabled: true,
 		})
 		ctx, _ := testutil.Context(t)
-		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
-		require.NoError(t, err)
-		require.Len(t, groups, 1)
-
-		err = client.DeleteGroup(ctx, groups[0].ID)
+		err := client.DeleteGroup(ctx, user.OrganizationID)
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)

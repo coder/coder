@@ -66,7 +66,9 @@ SELECT
 FROM
 	groups
 WHERE
-	organization_id = $1;
+	organization_id = $1
+AND
+	id != $1;
 
 -- name: InsertGroup :one
 INSERT INTO groups (
