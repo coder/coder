@@ -346,6 +346,9 @@ func TestGroup(t *testing.T) {
 
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			RBACEnabled: true,
+		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -376,6 +379,9 @@ func TestGroup(t *testing.T) {
 
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			RBACEnabled: true,
+		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
