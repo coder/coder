@@ -97,13 +97,13 @@ export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = 
 }
 
 export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return <h4 className={styles.title}>{children}</h4>
 }
 
 export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return <p className={styles.text}>{children}</p>
 }
@@ -112,7 +112,7 @@ export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>
   children,
   href,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return (
     <Link href={href} target="_blank" rel="noreferrer" className={styles.link}>
@@ -129,7 +129,7 @@ export const HelpTooltipAction: React.FC<
     ariaLabel?: string
   }>
 > = ({ children, icon: Icon, onClick, ariaLabel }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
   const tooltip = useHelpTooltip()
 
   return (
@@ -149,7 +149,7 @@ export const HelpTooltipAction: React.FC<
 }
 
 export const HelpTooltipLinksGroup: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
 
   return (
     <Stack spacing={1} className={styles.linksGroup}>

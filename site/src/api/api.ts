@@ -302,10 +302,11 @@ export const createUser = async (user: TypesGen.CreateUserRequest): Promise<Type
 
 export const createWorkspace = async (
   organizationId: string,
+  userId = "me",
   workspace: TypesGen.CreateWorkspaceRequest,
 ): Promise<TypesGen.Workspace> => {
   const response = await axios.post<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationId}/workspaces`,
+    `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
     workspace,
   )
   return response.data
@@ -492,5 +493,15 @@ export const getTemplateDAUs = async (
   templateId: string,
 ): Promise<TypesGen.TemplateDAUsResponse> => {
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
+  return response.data
+}
+
+export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse> => {
+  const response = await axios.get(`/api/v2/applications/host`)
+  return response.data
+}
+
+export const getWorkspaceQuota = async (userID: string): Promise<TypesGen.WorkspaceQuota> => {
+  const response = await axios.get(`/api/v2/workspace-quota/${userID}`)
   return response.data
 }

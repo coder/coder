@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -222,6 +224,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		organization      = httpmw.OrganizationParam(r)
 		apiKey            = httpmw.APIKey(r)
 		auditor           = api.Auditor.Load()
+		user              = httpmw.UserParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -232,7 +235,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	defer commitAudit()
 
 	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(user.ID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -292,7 +295,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: apiKey.UserID,
+		OwnerID: user.ID,
 		Name:    createWorkspace.Name,
 	})
 	if err == nil {
@@ -310,6 +313,25 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	workspaceCount, err := api.Database.GetWorkspaceCountByUserID(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace count.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// make sure the user has not hit their quota limit
+	e := *api.WorkspaceQuotaEnforcer.Load()
+	canCreate := e.CanCreateWorkspace(int(workspaceCount))
+	if !canCreate {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("User workspace limit of %d is already reached.", e.UserWorkspaceLimit()),
 		})
 		return
 	}
@@ -349,8 +371,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var provisionerJob database.ProvisionerJob
-	var workspaceBuild database.WorkspaceBuild
+	var (
+		provisionerJob database.ProvisionerJob
+		workspaceBuild database.WorkspaceBuild
+	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
 		workspaceBuildID := uuid.New()
@@ -359,7 +383,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           apiKey.UserID,
+			OwnerID:           user.ID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              createWorkspace.Name,
@@ -441,7 +465,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	aReq.New = workspace
 
 	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{apiKey.UserID, workspaceBuild.InitiatorID},
+		IDs: []uuid.UUID{user.ID, workspaceBuild.InitiatorID},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -478,7 +502,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		findUser(apiKey.UserID, users),
+		findUser(user.ID, users),
 	))
 }
 
@@ -635,6 +659,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
+	aReq.Old = workspace
 
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
@@ -796,6 +821,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Ignore all trace spans after this, they're not too useful.
+	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
 	t := time.NewTicker(time.Second * 1)
 	defer t.Stop()

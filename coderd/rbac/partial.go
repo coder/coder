@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 
 	"github.com/coder/coder/coderd/tracing"
@@ -28,11 +29,20 @@ type PartialAuthorizer struct {
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
 func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
 	if pa.alwaysTrue {
 		return nil
+	}
+
+	// No queries means always false
+	if len(pa.preparedQueries) == 0 {
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
+	}
+
+	parsed, err := ast.InterfaceToValue(map[string]interface{}{
+		"object": object,
+	})
+	if err != nil {
+		return xerrors.Errorf("parse object: %w", err)
 	}
 
 	// How to interpret the results of the partial queries.
@@ -48,9 +58,7 @@ func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error
 EachQueryLoop:
 	for _, q := range pa.preparedQueries {
 		// We need to eval each query with the newly known fields.
-		results, err := q.Eval(ctx, rego.EvalInput(map[string]interface{}{
-			"object": object,
-		}))
+		results, err := q.Eval(ctx, rego.EvalParsedInput(parsed))
 		if err != nil {
 			continue EachQueryLoop
 		}

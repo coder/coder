@@ -17,6 +17,7 @@ export const Language = {
   delete: "Delete",
   cancel: "Cancel",
   update: "Update",
+  updating: "Updating",
   // these labels are used in WorkspaceActions.tsx
   starting: "Starting...",
   stopping: "Stopping...",

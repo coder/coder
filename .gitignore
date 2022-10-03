@@ -31,8 +31,8 @@ site/**/*.typegen.ts
 site/build-storybook.log
 
 # Build
-build/
-dist/
+/build/
+/dist/
 site/out/
 
 *.tfstate

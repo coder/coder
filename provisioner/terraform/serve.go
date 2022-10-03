@@ -19,10 +19,10 @@ import (
 var (
 	// TerraformVersion is the version of Terraform used internally
 	// when Terraform is not available on the system.
-	TerraformVersion = version.Must(version.NewVersion("1.2.1"))
+	TerraformVersion = version.Must(version.NewVersion("1.3.0"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.2.1"))
+	maxTerraformVersion = version.Must(version.NewVersion("1.3.0"))
 
 	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
@@ -98,7 +98,8 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				Product:    product.Terraform,
 				Version:    TerraformVersion,
 			}
-
+			installer.SetLogger(slog.Stdlib(ctx, options.Logger, slog.LevelDebug))
+			options.Logger.Info(ctx, "installing terraform", slog.F("dir", options.CachePath), slog.F("version", TerraformVersion))
 			execPath, err := installer.Install(ctx)
 			if err != nil {
 				return xerrors.Errorf("install terraform: %w", err)

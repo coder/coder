@@ -2125,18 +2125,20 @@ const updateProvisionerJobWithCancelByID = `-- name: UpdateProvisionerJobWithCan
 UPDATE
 	provisioner_jobs
 SET
-	canceled_at = $2
+	canceled_at = $2,
+	completed_at = $3
 WHERE
 	id = $1
 `
 
 type UpdateProvisionerJobWithCancelByIDParams struct {
-	ID         uuid.UUID    `db:"id" json:"id"`
-	CanceledAt sql.NullTime `db:"canceled_at" json:"canceled_at"`
+	ID          uuid.UUID    `db:"id" json:"id"`
+	CanceledAt  sql.NullTime `db:"canceled_at" json:"canceled_at"`
+	CompletedAt sql.NullTime `db:"completed_at" json:"completed_at"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt)
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt, arg.CompletedAt)
 	return err
 }
 
@@ -3067,11 +3069,11 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER($1) OR email = $2)
+	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2))
 	AND deleted = $3
 LIMIT
 	1
@@ -3098,13 +3100,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 FROM
 	users
 WHERE
@@ -3128,6 +3131,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3148,7 +3152,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 FROM
 	users
 WHERE
@@ -3246,6 +3250,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3261,7 +3266,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted FROM users WHERE id = ANY($1 :: uuid [ ]) AND deleted = $2
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at FROM users WHERE id = ANY($1 :: uuid [ ]) AND deleted = $2
 `
 
 type GetUsersByIDsParams struct {
@@ -3290,6 +3295,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, arg GetUsersByIDsParams)
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
+			&i.LastSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -3317,7 +3323,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type InsertUserParams struct {
@@ -3355,6 +3361,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3397,6 +3404,42 @@ func (q *sqlQuerier) UpdateUserHashedPassword(ctx context.Context, arg UpdateUse
 	return err
 }
 
+const updateUserLastSeenAt = `-- name: UpdateUserLastSeenAt :one
+UPDATE
+	users
+SET
+	last_seen_at = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+`
+
+type UpdateUserLastSeenAtParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLastSeenAt, arg.ID, arg.LastSeenAt, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		pq.Array(&i.RBACRoles),
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE
 	users
@@ -3406,7 +3449,7 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserProfileParams struct {
@@ -3438,6 +3481,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3450,7 +3494,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserRolesParams struct {
@@ -3473,6 +3517,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3484,7 +3529,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserStatusParams struct {
@@ -3508,6 +3553,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
+		&i.LastSeenAt,
 	)
 	return i, err
 }
@@ -3849,7 +3895,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg Up
 }
 
 const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1 AND name = $2
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 AND name = $2
 `
 
 type GetWorkspaceAppByAgentIDAndNameParams struct {
@@ -3869,12 +3915,16 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg Ge
 		&i.Command,
 		&i.Url,
 		&i.RelativePath,
+		&i.HealthcheckUrl,
+		&i.HealthcheckInterval,
+		&i.HealthcheckThreshold,
+		&i.Health,
 	)
 	return i, err
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -3895,6 +3945,10 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Command,
 			&i.Url,
 			&i.RelativePath,
+			&i.HealthcheckUrl,
+			&i.HealthcheckInterval,
+			&i.HealthcheckThreshold,
+			&i.Health,
 		); err != nil {
 			return nil, err
 		}
@@ -3910,7 +3964,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -3931,6 +3985,10 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Command,
 			&i.Url,
 			&i.RelativePath,
+			&i.HealthcheckUrl,
+			&i.HealthcheckInterval,
+			&i.HealthcheckThreshold,
+			&i.Health,
 		); err != nil {
 			return nil, err
 		}
@@ -3946,7 +4004,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -3967,6 +4025,10 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.Command,
 			&i.Url,
 			&i.RelativePath,
+			&i.HealthcheckUrl,
+			&i.HealthcheckInterval,
+			&i.HealthcheckThreshold,
+			&i.Health,
 		); err != nil {
 			return nil, err
 		}
@@ -3991,21 +4053,29 @@ INSERT INTO
         icon,
         command,
         url,
-        relative_path
+        relative_path,
+        healthcheck_url,
+        healthcheck_interval,
+        healthcheck_threshold,
+        health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health
 `
 
 type InsertWorkspaceAppParams struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name                 string             `db:"name" json:"name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	RelativePath         bool               `db:"relative_path" json:"relative_path"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
+	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
@@ -4018,6 +4088,10 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.Command,
 		arg.Url,
 		arg.RelativePath,
+		arg.HealthcheckUrl,
+		arg.HealthcheckInterval,
+		arg.HealthcheckThreshold,
+		arg.Health,
 	)
 	var i WorkspaceApp
 	err := row.Scan(
@@ -4029,8 +4103,31 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.Command,
 		&i.Url,
 		&i.RelativePath,
+		&i.HealthcheckUrl,
+		&i.HealthcheckInterval,
+		&i.HealthcheckThreshold,
+		&i.Health,
 	)
 	return i, err
+}
+
+const updateWorkspaceAppHealthByID = `-- name: UpdateWorkspaceAppHealthByID :exec
+UPDATE
+	workspace_apps
+SET
+	health = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAppHealthByIDParams struct {
+	ID     uuid.UUID          `db:"id" json:"id"`
+	Health WorkspaceAppHealth `db:"health" json:"health"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAppHealthByID, arg.ID, arg.Health)
+	return err
 }
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
@@ -4874,6 +4971,24 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.LastUsedAt,
 	)
 	return i, err
+}
+
+const getWorkspaceCountByUserID = `-- name: GetWorkspaceCountByUserID :one
+SELECT
+	COUNT(id)
+FROM
+	workspaces
+WHERE
+	owner_id = $1
+	-- Ignore deleted workspaces
+	AND deleted != true
+`
+
+func (q *sqlQuerier) GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceCountByUserID, ownerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getWorkspaceOwnerCountsByTemplateIDs = `-- name: GetWorkspaceOwnerCountsByTemplateIDs :many

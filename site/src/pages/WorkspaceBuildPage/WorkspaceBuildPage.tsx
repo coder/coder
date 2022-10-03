@@ -25,3 +25,5 @@ export const WorkspaceBuildPage: FC = () => {
     </>
   )
 }
+
+export default WorkspaceBuildPage

@@ -10,6 +10,7 @@ export enum ButtonTypesEnum {
   delete = "delete",
   deleting = "deleting",
   update = "update",
+  updating = "updating",
   // disabled buttons
   canceling = "canceling",
   disabled = "disabled",

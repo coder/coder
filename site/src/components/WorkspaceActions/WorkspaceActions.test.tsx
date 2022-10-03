@@ -14,6 +14,7 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
       handleDelete={jest.fn()}
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
+      isUpdating={false}
     />,
   )
 }
@@ -27,6 +28,7 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
       handleDelete={jest.fn()}
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
+      isUpdating={false}
     />,
   )
   const trigger = await screen.findByTestId("workspace-actions-button")

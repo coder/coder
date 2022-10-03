@@ -30,12 +30,15 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "healthcheck": [],
             "icon": null,
             "name": null,
             "relative_path": null,
             "url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "healthcheck": []
+          }
         },
         {
           "address": "coder_app.app2",
@@ -46,12 +49,23 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "healthcheck": [
+              {
+                "interval": 5,
+                "threshold": 6,
+                "url": "http://localhost:13337/healthz"
+              }
+            ],
             "icon": null,
             "name": null,
             "relative_path": null,
             "url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "healthcheck": [
+              {}
+            ]
+          }
         },
         {
           "address": "null_resource.dev",
@@ -94,7 +108,9 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "token": true
+        }
       }
     },
     {
@@ -110,6 +126,7 @@
         "before": null,
         "after": {
           "command": null,
+          "healthcheck": [],
           "icon": null,
           "name": null,
           "relative_path": null,
@@ -117,10 +134,13 @@
         },
         "after_unknown": {
           "agent_id": true,
+          "healthcheck": [],
           "id": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "healthcheck": []
+        }
       }
     },
     {
@@ -136,6 +156,13 @@
         "before": null,
         "after": {
           "command": null,
+          "healthcheck": [
+            {
+              "interval": 5,
+              "threshold": 6,
+              "url": "http://localhost:13337/healthz"
+            }
+          ],
           "icon": null,
           "name": null,
           "relative_path": null,
@@ -143,10 +170,17 @@
         },
         "after_unknown": {
           "agent_id": true,
+          "healthcheck": [
+            {}
+          ],
           "id": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "healthcheck": [
+            {}
+          ]
+        }
       }
     },
     {
@@ -176,7 +210,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.4.11"
+        "version_constraint": "0.4.14"
       },
       "null": {
         "name": "null",
@@ -229,7 +263,20 @@
                 "coder_agent.dev1.id",
                 "coder_agent.dev1"
               ]
-            }
+            },
+            "healthcheck": [
+              {
+                "interval": {
+                  "constant_value": 5
+                },
+                "threshold": {
+                  "constant_value": 6
+                },
+                "url": {
+                  "constant_value": "http://localhost:13337/healthz"
+                }
+              }
+            ]
           },
           "schema_version": 0
         },

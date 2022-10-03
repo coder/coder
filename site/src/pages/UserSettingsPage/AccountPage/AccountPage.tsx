@@ -38,3 +38,5 @@ export const AccountPage: React.FC = () => {
     </Section>
   )
 }
+
+export default AccountPage

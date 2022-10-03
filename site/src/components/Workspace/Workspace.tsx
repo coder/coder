@@ -39,6 +39,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
@@ -46,6 +47,7 @@ export interface WorkspaceProps {
   hideSSHButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
+  applicationsHost?: string
 }
 
 /**
@@ -60,12 +62,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   workspace,
+  isUpdating,
   resources,
   builds,
   canUpdateWorkspace,
   workspaceErrors,
   hideSSHButton,
   buildInfo,
+  applicationsHost,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -102,6 +106,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              isUpdating={isUpdating}
             />
           </Stack>
         }
@@ -140,6 +145,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             canUpdateWorkspace={canUpdateWorkspace}
             buildInfo={buildInfo}
             hideSSHButton={hideSSHButton}
+            applicationsHost={applicationsHost}
           />
         )}
 

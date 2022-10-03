@@ -157,7 +157,32 @@ describe("WorkspacePage", () => {
         return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
       }),
     )
-    testButton(Language.update, getTemplateMock)
+
+    await renderWorkspacePage()
+    const button = await screen.findByText(Language.update, { exact: true })
+    fireEvent.click(button)
+
+    // getTemplate is called twice: once when the machine starts, and once after the user requests to update
+    expect(getTemplateMock).toBeCalledTimes(2)
+  })
+  it("after an update postWorkspaceBuild is called with the latest template active version id", async () => {
+    jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate) // active_version_id = "test-template-version"
+    jest.spyOn(api, "startWorkspace").mockResolvedValueOnce({
+      ...MockWorkspaceBuild,
+    })
+
+    server.use(
+      rest.get(`/api/v2/users/:userId/workspace/:workspaceName`, (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
+      }),
+    )
+    await renderWorkspacePage()
+    const button = await screen.findByText(Language.update, { exact: true })
+    fireEvent.click(button)
+
+    await waitFor(() =>
+      expect(api.startWorkspace).toBeCalledWith("test-workspace", "test-template-version"),
+    )
   })
   it("shows the Stopping status when the workspace is stopping", async () => {
     await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
