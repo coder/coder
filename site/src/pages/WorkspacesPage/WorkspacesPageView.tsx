@@ -18,6 +18,7 @@ export const Language = {
   pageTitle: "Workspaces",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
+  runningWorkspacesButton: "Running workspaces",
   createANewWorkspace: `Create a new workspace from a `,
   template: "Template",
 }
@@ -38,6 +39,7 @@ export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewPr
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
+    { query: workspaceFilterQuery.running, name: Language.runningWorkspacesButton },
   ]
 
   return (
