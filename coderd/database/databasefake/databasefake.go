@@ -2945,7 +2945,7 @@ func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 
 	for _, member := range members {
 		for _, user := range q.users {
-			if user.ID == member.UserID {
+			if user.ID == member.UserID && user.Status == database.UserStatusActive && !user.Deleted {
 				users = append(users, user)
 				break
 			}
