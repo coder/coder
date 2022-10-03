@@ -92,6 +92,6 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return resources[0].Agents[0].ID
 }

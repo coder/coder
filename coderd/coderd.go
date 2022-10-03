@@ -449,14 +449,6 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractWorkspaceResourceParam(options.Database),
-				httpmw.ExtractWorkspaceParam(options.Database),
-			)
-			r.Get("/", api.workspaceResource)
-		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

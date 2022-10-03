@@ -189,150 +189,6 @@ export const MockTemplate: TypesGen.Template = {
   icon: "/icon/code.svg",
 }
 
-export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
-  schedule: "",
-}
-
-export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest = {
-  // Runs at 9:30am Monday through Friday using Canada/Eastern
-  // (America/Toronto) time
-  schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
-}
-
-export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
-  build_number: 1,
-  created_at: "2022-05-17T17:39:01.382927298Z",
-  id: "1",
-  initiator_id: MockUser.id,
-  initiator_name: MockUser.username,
-  job: MockProvisionerJob,
-  template_version_id: "",
-  transition: "start",
-  updated_at: "2022-05-17T17:39:01.382927298Z",
-  workspace_name: "test-workspace",
-  workspace_owner_id: MockUser.id,
-  workspace_owner_name: MockUser.username,
-  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
-  deadline: "2022-05-17T23:39:00.00Z",
-  reason: "initiator",
-  resources: [],
-  status: "running",
-}
-
-export const MockFailedWorkspaceBuild = (
-  transition: TypesGen.WorkspaceTransition = "start",
-): TypesGen.WorkspaceBuild => ({
-  build_number: 1,
-  created_at: "2022-05-17T17:39:01.382927298Z",
-  id: "1",
-  initiator_id: MockUser.id,
-  initiator_name: MockUser.username,
-  job: MockFailedProvisionerJob,
-  template_version_id: "",
-  transition: transition,
-  updated_at: "2022-05-17T17:39:01.382927298Z",
-  workspace_name: "test-workspace",
-  workspace_owner_id: MockUser.id,
-  workspace_owner_name: MockUser.username,
-  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
-  deadline: "2022-05-17T23:39:00.00Z",
-  reason: "initiator",
-  resources: [],
-  status: "running",
-})
-
-export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
-  ...MockWorkspaceBuild,
-  id: "2",
-  transition: "stop",
-}
-
-export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
-  ...MockWorkspaceBuild,
-  id: "3",
-  transition: "delete",
-}
-
-export const MockBuilds = [MockWorkspaceBuild, MockWorkspaceBuildStop, MockWorkspaceBuildDelete]
-
-export const MockWorkspace: TypesGen.Workspace = {
-  id: "test-workspace",
-  name: "Test-Workspace",
-  created_at: "",
-  updated_at: "",
-  template_id: MockTemplate.id,
-  template_name: MockTemplate.name,
-  template_icon: MockTemplate.icon,
-  outdated: false,
-  owner_id: MockUser.id,
-  owner_name: MockUser.username,
-  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
-  latest_build: MockWorkspaceBuild,
-  last_used_at: "",
-}
-
-export const MockStoppedWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: MockWorkspaceBuildStop,
-}
-export const MockStoppingWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: {
-    ...MockWorkspaceBuildStop,
-    job: MockRunningProvisionerJob,
-  },
-}
-export const MockStartingWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: {
-    ...MockWorkspaceBuild,
-    job: MockRunningProvisionerJob,
-    transition: "start",
-  },
-}
-export const MockCancelingWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
-}
-export const MockCanceledWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob },
-}
-export const MockFailedWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: {
-    ...MockWorkspaceBuild,
-    job: MockFailedProvisionerJob,
-  },
-}
-export const MockDeletingWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
-}
-export const MockDeletedWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: MockWorkspaceBuildDelete,
-}
-
-export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
-
-export const MockQueuedWorkspace: TypesGen.Workspace = {
-  ...MockWorkspace,
-  latest_build: {
-    ...MockWorkspaceBuild,
-    job: MockPendingProvisionerJob,
-    transition: "start",
-  },
-}
-
-// requests the MockWorkspace
-export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
-  name: "test",
-  parameter_values: [],
-  template_id: "test-template",
-}
-
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
@@ -452,6 +308,150 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
   ],
+}
+
+export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
+  schedule: "",
+}
+
+export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest = {
+  // Runs at 9:30am Monday through Friday using Canada/Eastern
+  // (America/Toronto) time
+  schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
+}
+
+export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
+  build_number: 1,
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "1",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
+  job: MockProvisionerJob,
+  template_version_id: "",
+  transition: "start",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
+  deadline: "2022-05-17T23:39:00.00Z",
+  reason: "initiator",
+  resources: [MockWorkspaceResource],
+  status: "running",
+}
+
+export const MockFailedWorkspaceBuild = (
+  transition: TypesGen.WorkspaceTransition = "start",
+): TypesGen.WorkspaceBuild => ({
+  build_number: 1,
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "1",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
+  job: MockFailedProvisionerJob,
+  template_version_id: "",
+  transition: transition,
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
+  deadline: "2022-05-17T23:39:00.00Z",
+  reason: "initiator",
+  resources: [],
+  status: "running",
+})
+
+export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
+  ...MockWorkspaceBuild,
+  id: "2",
+  transition: "stop",
+}
+
+export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
+  ...MockWorkspaceBuild,
+  id: "3",
+  transition: "delete",
+}
+
+export const MockBuilds = [MockWorkspaceBuild, MockWorkspaceBuildStop, MockWorkspaceBuildDelete]
+
+export const MockWorkspace: TypesGen.Workspace = {
+  id: "test-workspace",
+  name: "Test-Workspace",
+  created_at: "",
+  updated_at: "",
+  template_id: MockTemplate.id,
+  template_name: MockTemplate.name,
+  template_icon: MockTemplate.icon,
+  outdated: false,
+  owner_id: MockUser.id,
+  owner_name: MockUser.username,
+  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
+  ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
+  latest_build: MockWorkspaceBuild,
+  last_used_at: "",
+}
+
+export const MockStoppedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildStop,
+}
+export const MockStoppingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuildStop,
+    job: MockRunningProvisionerJob,
+  },
+}
+export const MockStartingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockRunningProvisionerJob,
+    transition: "start",
+  },
+}
+export const MockCancelingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
+}
+export const MockCanceledWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob },
+}
+export const MockFailedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockFailedProvisionerJob,
+  },
+}
+export const MockDeletingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
+}
+export const MockDeletedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: MockWorkspaceBuildDelete,
+}
+
+export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
+
+export const MockQueuedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockPendingProvisionerJob,
+    transition: "start",
+  },
+}
+
+// requests the MockWorkspace
+export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
+  name: "test",
+  parameter_values: [],
+  template_id: "test-template",
 }
 
 export const MockUserAgent: Types.UserAgent = {

@@ -36,7 +36,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		)
 		firstDeadline := workspace.LatestBuild.Deadline.Time
 
-		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		return client, workspace, func(want bool) {
 			if !want {
@@ -73,7 +73,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		client, workspace, assertBumped := setupActivityTest(t)
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil), resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer conn.Close()
@@ -90,9 +90,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		client, workspace, assertBumped := setupActivityTest(t)
 
-		// Benign operations like retrieving resources must not
+		// Benign operations like retrieving workspace must not
 		// bump the deadline.
-		_, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		_, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
 		assertBumped(false)
