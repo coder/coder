@@ -68,6 +68,16 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
+        },
+        {
+          "title": "AWS",
+          "description": "Setup Coder with AWS",
+          "path": "./quickstart/aws.md"
+        },
+        {
+          "title": "Azure",
+          "description": "Setup Coder with Azure",
+          "path": "./quickstart/azure.md"
         }
       ]
     },
