@@ -3,7 +3,7 @@ import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
@@ -47,7 +47,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
     onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<AccountFormValues>(form, updateProfileError)
+  const getFieldHelpers = getFormHelpers<AccountFormValues>(form, updateProfileError)
 
   return (
     <>

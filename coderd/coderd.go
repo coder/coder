@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -44,14 +45,18 @@ import (
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
-	Logger    slog.Logger
-	Database  database.Store
-	Pubsub    database.Pubsub
+	// AppHostname should be the wildcard hostname to use for workspace
+	// applications without the asterisk or leading dot. E.g. "apps.coder.com".
+	AppHostname string
+	Logger      slog.Logger
+	Database    database.Store
+	Pubsub      database.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
 
 	Auditor                        audit.Auditor
+	WorkspaceQuotaEnforcer         workspacequota.Enforcer
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -106,13 +111,7 @@ func New(options *Options) *API {
 		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.Authorizer == nil {
-		var err error
-		options.Authorizer, err = rbac.NewAuthorizer()
-		if err != nil {
-			// This should never happen, as the unit tests would fail if the
-			// default built in authorizer failed.
-			panic(xerrors.Errorf("rego authorize panic: %w", err))
-		}
+		options.Authorizer = rbac.NewAuthorizer()
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
@@ -122,6 +121,9 @@ func New(options *Options) *API {
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
+	}
+	if options.WorkspaceQuotaEnforcer == nil {
+		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -148,17 +150,32 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
+		metricsCache:           metricsCache,
+		Auditor:                atomic.Pointer[audit.Auditor]{},
+		WorkspaceQuotaEnforcer: atomic.Pointer[workspacequota.Enforcer]{},
 	}
 	api.Auditor.Store(&options.Auditor)
+	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
+
+	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: false,
+		Optional:        false,
+	})
+	// Same as above but it redirects to the login page.
+	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: true,
+		Optional:        false,
+	})
 
 	r.Use(
 		httpmw.AttachRequestID,
@@ -170,25 +187,21 @@ func New(options *Options) *API {
 		api.handleSubdomainApplications(
 			// Middleware to impose on the served application.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			httpmw.UseLoginURL(func() *url.URL {
-				if options.AccessURL == nil {
-					return nil
-				}
-
-				u := *options.AccessURL
-				u.Path = "/login"
-				return &u
-			}()),
-			// This should extract the application specific API key when we
-			// implement a scoped token.
-			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
+			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				DB:            options.Database,
+				OAuth2Configs: oauthConfigs,
+				// The code handles the the case where the user is not
+				// authenticated automatically.
+				RedirectToLogin: false,
+				Optional:        true,
+			}),
 			httpmw.ExtractUserParam(api.Database),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Add("Build-Version", buildinfo.Version())
+				w.Header().Add("X-Coder-Build-Version", buildinfo.Version())
 				next.ServeHTTP(w, r)
 			})
 		},
@@ -199,7 +212,7 @@ func New(options *Options) *API {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			httpmw.ExtractAPIKey(options.Database, oauthConfigs, true),
+			apiKeyMiddlewareRedirect,
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
@@ -229,7 +242,7 @@ func New(options *Options) *API {
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, codersdk.Response{
+			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
 				//nolint:gocritic
 				Message: "👋",
 			})
@@ -239,7 +252,7 @@ func New(options *Options) *API {
 
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
+				httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
 					ExternalURL: buildinfo.ExternalURL(),
 					Version:     buildinfo.Version(),
 				})
@@ -286,7 +299,6 @@ func New(options *Options) *API {
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
@@ -295,6 +307,7 @@ func New(options *Options) *API {
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
+						r.Post("/workspaces", api.postWorkspacesByOrganization)
 					})
 				})
 			})
@@ -384,8 +397,6 @@ func New(options *Options) *API {
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
 
-					r.Post("/authorization", api.checkPermissions)
-
 					r.Route("/keys", func(r chi.Router) {
 						r.Post("/", api.postAPIKey)
 						r.Get("/{keyid}", api.apiKey)
@@ -410,8 +421,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
+				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Get("/report-stats", api.workspaceAgentReportStats)
@@ -430,7 +443,7 @@ func New(options *Options) *API {
 				// error message when transitioning from WebRTC to Tailscale. See:
 				// https://github.com/coder/coder/issues/4126
 				r.Get("/dial", func(w http.ResponseWriter, r *http.Request) {
-					httpapi.Write(w, http.StatusGone, codersdk.Response{
+					httpapi.Write(r.Context(), w, http.StatusGone, codersdk.Response{
 						Message: "Your Coder CLI is out of date, and requires v0.8.15+ to connect!",
 					})
 				})
@@ -481,6 +494,25 @@ func New(options *Options) *API {
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
+		r.Route("/authcheck", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Post("/", api.checkAuthorization)
+		})
+		r.Route("/applications", func(r chi.Router) {
+			r.Route("/host", func(r chi.Router) {
+				// Don't leak the hostname to unauthenticated users.
+				r.Use(apiKeyMiddleware)
+				r.Get("/", api.appHost)
+			})
+			r.Route("/auth-redirect", func(r chi.Router) {
+				// We want to redirect to login if they are not authenticated.
+				r.Use(apiKeyMiddlewareRedirect)
+
+				// This is a GET request as it's redirected to by the subdomain app
+				// handler and the login page.
+				r.Get("/", api.workspaceApplicationAuth)
+			})
+		})
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -489,8 +521,10 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
-	Auditor  atomic.Pointer[audit.Auditor]
-	HTTPAuth *HTTPAuthorizer
+	Auditor                           atomic.Pointer[audit.Auditor]
+	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
+	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
+	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router

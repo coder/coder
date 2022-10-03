@@ -112,6 +112,11 @@ func TestConvertResources(t *testing.T) {
 					Name: "app1",
 				}, {
 					Name: "app2",
+					Healthcheck: &proto.Healthcheck{
+						Url:       "http://localhost:13337/healthz",
+						Interval:  5,
+						Threshold: 6,
+					},
 				}},
 				Auth: &proto.Agent_Token{},
 			}},

@@ -30,3 +30,5 @@ const useStyles = makeStyles((theme) => ({
     borderRight: theme.palette.divider,
   },
 }))
+
+export default NotFoundPage

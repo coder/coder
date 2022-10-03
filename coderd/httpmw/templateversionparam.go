@@ -28,24 +28,25 @@ func TemplateVersionParam(r *http.Request) database.TemplateVersion {
 func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			templateVersionID, parsed := parseUUID(rw, r, "templateversion")
 			if !parsed {
 				return
 			}
-			templateVersion, err := db.GetTemplateVersionByID(r.Context(), templateVersionID)
+			templateVersion, err := db.GetTemplateVersionByID(ctx, templateVersionID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching template version.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), templateVersionParamContextKey{}, templateVersion)
+			ctx = context.WithValue(ctx, templateVersionParamContextKey{}, templateVersion)
 			chi.RouteContext(ctx).URLParams.Add("organization", templateVersion.OrganizationID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

@@ -15,21 +15,37 @@ import (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                uuid.UUID      `json:"id"`
-	CreatedAt         time.Time      `json:"created_at"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	OwnerID           uuid.UUID      `json:"owner_id"`
-	OwnerName         string         `json:"owner_name"`
-	TemplateID        uuid.UUID      `json:"template_id"`
-	TemplateName      string         `json:"template_name"`
-	TemplateIcon      string         `json:"template_icon"`
-	LatestBuild       WorkspaceBuild `json:"latest_build"`
-	Outdated          bool           `json:"outdated"`
-	Name              string         `json:"name"`
-	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
-	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
-	LastUsedAt        time.Time      `json:"last_used_at"`
+	ID                uuid.UUID       `json:"id"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+	OwnerID           uuid.UUID       `json:"owner_id"`
+	OwnerName         string          `json:"owner_name"`
+	TemplateID        uuid.UUID       `json:"template_id"`
+	TemplateName      string          `json:"template_name"`
+	TemplateIcon      string          `json:"template_icon"`
+	LatestBuild       WorkspaceBuild  `json:"latest_build"`
+	Outdated          bool            `json:"outdated"`
+	Name              string          `json:"name"`
+	AutostartSchedule *string         `json:"autostart_schedule,omitempty"`
+	TTLMillis         *int64          `json:"ttl_ms,omitempty"`
+	LastUsedAt        time.Time       `json:"last_used_at"`
+	Status            WorkspaceStatus `json:"status"`
 }
+
+type WorkspaceStatus string
+
+const (
+	WorkspaceStatusPending   WorkspaceStatus = "pending"
+	WorkspaceStatusStarting  WorkspaceStatus = "starting"
+	WorkspaceStatusRunning   WorkspaceStatus = "running"
+	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
+	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
+	WorkspaceStatusFailed    WorkspaceStatus = "failed"
+	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
+	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
+	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
+	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
+)
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
@@ -51,7 +67,7 @@ type WorkspaceOptions struct {
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (o WorkspaceOptions) asRequestOption() requestOption {
+func (o WorkspaceOptions) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		if o.IncludeDeleted {
@@ -74,7 +90,7 @@ func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace,
 	return c.getWorkspace(ctx, id, o.asRequestOption())
 }
 
-func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...RequestOption) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
@@ -254,7 +270,7 @@ type WorkspaceFilter struct {
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (f WorkspaceFilter) asRequestOption() requestOption {
+func (f WorkspaceFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		var params []string
 		// Make sure all user input is quoted to ensure it's parsed as a single
@@ -313,4 +329,29 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+type GetAppHostResponse struct {
+	Host string `json:"host"`
+}
+
+// GetAppHost returns the site-wide application wildcard hostname without the
+// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
+// "my-app--agent--workspace--username.apps.coder.com".
+//
+// If the app host is not set, the response will contain an empty string.
+func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
+	if err != nil {
+		return GetAppHostResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GetAppHostResponse{}, readBodyAsError(res)
+	}
+
+	var host GetAppHostResponse
+	return host, json.NewDecoder(res.Body).Decode(&host)
 }

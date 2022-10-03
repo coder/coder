@@ -25,7 +25,7 @@ export const CodeBlock: FC<React.PropsWithChildren<CodeBlockProps>> = ({
           </div>
         ))}
       </div>
-      {ctas && ctas.length && (
+      {ctas && ctas.length > 0 && (
         <div className={styles.ctaBar}>
           {ctas.map((cta, i) => {
             return <Fragment key={i}>{cta}</Fragment>

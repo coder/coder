@@ -195,3 +195,5 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     </>
   )
 }
+
+export default UsersPage

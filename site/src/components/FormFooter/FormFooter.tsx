@@ -12,6 +12,7 @@ export interface FormFooterProps {
   onCancel: () => void
   isLoading: boolean
   submitLabel?: string
+  submitDisabled?: boolean
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -34,6 +35,7 @@ export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
   onCancel,
   isLoading,
   submitLabel = Language.defaultSubmitLabel,
+  submitDisabled,
 }) => {
   const styles = useStyles()
   return (
@@ -45,6 +47,7 @@ export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
         variant="contained"
         color="primary"
         type="submit"
+        disabled={submitDisabled}
       >
         {submitLabel}
       </LoadingButton>

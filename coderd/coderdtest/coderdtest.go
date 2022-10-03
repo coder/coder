@@ -65,6 +65,7 @@ import (
 )
 
 type Options struct {
+	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
@@ -198,6 +199,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		// agents are not marked as disconnected during slow tests.
 		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
+		AppHostname:                    options.AppHostname,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
 		Database:                       db,
@@ -216,9 +218,10 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		DERPMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
 				1: {
-					RegionID:   1,
-					RegionCode: "coder",
-					RegionName: "Coder",
+					EmbeddedRelay: true,
+					RegionID:      1,
+					RegionCode:    "coder",
+					RegionName:    "Coder",
 					Nodes: []*tailcfg.DERPNode{{
 						Name:             "1a",
 						RegionID:         1,
@@ -521,7 +524,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	for _, mutator := range mutators {
 		mutator(&req)
 	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
+	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
 	require.NoError(t, err)
 	return workspace
 }

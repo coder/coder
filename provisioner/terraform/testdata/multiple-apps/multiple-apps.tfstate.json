@@ -16,11 +16,11 @@
             "auth": "token",
             "dir": null,
             "env": null,
-            "id": "3d4ee1d5-6413-4dc7-baec-2fa9dbd870ba",
+            "id": "685dba1f-09de-40c0-8fc0-4d8ca00ef946",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "32e082d7-af02-42f1-a5bd-f6adc34220a1"
+            "token": "2c73d680-ef4c-4bc1-80f0-f6916e4e5255"
           },
           "sensitive_values": {}
         },
@@ -32,15 +32,18 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "3d4ee1d5-6413-4dc7-baec-2fa9dbd870ba",
+            "agent_id": "685dba1f-09de-40c0-8fc0-4d8ca00ef946",
             "command": null,
+            "healthcheck": [],
             "icon": null,
-            "id": "90e045f9-19f1-4d8a-8021-be61c44ee54f",
+            "id": "46f8d3cd-bcf7-4792-8d54-66e01e63018a",
             "name": null,
             "relative_path": null,
             "url": null
           },
-          "sensitive_values": {},
+          "sensitive_values": {
+            "healthcheck": []
+          },
           "depends_on": [
             "coder_agent.dev1"
           ]
@@ -53,15 +56,26 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "3d4ee1d5-6413-4dc7-baec-2fa9dbd870ba",
+            "agent_id": "685dba1f-09de-40c0-8fc0-4d8ca00ef946",
             "command": null,
+            "healthcheck": [
+              {
+                "interval": 5,
+                "threshold": 6,
+                "url": "http://localhost:13337/healthz"
+              }
+            ],
             "icon": null,
-            "id": "873026f8-3050-4b0b-bebf-41e13e5949bb",
+            "id": "e4556c74-2f67-4266-b1e8-7ee61d754583",
             "name": null,
             "relative_path": null,
             "url": null
           },
-          "sensitive_values": {},
+          "sensitive_values": {
+            "healthcheck": [
+              {}
+            ]
+          },
           "depends_on": [
             "coder_agent.dev1"
           ]
@@ -74,7 +88,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "4447693752005094678",
+            "id": "2997000197756647168",
             "triggers": null
           },
           "sensitive_values": {},

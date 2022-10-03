@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -104,18 +105,18 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, befo
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
-func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after time.Time) (<-chan ProvisionerJobLog, error) {
+func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
 	afterQuery := ""
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
 	}
 	followURL, err := c.URL.Parse(fmt.Sprintf("%s?follow%s", path, afterQuery))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(followURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
@@ -129,11 +130,13 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		return nil, readBodyAsError(res)
+		return nil, nil, readBodyAsError(res)
 	}
 	logs := make(chan ProvisionerJobLog)
 	decoder := json.NewDecoder(websocket.NetConn(ctx, conn, websocket.MessageText))
+	closed := make(chan struct{})
 	go func() {
+		defer close(closed)
 		defer close(logs)
 		defer conn.Close(websocket.StatusGoingAway, "")
 		var log ProvisionerJobLog
@@ -149,5 +152,9 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 			}
 		}
 	}()
-	return logs, nil
+	return logs, closeFunc(func() error {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+		<-closed
+		return nil
+	}), nil
 }

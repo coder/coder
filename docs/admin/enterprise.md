@@ -3,16 +3,20 @@
 Coder is free to use and includes some features that are only accessible with a paid license.
 Contact sales@coder.com to obtain a license.
 
-These features are:
+Our Enterprise-only features include:
 
- * Audit Logging
+- Audit Logging
+- Browser Only Connections
+- Template RBAC
+- Quotas
+- High Availability
 
 ## Adding your license key
 
 ### You will need:
 
- * Your license key (contact sales@coder.com if you don't have yours)
- * Coder CLI installed
+- Your license key (contact sales@coder.com if you don't have yours)
+- Coder CLI installed
 
 ### Steps:
 
@@ -28,4 +32,4 @@ These features are:
 
 ## Up Next
 
-- [Learn how to contribute to Coder](../contributing.md).
+- [Learn how to contribute to Coder](../CONTRIBUTING.md).

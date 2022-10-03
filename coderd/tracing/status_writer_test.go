@@ -127,3 +127,9 @@ type hijacker struct {
 func (hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, xerrors.New("hijacked")
 }
+
+func (h hijacker) Flush() {
+	if f, ok := h.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}

@@ -16,6 +16,7 @@ const defaultArgs = {
   handleDelete: action("delete"),
   handleUpdate: action("update"),
   handleCancel: action("cancel"),
+  isUpdating: false,
 }
 
 export const Starting = Template.bind({})
@@ -76,4 +77,11 @@ export const Errored = Template.bind({})
 Errored.args = {
   ...defaultArgs,
   workspace: Mocks.MockFailedWorkspace,
+}
+
+export const Updating = Template.bind({})
+Updating.args = {
+  ...defaultArgs,
+  isUpdating: true,
+  workspace: Mocks.MockOutdatedWorkspace,
 }

@@ -15,7 +15,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
-	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -43,7 +42,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				Entitlement: codersdk.EntitlementNotEntitled,
 				Enabled:     false,
 			},
-			auditLogs: codersdk.EntitlementNotEntitled,
+			auditLogs:      codersdk.EntitlementNotEntitled,
+			browserOnly:    codersdk.EntitlementNotEntitled,
+			scim:           codersdk.EntitlementNotEntitled,
+			workspaceQuota: codersdk.EntitlementNotEntitled,
 		},
 		cancelEntitlementsLoop: cancelFunc,
 	}
@@ -51,7 +53,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, oauthConfigs, false)
+	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: false,
+	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
@@ -60,6 +66,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
+		})
+		r.Route("/workspace-quota", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/", api.workspaceQuota)
+			})
 		})
 	})
 
@@ -88,8 +101,12 @@ func New(ctx context.Context, options *Options) (*API, error) {
 type Options struct {
 	*coderd.Options
 
-	AuditLogging               bool
-	SCIMAPIKey                 []byte
+	AuditLogging bool
+	// Whether to block non-browser connections.
+	BrowserOnly        bool
+	SCIMAPIKey         []byte
+	UserWorkspaceQuota int
+
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
 }
@@ -104,10 +121,12 @@ type API struct {
 }
 
 type entitlements struct {
-	hasLicense  bool
-	activeUsers codersdk.Feature
-	auditLogs   codersdk.Entitlement
-	scim        codersdk.Entitlement
+	hasLicense     bool
+	activeUsers    codersdk.Feature
+	auditLogs      codersdk.Entitlement
+	browserOnly    codersdk.Entitlement
+	scim           codersdk.Entitlement
+	workspaceQuota codersdk.Entitlement
 }
 
 func (api *API) Close() error {
@@ -131,8 +150,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			Enabled:     false,
 			Entitlement: codersdk.EntitlementNotEntitled,
 		},
-		auditLogs: codersdk.EntitlementNotEntitled,
-		scim:      codersdk.EntitlementNotEntitled,
+		auditLogs:      codersdk.EntitlementNotEntitled,
+		scim:           codersdk.EntitlementNotEntitled,
+		browserOnly:    codersdk.EntitlementNotEntitled,
+		workspaceQuota: codersdk.EntitlementNotEntitled,
 	}
 
 	// Here we loop through licenses to detect enabled features.
@@ -165,23 +186,43 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if claims.Features.AuditLog > 0 {
 			entitlements.auditLogs = entitlement
 		}
+		if claims.Features.BrowserOnly > 0 {
+			entitlements.browserOnly = entitlement
+		}
 		if claims.Features.SCIM > 0 {
 			entitlements.scim = entitlement
+		}
+		if claims.Features.WorkspaceQuota > 0 {
+			entitlements.workspaceQuota = entitlement
 		}
 	}
 
 	if entitlements.auditLogs != api.entitlements.auditLogs {
-		auditor := agplaudit.NewNop()
 		// A flag could be added to the options that would allow disabling
 		// enhanced audit logging here!
-		if entitlements.auditLogs == codersdk.EntitlementEntitled && api.AuditLogging {
-			auditor = audit.NewAuditor(
+		if entitlements.auditLogs != codersdk.EntitlementNotEntitled && api.AuditLogging {
+			auditor := audit.NewAuditor(
 				audit.DefaultFilter,
 				backends.NewPostgres(api.Database, true),
 				backends.NewSlog(api.Logger),
 			)
+			api.AGPL.Auditor.Store(&auditor)
 		}
-		api.AGPL.Auditor.Store(&auditor)
+	}
+
+	if entitlements.browserOnly != api.entitlements.browserOnly {
+		var handler func(rw http.ResponseWriter) bool
+		if entitlements.browserOnly != codersdk.EntitlementNotEntitled && api.BrowserOnly {
+			handler = api.shouldBlockNonBrowserConnections
+		}
+		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
+	}
+
+	if entitlements.workspaceQuota != api.entitlements.workspaceQuota {
+		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.UserWorkspaceQuota > 0 {
+			enforcer := NewEnforcer(api.Options.UserWorkspaceQuota)
+			api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
+		}
 	}
 
 	api.entitlements = entitlements
@@ -190,6 +231,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 }
 
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	api.entitlementsMu.RLock()
 	entitlements := api.entitlements
 	api.entitlementsMu.RUnlock()
@@ -201,9 +243,9 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if entitlements.activeUsers.Limit != nil {
-		activeUserCount, err := api.Database.GetActiveUserCount(r.Context())
+		activeUserCount, err := api.Database.GetActiveUserCount(ctx)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Unable to query database",
 				Detail:  err.Error(),
 			})
@@ -229,7 +271,25 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 			"Audit logging is enabled but your license for this feature is expired.")
 	}
 
-	httpapi.Write(rw, http.StatusOK, resp)
+	resp.Features[codersdk.FeatureBrowserOnly] = codersdk.Feature{
+		Entitlement: entitlements.browserOnly,
+		Enabled:     api.BrowserOnly,
+	}
+	if entitlements.browserOnly == codersdk.EntitlementGracePeriod && api.BrowserOnly {
+		resp.Warnings = append(resp.Warnings,
+			"Browser only connections are enabled but your license for this feature is expired.")
+	}
+
+	resp.Features[codersdk.FeatureWorkspaceQuota] = codersdk.Feature{
+		Entitlement: entitlements.workspaceQuota,
+		Enabled:     api.UserWorkspaceQuota > 0,
+	}
+	if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod && api.UserWorkspaceQuota > 0 {
+		resp.Warnings = append(resp.Warnings,
+			"Workspace quotas are enabled but your license for this feature is expired.")
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 func (api *API) runEntitlementsLoop(ctx context.Context) {
@@ -272,7 +332,7 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			api.Logger.Debug(ctx, "successfully subscribed to pubsub")
 		}
 
-		api.Logger.Info(ctx, "syncing licensed entitlements")
+		api.Logger.Debug(ctx, "syncing licensed entitlements")
 		err := api.updateEntitlements(ctx)
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to get feature entitlements", slog.Error(err))

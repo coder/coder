@@ -71,6 +71,7 @@ export const MockUser: TypesGen.User = {
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockOwnerRole],
   avatar_url: "https://github.com/coder.png",
+  last_seen_at: "",
 }
 
 export const MockUserAdmin: TypesGen.User = {
@@ -82,6 +83,7 @@ export const MockUserAdmin: TypesGen.User = {
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockUserAdminRole],
   avatar_url: "",
+  last_seen_at: "",
 }
 
 export const MockUser2: TypesGen.User = {
@@ -93,6 +95,7 @@ export const MockUser2: TypesGen.User = {
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
   avatar_url: "",
+  last_seen_at: "2022-09-14T19:12:21Z",
 }
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -104,6 +107,7 @@ export const SuspendedMockUser: TypesGen.User = {
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [],
   avatar_url: "",
+  last_seen_at: "",
 }
 
 export const MockOrganization: TypesGen.Organization = {
@@ -264,6 +268,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
   latest_build: MockWorkspaceBuild,
   last_used_at: "",
+  status: "running",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -320,10 +325,23 @@ export const MockQueuedWorkspace: TypesGen.Workspace = {
   },
 }
 
+// requests the MockWorkspace
+export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
+  name: "test",
+  parameter_values: [],
+  template_id: "test-template",
+}
+
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
   icon: "",
+  health: "disabled",
+  healthcheck: {
+    url: "",
+    interval: 0,
+    threshold: 0,
+  },
 }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -380,7 +398,7 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   ...MockWorkspaceAgent,
-  id: "test-workspace-agent-2",
+  id: "test-workspace-agent-connecting",
   name: "another-workspace-agent",
   status: "connecting",
   version: "",
@@ -768,6 +786,10 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
       enabled: true,
       entitlement: "entitled",
     },
+    browser_only: {
+      enabled: true,
+      entitlement: "entitled",
+    },
   },
 }
 
@@ -828,4 +850,9 @@ export const MockAuditLog2: TypesGen.AuditLog = {
       secret: false,
     },
   },
+}
+
+export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
+  user_workspace_count: 0,
+  user_workspace_limit: 100,
 }

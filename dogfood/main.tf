@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.5"
+      version = "0.4.15"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -42,6 +42,12 @@ resource "coder_app" "code-server" {
   name     = "code-server"
   url      = "http://localhost:13337/"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:1337/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }
 
 
