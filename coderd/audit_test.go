@@ -115,17 +115,17 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterInvalidSingleValue",
 				SearchQuery:    "invalid",
-				ExpectedResult: 0,
+				ExpectedResult: 3,
 			},
 			{
 				Name:           "FilterWithInvalidResourceType",
 				SearchQuery:    "resource_type:invalid",
-				ExpectedResult: 0,
+				ExpectedResult: 3,
 			},
 			{
 				Name:           "FilterWithInvalidAction",
 				SearchQuery:    "action:invalid",
-				ExpectedResult: 0,
+				ExpectedResult: 3,
 			},
 		}
 
