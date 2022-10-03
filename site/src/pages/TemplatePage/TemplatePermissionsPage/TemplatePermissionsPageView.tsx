@@ -21,6 +21,7 @@ import {
   UserOrGroupAutocompleteValue,
 } from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete"
 import { FC, useState } from "react"
+import { Maybe } from "components/Conditionals/Maybe"
 
 const AddTemplateUserOrGroup: React.FC<{
   isLoading: boolean
@@ -100,7 +101,7 @@ export interface TemplatePermissionsPageViewProps {
   // User
   onAddUser: (user: TemplateUser, role: TemplateRole, reset: () => void) => void
   isAddingUser: boolean
-  canUpdateUsers: boolean
+  canEditPermissions: boolean
   onUpdateUser: (user: TemplateUser, role: TemplateRole) => void
   updatingUser: TemplateUser | undefined
   onRemoveUser: (user: TemplateUser) => void
@@ -116,7 +117,7 @@ export const TemplatePermissionsPageView: FC<
   React.PropsWithChildren<TemplatePermissionsPageViewProps>
 > = ({
   templateACL,
-  canUpdateUsers,
+  canEditPermissions,
   // User
   onAddUser,
   isAddingUser,
@@ -137,14 +138,16 @@ export const TemplatePermissionsPageView: FC<
 
   return (
     <Stack spacing={2.5}>
-      <AddTemplateUserOrGroup
-        isLoading={isAddingUser || isAddingGroup}
-        onSubmit={(value, role, resetAutocomplete) =>
-          "members" in value
-            ? onAddGroup(value, role, resetAutocomplete)
-            : onAddUser(value, role, resetAutocomplete)
-        }
-      />
+      <Maybe condition={canEditPermissions}>
+        <AddTemplateUserOrGroup
+          isLoading={isAddingUser || isAddingGroup}
+          onSubmit={(value, role, resetAutocomplete) =>
+            "members" in value
+              ? onAddGroup(value, role, resetAutocomplete)
+              : onAddUser(value, role, resetAutocomplete)
+          }
+        />
+      </Maybe>
       <TableContainer>
         <Table>
           <TableHead>
@@ -180,30 +183,31 @@ export const TemplatePermissionsPageView: FC<
                       />
                     </TableCell>
                     <TableCell>
-                      {canUpdateUsers ? (
-                        <Select
-                          value={group.role}
-                          variant="outlined"
-                          className={styles.updateSelect}
-                          disabled={updatingGroup && updatingGroup.id === group.id}
-                          onChange={(event) => {
-                            onUpdateGroup(group, event.target.value as TemplateRole)
-                          }}
-                        >
-                          <MenuItem key="view" value="view">
-                            View
-                          </MenuItem>
-                          <MenuItem key="admin" value="admin">
-                            Admin
-                          </MenuItem>
-                        </Select>
-                      ) : (
-                        group.role
-                      )}
+                      <ChooseOne>
+                        <Cond condition={canEditPermissions}>
+                          <Select
+                            value={group.role}
+                            variant="outlined"
+                            className={styles.updateSelect}
+                            disabled={updatingGroup && updatingGroup.id === group.id}
+                            onChange={(event) => {
+                              onUpdateGroup(group, event.target.value as TemplateRole)
+                            }}
+                          >
+                            <MenuItem key="view" value="view">
+                              View
+                            </MenuItem>
+                            <MenuItem key="admin" value="admin">
+                              Admin
+                            </MenuItem>
+                          </Select>
+                        </Cond>
+                        <Cond>{group.role}</Cond>
+                      </ChooseOne>
                     </TableCell>
 
-                    {canUpdateUsers && (
-                      <TableCell>
+                    <TableCell>
+                      <Maybe condition={canEditPermissions}>
                         <TableRowMenu
                           data={group}
                           menuItems={[
@@ -213,8 +217,8 @@ export const TemplatePermissionsPageView: FC<
                             },
                           ]}
                         />
-                      </TableCell>
-                    )}
+                      </Maybe>
+                    </TableCell>
                   </TableRow>
                 ))}
 
@@ -237,30 +241,31 @@ export const TemplatePermissionsPageView: FC<
                       />
                     </TableCell>
                     <TableCell>
-                      {canUpdateUsers ? (
-                        <Select
-                          value={user.role}
-                          variant="outlined"
-                          className={styles.updateSelect}
-                          disabled={updatingUser && updatingUser.id === user.id}
-                          onChange={(event) => {
-                            onUpdateUser(user, event.target.value as TemplateRole)
-                          }}
-                        >
-                          <MenuItem key="view" value="view">
-                            View
-                          </MenuItem>
-                          <MenuItem key="admin" value="admin">
-                            Admin
-                          </MenuItem>
-                        </Select>
-                      ) : (
-                        user.role
-                      )}
+                      <ChooseOne>
+                        <Cond condition={canEditPermissions}>
+                          <Select
+                            value={user.role}
+                            variant="outlined"
+                            className={styles.updateSelect}
+                            disabled={updatingUser && updatingUser.id === user.id}
+                            onChange={(event) => {
+                              onUpdateUser(user, event.target.value as TemplateRole)
+                            }}
+                          >
+                            <MenuItem key="view" value="view">
+                              View
+                            </MenuItem>
+                            <MenuItem key="admin" value="admin">
+                              Admin
+                            </MenuItem>
+                          </Select>
+                        </Cond>
+                        <Cond>{user.role}</Cond>
+                      </ChooseOne>
                     </TableCell>
 
-                    {canUpdateUsers && (
-                      <TableCell>
+                    <TableCell>
+                      <Maybe condition={canEditPermissions}>
                         <TableRowMenu
                           data={user}
                           menuItems={[
@@ -270,8 +275,8 @@ export const TemplatePermissionsPageView: FC<
                             },
                           ]}
                         />
-                      </TableCell>
-                    )}
+                      </Maybe>
+                    </TableCell>
                   </TableRow>
                 ))}
               </Cond>
