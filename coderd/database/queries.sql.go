@@ -944,6 +944,8 @@ FROM
 	groups
 WHERE
 	organization_id = $1
+AND
+	id != $1
 `
 
 func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
