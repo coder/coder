@@ -666,6 +666,7 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
+  readonly status: WorkspaceStatus
 }
 
 // From codersdk/workspaces.go
@@ -779,6 +780,19 @@ export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
+
+// From codersdk/workspacebuilds.go
+export type WorkspaceStatus =
+  | "canceled"
+  | "canceling"
+  | "deleted"
+  | "deleting"
+  | "failed"
+  | "pending"
+  | "running"
+  | "starting"
+  | "stopped"
+  | "stopping"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"

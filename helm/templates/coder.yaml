@@ -11,6 +11,7 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   # NOTE: this is currently not used as coder v2 does not support high
   #       availability yet.

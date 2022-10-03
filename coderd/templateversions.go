@@ -92,6 +92,11 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			Time:  database.Now(),
 			Valid: true,
 		},
+		CompletedAt: sql.NullTime{
+			Time: database.Now(),
+			// If the job is running, don't mark it completed!
+			Valid: !job.WorkerID.Valid,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -355,6 +360,11 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 		CanceledAt: sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
+		},
+		CompletedAt: sql.NullTime{
+			Time: database.Now(),
+			// If the job is running, don't mark it completed!
+			Valid: !job.WorkerID.Valid,
 		},
 	})
 	if err != nil {

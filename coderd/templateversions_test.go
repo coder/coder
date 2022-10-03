@@ -715,29 +715,12 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
-				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobPending
-			}, testutil.WaitShort, testutil.IntervalFast)
-
+			require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
-				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobCanceling
-			}, testutil.WaitShort, testutil.IntervalFast)
+			job, err = client.TemplateVersionDryRun(ctx, version.ID, job.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.ProvisionerJobCanceled, job.Status)
 		})
 
 		t.Run("AlreadyCompleted", func(t *testing.T) {

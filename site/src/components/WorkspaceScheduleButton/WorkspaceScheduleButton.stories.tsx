@@ -72,6 +72,22 @@ WorkspaceOffLong.args = {
   },
 }
 
+export const WorkspaceOn = Template.bind({})
+WorkspaceOn.args = {
+  deadlineMinusEnabled: () => true,
+  deadlinePlusEnabled: () => true,
+  workspace: {
+    ...Mocks.MockWorkspace,
+
+    latest_build: {
+      ...Mocks.MockWorkspaceBuild,
+      transition: "start",
+      deadline: "2022-05-17T23:59:00.00Z",
+    },
+    ttl_ms: 2 * 365 * 24 * 60 * 60 * 1000, // 2 years
+  },
+}
+
 export const CannotEdit = Template.bind({})
 CannotEdit.args = {
   workspace: {

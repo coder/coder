@@ -111,7 +111,7 @@ var (
 					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// CRUD all files, even those they did not upload.
 					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceWorkspace.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceWorkspace.Type: {ActionRead},
 					// CRUD to provisioner daemons for now.
 					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
