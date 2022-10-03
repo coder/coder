@@ -1,6 +1,6 @@
 ## Requirements 
 
-This quickstart assumes you have access to `AdministratorAccess` policy to AWS. 
+This quickstart assumes you have the ability to assign  `AdministratorAccess` policy to AWS. 
 
 ## Setting Up Security Groups for EC2
 
