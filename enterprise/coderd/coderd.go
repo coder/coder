@@ -229,7 +229,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if claims.Features.WorkspaceQuota > 0 {
 			entitlements.workspaceQuota = entitlement
 		}
-		if claims.Features.Groups > 0 {
+		if claims.Features.RBAC > 0 {
 			entitlements.rbac = entitlement
 		}
 	}

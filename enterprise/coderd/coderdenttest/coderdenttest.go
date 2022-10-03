@@ -152,7 +152,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			BrowserOnly:    browserOnly,
 			SCIM:           scim,
 			WorkspaceQuota: workspaceQuota,
-			Groups:         groups,
+			RBAC:           groups,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
