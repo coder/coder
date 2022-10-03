@@ -301,6 +301,69 @@ func TestGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})
+
+	t.Run("FilterDeletedUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user1.ID.String(), user2.ID.String()},
+		})
+		require.NoError(t, err)
+		require.Contains(t, group.Members, user1)
+		require.Contains(t, group.Members, user2)
+
+		err = client.DeleteUser(ctx, user1.ID)
+		require.NoError(t, err)
+
+		group, err = client.Group(ctx, group.ID)
+		require.NoError(t, err)
+		require.NotContains(t, group.Members, user1)
+	})
+
+	t.Run("FilterSuspendedUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user1.ID.String(), user2.ID.String()},
+		})
+		require.NoError(t, err)
+		require.Len(t, group.Members, 2)
+		require.Contains(t, group.Members, user1)
+		require.Contains(t, group.Members, user2)
+
+		user1, err = client.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		group, err = client.Group(ctx, group.ID)
+		require.NoError(t, err)
+		require.Len(t, group.Members, 1)
+		require.NotContains(t, group.Members, user1)
+		require.Contains(t, group.Members, user2)
+	})
 }
 
 // TODO: test auth.

@@ -895,6 +895,10 @@ ON
 	users.id = group_members.user_id
 WHERE
 	group_members.group_id = $1
+AND
+	users.status = 'active'
+AND
+	users.deleted = 'false'
 `
 
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
