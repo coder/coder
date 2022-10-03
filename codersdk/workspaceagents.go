@@ -331,22 +331,18 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
 			})
-			if errors.Is(err, context.Canceled) {
-				return
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				logger.Debug(ctx, "failed to dial", slog.Error(err))
+				continue
 			}
 			if isFirst {
 				if res.StatusCode == http.StatusConflict {
 					first <- readBodyAsError(res)
 					return
 				}
-				isFirst = false
-				close(first)
-			}
-			if err != nil {
-				logger.Debug(ctx, "failed to dial", slog.Error(err))
-				continue
-			}
-			if isFirst {
 				isFirst = false
 				close(first)
 			}
