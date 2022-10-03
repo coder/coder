@@ -7,10 +7,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/coder/coder/templates/examples"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/examples"
 )
 
 func TestTemplate(t *testing.T) {

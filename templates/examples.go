@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"path/filepath"
 	"sync"
 
 	"github.com/gohugoio/hugo/parser/pageparser"
@@ -15,10 +16,10 @@ import (
 )
 
 var (
-	//go:embed templates
+	//go:embed quickstart
 	files embed.FS
 
-	exampleBasePath = "https://github.com/coder/coder/tree/main/examples/templates/"
+	exampleBasePath = "https://github.com/coder/coder/tree/main/examples"
 	examples        = make([]Example, 0)
 	parseExamples   sync.Once
 	archives        = singleflight.Group{}
@@ -32,7 +33,7 @@ type Example struct {
 	Markdown    string `json:"markdown"`
 }
 
-const rootDir = "templates"
+const rootDir = "quickstart"
 
 // List returns all embedded examples.
 func List() ([]Example, error) {
@@ -43,63 +44,73 @@ func List() ([]Example, error) {
 			returnError = xerrors.Errorf("get example fs: %w", err)
 		}
 
-		dirs, err := fs.ReadDir(files, ".")
+		groups, err := fs.ReadDir(files, ".")
 		if err != nil {
 			returnError = xerrors.Errorf("read dir: %w", err)
 			return
 		}
 
-		for _, dir := range dirs {
-			if !dir.IsDir() {
-				continue
+		var dirs []Example
+		for _, group := range groups {
+			if group.IsDir() {
+				groupDirs, err := fs.Sub(files, filepath.Join(rootDir, group.Name()))
 			}
-			exampleID := dir.Name()
-			exampleURL := exampleBasePath + exampleID
-			// Each one of these is a example!
-			readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))
-			if err != nil {
-				returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
-				return
-			}
-
-			frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
-			if err != nil {
-				returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
-				return
-			}
-
-			nameRaw, exists := frontMatter.FrontMatter["name"]
-			if !exists {
-				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
-				return
-			}
-
-			name, valid := nameRaw.(string)
-			if !valid {
-				returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
-				return
-			}
-
-			descriptionRaw, exists := frontMatter.FrontMatter["description"]
-			if !exists {
-				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
-				return
-			}
-
-			description, valid := descriptionRaw.(string)
-			if !valid {
-				returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
-				return
-			}
-
-			examples = append(examples, Example{
-				ID:          exampleID,
-				URL:         exampleURL,
-				Name:        name,
-				Description: description,
-				Markdown:    string(frontMatter.Content),
-			})
 		}
+
+		for true {
+			for _, dir := range dirs {
+				if !dir.IsDir() {
+					continue
+				}
+				exampleID := dir.Name()
+				exampleURL := exampleBasePath + exampleID
+				// Each one of these is a example!
+				readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))
+				if err != nil {
+					returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
+					return
+				}
+
+				frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
+				if err != nil {
+					returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
+					return
+				}
+
+				nameRaw, exists := frontMatter.FrontMatter["name"]
+				if !exists {
+					returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
+					return
+				}
+
+				name, valid := nameRaw.(string)
+				if !valid {
+					returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
+					return
+				}
+
+				descriptionRaw, exists := frontMatter.FrontMatter["description"]
+				if !exists {
+					returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
+					return
+				}
+
+				description, valid := descriptionRaw.(string)
+				if !valid {
+					returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
+					return
+				}
+
+				examples = append(examples, Example{
+					ID:          exampleID,
+					URL:         exampleURL,
+					Name:        name,
+					Description: description,
+					Markdown:    string(frontMatter.Content),
+				})
+			}
+		}
+
 	})
 	return examples, returnError
 }

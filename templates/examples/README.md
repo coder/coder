@@ -1,4 +1,4 @@
-# Templates
+# Example templates
 
 List template examples in our CLI with `coder templates init`.
 
