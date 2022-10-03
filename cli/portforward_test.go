@@ -336,7 +336,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 		errC <- cmd.ExecuteContext(agentCtx)
 	}()
 
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	return workspace
 }

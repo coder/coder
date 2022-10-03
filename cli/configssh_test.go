@@ -114,7 +114,7 @@ func TestConfigSSH(t *testing.T) {
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	agentConn, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, resources[0].Agents[0].ID)
 	require.NoError(t, err)
 	defer agentConn.Close()

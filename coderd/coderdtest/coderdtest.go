@@ -497,6 +497,10 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 		if !assert.NoError(t, err) {
 			return false
 		}
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
@@ -505,6 +509,8 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 				}
 			}
 		}
+		resources = workspace.LatestBuild.Resources
+
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
 	return resources
