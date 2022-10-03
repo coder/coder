@@ -172,6 +172,10 @@ var (
 							ResourceType: ResourceOrgRoleAssignment.Type,
 							Action:       ActionRead,
 						},
+						{
+							ResourceType: ResourceGroup.Type,
+							Action:       ActionRead,
+						},
 					},
 				},
 			}

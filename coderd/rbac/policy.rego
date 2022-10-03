@@ -119,9 +119,13 @@ org_mem := true {
 	input.object.org_owner in org_members
 }
 
+org_ok {
+	org_mem
+}
+
 # If the object has no organization, then the user is also considered part of
 # the non-existent org.
-org_mem := true {
+org_ok {
 	input.object.org_owner == ""
 }
 
@@ -170,7 +174,7 @@ role_allow {
 	not org = -1
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
-	org_mem
+	org_ok
 	user = 1
 }
 
@@ -188,7 +192,7 @@ scope_allow {
 	not scope_org = -1
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
-	org_mem
+	org_ok
 	scope_user = 1
 }
 
@@ -204,13 +208,7 @@ acl_allow {
 acl_allow {
 	# If there is no organization owner, the object cannot be owned by an
 	# org_scoped team.
-	# TODO: This line and 'org_mem' are similar and should be combined.
-	# 	Currently the simplfied queries return extra queries that are always
-	# 	false. If these 2 lines are combined, we reduce the number of queries
-	# 	returned by partial execution.
-#	input.object.org_owner != ""
-	# Only people in the org can use the team access.
-#	org_mem
+	org_mem
 	group := input.subject.groups[_]
 	perms := input.object.acl_group_list[group]
 	# Either the input action or wildcard
@@ -220,7 +218,6 @@ acl_allow {
 # ACL for 'all_users' special group
 acl_allow {
 	org_mem
-	input.object.org_owner != ""
 	perms := input.object.acl_group_list[input.object.org_owner]
 	[input.action, "*"][_] in perms
 }

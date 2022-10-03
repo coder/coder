@@ -241,21 +241,21 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "GroupACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithGroupACL(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
 				allUsersGroup: allActions(),
 			}),
 			actions: allActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithGroupACL(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
 				allUsersGroup: {WildcardSymbol},
 			}),
 			actions: allActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithGroupACL(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
 				allUsersGroup: {ActionRead, ActionUpdate},
 			}),
 			actions: []Action{ActionCreate, ActionDelete},
