@@ -399,7 +399,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		require.Len(t, workspace.LatestBuild.Resources, 2)
 		require.Equal(t, "some", workspace.LatestBuild.Resources[0].Name)
 		require.Equal(t, "example", workspace.LatestBuild.Resources[1].Type)
-		require.Len(t, workspace.LatestBuild.Resources[1].Agents, 1)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
 	})
 }
 
