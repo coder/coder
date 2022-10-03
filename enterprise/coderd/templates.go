@@ -31,15 +31,6 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, users)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	dbGroups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
