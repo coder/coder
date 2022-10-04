@@ -5,10 +5,10 @@ Contact sales@coder.com to obtain a license.
 
 Our Enterprise-only features include:
 
-- Audit Logging
+- [Audit Logging](./audit-logs.md)
 - Browser Only Connections
 - Template RBAC
-- Quotas
+- [Quotas](./quotas.md)
 - High Availability
 
 ## Adding your license key
