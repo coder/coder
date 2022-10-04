@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/codersdk"
 )
@@ -152,5 +153,22 @@ func TestRoot(t *testing.T) {
 		cmd.SetOut(buf)
 		// This won't succeed, because we're using the login cmd to assert requests.
 		_ = cmd.Execute()
+	})
+
+	t.Run("Experimental", func(t *testing.T) {
+		t.Parallel()
+
+		cmd, _ := clitest.New(t, "--verbose", "--experimental")
+		err := cmd.Execute()
+		require.NoError(t, err)
+		_, set := cliflag.IsSet(cmd, "verbose")
+		require.True(t, set)
+		require.NoError(t, cli.EnsureExperimental(cmd, "verbose"))
+
+		cmd, _ = clitest.New(t, "help", "--verbose")
+		_ = cmd.Execute()
+		_, set = cliflag.IsSet(cmd, "verbose")
+		require.True(t, set)
+		require.ErrorContains(t, cli.EnsureExperimental(cmd, "verbose"), "--experimental")
 	})
 }

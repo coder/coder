@@ -237,9 +237,10 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	api.entitlementsMu.RUnlock()
 
 	resp := codersdk.Entitlements{
-		Features:   make(map[string]codersdk.Feature),
-		Warnings:   make([]string, 0),
-		HasLicense: entitlements.hasLicense,
+		Features:     make(map[string]codersdk.Feature),
+		Warnings:     make([]string, 0),
+		HasLicense:   entitlements.hasLicense,
+		Experimental: api.Experimental,
 	}
 
 	if entitlements.activeUsers.Limit != nil {

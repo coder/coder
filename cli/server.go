@@ -368,6 +368,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: metricsCacheRefreshInterval,
 				AgentStatsRefreshInterval:   agentStatRefreshInterval,
+				Experimental:                experimentalEnabled(cmd),
 			}
 
 			if oauth2GithubClientSecret != "" {
