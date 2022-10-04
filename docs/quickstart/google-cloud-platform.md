@@ -1,3 +1,5 @@
+# Google Cloud Platform
+
 ## Requirements
 
 This quick start assumes you have administrator access to your Google Cloud Platform instance. 
@@ -105,3 +107,8 @@ Once initialized, click create credentials in the upper right-hand corner. Selec
 Back in your GCP terminal, run the `coder templates create` one more time. 
 
 Congrats! You can now create new Linux-based workspaces that use Google Cloud Platform. 
+
+## Next Steps
+
+- [Learn more about template configuration](../templates.md)
+- [Configure more IDEs](../ides/web-ides.md)
