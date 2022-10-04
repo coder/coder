@@ -273,10 +273,11 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	go func() {
 		defer statisticsListener.Close()
 		server := &http.Server{
-			Handler:      a.statisticsHandler(),
-			ReadTimeout:  20 * time.Second,
-			WriteTimeout: 20 * time.Second,
-			ErrorLog:     slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
+			Handler:           a.statisticsHandler(),
+			ReadTimeout:       20 * time.Second,
+			ReadHeaderTimeout: 20 * time.Second,
+			WriteTimeout:      20 * time.Second,
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
 		}
 		go func() {
 			<-ctx.Done()
