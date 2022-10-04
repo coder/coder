@@ -1,10 +1,11 @@
 # Microsoft Azure
 
-This quickstart will show you how to set up the Coder server on Azure and then set up an Azure hosted Linux based workspace, which allows users to create there own instances of these workspaces and use the Coder product. 
+This quickstart shows you how to set up the Coder server on Azure which will
+provision Azure-hosted Linux workspaces.
 
-## Requirements 
+## Requirements
 
-This quickstart assumes you have access to admin level access to Azure. 
+This quickstart assumes you have full administrator privileges on Azure.
 
 ## Create An Azure VM
 
@@ -24,11 +25,11 @@ Up next, under `Inbound port rules` modify the Select `inbound ports` to also ta
 
 <img src="../images/quickstart/azure/azure4.png">
 
-The set up for the image is complete at this stage. Click `Review and Create` - review the information and click `Create`. A popup will appear asking you to download the key pair for the server. Click `Download private key and create resource` and place it into a folder of your choice on your local system. 
+The set up for the image is complete at this stage. Click `Review and Create` - review the information and click `Create`. A popup will appear asking you to download the key pair for the server. Click `Download private key and create resource` and place it into a folder of your choice on your local system.
 
 <img src="../images/quickstart/azure/azure5.png">
 
-Click `Return to create a virtual machine`. Your VM will start up! 
+Click `Return to create a virtual machine`. Your VM will start up!
 
 <img src="../images/quickstart/azure/azure6.png">
 
@@ -53,6 +54,7 @@ First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value t
 ```sh
 sudo vim /etc/coder.d/coder.env
 ```
+
 <img src="../images/quickstart/azure/azure7.png">
 
 Exit vim and run the following command to start Coder as a system level service:
@@ -69,7 +71,7 @@ The following command will get you information about the Coder launch service
 
 This will return a series of logs related to running Coder as a system service. Embedded in the logs is the Coder Access URL.
 
-Copy the URL and run the following command to create the first user, either on your local machine or in the instance terminal. 
+Copy the URL and run the following command to create the first user, either on your local machine or in the instance terminal.
 
 ```sh
 coder login <url***.try.coder.app>
@@ -77,30 +79,30 @@ coder login <url***.try.coder.app>
 
 Fill out the prompts. Be sure to save use email and password as these are your admin username and password.
 
-You can now access Coder on your local machine with the relevant  `***.try.coder.app` URL and logging in with the username and password.
+You can now access Coder on your local machine with the relevant `***.try.coder.app` URL and logging in with the username and password.
 
 ## Creating and Uploading Your First Template
 
-First, run `coder template init` to create your first template. You’ll be given a list of possible templates to use. This tutorial will show you how to set up your Coder instance to create a Linux based machine on Azure. 
+First, run `coder template init` to create your first template. You’ll be given a list of possible templates to use. This tutorial will show you how to set up your Coder instance to create a Linux based machine on Azure.
 
 <img src="../images/quickstart/azure/azure9.png">
 
-Press `enter` to select `Develop in Linux on Azure` template. This will return the following: 
+Press `enter` to select `Develop in Linux on Azure` template. This will return the following:
 
 <img src="../images/quickstart/azure/azure10.png">
 
-To get started using the Azure template, install the Azure CLI by following the instructions [here](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt). Run `az login` and follow the instructions to configure the Azure command line. 
+To get started using the Azure template, install the Azure CLI by following the instructions [here](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt). Run `az login` and follow the instructions to configure the Azure command line.
 
 Coder is running as a system service, which creates the system user `coder` for handling processes. The Coder user will require access to the Azure credentials to initialize the template.
 
 Run the following commands to copy the Azure credentials and give the `coder` user access to them:
 
 ```sh
-sudo cp -r ~/.azure /home/coder/.azure 
+sudo cp -r ~/.azure /home/coder/.azure
 sudo chown -R coder:coder /home/coder/.azure/
 ```
 
-Navigate to the `./azure-linux` folder where you created your template and run the following command to put the template on your Coder instance. 
+Navigate to the `./azure-linux` folder where you created your template and run the following command to put the template on your Coder instance.
 
 ```sh
 coder templates create
@@ -110,6 +112,6 @@ Congrats! You can now navigate to your Coder dashboard and use this Linux on Azu
 
 ## Next Steps
 
-- [Port-forward](../networking/port-forwarding.md.md)
+- [Port-forward](../networking/port-forwarding.md)
 - [Learn more about template configuration](../templates.md)
 - [Configure more IDEs](../ides/web-ides.md)

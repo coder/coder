@@ -1,8 +1,11 @@
 # Amazon Web Services
 
+This quickstart shows you how to set up the Coder server on AWS which will
+provision AWS-hosted, Linux workspaces.
+
 ## Requirements
 
-This quickstart assumes you are assigned the `AdministratorAccess` policy to AWS.
+This quickstart assumes you are assigned the `AdministratorAccess` policy on AWS.
 
 ## Setting Up Security Groups for EC2
 
@@ -148,6 +151,6 @@ Congrats! You can now navigate to your Coder dashboard and use this Linux on AWS
 
 ## Next Steps
 
-- [Port-forward](../networking/port-forwarding.md.md)
+- [Port-forward](../networking/port-forwarding.md)
 - [Learn more about template configuration](../templates.md)
 - [Configure more IDEs](../ides/web-ides.md)
