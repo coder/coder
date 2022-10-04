@@ -264,15 +264,6 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
-export const getWorkspaceResources = async (
-  workspaceBuildID: string,
-): Promise<TypesGen.WorkspaceResource[]> => {
-  const response = await axios.get<TypesGen.WorkspaceResource[]>(
-    `/api/v2/workspacebuilds/${workspaceBuildID}/resources`,
-  )
-  return response.data
-}
-
 const postWorkspaceBuild =
   (transition: WorkspaceBuildTransition) =>
   async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {

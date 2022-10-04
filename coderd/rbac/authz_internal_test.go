@@ -845,6 +845,11 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, subject.Scope, subject.Groups, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
+					// Ensure the partial can compile to a SQL clause.
+					// This does not guarantee that the clause is valid SQL.
+					_, err = Compile(partialAuthz.partialQueries)
+					require.NoError(t, err, "compile prepared authorizer")
+
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.

@@ -20,6 +20,7 @@ type Authorizer interface {
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
+	Compile() (AuthorizeFilter, error)
 }
 
 // Filter takes in a list of objects, and will filter the list removing all
@@ -39,6 +40,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 	}
 	objectType := objects[0].RBACObject().Type
 	filtered := make([]O, 0)
+
 	// Running benchmarks on this function, it is **always** faster to call
 	// auth.ByRoleName on <10 objects. This is because the overhead of
 	// 'PrepareByRoleName'. Once we cross 10 objects, then it starts to become

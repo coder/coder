@@ -25,6 +25,11 @@ var (
 	maxTerraformVersion = version.Must(version.NewVersion("1.3.0"))
 
 	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+
+	installTerraform         sync.Once
+	installTerraformExecPath string
+	// nolint:errname
+	installTerraformError error
 )
 
 const (
@@ -93,18 +98,21 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("absolute binary context canceled: %w", err)
 			}
 
-			installer := &releases.ExactVersion{
-				InstallDir: options.CachePath,
-				Product:    product.Terraform,
-				Version:    TerraformVersion,
+			// We don't want to install Terraform multiple times!
+			installTerraform.Do(func() {
+				installer := &releases.ExactVersion{
+					InstallDir: options.CachePath,
+					Product:    product.Terraform,
+					Version:    TerraformVersion,
+				}
+				installer.SetLogger(slog.Stdlib(ctx, options.Logger, slog.LevelDebug))
+				options.Logger.Debug(ctx, "installing terraform", slog.F("dir", options.CachePath), slog.F("version", TerraformVersion))
+				installTerraformExecPath, installTerraformError = installer.Install(ctx)
+			})
+			if installTerraformError != nil {
+				return xerrors.Errorf("install terraform: %w", installTerraformError)
 			}
-			installer.SetLogger(slog.Stdlib(ctx, options.Logger, slog.LevelDebug))
-			options.Logger.Info(ctx, "installing terraform", slog.F("dir", options.CachePath), slog.F("version", TerraformVersion))
-			execPath, err := installer.Install(ctx)
-			if err != nil {
-				return xerrors.Errorf("install terraform: %w", err)
-			}
-			options.BinaryPath = execPath
+			options.BinaryPath = installTerraformExecPath
 		} else {
 			options.BinaryPath = absoluteBinary
 		}
