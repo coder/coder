@@ -66,9 +66,9 @@
           "path": "./quickstart/docker.md"
         },
         {
-          "title": "GCP",
-          "description": "Setup Coder with GCP",
-          "path": "./quickstart/gcp.md"
+          "title": "Google Cloud Platform",
+          "description": "Setup Coder with Google Cloud Platform",
+          "path": "./quickstart/google-cloud-platform.md"
         }
       ]
     },

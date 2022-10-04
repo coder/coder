@@ -1,16 +1,18 @@
 ## Requirements
-This quick start assumes you have administrator access to your GCP instance. 
+
+This quick start assumes you have administrator access to your Google Cloud Platform instance. 
 
 ## Setting Up your VM  
+
 If this is the first time you’re creating a VM on this project, you will need to enable the `Compute Engine API`. Click `enable` and wait for the service to finish connecting.
 
 This will pull up the `Create an Instance` page - name the instance something relevant to this project, following your naming convention of choice. In addition, select a region and zone that is relevant / close to your physical location. For this instance, we will use the base suggested image. 
 
-<img src="../images/quickstart/gcp/gcp1.png">
+<img src="../images/quickstart/google-cloud-platform/gcp1.png">
 
 Under `Identity and API Access`, and click `Allow full access to all Cloud APIs`. Scroll down to `Firewall` and click `Allow HTTPS traffic` and `Allow HTTP traffic`.
 
-<img src="../images/quickstart/gcp/gcp2.png">
+<img src="../images/quickstart/google-cloud-platform/gcp2.png">
 
 Scroll down to the bottom and click `Create` to create and deploy the VM.
 
@@ -20,7 +22,7 @@ Congrats you’ve created your VM instance!
 
 On the Compute Engine Dashboard, click on the VM for this project. Under `Details`, click `SSH` and select `Open in browser window`.
 
-<img src="../images/quickstart/gcp/gcp3.png">
+<img src="../images/quickstart/google-cloud-platform/gcp3.png">
 
 This will give you a terminal to maneuver, manipulate the VM, and install Coder.
 
@@ -42,7 +44,7 @@ First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value t
 sudo vim /etc/coder.d/coder.env
 ``` 
 
-<img src="../images/quickstart/gcp/gcp4.png">
+<img src="../images/quickstart/google-cloud-platform/gcp4.png">
 
 Exit vim and run the following command to start Coder as a system service:
 
@@ -58,7 +60,7 @@ journalctl -u coder.service -b
 
 This will return a series of logs from launching Coder, however, embedded in the launch is the URL for accessing Coder. 
 
-<img src="../images/quickstart/gcp/gcp5.png">
+<img src="../images/quickstart/google-cloud-platform/gcp5.png">
 
 In this instance, Coder can be accessed at the URL  `https://fcca2f3bfc9d2e3bf1b9feb50e723448.pit-1.try.coder.app`. 
 
@@ -76,7 +78,7 @@ You can now access Coder on your local machine by navigating to the `***.try.cod
 
 First, run `coder template init` to create your first template. You’ll be given a list of possible templates to potentially use. This tutorial will show you how to create a Linux based template on GCP. 
 
-<img src="../images/quickstart/gcp/gcp6.png">
+<img src="../images/quickstart/google-cloud-platform/gcp6.png">
 
 Select the `Develop in Linux on Google Cloud`, then `cd ./gcp-linux` into the folder created from initializing a template. 
 
@@ -90,7 +92,7 @@ It will ask for your `project-id`, which you can find on the home page of your G
 
 Given it’s your first time setting up Coder, it may an error that will look like the following:
 
-<img src="../images/quickstart/gcp/gcp7.png">
+<img src="../images/quickstart/google-cloud-platform/gcp7.png">
 
 In the error message will be a link. In this case, the URL is `https://console.developes.google.com/apis/api/iam.googles.com/overview:?project=1073148106645`. Copy the respective URL from your error message, and visit it via your browser. It may ask you to enable `Identity and Access Management (IAM) API`. 
 
@@ -98,8 +100,8 @@ Click `enable` and wait as the API initializes for your account.
 
 Once initialized, click create credentials in the upper right-hand corner. Select the `Compute Engine API` from the dropdown, and select `Application Data` under `What data will you be accessing?`. In addition, select `Yes, I’m using one or more` under `Are you planning on using this API with Compute Engine, Kubernetes Engine, App Engine, or Cloud Functions?`.
 
-<img src="../images/quickstart/gcp/gcp8.png">
+<img src="../images/quickstart/google-cloud-platform/gcp8.png">
 
 Back in your GCP terminal, run the `coder templates create` one more time. 
 
-Congrats! You can now create new Linux-based workspaces that use GCP. 
+Congrats! You can now create new Linux-based workspaces that use Google Cloud Platform. 
