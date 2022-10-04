@@ -4,7 +4,6 @@ import Alert from "@material-ui/lab/Alert"
 import AlertTitle from "@material-ui/lab/AlertTitle"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { isWorkspaceDeleted } from "../../util/workspace"
 
 const Language = {
   bannerTitle: "This workspace has been deleted and cannot be edited.",
@@ -22,7 +21,7 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
 }) => {
   const styles = useStyles()
 
-  if (!isWorkspaceDeleted(workspace)) {
+  if (workspace.latest_build.status === "deleted") {
     return null
   }
 

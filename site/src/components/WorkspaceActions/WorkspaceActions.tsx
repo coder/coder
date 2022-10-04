@@ -1,12 +1,11 @@
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
 import { FC, ReactNode, useMemo } from "react"
-import { getWorkspaceStatus, WorkspaceStateEnum, WorkspaceStatus } from "util/workspace"
-import { Workspace } from "../../api/typesGenerated"
+import { useTranslation } from "react-i18next"
+import { Workspace, WorkspaceStatus } from "../../api/typesGenerated"
 import {
   ActionLoadingButton,
   DeleteButton,
   DisabledButton,
-  Language,
   StartButton,
   StopButton,
   UpdateButton,
@@ -18,7 +17,7 @@ import { ButtonMapping, ButtonTypesEnum, WorkspaceStateActions } from "./constan
  * so check whether workspace job status has reached completion (whether successful or not).
  */
 const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
-  ["started", "stopped", "deleted", "error", "canceled"].includes(workspaceStatus)
+  ["running", "stopped", "deleted", "failed", "canceled"].includes(workspaceStatus)
 
 export interface WorkspaceActionsProps {
   workspace: Workspace
@@ -40,42 +39,39 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   isUpdating,
 }) => {
-  const workspaceStatus: keyof typeof WorkspaceStateEnum = getWorkspaceStatus(
-    workspace.latest_build,
-  )
-  const workspaceState = WorkspaceStateEnum[workspaceStatus]
+  const { t } = useTranslation("workspacePage")
+  const workspaceStatus = workspace.latest_build.status
 
   const canBeUpdated = workspace.outdated && canAcceptJobs(workspaceStatus)
 
   // actions are the primary and secondary CTAs that appear in the workspace actions dropdown
   const actions = useMemo(() => {
     if (!canBeUpdated) {
-      return WorkspaceStateActions[workspaceState]
+      return WorkspaceStateActions[workspaceStatus]
     }
 
     // if an update is available, we make the update button the primary CTA
     // and move the former primary CTA to the secondary actions list
-    const updatedActions = { ...WorkspaceStateActions[workspaceState] }
+    const updatedActions = { ...WorkspaceStateActions[workspaceStatus] }
     updatedActions.secondary = [updatedActions.primary, ...updatedActions.secondary]
     updatedActions.primary = ButtonTypesEnum.update
 
     return updatedActions
-  }, [canBeUpdated, workspaceState])
+  }, [canBeUpdated, workspaceStatus])
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
     [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
-    [ButtonTypesEnum.updating]: <ActionLoadingButton label={Language.updating} />,
+    [ButtonTypesEnum.updating]: <ActionLoadingButton label={t("actionButton.updating")} />,
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
-    [ButtonTypesEnum.starting]: <ActionLoadingButton label={Language.starting} />,
+    [ButtonTypesEnum.starting]: <ActionLoadingButton label={t("actionButton.starting")} />,
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
-    [ButtonTypesEnum.stopping]: <ActionLoadingButton label={Language.stopping} />,
+    [ButtonTypesEnum.stopping]: <ActionLoadingButton label={t("actionButton.stopping")} />,
     [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
-    [ButtonTypesEnum.deleting]: <ActionLoadingButton label={Language.deleting} />,
-    [ButtonTypesEnum.canceling]: <DisabledButton workspaceState={workspaceState} />,
-    [ButtonTypesEnum.disabled]: <DisabledButton workspaceState={workspaceState} />,
-    [ButtonTypesEnum.queued]: <DisabledButton workspaceState={workspaceState} />,
-    [ButtonTypesEnum.loading]: <DisabledButton workspaceState={workspaceState} />,
+    [ButtonTypesEnum.deleting]: <ActionLoadingButton label={t("actionButton.deleting")} />,
+    [ButtonTypesEnum.canceling]: <DisabledButton workspaceStatus={workspaceStatus} />,
+    [ButtonTypesEnum.disabled]: <DisabledButton workspaceStatus={workspaceStatus} />,
+    [ButtonTypesEnum.pending]: <DisabledButton workspaceStatus={workspaceStatus} />,
   }
 
   return (

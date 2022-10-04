@@ -1,5 +1,5 @@
+import { WorkspaceStatus } from "api/typesGenerated"
 import { ReactNode } from "react"
-import { WorkspaceStateEnum } from "util/workspace"
 
 // the button types we have
 export enum ButtonTypesEnum {
@@ -14,53 +14,53 @@ export enum ButtonTypesEnum {
   // disabled buttons
   canceling = "canceling",
   disabled = "disabled",
-  queued = "queued",
-  loading = "loading",
+  pending = "pending",
 }
 
 export type ButtonMapping = {
   [key in ButtonTypesEnum]: ReactNode
 }
 
-type StateActionsType = {
-  [key in WorkspaceStateEnum]: {
+type StateActionsType = Record<
+  WorkspaceStatus,
+  {
     primary: ButtonTypesEnum
     secondary: ButtonTypesEnum[]
     canCancel: boolean
   }
-}
+>
 
 // A mapping of workspace state to button type
 // 'Primary' actions are the main ctas
 // 'Secondary' actions are ctas housed within the popover
 export const WorkspaceStateActions: StateActionsType = {
-  [WorkspaceStateEnum.starting]: {
+  starting: {
     primary: ButtonTypesEnum.starting,
     secondary: [],
     canCancel: true,
   },
-  [WorkspaceStateEnum.started]: {
+  running: {
     primary: ButtonTypesEnum.stop,
     secondary: [ButtonTypesEnum.delete],
     canCancel: false,
   },
-  [WorkspaceStateEnum.stopping]: {
+  stopping: {
     primary: ButtonTypesEnum.stopping,
     secondary: [],
     canCancel: true,
   },
-  [WorkspaceStateEnum.stopped]: {
+  stopped: {
     primary: ButtonTypesEnum.start,
     secondary: [ButtonTypesEnum.delete],
     canCancel: false,
   },
-  [WorkspaceStateEnum.canceled]: {
+  canceled: {
     primary: ButtonTypesEnum.start,
     secondary: [ButtonTypesEnum.stop, ButtonTypesEnum.delete],
     canCancel: false,
   },
   // in the case of an error
-  [WorkspaceStateEnum.error]: {
+  failed: {
     primary: ButtonTypesEnum.start, // give the user the ability to start a workspace again
     secondary: [ButtonTypesEnum.delete], // allows the user to delete
     canCancel: false,
@@ -68,28 +68,23 @@ export const WorkspaceStateActions: StateActionsType = {
   /**
    * disabled states
    */
-  [WorkspaceStateEnum.canceling]: {
+  canceling: {
     primary: ButtonTypesEnum.canceling,
     secondary: [],
     canCancel: false,
   },
-  [WorkspaceStateEnum.deleting]: {
+  deleting: {
     primary: ButtonTypesEnum.deleting,
     secondary: [],
     canCancel: true,
   },
-  [WorkspaceStateEnum.deleted]: {
+  deleted: {
     primary: ButtonTypesEnum.disabled,
     secondary: [],
     canCancel: false,
   },
-  [WorkspaceStateEnum.queued]: {
-    primary: ButtonTypesEnum.queued,
-    secondary: [],
-    canCancel: false,
-  },
-  [WorkspaceStateEnum.loading]: {
-    primary: ButtonTypesEnum.loading,
+  pending: {
+    primary: ButtonTypesEnum.pending,
     secondary: [],
     canCancel: false,
   },
