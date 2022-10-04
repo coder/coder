@@ -75,20 +75,10 @@ Stopping.args = {
   workspace: Mocks.MockStoppingWorkspace,
 }
 
-export const Error = Template.bind({})
-Error.args = {
+export const Failed = Template.bind({})
+Failed.args = {
   ...Started.args,
-  workspace: {
-    ...Mocks.MockFailedWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      job: {
-        ...Mocks.MockProvisionerJob,
-        status: "failed",
-      },
-      transition: "start",
-    },
-  },
+  workspace: Mocks.MockFailedWorkspace,
   workspaceErrors: {
     [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
       message: "A workspace build is already active.",
@@ -148,7 +138,7 @@ GetResourcesError.args = {
 
 export const CancellationError = Template.bind({})
 CancellationError.args = {
-  ...Error.args,
+  ...Failed.args,
   workspaceErrors: {
     [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockApiError({
       message: "Job could not be canceled.",
