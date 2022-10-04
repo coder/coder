@@ -3,11 +3,12 @@ package site
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"crypto/sha1" //#nosec // Not used for cryptography.
+	_ "embed"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	htmltemplate "html/template"
 	"io"
 	"io/fs"
 	"net/http"
@@ -24,15 +25,26 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/codersdk"
 )
 
-type apiResponseContextKey struct{}
+// We always embed the error page HTML because it it doesn't need to be built,
+// and it's tiny and doesn't contribute much to the binary size.
+var (
+	//go:embed static/error.html
+	errorHTML string
 
-// WithAPIResponse returns a context with the APIResponse value attached.
-// This is used to inject API response data to the index.html for additional
-// metadata in error pages.
-func WithAPIResponse(ctx context.Context, apiResponse APIResponse) context.Context {
-	return context.WithValue(ctx, apiResponseContextKey{}, apiResponse)
+	errorTemplate *htmltemplate.Template
+)
+
+func init() {
+	var err error
+	errorTemplate, err = htmltemplate.New("error").Parse(errorHTML)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Handler returns an HTTP handler for serving the static site.
@@ -87,14 +99,8 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	APIResponse APIResponse
-	CSP         cspState
-	CSRF        csrfState
-}
-
-type APIResponse struct {
-	StatusCode int
-	Message    string
+	CSP  cspState
+	CSRF csrfState
 }
 
 type cspState struct {
@@ -140,15 +146,6 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	state := htmlState{
 		// Token is the CSRF token for the given request
 		CSRF: csrfState{Token: nosurf.Token(req)},
-	}
-
-	apiResponseRaw := req.Context().Value(apiResponseContextKey{})
-	if apiResponseRaw != nil {
-		apiResponse, ok := apiResponseRaw.(APIResponse)
-		if !ok {
-			panic("dev error: api response in context isn't the correct type")
-		}
-		state.APIResponse = apiResponse
 	}
 
 	// First check if it's a file we have in our templates
@@ -626,5 +623,36 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 		}
 
 		n++
+	}
+}
+
+// ErrorPageData contains the variables that are found in
+// site/static/error.html.
+type ErrorPageData struct {
+	Status       int
+	Title        string
+	Description  string
+	RetryEnabled bool
+	DashboardURL string
+}
+
+// RenderStaticErrorPage renders the static error page. This is used by app
+// requests to avoid dependence on the dashboard but maintain the ability to
+// render a friendly error page on subdomains.
+func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPageData) {
+	type outerData struct {
+		Error ErrorPageData
+	}
+
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(data.Status)
+
+	err := errorTemplate.Execute(rw, outerData{Error: data})
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to render error page: " + err.Error(),
+			Detail:  fmt.Sprintf("Original error was: %d %s, %s", data.Status, data.Title, data.Description),
+		})
+		return
 	}
 }

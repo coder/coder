@@ -29,6 +29,7 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
     features: features,
     has_license: false,
     warnings: [],
+    experimental: false,
   }
 }
 

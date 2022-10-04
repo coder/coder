@@ -207,17 +207,11 @@
           "description": "Learn how to enable Enterprise features.",
           "icon_path": "./images/icons/group.svg",
           "path": "./admin/enterprise.md"
-        }
-      ]
-    },
-    {
-      "title": "Admin",
-      "description": "How to administer and manage Coder",
-      "icon_path": "./images/icons/gear.svg",
-      "children": [
+        },
         {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
+          "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }
       ]

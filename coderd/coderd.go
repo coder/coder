@@ -81,6 +81,7 @@ type Options struct {
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+	Experimental                bool
 }
 
 // New constructs a Coder API handler.

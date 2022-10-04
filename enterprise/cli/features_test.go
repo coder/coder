@@ -70,5 +70,6 @@ func TestFeaturesList(t *testing.T) {
 		assert.Equal(t, codersdk.EntitlementNotEntitled,
 			entitlements.Features[codersdk.FeatureRBAC].Entitlement)
 		assert.False(t, entitlements.HasLicense)
+		assert.False(t, entitlements.Experimental)
 	})
 }

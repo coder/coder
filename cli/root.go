@@ -48,10 +48,12 @@ const (
 	varNoFeatureWarning = "no-feature-warning"
 	varForceTty         = "force-tty"
 	varVerbose          = "verbose"
+	varExperimental     = "experimental"
 	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
+	envExperimental     = "CODER_EXPERIMENTAL"
 )
 
 var (
@@ -184,6 +186,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
 	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
+	cliflag.Bool(cmd.PersistentFlags(), varExperimental, "", envExperimental, false, "Enable experimental features. Experimental features are not ready for production.")
 
 	return cmd
 }
@@ -597,4 +600,19 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Add(k, v)
 	}
 	return h.transport.RoundTrip(req)
+}
+
+// ExperimentalEnabled returns if the experimental feature flag is enabled.
+func ExperimentalEnabled(cmd *cobra.Command) bool {
+	return cliflag.IsSetBool(cmd, varExperimental)
+}
+
+// EnsureExperimental will ensure that the experimental feature flag is set if the given flag is set.
+func EnsureExperimental(cmd *cobra.Command, name string) error {
+	_, set := cliflag.IsSet(cmd, name)
+	if set && !ExperimentalEnabled(cmd) {
+		return xerrors.Errorf("flag %s is set but requires flag --experimental or environment variable CODER_EXPERIMENTAL=true.", name)
+	}
+
+	return nil
 }
