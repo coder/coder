@@ -113,17 +113,16 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, filter)
+	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
+			Message: "Internal error preparing sql filter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, workspaces)
+	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -996,42 +995,7 @@ func convertWorkspace(
 		AutostartSchedule: autostartSchedule,
 		TTLMillis:         ttlMillis,
 		LastUsedAt:        workspace.LastUsedAt,
-		Status:            convertStatus(workspaceBuild),
 	}
-}
-
-func convertStatus(build codersdk.WorkspaceBuild) codersdk.WorkspaceStatus {
-	switch build.Job.Status {
-	case codersdk.ProvisionerJobPending:
-		return codersdk.WorkspaceStatusPending
-	case codersdk.ProvisionerJobRunning:
-		switch build.Transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusStarting
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopping
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleting
-		}
-	case codersdk.ProvisionerJobSucceeded:
-		switch build.Transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusRunning
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopped
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleted
-		}
-	case codersdk.ProvisionerJobCanceling:
-		return codersdk.WorkspaceStatusCanceling
-	case codersdk.ProvisionerJobCanceled:
-		return codersdk.WorkspaceStatusCanceled
-	case codersdk.ProvisionerJobFailed:
-		return codersdk.WorkspaceStatusFailed
-	}
-
-	// return error status since we should never get here
-	return codersdk.WorkspaceStatusFailed
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {

@@ -148,9 +148,7 @@ export const terminalMachine =
             throw new Error("workspace or workspace name is not set")
           }
 
-          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
-
-          const agent = resources
+          const agent = context.workspace.latest_build.resources
             .map((resource) => {
               if (!resource.agents || resource.agents.length === 0) {
                 return

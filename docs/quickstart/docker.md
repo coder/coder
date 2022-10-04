@@ -61,6 +61,6 @@ Coder with Docker has the following advantages:
 
 ## Next Steps
 
-- [Port-forward](../networking/port-forwarding.md.md)
+- [Port-forward](../networking/port-forwarding.md)
 - [Learn more about template configuration](../templates.md)
 - [Configure more IDEs](../ides/web-ides.md)

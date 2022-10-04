@@ -29,6 +29,7 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
     features: features,
     has_license: false,
     warnings: [],
+    experimental: false,
   }
 }
 
@@ -260,15 +261,6 @@ export const getWorkspaceByOwnerAndName = async (
     {
       params,
     },
-  )
-  return response.data
-}
-
-export const getWorkspaceResources = async (
-  workspaceBuildID: string,
-): Promise<TypesGen.WorkspaceResource[]> => {
-  const response = await axios.get<TypesGen.WorkspaceResource[]>(
-    `/api/v2/workspacebuilds/${workspaceBuildID}/resources`,
   )
   return response.data
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -66,10 +67,9 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		Workspace: workspace,
 		Agent:     agent,
 		// We do not support port proxying for paths.
-		AppName:          chi.URLParam(r, "workspaceapp"),
-		Port:             0,
-		Path:             chiPath,
-		DashboardOnError: true,
+		AppName: chi.URLParam(r, "workspaceapp"),
+		Port:    0,
+		Path:    chiPath,
 	}, rw, r)
 }
 
@@ -162,12 +162,11 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				}
 
 				api.proxyWorkspaceApplication(proxyApplication{
-					Workspace:        workspace,
-					Agent:            agent,
-					AppName:          app.AppName,
-					Port:             app.Port,
-					Path:             r.URL.Path,
-					DashboardOnError: false,
+					Workspace: workspace,
+					Agent:     agent,
+					AppName:   app.AppName,
+					Port:      app.Port,
+					Path:      r.URL.Path,
 				}, rw, r)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -175,20 +174,19 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 }
 
 func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, host string) (httpapi.ApplicationURL, bool) {
-	ctx := r.Context()
-	// Check if the hostname matches the access URL. If it does, the
-	// user was definitely trying to connect to the dashboard/API.
+	// Check if the hostname matches the access URL. If it does, the user was
+	// definitely trying to connect to the dashboard/API.
 	if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
 		next.ServeHTTP(rw, r)
 		return httpapi.ApplicationURL{}, false
 	}
 
-	// Split the subdomain so we can parse the application details and
-	// verify it matches the configured app hostname later.
+	// Split the subdomain so we can parse the application details and verify it
+	// matches the configured app hostname later.
 	subdomain, rest := httpapi.SplitSubdomain(host)
 	if rest == "" {
-		// If there are no periods in the hostname, then it can't be a
-		// valid application URL.
+		// If there are no periods in the hostname, then it can't be a valid
+		// application URL.
 		next.ServeHTTP(rw, r)
 		return httpapi.ApplicationURL{}, false
 	}
@@ -197,27 +195,34 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 	// Parse the application URL from the subdomain.
 	app, err := httpapi.ParseSubdomainAppURL(subdomain)
 	if err != nil {
-		// If it isn't a valid app URL and the base domain doesn't match
-		// the configured app hostname, this request was probably
-		// destined for the dashboard/API router.
+		// If it isn't a valid app URL and the base domain doesn't match the
+		// configured app hostname, this request was probably destined for the
+		// dashboard/API router.
 		if !matchingBaseHostname {
 			next.ServeHTTP(rw, r)
 			return httpapi.ApplicationURL{}, false
 		}
 
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Could not parse subdomain application URL.",
-			Detail:  err.Error(),
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusBadRequest,
+			Title:        "Invalid application URL",
+			Description:  fmt.Sprintf("Could not parse subdomain application URL %q: %s", subdomain, err.Error()),
+			RetryEnabled: false,
+			DashboardURL: api.AccessURL.String(),
 		})
 		return httpapi.ApplicationURL{}, false
 	}
 
-	// At this point we've verified that the subdomain looks like a
-	// valid application URL, so the base hostname should match the
-	// configured app hostname.
+	// At this point we've verified that the subdomain looks like a valid
+	// application URL, so the base hostname should match the configured app
+	// hostname.
 	if !matchingBaseHostname {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "The server does not accept application requests on this hostname.",
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusNotFound,
+			Title:        "Not Found",
+			Description:  "The server does not accept application requests on this hostname.",
+			RetryEnabled: false,
+			DashboardURL: api.AccessURL.String(),
 		})
 		return httpapi.ApplicationURL{}, false
 	}
@@ -230,12 +235,10 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 // they will be redirected to the route below. If the user does have a session
 // key but insufficient permissions a static error page will be rendered.
 func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, host string) bool {
-	ctx := r.Context()
 	_, ok := httpmw.APIKeyOptional(r)
 	if ok {
 		if !api.Authorize(r, rbac.ActionCreate, workspace.ApplicationConnectRBAC()) {
-			// TODO: This should be a static error page.
-			httpapi.ResourceNotFound(rw)
+			renderApplicationNotFound(rw, r, api.AccessURL)
 			return false
 		}
 
@@ -249,9 +252,14 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 		// Exchange the encoded API key for a real one.
 		_, apiKey, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Could not decrypt API key. Please remove the query parameter and try again.",
-				Detail:  err.Error(),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				Title:       "Bad Request",
+				Description: "Could not decrypt API key. Please remove the query parameter and try again.",
+				// Retry is disabled because the user needs to remove the query
+				// parameter before they try again.
+				RetryEnabled: false,
+				DashboardURL: api.AccessURL.String(),
 			})
 			return false
 		}
@@ -302,6 +310,10 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 
 // workspaceApplicationAuth is an endpoint on the main router that handles
 // redirects from the subdomain handler.
+//
+// This endpoint is under /api so we don't return the friendly error page here.
+// Any errors on this endpoint should be errors that are unlikely to happen
+// in production unless the user messes with the URL.
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if api.AppHostname == "" {
@@ -413,11 +425,6 @@ type proxyApplication struct {
 	Port    uint16
 	// Path must either be empty or have a leading slash.
 	Path string
-
-	// DashboardOnError determines whether or not the dashboard should be
-	// rendered on error. This should be set for proxy path URLs but not
-	// hostname based URLs.
-	DashboardOnError bool
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
@@ -439,17 +446,28 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			AgentID: proxyApp.Agent.ID,
 			Name:    proxyApp.AppName,
 		})
+		if xerrors.Is(err, sql.ErrNoRows) {
+			renderApplicationNotFound(rw, r, api.AccessURL)
+			return
+		}
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching workspace application.",
-				Detail:  err.Error(),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusInternalServerError,
+				Title:        "Internal Server Error",
+				Description:  "Could not fetch workspace application: " + err.Error(),
+				RetryEnabled: true,
+				DashboardURL: api.AccessURL.String(),
 			})
 			return
 		}
 
 		if !app.Url.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Application %s does not have a url.", app.Name),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusBadRequest,
+				Title:        "Bad Request",
+				Description:  fmt.Sprintf("Application %q does not have a URL set.", app.Name),
+				RetryEnabled: true,
+				DashboardURL: api.AccessURL.String(),
 			})
 			return
 		}
@@ -458,9 +476,12 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	appURL, err := url.Parse(internalURL)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("App URL %q is invalid.", internalURL),
-			Detail:  err.Error(),
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusBadRequest,
+			Title:        "Bad Request",
+			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", internalURL, err.Error()),
+			RetryEnabled: true,
+			DashboardURL: api.AccessURL.String(),
 		})
 		return
 	}
@@ -489,28 +510,23 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		if proxyApp.DashboardOnError {
-			// To pass friendly errors to the frontend, special meta tags are
-			// overridden in the index.html with the content passed here.
-			r = r.WithContext(site.WithAPIResponse(ctx, site.APIResponse{
-				StatusCode: http.StatusBadGateway,
-				Message:    err.Error(),
-			}))
-			api.siteHandler.ServeHTTP(w, r)
-			return
-		}
-
-		httpapi.Write(ctx, w, http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to proxy request to application.",
-			Detail:  err.Error(),
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusBadGateway,
+			Title:        "Bad Gateway",
+			Description:  "Failed to proxy request to application: " + err.Error(),
+			RetryEnabled: true,
+			DashboardURL: api.AccessURL.String(),
 		})
 	}
 
 	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to dial workspace agent.",
-			Detail:  err.Error(),
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusBadGateway,
+			Title:        "Bad Gateway",
+			Description:  "Could not connect to workspace agent: " + err.Error(),
+			RetryEnabled: true,
+			DashboardURL: api.AccessURL.String(),
 		})
 		return
 	}
@@ -647,4 +663,16 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 	}
 
 	return key, payload.APIKey, nil
+}
+
+// renderApplicationNotFound should always be used when the app is not found or
+// the current user doesn't have permission to access it.
+func renderApplicationNotFound(rw http.ResponseWriter, r *http.Request, accessURL *url.URL) {
+	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+		Status:       http.StatusNotFound,
+		Title:        "Application not found",
+		Description:  "The application or workspace you are trying to access does not exist.",
+		RetryEnabled: false,
+		DashboardURL: accessURL.String(),
+	})
 }
