@@ -21,7 +21,7 @@ export interface AppLinkProps {
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
-  appRelativePath: TypesGen.WorkspaceApp["relative_path"]
+  appSubdomain: TypesGen.WorkspaceApp["subdomain"]
   health: TypesGen.WorkspaceApp["health"]
 }
 
@@ -33,7 +33,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   appName,
   appIcon,
   appCommand,
-  appRelativePath,
+  appSubdomain,
   health,
 }) => {
   const styles = useStyles()
@@ -46,7 +46,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
       appCommand,
     )}`
   }
-  if (appsHost && !appRelativePath) {
+  if (appsHost && !appSubdomain) {
     const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
     href = `${window.location.protocol}://${subdomain}.${appsHost}/`
   }
@@ -64,7 +64,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
     icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
     tooltip = "Unhealthy"
   }
-  if (!appsHost && !appRelativePath) {
+  if (!appsHost && !appSubdomain) {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />
     tooltip = "Your admin has not configured wildcard application access"

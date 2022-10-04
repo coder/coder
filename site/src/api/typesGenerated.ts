@@ -602,7 +602,7 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
-  readonly relative_path: boolean
+  readonly subdomain: boolean
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }

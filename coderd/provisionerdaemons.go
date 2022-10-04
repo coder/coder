@@ -828,7 +828,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
-				RelativePath:         app.RelativePath,
+				Subdomain:            app.Subdomain,
 				HealthcheckUrl:       app.Healthcheck.Url,
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,

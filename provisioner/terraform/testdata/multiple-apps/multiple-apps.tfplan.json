@@ -34,6 +34,7 @@
             "icon": null,
             "name": null,
             "relative_path": null,
+            "subdomain": null,
             "url": null
           },
           "sensitive_values": {
@@ -58,7 +59,8 @@
             ],
             "icon": null,
             "name": null,
-            "relative_path": false,
+            "relative_path": null,
+            "subdomain": true,
             "url": null
           },
           "sensitive_values": {
@@ -77,7 +79,8 @@
             "healthcheck": [],
             "icon": null,
             "name": null,
-            "relative_path": true,
+            "relative_path": null,
+            "subdomain": false,
             "url": null
           },
           "sensitive_values": {
@@ -143,6 +146,7 @@
           "icon": null,
           "name": null,
           "relative_path": null,
+          "subdomain": null,
           "url": null
         },
         "after_unknown": {
@@ -176,7 +180,8 @@
           ],
           "icon": null,
           "name": null,
-          "relative_path": false,
+          "relative_path": null,
+          "subdomain": true,
           "url": null
         },
         "after_unknown": {
@@ -204,7 +209,8 @@
           "healthcheck": [],
           "icon": null,
           "name": null,
-          "relative_path": true,
+          "relative_path": null,
+          "subdomain": false,
           "url": null
         },
         "after_unknown": {
@@ -243,7 +249,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.4.15"
+        "version_constraint": "0.5.0"
       },
       "null": {
         "name": "null",
@@ -304,8 +310,8 @@
                 }
               }
             ],
-            "relative_path": {
-              "constant_value": false
+            "subdomain": {
+              "constant_value": true
             }
           },
           "schema_version": 0
@@ -320,8 +326,8 @@
             "agent_id": {
               "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
             },
-            "relative_path": {
-              "constant_value": true
+            "subdomain": {
+              "constant_value": false
             }
           },
           "schema_version": 0

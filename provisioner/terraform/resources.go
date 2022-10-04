@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -27,13 +25,13 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID string `mapstructure:"agent_id"`
-	Name    string `mapstructure:"name"`
-	Icon    string `mapstructure:"icon"`
-	URL     string `mapstructure:"url"`
-	Command string `mapstructure:"command"`
-	// RelativePath is optional, but it defaults to true so we have to make it
-	// a pointer to be backwards compatible.
+	AgentID   string `mapstructure:"agent_id"`
+	Name      string `mapstructure:"name"`
+	Icon      string `mapstructure:"icon"`
+	URL       string `mapstructure:"url"`
+	Command   string `mapstructure:"command"`
+	Subdomain bool   `mapstructure:"subdomain"`
+	// RelativePath is deprecated in favor of Subdomain.
 	RelativePath *bool                      `mapstructure:"relative_path"`
 	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
@@ -224,8 +222,6 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
-			d, _ := json.MarshalIndent(resource.AttributeValues, "", "    ")
-			fmt.Print(string(d))
 			return nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
 		if attrs.Name == "" {
@@ -242,9 +238,9 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		// Default attrs.RelativePath to true if unspecified in Terraform.
-		relativePath := true
+		subdomain := attrs.Subdomain
 		if attrs.RelativePath != nil {
-			relativePath = *attrs.RelativePath
+			subdomain = !*attrs.RelativePath
 		}
 
 		for _, agents := range resourceAgents {
@@ -254,12 +250,12 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:         attrs.Name,
-					Command:      attrs.Command,
-					Url:          attrs.URL,
-					Icon:         attrs.Icon,
-					RelativePath: relativePath,
-					Healthcheck:  healthcheck,
+					Name:        attrs.Name,
+					Command:     attrs.Command,
+					Url:         attrs.URL,
+					Icon:        attrs.Icon,
+					Subdomain:   subdomain,
+					Healthcheck: healthcheck,
 				})
 			}
 		}

@@ -111,12 +111,12 @@ func TestConvertResources(t *testing.T) {
 				Apps: []*proto.App{
 					{
 						Name: "app1",
-						// RelativePath defaults to true if unspecified.
-						RelativePath: true,
+						// Subdomain defaults to false if unspecified.
+						Subdomain: false,
 					},
 					{
-						Name:         "app2",
-						RelativePath: false,
+						Name:      "app2",
+						Subdomain: true,
 						Healthcheck: &proto.Healthcheck{
 							Url:       "http://localhost:13337/healthz",
 							Interval:  5,
@@ -124,8 +124,8 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					{
-						Name:         "app3",
-						RelativePath: true,
+						Name:      "app3",
+						Subdomain: false,
 					},
 				},
 				Auth: &proto.Agent_Token{},

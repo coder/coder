@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.15"
+      version = "0.5.0"
     }
   }
 }
@@ -12,17 +12,17 @@ resource "coder_agent" "dev1" {
   arch = "amd64"
 }
 
-# app1 is for testing relative_path default.
+# app1 is for testing subdomain default.
 resource "coder_app" "app1" {
   agent_id = coder_agent.dev1.id
-  # relative_path should default to true.
-  # relative_path = true
+  # subdomain should default to false.
+  # subdomain = false
 }
 
-# app2 tests that relative_path can be false, and that healthchecks work.
+# app2 tests that subdomaincan be true, and that healthchecks work.
 resource "coder_app" "app2" {
-  agent_id      = coder_agent.dev1.id
-  relative_path = false
+  agent_id  = coder_agent.dev1.id
+  subdomain = true
   healthcheck {
     url       = "http://localhost:13337/healthz"
     interval  = 5
@@ -30,10 +30,10 @@ resource "coder_app" "app2" {
   }
 }
 
-# app3 tests that relative_path can explicitly be true.
+# app3 tests that subdomain can explicitly be false.
 resource "coder_app" "app3" {
-  agent_id      = coder_agent.dev1.id
-  relative_path = true
+  agent_id  = coder_agent.dev1.id
+  subdomain = false
 }
 
 resource "null_resource" "dev" {
