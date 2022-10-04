@@ -48,7 +48,10 @@ const ReloadAppButton = (): ReactElement => {
  * createCtas generates an array of buttons to be used with our error boundary UI
  */
 export const createCtas = (codeBlock: string[]): ReactElement[] => {
-  return [<CopyStackButton key="copy-stack-btn" text={codeBlock.join("\r\n")} />, <ReloadAppButton key="reload-app-btn" />]
+  return [
+    <CopyStackButton key="copy-stack-btn" text={codeBlock.join("\r\n")} />,
+    <ReloadAppButton key="reload-app-btn" />,
+  ]
 }
 
 const useStyles = makeStyles((theme) => ({
