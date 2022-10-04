@@ -2,6 +2,7 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Alert from "@material-ui/lab/Alert"
 import AlertTitle from "@material-ui/lab/AlertTitle"
+import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 
@@ -21,22 +22,20 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
 }) => {
   const styles = useStyles()
 
-  if (workspace.latest_build.status === "deleted") {
-    return null
-  }
-
   return (
-    <Alert
-      className={styles.root}
-      action={
-        <Button color="inherit" onClick={handleClick} size="small">
-          {Language.createWorkspaceCta}
-        </Button>
-      }
-      severity="warning"
-    >
-      <AlertTitle>{Language.bannerTitle}</AlertTitle>
-    </Alert>
+    <Maybe condition={workspace.latest_build.status === "deleted"}>
+      <Alert
+        className={styles.root}
+        action={
+          <Button color="inherit" onClick={handleClick} size="small">
+            {Language.createWorkspaceCta}
+          </Button>
+        }
+        severity="warning"
+      >
+        <AlertTitle>{Language.bannerTitle}</AlertTitle>
+      </Alert>
+    </Maybe>
   )
 }
 
