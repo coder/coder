@@ -211,6 +211,18 @@
       ]
     },
     {
+      "title": "Admin",
+      "description": "How to administer and manage Coder",
+      "icon_path": "./images/icons/gear.svg",
+      "children": [
+        {
+          "title": "Telemetry",
+          "description": "Learn what usage telemetry Coder collects",
+          "path": "./admin/telemetry.md"
+        }
+      ]
+    },
+    {
       "title": "Contributing",
       "description": "Learn how to contribute to Coder",
       "icon_path": "./images/icons/contributing.svg",
