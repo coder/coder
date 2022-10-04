@@ -6,5 +6,16 @@
     "schedule": "Schedule",
     "editDeadlineMinus": "Subtract one hour",
     "editDeadlinePlus": "Add one hour"
+  },
+  "actionButton": {
+    "start": "Start",
+    "stop": "Stop",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "update": "Update",
+    "updating": "Updating",
+    "starting": "Starting...",
+    "stopping": "Stopping...",
+    "deleting": "Deleting..."
   }
 }
