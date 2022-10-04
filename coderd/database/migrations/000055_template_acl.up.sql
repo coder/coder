@@ -25,7 +25,7 @@ INSERT INTO groups (
 	name,
 	organization_id
 ) SELECT
-	id, 'allUsers' as name, id
+	id, 'Everyone' as name, id
 FROM
 	organizations;
 
