@@ -26,11 +26,7 @@ func show() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
-			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return xerrors.Errorf("get workspace resources: %w", err)
-			}
-			return cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+			return cliui.WorkspaceResources(cmd.OutOrStdout(), workspace.LatestBuild.Resources, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
 			})

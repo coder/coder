@@ -29,7 +29,7 @@ func TestSpeedtest(t *testing.T) {
 		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
 	defer agentCloser.Close()
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	cmd, root := clitest.New(t, "speedtest", workspace.Name)
 	clitest.SetupConfig(t, client, root)

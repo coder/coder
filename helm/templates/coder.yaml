@@ -1,3 +1,4 @@
+{{- include "coder.verifyDeprecated" . -}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -11,6 +12,7 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   # NOTE: this is currently not used as coder v2 does not support high
   #       availability yet.
@@ -36,14 +38,7 @@ spec:
           env:
             - name: CODER_ADDRESS
               value: "0.0.0.0:{{ include "coder.port" . }}"
-            {{- if .Values.coder.tls.secretName }}
-            - name: CODER_TLS_ENABLE
-              value: "true"
-            - name: CODER_TLS_CERT_FILE
-              value: /etc/ssl/certs/coder/tls.crt
-            - name: CODER_TLS_KEY_FILE
-              value: /etc/ssl/certs/coder/tls.key
-            {{- end }}
+            {{- include "coder.tlsEnv" . | nindent 12 }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
@@ -61,16 +56,6 @@ spec:
               path: /api/v2/buildinfo
               port: {{ include "coder.portName" . | quote }}
               scheme: {{ include "coder.scheme" . | quote }}
-          {{- if .Values.coder.tls.secretName }}
-          volumeMounts:
-            - name: tls
-              mountPath: /etc/ssl/certs/coder
-              readOnly: true
-          {{- end }}
+          {{- include "coder.volumeMounts" . | nindent 10 }}
 
-      {{- if .Values.coder.tls.secretName }}
-      volumes:
-        - name: tls
-          secret:
-            secretName: {{ .Values.coder.tls.secretName | quote }}
-      {{- end }}
+      {{- include "coder.volumes" . | nindent 6 }}
