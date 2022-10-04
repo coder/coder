@@ -393,13 +393,13 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.NotNil(t, resources)
-		require.Len(t, resources, 2)
-		require.Equal(t, "some", resources[1].Name)
-		require.Equal(t, "example", resources[1].Type)
-		require.Len(t, resources[1].Agents, 1)
+		require.NotNil(t, workspace.LatestBuild.Resources)
+		require.Len(t, workspace.LatestBuild.Resources, 2)
+		require.Equal(t, "some", workspace.LatestBuild.Resources[0].Name)
+		require.Equal(t, "example", workspace.LatestBuild.Resources[1].Type)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
 	})
 }
 

@@ -148,7 +148,7 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.

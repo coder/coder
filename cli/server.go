@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -106,11 +105,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		telemetryEnable                  bool
 		telemetryTraceEnable             bool
 		telemetryURL                     string
-		tlsCertFile                      string
+		tlsCertFiles                     []string
 		tlsClientCAFile                  string
 		tlsClientAuth                    string
 		tlsEnable                        bool
-		tlsKeyFile                       string
+		tlsKeyFiles                      []string
 		tlsMinVersion                    string
 		tunnel                           bool
 		traceEnable                      bool
@@ -221,7 +220,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			defer listener.Close()
 
 			if tlsEnable {
-				listener, err = configureTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile)
+				listener, err = configureServerTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFiles, tlsKeyFiles, tlsClientCAFile)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
@@ -842,8 +841,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	_ = root.Flags().MarkHidden("telemetry-url")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false,
 		"Whether TLS will be enabled.")
-	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
-		"Path to the certificate for TLS. It requires a PEM-encoded file. "+
+	cliflag.StringArrayVarP(root.Flags(), &tlsCertFiles, "tls-cert-file", "", "CODER_TLS_CERT_FILE", []string{},
+		"Path to each certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
 			"and the CA certificate together. The primary certificate should appear first in the combined file.")
 	cliflag.StringVarP(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
@@ -851,8 +850,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	cliflag.StringVarP(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
 		`Policy the server will follow for TLS Client Authentication. `+
 			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
-	cliflag.StringVarP(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
-		"Path to the private key for the certificate. It requires a PEM-encoded file")
+	cliflag.StringArrayVarP(root.Flags(), &tlsKeyFiles, "tls-key-file", "", "CODER_TLS_KEY_FILE", []string{},
+		"Paths to the private keys for each of the certificates. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
@@ -1040,7 +1039,32 @@ func printLogo(cmd *cobra.Command, spooky bool) {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Remote development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
-func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile string) (net.Listener, error) {
+func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
+	if len(tlsCertFiles) != len(tlsKeyFiles) {
+		return nil, xerrors.New("--tls-cert-file and --tls-key-file must be used the same amount of times")
+	}
+	if len(tlsCertFiles) == 0 {
+		return nil, xerrors.New("--tls-cert-file is required when tls is enabled")
+	}
+	if len(tlsKeyFiles) == 0 {
+		return nil, xerrors.New("--tls-key-file is required when tls is enabled")
+	}
+
+	certs := make([]tls.Certificate, len(tlsCertFiles))
+	for i := range tlsCertFiles {
+		certFile, keyFile := tlsCertFiles[i], tlsKeyFiles[i]
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, xerrors.Errorf("load TLS key pair %d (%q, %q): %w", i, certFile, keyFile, err)
+		}
+
+		certs[i] = cert
+	}
+
+	return certs, nil
+}
+
+func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (net.Listener, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
@@ -1072,36 +1096,31 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 		return nil, xerrors.Errorf("unrecognized tls client auth: %q", tlsClientAuth)
 	}
 
-	if tlsCertFile == "" {
-		return nil, xerrors.New("tls-cert-file is required when tls is enabled")
+	certs, err := loadCertificates(tlsCertFiles, tlsKeyFiles)
+	if err != nil {
+		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
-	if tlsKeyFile == "" {
-		return nil, xerrors.New("tls-key-file is required when tls is enabled")
-	}
+	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		// If there's only one certificate, return it.
+		if len(certs) == 1 {
+			return &certs[0], nil
+		}
 
-	certPEMBlock, err := os.ReadFile(tlsCertFile)
-	if err != nil {
-		return nil, xerrors.Errorf("read file %q: %w", tlsCertFile, err)
-	}
-	keyPEMBlock, err := os.ReadFile(tlsKeyFile)
-	if err != nil {
-		return nil, xerrors.Errorf("read file %q: %w", tlsKeyFile, err)
-	}
-	keyBlock, _ := pem.Decode(keyPEMBlock)
-	if keyBlock == nil {
-		return nil, xerrors.New("decoded pem is blank")
-	}
-	cert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
-	if err != nil {
-		return nil, xerrors.Errorf("create key pair: %w", err)
-	}
-	tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		return &cert, nil
-	}
+		// Expensively check which certificate matches the client hello.
+		for _, cert := range certs {
+			cert := cert
+			if err := hi.SupportsCertificate(&cert); err == nil {
+				return &cert, nil
+			}
+		}
 
-	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(certPEMBlock)
-	tlsConfig.RootCAs = certPool
+		// Return the first certificate if we have one, or return nil so the
+		// server doesn't fail.
+		if len(certs) > 0 {
+			return &certs[0], nil
+		}
+		return nil, nil //nolint:nilnil
+	}
 
 	if tlsClientCAFile != "" {
 		caPool := x509.NewCertPool()

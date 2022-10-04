@@ -520,7 +520,13 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+	// A nil auth filter means no auth filter.
+	workspaces, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
+	return workspaces, err
+}
+
+func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -559,6 +565,11 @@ func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspace
 			if !match {
 				continue
 			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+			continue
 		}
 		workspaces = append(workspaces, workspace)
 	}

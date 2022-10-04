@@ -47,12 +47,15 @@ coder:
 
   # coder.tls -- The TLS configuration for Coder.
   tls:
-    # coder.tls.secretName -- The name of the secret containing the TLS
-    # certificate. The secret should exist in the same namespace as the Helm
-    # deployment and should be of type "kubernetes.io/tls". The secret will be
-    # automatically mounted into the pod if specified, and the correct
+    # coder.tls.secretNames -- A list of TLS server certificate secrets to mount
+    # into the Coder pod. The secrets should exist in the same namespace as the
+    # Helm deployment and should be of type "kubernetes.io/tls". The secrets
+    # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
-    secretName: ""
+    secretNames: []
+    # coder.tls.secretName -- Deprecated. Use `coder.tls.secretNames` instead.
+    # This will be removed in a future release.
+    # secretName: ""
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.

@@ -60,10 +60,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			ctx := context.WithValue(ctx, "azure-client", metadataClient)
 			errC <- cmd.ExecuteContext(ctx)
 		}()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
+		resources := workspace.LatestBuild.Resources
+		if assert.NotEmpty(t, workspace.LatestBuild.Resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
 		dialer, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
@@ -120,9 +121,10 @@ func TestWorkspaceAgent(t *testing.T) {
 			ctx := context.WithValue(ctx, "aws-client", metadataClient)
 			errC <- cmd.ExecuteContext(ctx)
 		}()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
+		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
@@ -180,9 +182,10 @@ func TestWorkspaceAgent(t *testing.T) {
 			ctx := context.WithValue(ctx, "gcp-client", metadata)
 			errC <- cmd.ExecuteContext(ctx)
 		}()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
+		resources := workspace.LatestBuild.Resources
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}

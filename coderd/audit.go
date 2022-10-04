@@ -265,18 +265,23 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Username:     parser.String(searchParams, "", "username"),
 		Email:        parser.String(searchParams, "", "email"),
 	}
-
 	return filter, parser.Errors
 }
 
 func resourceTypeFromString(resourceTypeString string) string {
 	switch codersdk.ResourceType(resourceTypeString) {
 	case codersdk.ResourceTypeOrganization:
+		return resourceTypeString
 	case codersdk.ResourceTypeTemplate:
+		return resourceTypeString
 	case codersdk.ResourceTypeTemplateVersion:
+		return resourceTypeString
 	case codersdk.ResourceTypeUser:
+		return resourceTypeString
 	case codersdk.ResourceTypeWorkspace:
+		return resourceTypeString
 	case codersdk.ResourceTypeGitSSHKey:
+		return resourceTypeString
 	case codersdk.ResourceTypeAPIKey:
 		return resourceTypeString
 	}
@@ -286,10 +291,11 @@ func resourceTypeFromString(resourceTypeString string) string {
 func actionFromString(actionString string) string {
 	switch codersdk.AuditAction(actionString) {
 	case codersdk.AuditActionCreate:
+		return actionString
 	case codersdk.AuditActionWrite:
+		return actionString
 	case codersdk.AuditActionDelete:
 		return actionString
-	default:
 	}
 	return ""
 }

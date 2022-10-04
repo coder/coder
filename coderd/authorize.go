@@ -13,6 +13,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// AuthorizeFilter takes a list of objects and returns the filtered list of
+// objects that the user is authorized to perform the given action on.
+// This is faster than calling Authorize() on each object.
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r)
 	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objects)
@@ -83,6 +86,26 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		return false
 	}
 	return true
+}
+
+// AuthorizeSQLFilter returns an authorization filter that can used in a
+// SQL 'WHERE' clause. If the filter is used, the resulting rows returned
+// from postgres are already authorized, and the caller does not need to
+// call 'Authorize()' on the returned objects.
+// Note the authorization is only for the given action and object type.
+func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.AuthorizeFilter, error) {
+	roles := httpmw.UserAuthorization(r)
+	prepared, err := h.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objectType)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare filter: %w", err)
+	}
+
+	filter, err := prepared.Compile()
+	if err != nil {
+		return nil, xerrors.Errorf("compile filter: %w", err)
+	}
+
+	return filter, nil
 }
 
 // checkAuthorization returns if the current API key can use the given

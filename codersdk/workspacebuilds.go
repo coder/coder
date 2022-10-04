@@ -70,6 +70,25 @@ type WorkspaceBuild struct {
 	Status             WorkspaceStatus     `json:"status"`
 }
 
+type WorkspaceResource struct {
+	ID         uuid.UUID                   `json:"id"`
+	CreatedAt  time.Time                   `json:"created_at"`
+	JobID      uuid.UUID                   `json:"job_id"`
+	Transition WorkspaceTransition         `json:"workspace_transition"`
+	Type       string                      `json:"type"`
+	Name       string                      `json:"name"`
+	Hide       bool                        `json:"hide"`
+	Icon       string                      `json:"icon"`
+	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
+	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
+}
+
+type WorkspaceResourceMetadata struct {
+	Key       string `json:"key"`
+	Value     string `json:"value"`
+	Sensitive bool   `json:"sensitive"`
+}
+
 // WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
 func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
@@ -96,20 +115,6 @@ func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
 		return readBodyAsError(res)
 	}
 	return nil
-}
-
-// WorkspaceResourcesByBuild returns resources for a workspace build.
-func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID) ([]WorkspaceResource, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/resources", build), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var resources []WorkspaceResource
-	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
 // WorkspaceBuildLogsBefore returns logs that occurred before a specific time.
