@@ -1,21 +1,20 @@
 import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import Link from "@material-ui/core/Link"
-import Tooltip from "@material-ui/core/Tooltip"
 import { makeStyles } from "@material-ui/core/styles"
+import Tooltip from "@material-ui/core/Tooltip"
 import ComputerIcon from "@material-ui/icons/Computer"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import { FC, PropsWithChildren } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../util/random"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 
 export const Language = {
   appTitle: (appName: string, identifier: string): string => `${appName} - ${identifier}`,
 }
 
 export interface AppLinkProps {
-  appsHost?: string,
+  appsHost?: string
   username: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
   agentName: TypesGen.WorkspaceAgent["name"]
@@ -54,7 +53,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
 
   let canClick = true
   let icon = appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />
-  let tooltip: string | undefined = undefined
+  let tooltip = ""
   if (health === "initializing") {
     canClick = false
     icon = <CircularProgress size={16} />
@@ -78,36 +77,29 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   )
 
   return (
-    <Link
-      href={href}
-      target="_blank"
-      className={canClick ? styles.link : styles.disabledLink}
-      onClick={
-        canClick
-          ? (event) => {
-              event.preventDefault()
-              window.open(
-                href,
-                Language.appTitle(appName, generateRandomString(12)),
-                "width=900,height=600",
-              )
-            }
-          : undefined
-      }
-    >
-      <ChooseOne>
-        <Cond condition={Boolean(tooltip)}>
-          <Tooltip title={tooltip || "no tooltip"}>
-            <span>
-              {button}
-            </span>
-          </Tooltip>
-        </Cond>
-        <Cond>
+    <Tooltip title={tooltip}>
+      <span>
+        <Link
+          href={href}
+          target="_blank"
+          className={canClick ? styles.link : styles.disabledLink}
+          onClick={
+            canClick
+              ? (event) => {
+                  event.preventDefault()
+                  window.open(
+                    href,
+                    Language.appTitle(appName, generateRandomString(12)),
+                    "width=900,height=600",
+                  )
+                }
+              : undefined
+          }
+        >
           {button}
-        </Cond>
-      </ChooseOne>
-    </Link>
+        </Link>
+      </span>
+    </Tooltip>
   )
 }
 
