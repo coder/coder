@@ -619,9 +619,8 @@ type termBoolean struct {
 	Value bool
 }
 
-func (termBoolean) SQLType(cfg SQLConfig) TermType {
+func (termBoolean) SQLType(SQLConfig) TermType {
 	return VarTypeBoolean
-
 }
 
 func (t termBoolean) Eval(_ Object) bool {
