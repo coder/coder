@@ -1,12 +1,11 @@
+import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useOutletContext } from "react-router-dom"
 import { pageTitle } from "util/page"
-import { TemplateContext } from "xServices/template/templateXService"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
 
-export const TemplateSummaryPage: FC<React.PropsWithChildren<unknown>> = () => {
-  const { templateContext } = useOutletContext<{ templateContext: TemplateContext }>()
+export const TemplateSummaryPage: FC = () => {
+  const { context } = useTemplateLayoutContext()
   const {
     template,
     activeTemplateVersion,
@@ -14,7 +13,7 @@ export const TemplateSummaryPage: FC<React.PropsWithChildren<unknown>> = () => {
     templateVersions,
     deleteTemplateError,
     templateDAUs,
-  } = templateContext
+  } = context
 
   if (!template || !activeTemplateVersion || !templateResources) {
     throw new Error(

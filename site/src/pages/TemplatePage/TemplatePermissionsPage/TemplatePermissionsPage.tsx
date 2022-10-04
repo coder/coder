@@ -5,22 +5,17 @@ import { useMachine } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Paywall } from "components/Paywall/Paywall"
 import { Stack } from "components/Stack/Stack"
+import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useOutletContext } from "react-router-dom"
 import { pageTitle } from "util/page"
-import { Permissions } from "xServices/auth/authXService"
 import { templateACLMachine } from "xServices/template/templateACLXService"
-import { TemplateContext } from "xServices/template/templateXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
 export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () => {
-  const { templateContext } = useOutletContext<{
-    templateContext: TemplateContext
-    permissions: Permissions
-  }>()
-  const { template, permissions } = templateContext
+  const { context } = useTemplateLayoutContext()
+  const { template, permissions } = context
   if (!template || !permissions) {
     throw new Error("This page should not be displayed until template or permissions being loaded.")
   }

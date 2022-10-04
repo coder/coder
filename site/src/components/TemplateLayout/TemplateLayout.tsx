@@ -12,15 +12,22 @@ import { DropdownButton } from "components/DropdownButton/DropdownButton"
 import { Loader } from "components/Loader/Loader"
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { useOrganizationId } from "hooks/useOrganizationId"
-import { FC, useContext } from "react"
-import { Link as RouterLink, Navigate, NavLink, Outlet, useParams } from "react-router-dom"
+import { createContext, FC, PropsWithChildren, useContext } from "react"
+import { Link as RouterLink, Navigate, NavLink, useParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "util/firstLetter"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { XServiceContext } from "xServices/StateContext"
-import { templateMachine } from "xServices/template/templateXService"
+import { TemplateContext, templateMachine } from "xServices/template/templateXService"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
+import { Permissions } from "xServices/auth/authXService"
+
+const Language = {
+  settingsButton: "Settings",
+  createButton: "Create workspace",
+  noDescription: "",
+}
 
 const useTemplateName = () => {
   const { template } = useParams()
@@ -32,13 +39,19 @@ const useTemplateName = () => {
   return template
 }
 
-const Language = {
-  settingsButton: "Settings",
-  createButton: "Create workspace",
-  noDescription: "",
+type TemplateLayoutContextValue = { context: TemplateContext; permissions: Permissions }
+
+const TemplateLayoutContext = createContext<TemplateLayoutContextValue | undefined>(undefined)
+
+export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
+  const context = useContext(TemplateLayoutContext)
+  if (!context) {
+    throw new Error("useTemplateLayoutContext only can be used inside of TemplateLayout")
+  }
+  return context
 }
 
-export const TemplateLayout: FC = () => {
+export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
@@ -165,7 +178,9 @@ export const TemplateLayout: FC = () => {
       </div>
 
       <Margins>
-        <Outlet context={{ templateContext: templateState.context, permissions }} />
+        <TemplateLayoutContext.Provider value={{ permissions, context: templateState.context }}>
+          {children}
+        </TemplateLayoutContext.Provider>
       </Margins>
 
       <DeleteDialog

@@ -99,16 +99,27 @@ export const AppRouter: FC = () => {
             }
           />
 
-          <Route
-            path=":template"
-            element={
-              <AuthAndFrame>
-                <TemplateLayout />
-              </AuthAndFrame>
-            }
-          >
-            <Route index element={<TemplateSummaryPage />} />
-            <Route path="permissions" element={<TemplatePermissionsPage />} />
+          <Route path=":template">
+            <Route
+              index
+              element={
+                <AuthAndFrame>
+                  <TemplateLayout>
+                    <TemplateSummaryPage />
+                  </TemplateLayout>
+                </AuthAndFrame>
+              }
+            />
+            <Route
+              path="permissions"
+              element={
+                <AuthAndFrame>
+                  <TemplateLayout>
+                    <TemplatePermissionsPage />
+                  </TemplateLayout>
+                </AuthAndFrame>
+              }
+            />
           </Route>
           <Route
             path="workspace"

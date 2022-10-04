@@ -81,7 +81,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockSiteRoles))
   }),
   rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-    const permissions = Object.keys(permissionsToCheck)
+    const permissions = [...Object.keys(permissionsToCheck), "canUpdateTemplate"]
     const response = permissions.reduce((obj, permission) => {
       return {
         ...obj,
