@@ -1,13 +1,13 @@
 package rbac
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
 	"golang.org/x/xerrors"
 )
 
@@ -17,6 +17,8 @@ const (
 	VarTypeJsonbTextArray TermType = "jsonb-text-array"
 	VarTypeText           TermType = "text"
 	VarTypeBoolean        TermType = "boolean"
+	// VarTypeSkip means this variable does not exist to use.
+	VarTypeSkip TermType = "skip"
 )
 
 type SQLColumn struct {
@@ -80,19 +82,54 @@ func DefaultConfig() SQLConfig {
 	}
 }
 
+func NoACLConfig() SQLConfig {
+	return SQLConfig{
+		Variables: []SQLColumn{
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_group_list\.?(.*)$`),
+				ColumnSelect: "",
+				Type:         VarTypeSkip,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_user_list\.?(.*)$`),
+				ColumnSelect: "",
+				Type:         VarTypeSkip,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.org_owner$`),
+				ColumnSelect: "organization_id :: text",
+				Type:         VarTypeText,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.owner$`),
+				ColumnSelect: "owner_id :: text",
+				Type:         VarTypeText,
+			},
+		},
+	}
+}
+
 type AuthorizeFilter interface {
-	// RegoString is used in debugging to see the original rego expression.
-	RegoString() string
-	// SQLString returns the SQL expression that can be used in a WHERE clause.
-	SQLString(cfg SQLConfig) string
+	Expression
 	// Eval is required for the fake in memory database to work. The in memory
 	// database can use this function to filter the results.
 	Eval(object Object) bool
 }
 
+// expressionTop handles Eval(object Object) for in memory expressions
+type expressionTop struct {
+	Expression
+	Auth *PartialAuthorizer
+}
+
+func (e expressionTop) Eval(object Object) bool {
+	return e.Auth.Authorize(context.Background(), object) == nil
+}
+
 // Compile will convert a rego query AST into our custom types. The output is
 // an AST that can be used to generate SQL.
-func Compile(partialQueries *rego.PartialQueries) (Expression, error) {
+func Compile(pa *PartialAuthorizer) (AuthorizeFilter, error) {
+	partialQueries := pa.partialQueries
 	if len(partialQueries.Support) > 0 {
 		return nil, xerrors.Errorf("cannot convert support rules, expect 0 found %d", len(partialQueries.Support))
 	}
@@ -129,11 +166,15 @@ func Compile(partialQueries *rego.PartialQueries) (Expression, error) {
 		}
 		builder.WriteString(partialQueries.Queries[i].String())
 	}
-	return expOr{
+	exp := expOr{
 		base: base{
 			Rego: builder.String(),
 		},
 		Expressions: result,
+	}
+	return expressionTop{
+		Expression: &exp,
+		Auth:       pa,
 	}, nil
 }
 
@@ -283,12 +324,16 @@ func processTerm(term *ast.Term) (Term, error) {
 
 		if isRef {
 			obj.Path = append(obj.Path, termVariable{
-				base: termBase,
+				base: base{
+					Rego: builder.String(),
+				},
 				Name: builder.String(),
 			})
 		} else {
 			obj.Path = append(obj.Path, termString{
-				base:  termBase,
+				base: base{
+					Rego: fmt.Sprintf("%q", builder.String()),
+				},
 				Value: builder.String(),
 			})
 		}
@@ -337,7 +382,10 @@ func (b base) RegoString() string {
 //
 // Eg: neq(input.object.org_owner, "") AND input.object.org_owner == "foo"
 type Expression interface {
-	AuthorizeFilter
+	// RegoString is used in debugging to see the original rego expression.
+	RegoString() string
+	// SQLString returns the SQL expression that can be used in a WHERE clause.
+	SQLString(cfg SQLConfig) string
 }
 
 type expAnd struct {
@@ -357,15 +405,6 @@ func (t expAnd) SQLString(cfg SQLConfig) string {
 	return "(" + strings.Join(exprs, " AND ") + ")"
 }
 
-func (t expAnd) Eval(object Object) bool {
-	for _, expr := range t.Expressions {
-		if !expr.Eval(object) {
-			return false
-		}
-	}
-	return true
-}
-
 type expOr struct {
 	base
 	Expressions []Expression
@@ -381,15 +420,6 @@ func (t expOr) SQLString(cfg SQLConfig) string {
 		exprs = append(exprs, expr.SQLString(cfg))
 	}
 	return "(" + strings.Join(exprs, " OR ") + ")"
-}
-
-func (t expOr) Eval(object Object) bool {
-	for _, expr := range t.Expressions {
-		if expr.Eval(object) {
-			return true
-		}
-	}
-	return false
 }
 
 // Operator joins terms together to form an expression.
@@ -415,34 +445,12 @@ func (t opEqual) SQLString(cfg SQLConfig) string {
 	return fmt.Sprintf("%s %s %s", t.Terms[0].SQLString(cfg), op, t.Terms[1].SQLString(cfg))
 }
 
-func (t opEqual) Eval(object Object) bool {
-	a, b := t.Terms[0].EvalTerm(object), t.Terms[1].EvalTerm(object)
-	if t.Not {
-		return a != b
-	}
-	return a == b
-}
-
 // opInternalMember2 is checking if the first term is a member of the second term.
 // The second term is a set or list.
 type opInternalMember2 struct {
 	base
 	Needle   Term
 	Haystack Term
-}
-
-func (t opInternalMember2) Eval(object Object) bool {
-	a, b := t.Needle.EvalTerm(object), t.Haystack.EvalTerm(object)
-	bset, ok := b.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, elem := range bset {
-		if a == elem {
-			return true
-		}
-	}
-	return false
 }
 
 func (t opInternalMember2) SQLString(cfg SQLConfig) string {
@@ -456,8 +464,13 @@ func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 		// having to add more "if" branches here.
 		// But until we need more cases, our basic type system is ok, and
 		// this is the only case we need to handle.
-		if haystack.SQLType(cfg) == VarTypeJsonbTextArray {
+		sqlType := haystack.SQLType(cfg)
+		if sqlType == VarTypeJsonbTextArray {
 			return fmt.Sprintf("%s ? %s", haystack.SQLString(cfg), t.Needle.SQLString(cfg))
+		}
+
+		if sqlType == VarTypeSkip {
+			return "true"
 		}
 	}
 
@@ -472,18 +485,11 @@ type Term interface {
 	RegoString() string
 	SQLString(cfg SQLConfig) string
 	SQLType(cfg SQLConfig) TermType
-	// EvalTerm will evaluate the term
-	// Terms can eval to any type. The operator/expression will type check.
-	EvalTerm(object Object) interface{}
 }
 
 type termString struct {
 	base
 	Value string
-}
-
-func (t termString) EvalTerm(_ Object) interface{} {
-	return t.Value
 }
 
 func (t termString) SQLString(_ SQLConfig) string {
@@ -504,13 +510,6 @@ func (termString) SQLType(_ SQLConfig) TermType {
 type termObject struct {
 	base
 	Path []Term
-}
-
-func (t termObject) EvalTerm(obj Object) interface{} {
-	if len(t.Path) == 0 {
-		return t.Path[0].EvalTerm(obj)
-	}
-	panic("no nested structures are supported yet")
 }
 
 func (t termObject) SQLType(cfg SQLConfig) TermType {
@@ -550,19 +549,6 @@ func (t termObject) SQLString(cfg SQLConfig) string {
 type termVariable struct {
 	base
 	Name string
-}
-
-func (t termVariable) EvalTerm(obj Object) interface{} {
-	switch t.Name {
-	case "input.object.org_owner":
-		return obj.OrgID
-	case "input.object.owner":
-		return obj.Owner
-	case "input.object.type":
-		return obj.Type
-	default:
-		return fmt.Sprintf("'Unknown variable %s'", t.Name)
-	}
 }
 
 func (t termVariable) SQLType(cfg SQLConfig) TermType {
@@ -619,15 +605,6 @@ func (t termSet) SQLType(cfg SQLConfig) TermType {
 	return t.Value[0].SQLType(cfg)
 }
 
-func (t termSet) EvalTerm(obj Object) interface{} {
-	set := make([]interface{}, 0, len(t.Value))
-	for _, term := range t.Value {
-		set = append(set, term.EvalTerm(obj))
-	}
-
-	return set
-}
-
 func (t termSet) SQLString(cfg SQLConfig) string {
 	elems := make([]string, 0, len(t.Value))
 	for _, v := range t.Value {
@@ -648,10 +625,6 @@ func (termBoolean) SQLType(cfg SQLConfig) TermType {
 }
 
 func (t termBoolean) Eval(_ Object) bool {
-	return t.Value
-}
-
-func (t termBoolean) EvalTerm(_ Object) interface{} {
 	return t.Value
 }
 
