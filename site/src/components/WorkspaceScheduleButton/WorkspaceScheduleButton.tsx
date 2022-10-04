@@ -6,6 +6,7 @@ import Tooltip from "@material-ui/core/Tooltip"
 import AddIcon from "@material-ui/icons/Add"
 import RemoveIcon from "@material-ui/icons/Remove"
 import ScheduleIcon from "@material-ui/icons/Schedule"
+import { Maybe } from "components/Conditionals/Maybe"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
@@ -70,10 +71,10 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
   return (
     <span className={styles.wrapper}>
-      {shouldDisplayScheduleLabel(workspace) && (
+      <Maybe condition={shouldDisplayScheduleLabel(workspace)}>
         <span className={styles.label}>
           <WorkspaceScheduleLabel workspace={workspace} />
-          {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
+          <Maybe condition={canUpdateWorkspace && shouldDisplayPlusMinus(workspace)}>
             <span className={styles.actions}>
               <IconButton
                 className={styles.iconButton}
@@ -96,9 +97,9 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
                 </Tooltip>
               </IconButton>
             </span>
-          )}
+          </Maybe>
         </span>
-      )}
+      </Maybe>
       <>
         <Button
           ref={anchorRef}

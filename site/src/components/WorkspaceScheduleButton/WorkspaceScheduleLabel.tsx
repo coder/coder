@@ -1,31 +1,61 @@
 import { makeStyles } from "@material-ui/core/styles"
+import TextField from "@material-ui/core/TextField"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import { Maybe } from "components/Conditionals/Maybe"
+import { LoadingButton } from "components/LoadingButton/LoadingButton"
+import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
-import { autoStartDisplay, autoStopDisplay, isShuttingDown, Language } from "../../util/schedule"
+import { autoStartDisplay, autoStopDisplay, isShuttingDown } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
+
+const AutoStopDisplay = ({ workspace }: { workspace: Workspace }): JSX.Element => {
+  const { t } = useTranslation("common")
+  const autoStopTime = autoStopDisplay(workspace)
+  return (
+    <ChooseOne>
+      <Cond condition={isEditing}>
+        <>
+          <TextField
+            value={autoStopTime}
+            onChange={}
+          />
+          <LoadingButton disabled={}>
+            {t("schedule.submitUpdate")}
+          </LoadingButton>
+        </>
+      </Cond>
+      <Cond>
+        {autoStopTime}
+      </Cond>
+    </ChooseOne>
+   )
+}
 
 export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
   const styles = useStyles()
+  const { t } = useTranslation("common")
 
-  if (isWorkspaceOn(workspace)) {
-    const stopLabel = autoStopDisplay(workspace)
-    const shouldDisplayStrongLabel = !isShuttingDown(workspace)
-
-    // If it is shutting down, we don't need to display the auto stop label
-    return (
+  return <ChooseOne>
+    <Cond condition={isWorkspaceOn(workspace)}>
       <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-        {shouldDisplayStrongLabel && <strong>{Language.autoStopLabel}</strong>}{" "}
-        <span className={styles.value}>{stopLabel}</span>
+        <Maybe condition={!isShuttingDown(workspace)}>
+          <strong>{t("schedule.autoStopLabel")}</strong>
+        </Maybe>
+        {" "}
+        <span className={styles.value}>
+          <AutoStopDisplay workspace={workspace} />
+        </span>
       </span>
-    )
-  }
-
-  return (
-    <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-      <strong>{Language.autoStartLabel}</strong>{" "}
-      <span className={styles.value}>{autoStartDisplay(workspace.autostart_schedule)}</span>
-    </span>
-  )
+    </Cond>
+    <Cond>
+      <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
+        <strong>{t("schedule.autoStartLabel")}</strong>
+        {" "}
+        <span className={styles.value}>{autoStartDisplay(workspace.autostart_schedule)}</span>
+      </span>
+    </Cond>
+  </ChooseOne>
 }
 
 const useStyles = makeStyles((theme) => ({
