@@ -56,9 +56,9 @@ export const workspaceItemMachine = createMachine(
               UPDATE_VERSION: {
                 target: "gettingUpdatedTemplate",
                 // We can improve the UI by optimistically updating the workspace status
-                // to "Queued" so the UI can display the updated state right away and we
+                // to "Pending" so the UI can display the updated state right away and we
                 // don't need to display an extra spinner.
-                actions: ["assignQueuedStatus", "displayUpdatingVersionMessage"],
+                actions: ["assignPendingStatus", "displayUpdatingVersionMessage"],
               },
               UPDATE_DATA: {
                 actions: "assignUpdatedData",
@@ -153,12 +153,13 @@ export const workspaceItemMachine = createMachine(
       displayUpdatingVersionMessage: () => {
         displayMsg("Updating workspace...")
       },
-      assignQueuedStatus: assign({
+      assignPendingStatus: assign({
         data: (ctx) => {
           return {
             ...ctx.data,
             latest_build: {
               ...ctx.data.latest_build,
+              status: "pending" as TypesGen.WorkspaceStatus,
               job: {
                 ...ctx.data.latest_build.job,
                 status: "pending" as TypesGen.ProvisionerJobStatus,
