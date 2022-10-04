@@ -43,7 +43,7 @@ export const WarningSummary: FC<WarningSummaryProps> = ({ warningString }) => {
 const useStyles = makeStyles<Theme>((theme) => ({
   root: {
     border: `2px solid ${colors.orange[7]}`,
-    padding: `8px`,
+    padding: `${theme.spacing(1)}px`,
     borderRadius: theme.shape.borderRadius,
     gap: 0,
     color: `${colors.orange[7]}`, // icon inherits color from parent

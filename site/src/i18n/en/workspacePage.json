@@ -6,5 +6,8 @@
     "schedule": "Schedule",
     "editDeadlineMinus": "Subtract one hour",
     "editDeadlinePlus": "Add one hour"
+  }, 
+  "warningsAndErrors": {
+    "workspaceRefreshWarning": "We're having difficulty fetching the latest workspace state. Refresh the page to see the newest changes."
   }
 }
