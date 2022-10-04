@@ -100,10 +100,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/workspaceresources/{workspaceresource}": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
 		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
@@ -351,7 +347,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 	require.NoError(t, err, "upload file")
-	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "workspace resources")
 	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		ParameterValues: []codersdk.CreateParameterRequest{},
@@ -372,16 +368,16 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{workspace}":           workspace.ID.String(),
 		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
 		"{workspacename}":       workspace.Name,
-		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{workspaceagent}":      workspace.LatestBuild.Resources[0].Agents[0].ID.String(),
 		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
 		"{template}":            template.ID.String(),
 		"{hash}":                file.Hash,
-		"{workspaceresource}":   workspaceResources[0].ID.String(),
-		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{workspaceresource}":   workspace.LatestBuild.Resources[0].ID.String(),
+		"{workspaceapp}":        workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Name,
 		"{templateversion}":     version.ID.String(),
 		"{jobID}":               templateVersionDryRun.ID.String(),
 		"{templatename}":        template.Name,
-		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspace.LatestBuild.Resources[0].Agents[0].Name,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -397,7 +393,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		Admin:                 admin,
 		Template:              template,
 		Version:               version,
-		WorkspaceResource:     workspaceResources[0],
+		WorkspaceResource:     workspace.LatestBuild.Resources[0],
 		File:                  file,
 		TemplateVersionDryRun: templateVersionDryRun,
 		TemplateParam:         templateParam,

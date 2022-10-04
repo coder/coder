@@ -61,10 +61,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.Equal(t, tmpDir, resources[0].Agents[0].Directory)
-		_, err = client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
+		_, err = client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
 	})
 }
@@ -119,7 +119,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer func() {
@@ -246,7 +246,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer agentCloser.Close()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -313,8 +313,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 

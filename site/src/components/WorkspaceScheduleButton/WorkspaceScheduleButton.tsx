@@ -31,6 +31,16 @@ export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
   return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline)
 }
 
+export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
+  if (shouldDisplayPlusMinus(workspace)) {
+    return true
+  }
+  if (isWorkspaceOn(workspace)) {
+    return false
+  }
+  return Boolean(workspace.autostart_schedule)
+}
+
 export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: () => void
@@ -60,33 +70,35 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
 
   return (
     <span className={styles.wrapper}>
-      <span className={styles.label}>
-        <WorkspaceScheduleLabel workspace={workspace} />
-        {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-          <span className={styles.actions}>
-            <IconButton
-              className={styles.iconButton}
-              size="small"
-              disabled={!deadlineMinusEnabled()}
-              onClick={onDeadlineMinus}
-            >
-              <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
-                <RemoveIcon />
-              </Tooltip>
-            </IconButton>
-            <IconButton
-              className={styles.iconButton}
-              size="small"
-              disabled={!deadlinePlusEnabled()}
-              onClick={onDeadlinePlus}
-            >
-              <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
-                <AddIcon />
-              </Tooltip>
-            </IconButton>
-          </span>
-        )}
-      </span>
+      {shouldDisplayScheduleLabel(workspace) && (
+        <span className={styles.label}>
+          <WorkspaceScheduleLabel workspace={workspace} />
+          {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
+            <span className={styles.actions}>
+              <IconButton
+                className={styles.iconButton}
+                size="small"
+                disabled={!deadlineMinusEnabled()}
+                onClick={onDeadlineMinus}
+              >
+                <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
+                  <RemoveIcon />
+                </Tooltip>
+              </IconButton>
+              <IconButton
+                className={styles.iconButton}
+                size="small"
+                disabled={!deadlinePlusEnabled()}
+                onClick={onDeadlinePlus}
+              >
+                <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
+                  <AddIcon />
+                </Tooltip>
+              </IconButton>
+            </span>
+          )}
+        </span>
+      )}
       <>
         <Button
           ref={anchorRef}
@@ -94,7 +106,9 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
           onClick={() => {
             setIsOpen(true)
           }}
-          className={styles.scheduleButton}
+          className={`${styles.scheduleButton} ${
+            shouldDisplayScheduleLabel(workspace) ? "label" : ""
+          }`}
         >
           {t("workspaceScheduleButton.schedule")}
         </Button>
@@ -124,8 +138,8 @@ const useStyles = makeStyles((theme) => ({
   wrapper: {
     display: "inline-flex",
     alignItems: "center",
-    border: `1px solid ${theme.palette.divider}`,
     borderRadius: `${theme.shape.borderRadius}px`,
+    border: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
@@ -153,15 +167,22 @@ const useStyles = makeStyles((theme) => ({
   },
   scheduleButton: {
     border: "none",
-    borderLeft: `1px solid ${theme.palette.divider}`,
-    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    borderRadius: `${theme.shape.borderRadius}px`,
     flexShrink: 0,
+
+    "&.label": {
+      borderLeft: `1px solid ${theme.palette.divider}`,
+      borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
+    },
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
-      borderLeft: 0,
-      borderTop: `1px solid ${theme.palette.divider}`,
-      borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+
+      "&.label": {
+        borderRadius: `0 0 ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px`,
+        borderLeft: 0,
+        borderTop: `1px solid ${theme.palette.divider}`,
+      },
     },
   },
   iconButton: {
