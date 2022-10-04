@@ -186,7 +186,7 @@
         },
         {
           "title": "Configuration",
-          "description": "Learn how to configure Coder",
+          "description": "Learn how to configure Coder.",
           "path": "./admin/configure.md",
           "icon_path": "./images/icons/toggle_on.svg"
         },
@@ -203,6 +203,12 @@
           "path": "./admin/audit-logs.md"
         },
         {
+          "title": "Quotas",
+          "description": "Learn how to use Workspace Quotas in Coder.",
+          "icon_path": "./images/icons/dollar.svg",
+          "path": "./admin/quotas.md"
+        },
+        {
           "title": "Enterprise",
           "description": "Learn how to enable Enterprise features.",
           "icon_path": "./images/icons/group.svg",
@@ -210,7 +216,7 @@
         },
         {
           "title": "Telemetry",
-          "description": "Learn what usage telemetry Coder collects",
+          "description": "Learn what usage telemetry Coder collects.",
           "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }
