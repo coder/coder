@@ -9,8 +9,6 @@ import AuditPage from "pages/AuditPage/AuditPage"
 import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
-
-import TemplateSummaryPage from "pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
@@ -42,6 +40,9 @@ const WorkspaceSchedulePage = lazy(
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const TemplatePermissionsPage = lazy(
   () => import("./pages/TemplatePage/TemplatePermissionsPage/TemplatePermissionsPage"),
+)
+const TemplateSummaryPage = lazy(
+  () => import("./pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"),
 )
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 const CreateGroupPage = lazy(() => import("./pages/GroupsPage/CreateGroupPage"))

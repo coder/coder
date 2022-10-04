@@ -7,6 +7,7 @@ import { assign, createMachine } from "xstate"
 export const groupsMachine = createMachine(
   {
     id: "groupsMachine",
+    predictableActionArguments: true,
     schema: {
       context: {} as {
         organizationId: string
