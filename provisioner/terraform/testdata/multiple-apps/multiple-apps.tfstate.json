@@ -16,11 +16,11 @@
             "auth": "token",
             "dir": null,
             "env": null,
-            "id": "685dba1f-09de-40c0-8fc0-4d8ca00ef946",
+            "id": "67cbc78d-21de-4cc0-8e47-aa67a051ce56",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "2c73d680-ef4c-4bc1-80f0-f6916e4e5255"
+            "token": "d2fad8bf-9459-41d7-8d92-ca9940b2aaa1"
           },
           "sensitive_values": {}
         },
@@ -32,11 +32,11 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "685dba1f-09de-40c0-8fc0-4d8ca00ef946",
+            "agent_id": "67cbc78d-21de-4cc0-8e47-aa67a051ce56",
             "command": null,
             "healthcheck": [],
             "icon": null,
-            "id": "46f8d3cd-bcf7-4792-8d54-66e01e63018a",
+            "id": "c34b36d3-3df6-40c3-b9ab-f037ac169d2d",
             "name": null,
             "relative_path": null,
             "url": null
@@ -44,9 +44,7 @@
           "sensitive_values": {
             "healthcheck": []
           },
-          "depends_on": [
-            "coder_agent.dev1"
-          ]
+          "depends_on": ["coder_agent.dev1"]
         },
         {
           "address": "coder_app.app2",
@@ -56,7 +54,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "685dba1f-09de-40c0-8fc0-4d8ca00ef946",
+            "agent_id": "67cbc78d-21de-4cc0-8e47-aa67a051ce56",
             "command": null,
             "healthcheck": [
               {
@@ -66,19 +64,37 @@
               }
             ],
             "icon": null,
-            "id": "e4556c74-2f67-4266-b1e8-7ee61d754583",
+            "id": "8bf1946d-7065-46e3-87b8-3e4c156e8ba9",
             "name": null,
-            "relative_path": null,
+            "relative_path": false,
             "url": null
           },
           "sensitive_values": {
-            "healthcheck": [
-              {}
-            ]
+            "healthcheck": [{}]
           },
-          "depends_on": [
-            "coder_agent.dev1"
-          ]
+          "depends_on": ["coder_agent.dev1"]
+        },
+        {
+          "address": "coder_app.app3",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app3",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "agent_id": "67cbc78d-21de-4cc0-8e47-aa67a051ce56",
+            "command": null,
+            "healthcheck": [],
+            "icon": null,
+            "id": "c4680ef4-c50b-4f58-8a50-955123dbb605",
+            "name": null,
+            "relative_path": true,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          },
+          "depends_on": ["coder_agent.dev1"]
         },
         {
           "address": "null_resource.dev",
@@ -88,13 +104,11 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "2997000197756647168",
+            "id": "7137797065891134588",
             "triggers": null
           },
           "sensitive_values": {},
-          "depends_on": [
-            "coder_agent.dev1"
-          ]
+          "depends_on": ["coder_agent.dev1"]
         }
       ]
     }

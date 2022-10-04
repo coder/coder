@@ -27,12 +27,14 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string                     `mapstructure:"agent_id"`
-	Name         string                     `mapstructure:"name"`
-	Icon         string                     `mapstructure:"icon"`
-	URL          string                     `mapstructure:"url"`
-	Command      string                     `mapstructure:"command"`
-	RelativePath bool                       `mapstructure:"relative_path"`
+	AgentID string `mapstructure:"agent_id"`
+	Name    string `mapstructure:"name"`
+	Icon    string `mapstructure:"icon"`
+	URL     string `mapstructure:"url"`
+	Command string `mapstructure:"command"`
+	// RelativePath is optional, but it defaults to true so we have to make it
+	// a pointer to be backwards compatible.
+	RelativePath *bool                      `mapstructure:"relative_path"`
 	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
 
@@ -238,6 +240,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 				Threshold: attrs.Healthcheck[0].Threshold,
 			}
 		}
+
+		// Default attrs.RelativePath to true if unspecified in Terraform.
+		relativePath := true
+		if attrs.RelativePath != nil {
+			relativePath = *attrs.RelativePath
+		}
+
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -249,7 +258,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Command:      attrs.Command,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
-					RelativePath: attrs.RelativePath,
+					RelativePath: relativePath,
 					Healthcheck:  healthcheck,
 				})
 			}
