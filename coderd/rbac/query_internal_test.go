@@ -53,7 +53,7 @@ func TestCompileQuery(t *testing.T) {
 		require.NoError(t, err, "compile")
 
 		require.Equal(t, `internal.member_2("*", input.object.acl_group_list.allUsers)`, expression.RegoString(), "convert to internal_member")
-		require.Equal(t, `group_acl->allUsers ? '*'`, expression.SQLString(DefaultConfig()), "jsonb in")
+		require.Equal(t, `group_acl->'allUsers' ? '*'`, expression.SQLString(DefaultConfig()), "jsonb in")
 	})
 
 	t.Run("Complex", func(t *testing.T) {
@@ -72,8 +72,8 @@ func TestCompileQuery(t *testing.T) {
 		require.Equal(t, `(organization_id :: text != '' OR `+
 			`organization_id :: text = ANY(ARRAY ['a','b','c']) OR `+
 			`organization_id :: text != '' OR `+
-			`group_acl->allUsers ? 'read' OR `+
-			`user_acl->me ? 'read')`,
+			`group_acl->'allUsers' ? 'read' OR `+
+			`user_acl->'me' ? 'read')`,
 			expression.SQLString(DefaultConfig()), "complex")
 	})
 
@@ -88,5 +88,18 @@ func TestCompileQuery(t *testing.T) {
 		require.NoError(t, err, "compile")
 		require.Equal(t, `group_acl->organization_id :: text ? '*'`,
 			expression.SQLString(DefaultConfig()), "set dereference")
+	})
+
+	t.Run("JsonbLiteralDereference", func(t *testing.T) {
+		t.Parallel()
+		expression, err := Compile(&rego.PartialQueries{
+			Queries: []ast.Body{
+				ast.MustParseBodyWithOpts(`"*" in input.object.acl_group_list["4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75"]`, opts),
+			},
+			Support: []*ast.Module{},
+		})
+		require.NoError(t, err, "compile")
+		require.Equal(t, `group_acl->'4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75' ? '*'`,
+			expression.SQLString(DefaultConfig()), "literal dereference")
 	})
 }

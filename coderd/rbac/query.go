@@ -16,6 +16,7 @@ type TermType string
 const (
 	VarTypeJsonbTextArray TermType = "jsonb-text-array"
 	VarTypeText           TermType = "text"
+	VarTypeBoolean        TermType = "boolean"
 )
 
 type SQLColumn struct {
@@ -218,21 +219,22 @@ func processTerms(expected int, terms []*ast.Term) ([]Term, error) {
 }
 
 func processTerm(term *ast.Term) (Term, error) {
-	base := base{Rego: term.String()}
+	termBase := base{Rego: term.String()}
 	switch v := term.Value.(type) {
 	case ast.Boolean:
 		return &termBoolean{
-			base:  base,
+			base:  termBase,
 			Value: bool(v),
 		}, nil
 	case ast.Ref:
 		obj := &termObject{
-			base:      base,
-			Variables: []termVariable{},
+			base: termBase,
+			Path: []Term{},
 		}
 		var idx int
 		// A ref is a set of terms. If the first term is a var, then the
 		// following terms are the path to the value.
+		isRef := true
 		var builder strings.Builder
 		for _, term := range v {
 			if idx == 0 {
@@ -241,15 +243,37 @@ func processTerm(term *ast.Term) (Term, error) {
 				}
 			}
 
-			if _, ok := term.Value.(ast.Ref); ok {
+			_, newRef := term.Value.(ast.Ref)
+			if newRef ||
+				// This is an unfortunate hack. To fix this, we need to rewrite
+				// our SQL config as a path ([]string{"input", "object", "acl_group"}).
+				// In the rego AST, there is no difference between selecting
+				// a field by a variable, and selecting a field by a literal (string).
+				// This was a misunderstanding.
+				// Example (these are equivalent by AST):
+				//	input.object.acl_group_list['4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75']
+				//	input.object.acl_group_list.organization_id
+				//
+				// This is not equivalent
+				//	input.object.acl_group_list[input.object.organization_id]
+				//
+				// If this becomes even more hairy, we should fix the sql config.
+				builder.String() == "input.object.acl_group_list" ||
+				builder.String() == "input.object.acl_user_list" {
+				if !newRef {
+					isRef = false
+				}
 				// New obj
-				obj.Variables = append(obj.Variables, termVariable{
-					base: base,
+				obj.Path = append(obj.Path, termVariable{
+					base: base{
+						Rego: builder.String(),
+					},
 					Name: builder.String(),
 				})
 				builder.Reset()
 				idx = 0
 			}
+
 			if builder.Len() != 0 {
 				builder.WriteString(".")
 			}
@@ -257,20 +281,27 @@ func processTerm(term *ast.Term) (Term, error) {
 			idx++
 		}
 
-		obj.Variables = append(obj.Variables, termVariable{
-			base: base,
-			Name: builder.String(),
-		})
+		if isRef {
+			obj.Path = append(obj.Path, termVariable{
+				base: termBase,
+				Name: builder.String(),
+			})
+		} else {
+			obj.Path = append(obj.Path, termString{
+				base:  termBase,
+				Value: builder.String(),
+			})
+		}
 		return obj, nil
 	case ast.Var:
 		return &termVariable{
 			Name: trimQuotes(v.String()),
-			base: base,
+			base: termBase,
 		}, nil
 	case ast.String:
 		return &termString{
 			Value: trimQuotes(v.String()),
-			base:  base,
+			base:  termBase,
 		}, nil
 	case ast.Set:
 		slice := v.Slice()
@@ -285,7 +316,7 @@ func processTerm(term *ast.Term) (Term, error) {
 
 		return &termSet{
 			Value: set,
-			base:  base,
+			base:  termBase,
 		}, nil
 	default:
 		return nil, xerrors.Errorf("invalid term: %T not supported, %q", v, term.String())
@@ -440,7 +471,8 @@ func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 type Term interface {
 	RegoString() string
 	SQLString(cfg SQLConfig) string
-	// Eval will evaluate the term
+	SQLType(cfg SQLConfig) TermType
+	// EvalTerm will evaluate the term
 	// Terms can eval to any type. The operator/expression will type check.
 	EvalTerm(object Object) interface{}
 }
@@ -471,12 +503,12 @@ func (termString) SQLType(_ SQLConfig) TermType {
 // term type.
 type termObject struct {
 	base
-	Variables []termVariable
+	Path []Term
 }
 
 func (t termObject) EvalTerm(obj Object) interface{} {
-	if len(t.Variables) == 0 {
-		return t.Variables[0].EvalTerm(obj)
+	if len(t.Path) == 0 {
+		return t.Path[0].EvalTerm(obj)
 	}
 	panic("no nested structures are supported yet")
 }
@@ -486,30 +518,30 @@ func (t termObject) SQLType(cfg SQLConfig) TermType {
 	// is the resulting type. This is correct for our use case.
 	// Solving this more generally requires a full type system, which is
 	// excessive for our mostly static policy.
-	return t.Variables[0].SQLType(cfg)
+	return t.Path[0].SQLType(cfg)
 }
 
 func (t termObject) SQLString(cfg SQLConfig) string {
-	if len(t.Variables) == 1 {
-		return t.Variables[0].SQLString(cfg)
+	if len(t.Path) == 1 {
+		return t.Path[0].SQLString(cfg)
 	}
 	// Combine the last 2 variables into 1 variable.
-	end := t.Variables[len(t.Variables)-1]
-	before := t.Variables[len(t.Variables)-2]
+	end := t.Path[len(t.Path)-1]
+	before := t.Path[len(t.Path)-2]
 
 	// Recursively solve the SQLString by removing the last nested reference.
 	// This continues until we have a single variable.
 	return termObject{
 		base: t.base,
-		Variables: append(
-			t.Variables[:len(t.Variables)-2],
+		Path: append(
+			t.Path[:len(t.Path)-2],
 			termVariable{
 				base: base{
-					Rego: before.base.Rego + "[" + end.base.Rego + "]",
+					Rego: before.RegoString() + "[" + end.RegoString() + "]",
 				},
 				// Convert the end to SQL string. We evaluate each term
 				// one at a time.
-				Name: before.Name + "." + end.SQLString(cfg),
+				Name: before.RegoString() + "." + end.SQLString(cfg),
 			},
 		),
 	}.SQLString(cfg)
@@ -576,6 +608,17 @@ type termSet struct {
 	Value []Term
 }
 
+func (t termSet) SQLType(cfg SQLConfig) TermType {
+	if len(t.Value) == 0 {
+		return VarTypeText
+	}
+	// Without a full type system, let's just assume the type of the first var
+	// is the resulting type. This is correct for our use case.
+	// Solving this more generally requires a full type system, which is
+	// excessive for our mostly static policy.
+	return t.Value[0].SQLType(cfg)
+}
+
 func (t termSet) EvalTerm(obj Object) interface{} {
 	set := make([]interface{}, 0, len(t.Value))
 	for _, term := range t.Value {
@@ -597,6 +640,11 @@ func (t termSet) SQLString(cfg SQLConfig) string {
 type termBoolean struct {
 	base
 	Value bool
+}
+
+func (termBoolean) SQLType(cfg SQLConfig) TermType {
+	return VarTypeBoolean
+
 }
 
 func (t termBoolean) Eval(_ Object) bool {
