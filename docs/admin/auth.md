@@ -77,6 +77,10 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## SCIM
 
+<blockquote class="info">
+SCIM is only available in the Enterprise Edition.
+</blockquote>
+
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are [suspended](userd.md#suspend-a-user)
 and are not deleted. [Configure](./configure.md) your SCIM application with an
