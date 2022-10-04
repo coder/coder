@@ -1,7 +1,7 @@
 # Quotas
 
 <blockquote class="info">
-Workspace Quotas are an Enterprise Edition only feature.
+Workspace Quotas are only available in the Enterprise Edition.
 </blockquote>
 
 Coder Enterprise admins may define deployment-level quotas to protect against
