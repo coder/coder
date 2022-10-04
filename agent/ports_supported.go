@@ -4,7 +4,6 @@
 package agent
 
 import (
-	"runtime"
 	"time"
 
 	"github.com/cakturk/go-netstat/netstat"
@@ -16,13 +15,6 @@ import (
 func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, error) {
 	lp.mut.Lock()
 	defer lp.mut.Unlock()
-
-	if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
-		// Can't scan for ports on non-linux or non-windows systems at the
-		// moment. The UI will not show any "no ports found" message to the
-		// user, so the user won't suspect a thing.
-		return []codersdk.ListeningPort{}, nil
-	}
 
 	if time.Since(lp.mtime) < time.Second {
 		// copy
