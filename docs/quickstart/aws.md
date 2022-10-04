@@ -1,3 +1,5 @@
+# Amazon Web Services
+
 ## Requirements 
 
 This quickstart assumes you are assigned  `AdministratorAccess` policy to AWS. 
@@ -142,3 +144,9 @@ coder templates create
 ```
 
 Congrats! You can now navigate to your Coder dashboard and use this Linux on AWS template to create a new workspace!
+
+## Next Steps
+
+- [Port-forward](../networking/port-forwarding.md.md)
+- [Learn more about template configuration](../templates.md)
+- [Configure more IDEs](../ides/web-ides.md)
