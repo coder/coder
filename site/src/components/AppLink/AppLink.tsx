@@ -46,7 +46,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
       appCommand,
     )}`
   }
-  if (appsHost && !appSubdomain) {
+  if (appsHost && appSubdomain) {
     const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
     href = `${window.location.protocol}://${subdomain}.${appsHost}/`
   }
@@ -64,10 +64,10 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
     icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
     tooltip = "Unhealthy"
   }
-  if (!appsHost && !appSubdomain) {
+  if (!appsHost && appSubdomain) {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />
-    tooltip = "Your admin has not configured wildcard application access"
+    tooltip = "Your admin has not configured subdomain application access"
   }
 
   const button = (
