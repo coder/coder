@@ -158,16 +158,14 @@ func TestRoot(t *testing.T) {
 	t.Run("Experimental", func(t *testing.T) {
 		t.Parallel()
 
-		cmd, _ := clitest.New(t, "--verbose", "--experimental")
+		cmd, _ := clitest.New(t, "--experimental")
 		err := cmd.Execute()
 		require.NoError(t, err)
-		_, set := cliflag.IsSet(cmd, "verbose")
-		require.True(t, set)
-		require.NoError(t, cli.EnsureExperimental(cmd, "verbose"))
+		require.True(t, cli.ExperimentalEnabled(cmd))
 
 		cmd, _ = clitest.New(t, "help", "--verbose")
 		_ = cmd.Execute()
-		_, set = cliflag.IsSet(cmd, "verbose")
+		_, set := cliflag.IsSet(cmd, "verbose")
 		require.True(t, set)
 		require.ErrorContains(t, cli.EnsureExperimental(cmd, "verbose"), "--experimental")
 	})
