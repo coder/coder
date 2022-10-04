@@ -1,8 +1,11 @@
 # Amazon Web Services
 
-## Requirements 
+This quickstart shows you how to set up the Coder server on AWS which will
+provision AWS-hosted, Linux workspaces.
 
-This quickstart assumes you are assigned  `AdministratorAccess` policy to AWS. 
+## Requirements
+
+This quickstart assumes you are assigned the `AdministratorAccess` policy on AWS.
 
 ## Setting Up Security Groups for EC2
 
@@ -26,7 +29,7 @@ On the EC2 dashboard, click `Instances`. This will take you to all the EC2 insta
 
 <img src="../images/quickstart/aws/aws3.png">
 
-For this tutorial, we are going to launch this as the base Ubuntu server. 
+For this tutorial, we are going to launch this as the base Ubuntu server.
 
 For the `Create key pair`, we are using ED25519 and `.pem` as we will SSH into the instance later in the tutorial.
 <img src="../images/quickstart/aws/aws4.png">
@@ -55,7 +58,7 @@ chmod 400 [mykey].pem
 
 This adds the required permissions for SSH-ing into an EC2 instance.
 
-Run the following command in terminal, where `mykey` is the security key file, `username` is the username found above for the relevant EC2 operating system image, and the `ip-address` is the IPv4 address for the server: 
+Run the following command in terminal, where `mykey` is the security key file, `username` is the username found above for the relevant EC2 operating system image, and the `ip-address` is the IPv4 address for the server:
 
 ```sh
 ssh -i [mykey].pem username@ip-address
@@ -80,6 +83,7 @@ First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value t
 ```sh
 sudo vim /etc/coder.d/coder.env
 ```
+
 <img src="../images/quickstart/aws/aws7.png">
 
 Exit vim and run the following command to start Coder as a system level service:
@@ -100,7 +104,7 @@ This will return a series of Coder logs, however, embedded in the launch is the 
 
 In this instance, Coder can be accessed at the url `https://fccad1b6c901511b30cf2cf4fbd0973e.pit-1.try.coder.app`.
 
-Copy the URL and run the following command to create the first user, either on your local machine or in the AWS EC2 instance terminal. 
+Copy the URL and run the following command to create the first user, either on your local machine or in the AWS EC2 instance terminal.
 
 ```sh
 coder login <url***.try.coder.app>
@@ -108,15 +112,15 @@ coder login <url***.try.coder.app>
 
 Fill out the prompts. Be sure to save use email and password as these are your admin username and password.
 
-You can now access Coder on your local machine with the relevant  `***.try.coder.app` URL and logging in with the username and password.
+You can now access Coder on your local machine with the relevant `***.try.coder.app` URL and logging in with the username and password.
 
 ## Creating and Uploading Your First Template
 
-Run `coder template init` to create your first template. You’ll be given a list of possible templates. This tutorial will show you how to set up your Coder instance to create Linux based machines on AWS. 
+Run `coder template init` to create your first template. You’ll be given a list of possible templates. This tutorial will show you how to set up your Coder instance to create Linux based machines on AWS.
 
 <img src="../images/quickstart/aws/aws9.png">
 
-Press `enter` to select `Develop in Linux` on AWS template. This will return the following: 
+Press `enter` to select `Develop in Linux` on AWS template. This will return the following:
 
 <img src="../images/quickstart/aws/aws10.png">
 
@@ -133,11 +137,11 @@ sudo mkdir /home/coder/.aws
 Run the following commands to copy the AWS credentials and give the `coder` user access to them:
 
 ```sh
-sudo cp ~/.aws/credentials /home/coder/.aws/credentials 
+sudo cp ~/.aws/credentials /home/coder/.aws/credentials
 sudo chown coder:coder /home/coder/.aws/credentials
 ```
 
-Navigate to the `./aws-linux` folder where you created your template and run the following command to put the template on your Coder instance. 
+Navigate to the `./aws-linux` folder where you created your template and run the following command to put the template on your Coder instance.
 
 ```sh
 coder templates create
