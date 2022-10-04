@@ -261,10 +261,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
-	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("fetch workspace resources: %w", err)
-	}
+	resources := workspace.LatestBuild.Resources
 
 	agents := make([]codersdk.WorkspaceAgent, 0)
 	for _, resource := range resources {

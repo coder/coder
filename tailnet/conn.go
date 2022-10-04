@@ -182,6 +182,7 @@ func NewConn(options *Options) (*Conn, error) {
 		magicConn:        magicConn,
 		dialer:           dialer,
 		listeners:        map[listenKey]*listener{},
+		peerMap:          map[tailcfg.NodeID]*tailcfg.Node{},
 		tunDevice:        tunDevice,
 		netMap:           netMap,
 		netStack:         netStack,
@@ -192,10 +193,17 @@ func NewConn(options *Options) (*Conn, error) {
 		wireguardEngine: wireguardEngine,
 	}
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
+		server.logger.Info(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
 		if err != nil {
 			return
 		}
 		server.lastMutex.Lock()
+		if s.AsOf.Before(server.lastStatus) {
+			// Don't process outdated status!
+			server.lastMutex.Unlock()
+			return
+		}
+		server.lastStatus = s.AsOf
 		server.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
 		for _, addr := range s.LocalAddrs {
 			server.lastEndpoints = append(server.lastEndpoints, addr.Addr.String())
@@ -240,6 +248,7 @@ type Conn struct {
 
 	dialer             *tsdial.Dialer
 	tunDevice          *tstun.Wrapper
+	peerMap            map[tailcfg.NodeID]*tailcfg.Node
 	netMap             *netmap.NetworkMap
 	netStack           *netstack.Impl
 	magicConn          *magicsock.Conn
@@ -254,6 +263,7 @@ type Conn struct {
 	nodeChanged bool
 	// It's only possible to store these values via status functions,
 	// so the values must be stored for retrieval later on.
+	lastStatus        time.Time
 	lastEndpoints     []string
 	lastPreferredDERP int
 	lastDERPLatency   map[string]float64
@@ -282,8 +292,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	c.netMap.DERPMap = derpMap
 	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
+	c.netMap.DERPMap = derpMap
+	c.wireguardEngine.SetNetworkMap(c.netMap)
 	c.wireguardEngine.SetDERPMap(derpMap)
 }
 
@@ -292,18 +303,24 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 func (c *Conn) UpdateNodes(nodes []*Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	peerMap := map[tailcfg.NodeID]*tailcfg.Node{}
 	status := c.Status()
 	for _, peer := range c.netMap.Peers {
-		if peerStatus, ok := status.Peer[peer.Key]; ok {
-			// Clear out inactive connections!
-			// If a connection hasn't been active for a minute post creation, we assume it's dead.
-			if !peerStatus.Active && peer.Created.Before(time.Now().Add(-time.Minute)) {
-				c.logger.Debug(context.Background(), "clearing peer", slog.F("peerStatus", peerStatus))
-				continue
-			}
+		peerStatus, ok := status.Peer[peer.Key]
+		if !ok {
+			continue
 		}
-		peerMap[peer.ID] = peer
+		// If this peer was added in the last 5 minutes, assume it
+		// could still be active.
+		if time.Since(peer.Created) < 5*time.Minute {
+			continue
+		}
+		// We double-check that it's safe to remove by ensuring no
+		// handshake has been sent in the past 5 minutes as well. Connections that
+		// are actively exchanging IP traffic will handshake every 2 minutes.
+		if time.Since(peerStatus.LastHandshake) < 5*time.Minute {
+			continue
+		}
+		delete(c.peerMap, peer.ID)
 	}
 	for _, node := range nodes {
 		peerStatus, ok := status.Peer[node.Key]
@@ -322,18 +339,11 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
-		existingNode, ok := peerMap[node.ID]
-		if ok {
-			peerNode.Created = existingNode.Created
-			c.logger.Debug(context.Background(), "updating peer", slog.F("peer", peerNode))
-		} else {
-			c.logger.Debug(context.Background(), "adding peer", slog.F("peer", peerNode))
-		}
-		peerMap[node.ID] = peerNode
+		c.peerMap[node.ID] = peerNode
 	}
-	c.netMap.Peers = make([]*tailcfg.Node, 0, len(peerMap))
-	for _, peer := range peerMap {
-		c.netMap.Peers = append(c.netMap.Peers, peer)
+	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
+	for _, peer := range c.peerMap {
+		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
 	}
 	netMapCopy := *c.netMap
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
@@ -425,6 +435,7 @@ func (c *Conn) sendNode() {
 	}
 	c.nodeSending = true
 	go func() {
+		c.logger.Info(context.Background(), "sending node", slog.F("node", node))
 		nodeCallback(node)
 		c.lastMutex.Lock()
 		c.nodeSending = false

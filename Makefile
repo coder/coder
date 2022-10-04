@@ -329,7 +329,6 @@ build/coder_helm_$(VERSION).tgz:
 site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
 	./scripts/yarn_install.sh
 	cd site
-	yarn typegen
 	yarn build
 
 install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)

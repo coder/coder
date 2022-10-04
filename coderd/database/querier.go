@@ -92,6 +92,7 @@ type querier interface {
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
+	GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourceMetadataByResourceID(ctx context.Context, workspaceResourceID uuid.UUID) ([]WorkspaceResourceMetadatum, error)
@@ -141,6 +142,7 @@ type querier interface {
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
+	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
 	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
@@ -149,6 +151,7 @@ type querier interface {
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (Workspace, error)
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentVersionByID(ctx context.Context, arg UpdateWorkspaceAgentVersionByIDParams) error
+	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
 	UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error

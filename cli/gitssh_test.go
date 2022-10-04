@@ -81,7 +81,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 		errC <- cmd.ExecuteContext(ctx)
 	}()
 	t.Cleanup(func() { require.NoError(t, <-errC) })
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return agentClient, agentToken, pubkey
 }
 

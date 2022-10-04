@@ -39,6 +39,7 @@ type Options struct {
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
+	UserWorkspaceQuota         int
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -59,6 +60,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		AuditLogging:               true,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys: map[string]ed25519.PublicKey{
@@ -80,14 +82,15 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType string
-	AccountID   string
-	GraceAt     time.Time
-	ExpiresAt   time.Time
-	UserLimit   int64
-	AuditLog    bool
-	BrowserOnly bool
-	SCIM        bool
+	AccountType    string
+	AccountID      string
+	GraceAt        time.Time
+	ExpiresAt      time.Time
+	UserLimit      int64
+	AuditLog       bool
+	BrowserOnly    bool
+	SCIM           bool
+	WorkspaceQuota bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -119,6 +122,10 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.SCIM {
 		scim = 1
 	}
+	workspaceQuota := int64(0)
+	if options.WorkspaceQuota {
+		workspaceQuota = 1
+	}
 
 	c := &coderd.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -132,10 +139,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		AccountID:      options.AccountID,
 		Version:        coderd.CurrentVersion,
 		Features: coderd.Features{
-			UserLimit:   options.UserLimit,
-			AuditLog:    auditLog,
-			BrowserOnly: browserOnly,
-			SCIM:        scim,
+			UserLimit:      options.UserLimit,
+			AuditLog:       auditLog,
+			BrowserOnly:    browserOnly,
+			SCIM:           scim,
+			WorkspaceQuota: workspaceQuota,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

@@ -1,3 +1,5 @@
+import { getErrorMessage } from "api/errors"
+import { workspaceScheduleBannerMachine } from "xServices/workspaceSchedule/workspaceScheduleBannerXService"
 import { assign, createMachine, send } from "xstate"
 import * as API from "../../api/api"
 import * as Types from "../../api/types"
@@ -61,6 +63,8 @@ export interface WorkspaceContext {
   // permissions
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
+  // applications
+  applicationsHost?: string
 }
 
 export type WorkspaceEvent =
@@ -75,6 +79,8 @@ export type WorkspaceEvent =
   | { type: "CANCEL" }
   | { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"] }
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
+  | { type: "INCREASE_DEADLINE"; hours: number }
+  | { type: "DECREASE_DEADLINE"; hours: number }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -138,6 +144,9 @@ export const workspaceMachine = createMachine(
         }
         checkPermissions: {
           data: TypesGen.AuthorizationResponse
+        }
+        getApplicationsHost: {
+          data: TypesGen.GetAppHostResponse
         }
       },
     },
@@ -210,6 +219,7 @@ export const workspaceMachine = createMachine(
             },
           ],
         },
+        tags: "loading",
       },
       ready: {
         type: "parallel",
@@ -251,7 +261,7 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "requestingStartWithLatestTemplate",
+                  UPDATE: "updatingWorkspace",
                   CANCEL: "requestingCancel",
                 },
               },
@@ -265,18 +275,37 @@ export const workspaceMachine = createMachine(
                   },
                 },
               },
-              requestingStartWithLatestTemplate: {
-                entry: "clearBuildError",
-                invoke: {
-                  id: "startWorkspaceWithLatestTemplate",
-                  src: "startWorkspaceWithLatestTemplate",
-                  onDone: {
-                    target: "idle",
-                    actions: ["assignBuild"],
+              updatingWorkspace: {
+                tags: "updating",
+                initial: "refreshingTemplate",
+                states: {
+                  refreshingTemplate: {
+                    invoke: {
+                      id: "refreshTemplate",
+                      src: "getTemplate",
+                      onDone: {
+                        target: "startingWithLatestTemplate",
+                        actions: ["assignTemplate"],
+                      },
+                      onError: {
+                        target: "#workspaceState.ready.build.idle",
+                        actions: ["assignGetTemplateWarning"],
+                      },
+                    },
                   },
-                  onError: {
-                    target: "idle",
-                    actions: ["assignBuildError"],
+                  startingWithLatestTemplate: {
+                    invoke: {
+                      id: "startWorkspaceWithLatestTemplate",
+                      src: "startWorkspaceWithLatestTemplate",
+                      onDone: {
+                        target: "#workspaceState.ready.build.idle",
+                        actions: ["assignBuild"],
+                      },
+                      onError: {
+                        target: "#workspaceState.ready.build.idle",
+                        actions: ["assignBuildError"],
+                      },
+                    },
                   },
                 },
               },
@@ -391,6 +420,43 @@ export const workspaceMachine = createMachine(
               },
             },
           },
+          applications: {
+            initial: "gettingApplicationsHost",
+            states: {
+              gettingApplicationsHost: {
+                invoke: {
+                  src: "getApplicationsHost",
+                  onDone: {
+                    target: "success",
+                    actions: ["assignApplicationsHost"],
+                  },
+                  onError: {
+                    target: "error",
+                    actions: ["displayApplicationsHostError"],
+                  },
+                },
+              },
+              error: {
+                type: "final",
+              },
+              success: {
+                type: "final",
+              },
+            },
+          },
+          schedule: {
+            invoke: {
+              id: "scheduleBannerMachine",
+              src: workspaceScheduleBannerMachine,
+              data: {
+                workspace: (context: WorkspaceContext) => context.workspace,
+                template: (context: WorkspaceContext) => context.template,
+              },
+            },
+            on: {
+              REFRESH_WORKSPACE: { actions: "sendWorkspaceToSchedule" },
+            },
+          },
         },
       },
       error: {
@@ -494,6 +560,21 @@ export const workspaceMachine = createMachine(
       clearGetBuildsError: assign({
         getBuildsError: (_) => undefined,
       }),
+      // Applications
+      assignApplicationsHost: assign({
+        applicationsHost: (_, { data }) => data.host,
+      }),
+      displayApplicationsHostError: (_, { data }) => {
+        const message = getErrorMessage(data, "Error getting the applications host.")
+        displayError(message)
+      },
+      sendWorkspaceToSchedule: send(
+        (context) => ({
+          type: "REFRESH_WORKSPACE",
+          workspace: context.workspace,
+        }),
+        { to: "scheduleBannerMachine" },
+      ),
     },
     guards: {
       moreBuildsAvailable,
@@ -602,6 +683,9 @@ export const workspaceMachine = createMachine(
         } else {
           throw Error("Cannot check permissions workspace id")
         }
+      },
+      getApplicationsHost: async () => {
+        return API.getApplicationsHost()
       },
     },
   },

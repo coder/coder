@@ -8,10 +8,10 @@ import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceS
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
+import { LastUsed } from "../LastUsed/LastUsed"
 import { TableCellData, TableCellDataPrimary } from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
-import { WorkspaceLastUsed } from "./WorkspaceLastUsed"
 
 const Language = {
   upToDateLabel: "Up to date",
@@ -61,7 +61,7 @@ export const WorkspacesRow: FC<
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <TableCellData>
-          <WorkspaceLastUsed lastUsedAt={workspace.last_used_at} />
+          <LastUsed lastUsedAt={workspace.last_used_at} />
         </TableCellData>
       </TableCellLink>
 

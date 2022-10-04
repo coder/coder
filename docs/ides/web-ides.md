@@ -15,13 +15,19 @@ resources in the template. With our generic model, any web application can
 be used as a Coder application. For example:
 
 ```hcl
-# Give template users the portainer.io web UI
+# Add button to open Portainer in the workspace dashboard
+# Note: Portainer must be already running in the workspace
 resource "coder_app" "portainer" {
   agent_id      = coder_agent.main.id
   name          = "portainer"
   icon          = "https://simpleicons.org/icons/portainer.svg"
-  url           = "http://localhost:8000"
-  relative_path = true
+  url           = "https://localhost:9443/api/status"
+
+  healthcheck {
+    url       = "https://localhost:9443/api/status"
+    interval  = 6
+    threshold = 10
+  }
 }
 ```
 
@@ -73,12 +79,15 @@ resource "coder_app" "code-server" {
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 2
+    threshold = 10
+  }
+
 }
 ```
-
-<blockquote class="warning">
-If the code-server integrated terminal fails to load, (i.e., xterm fails to load), go to DevTools to ensure xterm is loaded, clear your browser cache and refresh.
-</blockquote>
 
 ## JetBrains Projector
 
@@ -105,8 +114,6 @@ Workspace requirements:
 - Rider
 - RubyMine
 - WebStorm
-
-- ➕ code-server (just in case!)
 
 For advanced users who want to make a custom image, you can install the Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder template. Using the Projector CLI, you can use `projector ide autoinstall` and `projector run` to download and start a JetBrains IDE in your workspace.
 
@@ -176,7 +183,13 @@ resource "coder_app" "intellij" {
   name          = "${var.jetbrains-ide}"
   icon          = "/icon/intellij.svg"
   url           = "http://localhost:8997/"
-  relative_path = true
+
+  healthcheck {
+    url       = "http://localhost:8997/"
+    interval  = 6
+    threshold = 20
+  }
+
 }
 ```
 
@@ -207,20 +220,31 @@ data "coder_workspace" "me" {}
 ## The name of the app must always be equal to the "/apps/<name>"
 ## string in the base_url. This caveat is unique to Jupyter.
 
+locals {
+  jupyter_base_path = "/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/"
+}
+
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
   startup_script = <<-EOF
 pip3 install jupyterlab
-jupyter lab --ServerApp.base_url=/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/ --ServerApp.token='' --ip='*'
+$HOME/.local/bin/jupyter lab --ServerApp.base_url=${local.jupyter_base_path} --ServerApp.token='' --ip='*'
 EOF
 }
 
 resource "coder_app" "jupyter" {
   agent_id = coder_agent.coder.id
-  url = "http://localhost:8888/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter"
-  icon = "/icon/jupyter.svg"
+  name     = "JupyterLab"
+  url      = "http://localhost:8888${local.jupyter_base_path}"
+  icon     = "/icon/jupyter.svg"
+
+  healthcheck {
+    url       = "http://localhost:8888${local.jupyter_base_path}"
+    interval  = 5
+    threshold = 10
+  }
 }
 ```
 

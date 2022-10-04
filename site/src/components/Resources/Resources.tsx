@@ -10,6 +10,7 @@ import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
 import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC, useState } from "react"
 import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
@@ -42,6 +43,7 @@ interface ResourcesProps {
   canUpdateWorkspace: boolean
   buildInfo?: BuildInfoResponse | undefined
   hideSSHButton?: boolean
+  applicationsHost?: string
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -51,6 +53,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   canUpdateWorkspace,
   buildInfo,
   hideSSHButton,
+  applicationsHost,
 }) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
@@ -98,7 +101,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     {
                       /* If there is no agent, just display the resource name */
                     }
-                    if (!agent) {
+                    if (!agent || workspace.latest_build.transition === "stop") {
                       return (
                         <TableRow key={`${resource.id}-${agentIndex}`}>
                           <TableCell>{resourceName}</TableCell>
@@ -106,7 +109,6 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                         </TableRow>
                       )
                     }
-
                     const { displayVersion, outdated } = getDisplayVersionStatus(
                       agent.version,
                       serverVersion,
@@ -151,6 +153,14 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                           <div className={styles.accessLinks}>
                             {canUpdateWorkspace && agent.status === "connected" && (
                               <>
+                                {applicationsHost !== undefined && (
+                                  <PortForwardButton
+                                    host={applicationsHost}
+                                    workspaceName={workspace.name}
+                                    agentName={agent.name}
+                                    username={workspace.owner_name}
+                                  />
+                                )}
                                 {!hideSSHButton && (
                                   <SSHButton
                                     workspaceName={workspace.name}
@@ -171,6 +181,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                     userName={workspace.owner_name}
                                     workspaceName={workspace.name}
                                     agentName={agent.name}
+                                    health={app.health}
                                   />
                                 ))}
                               </>

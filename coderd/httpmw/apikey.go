@@ -317,6 +317,22 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 						return
 					}
 				}
+
+				// We only want to update this occasionally to reduce DB write
+				// load. We update alongside the UserLink and APIKey since it's
+				// easier on the DB to colocate writes.
+				_, err = cfg.DB.UpdateUserLastSeenAt(ctx, database.UpdateUserLastSeenAtParams{
+					ID:         key.UserID,
+					LastSeenAt: database.Now(),
+					UpdatedAt:  database.Now(),
+				})
+				if err != nil {
+					write(http.StatusInternalServerError, codersdk.Response{
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
+					})
+					return
+				}
 			}
 
 			// If the key is valid, we also fetch the user roles and status.
@@ -362,14 +378,6 @@ func apiTokenFromRequest(r *http.Request) string {
 	cookie, err := r.Cookie(codersdk.SessionTokenKey)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
-	}
-
-	// TODO: @emyrk in October 2022, remove this oldCookie check.
-	//	This is just to support the old cli for 1 release. Then everyone
-	//	must update.
-	oldCookie, err := r.Cookie("session_token")
-	if err == nil && oldCookie.Value != "" {
-		return oldCookie.Value
 	}
 
 	urlValue := r.URL.Query().Get(codersdk.SessionTokenKey)

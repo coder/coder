@@ -71,19 +71,19 @@ describe("form util functions", () => {
       it("shows an error if there is only an API error", () => {
         const getFieldHelpers = getFormHelpers<TestType>(form, { touchedGoodField: "API error!" })
         const result = getFieldHelpers("touchedGoodField")
-        expect(result.error).toBeTruthy
+        expect(result.error).toBeTruthy()
         expect(result.helperText).toEqual("API error!")
       })
       it("shows an error if there is only a validation error", () => {
         const getFieldHelpers = getFormHelpers<TestType>(form, {})
         const result = getFieldHelpers("touchedBadField")
-        expect(result.error).toBeTruthy
+        expect(result.error).toBeTruthy()
         expect(result.helperText).toEqual("oops!")
       })
       it("shows the API error if both are present", () => {
         const getFieldHelpers = getFormHelpers<TestType>(form, { touchedBadField: "API error!" })
         const result = getFieldHelpers("touchedBadField")
-        expect(result.error).toBeTruthy
+        expect(result.error).toBeTruthy()
         expect(result.helperText).toEqual("API error!")
       })
     })

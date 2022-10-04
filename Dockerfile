@@ -25,6 +25,7 @@ COPY --chown=coder:coder --chmod=700 empty-dir /home/coder
 
 USER coder:coder
 ENV HOME=/home/coder
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
 WORKDIR /home/coder
 
 ENTRYPOINT [ "/opt/coder", "server" ]
