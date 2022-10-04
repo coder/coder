@@ -1,4 +1,11 @@
+import Button from "@material-ui/core/Button"
+import Link from "@material-ui/core/Link"
+import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
 import { useMachine } from "@xstate/react"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import { Paywall } from "components/Paywall/Paywall"
+import { Stack } from "components/Stack/Stack"
+import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useOutletContext } from "react-router-dom"
@@ -14,11 +21,10 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
     permissions: Permissions
   }>()
   const { template, permissions } = templateContext
-
   if (!template || !permissions) {
     throw new Error("This page should not be displayed until template or permissions being loaded.")
   }
-
+  const { rbac: isRBACEnabled } = useFeatureVisibility()
   const [state, send] = useMachine(templateACLMachine, { context: { templateId: template.id } })
   const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
 
@@ -27,32 +33,64 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
       <Helmet>
         <title>{pageTitle(`${template.name} · Permissions`)}</title>
       </Helmet>
-      <TemplatePermissionsPageView
-        templateACL={templateACL}
-        canUpdatePermissions={permissions.canUpdateTemplate}
-        onAddUser={(user, role, reset) => {
-          send("ADD_USER", { user, role, onDone: reset })
-        }}
-        isAddingUser={state.matches("addingUser")}
-        onUpdateUser={(user, role) => {
-          send("UPDATE_USER_ROLE", { user, role })
-        }}
-        updatingUser={userToBeUpdated}
-        onRemoveUser={(user) => {
-          send("REMOVE_USER", { user })
-        }}
-        onAddGroup={(group, role, reset) => {
-          send("ADD_GROUP", { group, role, onDone: reset })
-        }}
-        isAddingGroup={state.matches("addingGroup")}
-        onUpdateGroup={(group, role) => {
-          send("UPDATE_GROUP_ROLE", { group, role })
-        }}
-        updatingGroup={groupToBeUpdated}
-        onRemoveGroup={(group) => {
-          send("REMOVE_GROUP", { group })
-        }}
-      />
+      <ChooseOne>
+        <Cond condition={!isRBACEnabled}>
+          <Paywall
+            message="Template permissions"
+            description="Manage your template permissions to allow users or groups to view or admin the template. To use this feature, you have to upgrade your account."
+            cta={
+              <Stack direction="row" alignItems="center">
+                <Link
+                  underline="none"
+                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
+                    See how to upgrade
+                  </Button>
+                </Link>
+                <Link
+                  underline="none"
+                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Read the docs
+                </Link>
+              </Stack>
+            }
+          />
+        </Cond>
+        <Cond>
+          <TemplatePermissionsPageView
+            templateACL={templateACL}
+            canUpdatePermissions={permissions.canUpdateTemplate}
+            onAddUser={(user, role, reset) => {
+              send("ADD_USER", { user, role, onDone: reset })
+            }}
+            isAddingUser={state.matches("addingUser")}
+            onUpdateUser={(user, role) => {
+              send("UPDATE_USER_ROLE", { user, role })
+            }}
+            updatingUser={userToBeUpdated}
+            onRemoveUser={(user) => {
+              send("REMOVE_USER", { user })
+            }}
+            onAddGroup={(group, role, reset) => {
+              send("ADD_GROUP", { group, role, onDone: reset })
+            }}
+            isAddingGroup={state.matches("addingGroup")}
+            onUpdateGroup={(group, role) => {
+              send("UPDATE_GROUP_ROLE", { group, role })
+            }}
+            updatingGroup={groupToBeUpdated}
+            onRemoveGroup={(group) => {
+              send("REMOVE_GROUP", { group })
+            }}
+          />
+        </Cond>
+      </ChooseOne>
     </>
   )
 }

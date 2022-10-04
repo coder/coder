@@ -4,6 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import GroupAdd from "@material-ui/icons/GroupAddOutlined"
 import PersonAdd from "@material-ui/icons/PersonAddOutlined"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { usePermissions } from "hooks/usePermissions"
 import { FC, PropsWithChildren } from "react"
 import { Link as RouterLink, NavLink, useNavigate } from "react-router-dom"
@@ -15,6 +16,7 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   const { createUser: canCreateUser, createGroup: canCreateGroup } = usePermissions()
   const navigate = useNavigate()
+  const { rbac: isRBACEnabled } = useFeatureVisibility()
 
   return (
     <>
@@ -32,7 +34,7 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
                   Create user
                 </Button>
               )}
-              {canCreateGroup && (
+              {canCreateGroup && isRBACEnabled && (
                 <Link underline="none" component={RouterLink} to="/groups/create">
                   <Button startIcon={<GroupAdd />}>Create group</Button>
                 </Link>

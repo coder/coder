@@ -7,6 +7,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import AvatarGroup from "@material-ui/lab/AvatarGroup"
@@ -14,8 +15,10 @@ import { useMachine } from "@xstate/react"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
+import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
 import React from "react"
@@ -23,6 +26,7 @@ import { Helmet } from "react-helmet-async"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { groupsMachine } from "xServices/groups/groupsXService"
+import { Paywall } from "components/Paywall/Paywall"
 
 export const GroupsPage: React.FC = () => {
   const organizationId = useOrganizationId()
@@ -37,103 +41,137 @@ export const GroupsPage: React.FC = () => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { createGroup: canCreateGroup } = usePermissions()
+  const { rbac: isRBACEnabled } = useFeatureVisibility()
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("Groups")}</title>
       </Helmet>
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell width="50%">Name</TableCell>
-              <TableCell width="49%">Users</TableCell>
-              <TableCell width="1%"></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            <ChooseOne>
-              <Cond condition={isLoading}>
-                <TableLoader />
-              </Cond>
 
-              <Cond condition={isEmpty}>
+      <ChooseOne>
+        <Cond condition={!isRBACEnabled}>
+          <Paywall
+            message="User groups"
+            description="Organize the users into groups and manage their permissions. To use this feature, you have to upgrade your account."
+            cta={
+              <Stack direction="row" alignItems="center">
+                <Link
+                  underline="none"
+                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
+                    See how to upgrade
+                  </Button>
+                </Link>
+                <Link
+                  underline="none"
+                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Read the docs
+                </Link>
+              </Stack>
+            }
+          />
+        </Cond>
+        <Cond>
+          <TableContainer>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={999}>
-                    <EmptyState
-                      message="No groups yet"
-                      description={
-                        canCreateGroup
-                          ? "Create your first group"
-                          : "You don't have permission to create a group"
-                      }
-                      cta={
-                        canCreateGroup && (
-                          <Link underline="none" component={RouterLink} to="/groups/create">
-                            <Button startIcon={<AddCircleOutline />}>Create group</Button>
-                          </Link>
-                        )
-                      }
-                    />
-                  </TableCell>
+                  <TableCell width="50%">Name</TableCell>
+                  <TableCell width="49%">Users</TableCell>
+                  <TableCell width="1%"></TableCell>
                 </TableRow>
-              </Cond>
+              </TableHead>
+              <TableBody>
+                <ChooseOne>
+                  <Cond condition={isLoading}>
+                    <TableLoader />
+                  </Cond>
 
-              <Cond>
-                {groups?.map((group) => {
-                  const groupPageLink = `/groups/${group.id}`
-
-                  return (
-                    <TableRow
-                      hover
-                      key={group.id}
-                      data-testid={`group-${group.id}`}
-                      tabIndex={0}
-                      onClick={() => {
-                        navigate(groupPageLink)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          navigate(groupPageLink)
-                        }
-                      }}
-                      className={styles.clickableTableRow}
-                    >
-                      <TableCell>
-                        <AvatarData
-                          title={group.name}
-                          subtitle={`${group.members.length} members`}
-                          highlightTitle
+                  <Cond condition={isEmpty}>
+                    <TableRow>
+                      <TableCell colSpan={999}>
+                        <EmptyState
+                          message="No groups yet"
+                          description={
+                            canCreateGroup
+                              ? "Create your first group"
+                              : "You don't have permission to create a group"
+                          }
+                          cta={
+                            canCreateGroup && (
+                              <Link underline="none" component={RouterLink} to="/groups/create">
+                                <Button startIcon={<AddCircleOutline />}>Create group</Button>
+                              </Link>
+                            )
+                          }
                         />
                       </TableCell>
-
-                      <TableCell>
-                        {group.members.length === 0 && "-"}
-                        <AvatarGroup>
-                          {group.members.map((member) => (
-                            <UserAvatar
-                              key={member.username}
-                              username={member.username}
-                              avatarURL={member.avatar_url}
-                            />
-                          ))}
-                        </AvatarGroup>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className={styles.arrowCell}>
-                          <KeyboardArrowRight className={styles.arrowRight} />
-                        </div>
-                      </TableCell>
                     </TableRow>
-                  )
-                })}
-              </Cond>
-            </ChooseOne>
-          </TableBody>
-        </Table>
-      </TableContainer>
+                  </Cond>
+
+                  <Cond>
+                    {groups?.map((group) => {
+                      const groupPageLink = `/groups/${group.id}`
+
+                      return (
+                        <TableRow
+                          hover
+                          key={group.id}
+                          data-testid={`group-${group.id}`}
+                          tabIndex={0}
+                          onClick={() => {
+                            navigate(groupPageLink)
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              navigate(groupPageLink)
+                            }
+                          }}
+                          className={styles.clickableTableRow}
+                        >
+                          <TableCell>
+                            <AvatarData
+                              title={group.name}
+                              subtitle={`${group.members.length} members`}
+                              highlightTitle
+                            />
+                          </TableCell>
+
+                          <TableCell>
+                            {group.members.length === 0 && "-"}
+                            <AvatarGroup>
+                              {group.members.map((member) => (
+                                <UserAvatar
+                                  key={member.username}
+                                  username={member.username}
+                                  avatarURL={member.avatar_url}
+                                />
+                              ))}
+                            </AvatarGroup>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className={styles.arrowCell}>
+                              <KeyboardArrowRight className={styles.arrowRight} />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </Cond>
+                </ChooseOne>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Cond>
+      </ChooseOne>
     </>
   )
 }
