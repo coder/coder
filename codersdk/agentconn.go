@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -176,6 +178,19 @@ func (c *AgentConn) statisticsClient() *http.Client {
 			// request, and this triggers goleak in tests
 			DisableKeepAlives: true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				if network != "tcp" {
+					return nil, xerrors.Errorf("network must be tcp")
+				}
+				host, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
+				}
+				// Verify that host is TailnetIP and port is
+				// TailnetStatisticsPort.
+				if host != TailnetIP.String() || port != strconv.Itoa(TailnetStatisticsPort) {
+					return nil, xerrors.Errorf("request %q does not appear to be for statistics server", addr)
+				}
+
 				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetStatisticsPort)))
 				if err != nil {
 					return nil, xerrors.Errorf("dial statistics: %w", err)
@@ -185,6 +200,18 @@ func (c *AgentConn) statisticsClient() *http.Client {
 			},
 		},
 	}
+}
+
+func (c *AgentConn) doStatisticsRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+	host := net.JoinHostPort(TailnetIP.String(), strconv.Itoa(TailnetStatisticsPort))
+	url := fmt.Sprintf("http://%s%s", host, path)
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, xerrors.Errorf("new statistics server request to %q: %w", url, err)
+	}
+
+	return c.statisticsClient().Do(req)
 }
 
 type ListeningPortsResponse struct {
@@ -208,11 +235,7 @@ type ListeningPort struct {
 }
 
 func (c *AgentConn) ListeningPorts(ctx context.Context) (ListeningPortsResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent-stats/api/v0/listening-ports", nil)
-	if err != nil {
-		return ListeningPortsResponse{}, xerrors.Errorf("new request: %w", err)
-	}
-	res, err := c.statisticsClient().Do(req)
+	res, err := c.doStatisticsRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
 	if err != nil {
 		return ListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
 	}
