@@ -124,11 +124,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},
-		"GET:/api/v2/workspaces/": {
-			StatusCode:   http.StatusOK,
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
@@ -246,6 +241,9 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+
+		// Endpoints that use the SQLQuery filter.
+		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -513,6 +511,12 @@ type RecordingAuthorizer struct {
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
+// ByRoleNameSQL does not record the call. This matches the postgres behavior
+// of not calling Authorize()
+func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ rbac.Action, _ rbac.Object) error {
+	return r.AlwaysReturn
+}
+
 func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
@@ -526,11 +530,12 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 
 func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
-		Original:  r,
-		SubjectID: subjectID,
-		Roles:     roles,
-		Scope:     scope,
-		Action:    action,
+		Original:           r,
+		SubjectID:          subjectID,
+		Roles:              roles,
+		Scope:              scope,
+		Action:             action,
+		HardCodedSQLString: "true",
 	}, nil
 }
 
@@ -539,13 +544,39 @@ func (r *RecordingAuthorizer) reset() {
 }
 
 type fakePreparedAuthorizer struct {
-	Original  *RecordingAuthorizer
-	SubjectID string
-	Roles     []string
-	Scope     rbac.Scope
-	Action    rbac.Action
+	Original            *RecordingAuthorizer
+	SubjectID           string
+	Roles               []string
+	Scope               rbac.Scope
+	Action              rbac.Action
+	HardCodedSQLString  string
+	HardCodedRegoString string
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
 	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
+}
+
+// Compile returns a compiled version of the authorizer that will work for
+// in memory databases. This fake version will not work against a SQL database.
+func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
+	return f, nil
+}
+
+func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
+	return f.Original.ByRoleNameSQL(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object) == nil
+}
+
+func (f fakePreparedAuthorizer) RegoString() string {
+	if f.HardCodedRegoString != "" {
+		return f.HardCodedRegoString
+	}
+	panic("not implemented")
+}
+
+func (f fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+	if f.HardCodedSQLString != "" {
+		return f.HardCodedSQLString
+	}
+	panic("not implemented")
 }

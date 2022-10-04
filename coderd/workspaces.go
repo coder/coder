@@ -113,17 +113,16 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, filter)
+	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
+			Message: "Internal error preparing sql filter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, workspaces)
+	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
