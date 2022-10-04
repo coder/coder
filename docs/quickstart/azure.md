@@ -1,6 +1,10 @@
+# Microsoft Azure
+
+This quickstart will show you how to set up the Coder server on Azure and then set up an Azure hosted Linux based workspace, which allows users to create there own instances of these workspaces and use the Coder product. 
+
 ## Requirements 
 
-This quickstart will show you how to set up the Coder server on Azure and then set up an Azure hosted Linux based workspace, which allows users to create there own instances of these workspaces and use the Coder product. This quickstart assumes you have access to admin level access to Azure. 
+This quickstart assumes you have access to admin level access to Azure. 
 
 ## Create An Azure VM
 
@@ -104,3 +108,8 @@ coder templates create
 
 Congrats! You can now navigate to your Coder dashboard and use this Linux on Azure template to create a new workspace!
 
+## Next Steps
+
+- [Port-forward](../networking/port-forwarding.md.md)
+- [Learn more about template configuration](../templates.md)
+- [Configure more IDEs](../ides/web-ides.md)
