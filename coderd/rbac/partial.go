@@ -29,7 +29,7 @@ type PartialAuthorizer struct {
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
 func (pa *PartialAuthorizer) Compile() (AuthorizeFilter, error) {
-	filter, err := Compile(pa.partialQueries)
+	filter, err := Compile(pa)
 	if err != nil {
 		return nil, xerrors.Errorf("compile: %w", err)
 	}
