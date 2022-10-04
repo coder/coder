@@ -164,7 +164,7 @@ type workspaceQuerier interface {
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.DefaultConfig()))
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.NoACLConfig()))
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.OwnerID,
