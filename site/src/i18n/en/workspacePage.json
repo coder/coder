@@ -17,5 +17,10 @@
     "starting": "Starting...",
     "stopping": "Stopping...",
     "deleting": "Deleting..."
+  },
+  "disabledButton": {
+    "canceling": "Canceling",
+    "deleted": "Deleted",
+    "pending": "Pending"
   }
 }

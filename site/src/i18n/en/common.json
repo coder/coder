@@ -10,7 +10,7 @@
     "canceling": "Canceling action",
     "canceled": "Canceled action",
     "failed": "Failed",
-    "pending": "Queued"
+    "pending": "Pending"
   },
   "deleteDialog": {
     "title": "Delete {{entity}}",
