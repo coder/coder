@@ -258,8 +258,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/fake/", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// this is 200 OK because it returns a dashboard page
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 	})
 }
 
@@ -529,10 +528,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 
 		// Should have an error response.
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		var resBody codersdk.Response
-		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Contains(t, resBody.Message, "does not accept application requests on this hostname")
+		require.Contains(t, string(body), "does not accept application requests on this hostname")
 	})
 
 	t.Run("InvalidSubdomain", func(t *testing.T) {
@@ -547,12 +545,11 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		// Should have an error response.
+		// Should have a HTML error response.
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		var resBody codersdk.Response
-		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Contains(t, resBody.Message, "Could not parse subdomain application URL")
+		require.Contains(t, string(body), "Could not parse subdomain application URL")
 	})
 }
 
