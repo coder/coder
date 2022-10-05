@@ -89,6 +89,7 @@ func TestGetLicense(t *testing.T) {
 			AuditLog:    true,
 			SCIM:        true,
 			BrowserOnly: true,
+			Trial:       true,
 			UserLimit:   200,
 		})
 
@@ -106,6 +107,7 @@ func TestGetLicense(t *testing.T) {
 		}, licenses[0].Claims["features"])
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
+		assert.Equal(t, true, licenses[1].Claims["trial"])
 		assert.Equal(t, map[string]interface{}{
 			codersdk.FeatureUserLimit:      json.Number("200"),
 			codersdk.FeatureAuditLog:       json.Number("1"),

@@ -62,6 +62,7 @@ type Claims struct {
 	LicenseExpires *jwt.NumericDate `json:"license_expires,omitempty"`
 	AccountType    string           `json:"account_type,omitempty"`
 	AccountID      string           `json:"account_id,omitempty"`
+	Trial          bool             `json:"trial"`
 	Version        uint64           `json:"version"`
 	Features       Features         `json:"features"`
 }

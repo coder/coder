@@ -122,6 +122,7 @@ type API struct {
 
 type entitlements struct {
 	hasLicense     bool
+	trial          bool
 	activeUsers    codersdk.Feature
 	auditLogs      codersdk.Entitlement
 	browserOnly    codersdk.Entitlement
@@ -154,6 +155,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		scim:           codersdk.EntitlementNotEntitled,
 		browserOnly:    codersdk.EntitlementNotEntitled,
 		workspaceQuota: codersdk.EntitlementNotEntitled,
+		trial:          true,
 	}
 
 	// Here we loop through licenses to detect enabled features.
@@ -194,6 +196,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 		if claims.Features.WorkspaceQuota > 0 {
 			entitlements.workspaceQuota = entitlement
+		}
+		if !claims.Trial {
+			entitlements.trial = claims.Trial
 		}
 	}
 
@@ -240,6 +245,7 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 		Features:     make(map[string]codersdk.Feature),
 		Warnings:     make([]string, 0),
 		HasLicense:   entitlements.hasLicense,
+		Trial:        entitlements.trial,
 		Experimental: api.Experimental,
 	}
 
