@@ -31,7 +31,8 @@ type agentAppAttributes struct {
 	URL       string `mapstructure:"url"`
 	Command   string `mapstructure:"command"`
 	Subdomain bool   `mapstructure:"subdomain"`
-	// RelativePath is deprecated in favor of Subdomain.
+	// RelativePath is deprecated in favor of Subdomain. This value is a pointer
+	// because we prefer it over Subdomain it was explicitly set.
 	RelativePath *bool                      `mapstructure:"relative_path"`
 	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
