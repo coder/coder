@@ -195,6 +195,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
 
 	_, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
@@ -356,6 +357,8 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
@@ -477,6 +480,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetCoordinator.ServeClient(websocket.NetConn(ctx, conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
 	if err != nil {
@@ -575,6 +580,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentInactiveDisconnectTimeout:
 		// The connection died without updating the last connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
+		// Client code needs an accurate disconnected at if the agent has been inactive.
+		workspaceAgent.DisconnectedAt = &dbAgent.LastConnectedAt.Time
 	case dbAgent.LastConnectedAt.Valid:
 		// The agent should be assumed connected if it's under inactivity timeouts
 		// and last connected at has been properly set.
@@ -583,6 +590,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 
 	return workspaceAgent, nil
 }
+
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -629,6 +637,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	defer conn.Close(websocket.StatusGoingAway, "")
 
 	var lastReport codersdk.AgentStatsReportResponse

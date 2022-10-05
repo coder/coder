@@ -233,7 +233,7 @@ export interface DAUEntry {
   readonly amount: number
 }
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspaceagents.go
 export interface DERPRegion {
   readonly preferred: boolean
   readonly latency_ms: number
@@ -244,6 +244,7 @@ export interface Entitlements {
   readonly features: Record<string, Feature>
   readonly warnings: string[]
   readonly has_license: boolean
+  readonly experimental: boolean
 }
 
 // From codersdk/features.go
@@ -552,7 +553,7 @@ export interface Workspace {
   readonly last_used_at: string
 }
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
   readonly id: string
   readonly created_at: string
@@ -574,7 +575,7 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
 }
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -587,7 +588,7 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number
@@ -625,6 +626,7 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
+  readonly status: WorkspaceStatus
 }
 
 // From codersdk/workspaces.go
@@ -642,7 +644,13 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspacequota.go
+export interface WorkspaceQuota {
+  readonly user_workspace_count: number
+  readonly user_workspace_limit: number
+}
+
+// From codersdk/workspacebuilds.go
 export interface WorkspaceResource {
   readonly id: string
   readonly created_at: string
@@ -656,7 +664,7 @@ export interface WorkspaceResource {
   readonly metadata?: WorkspaceResourceMetadata[]
 }
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspacebuilds.go
 export interface WorkspaceResourceMetadata {
   readonly key: string
   readonly value: string
@@ -724,11 +732,24 @@ export type ServerSentEventType = "data" | "error" | "ping"
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 
-// From codersdk/workspaceresources.go
+// From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
+
+// From codersdk/workspacebuilds.go
+export type WorkspaceStatus =
+  | "canceled"
+  | "canceling"
+  | "deleted"
+  | "deleting"
+  | "failed"
+  | "pending"
+  | "running"
+  | "starting"
+  | "stopped"
+  | "stopping"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"

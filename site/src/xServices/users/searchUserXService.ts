@@ -8,6 +8,7 @@ export type AutocompleteEvent = { type: "SEARCH"; query: string } | { type: "CLE
 export const searchUserMachine = createMachine(
   {
     id: "searchUserMachine",
+    predictableActionArguments: true,
     schema: {
       context: {} as {
         searchResults?: User[]
