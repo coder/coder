@@ -157,6 +157,15 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 />
               )}
 
+              {props.workspaceQuota && (
+                <WorkspaceQuota
+                  quota={props.workspaceQuota}
+                  error={
+                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
+                  }
+                />
+              )}
+
               {props.templateSchema.length > 0 && (
                 <Stack>
                   {props.templateSchema.map((schema) => (
@@ -173,15 +182,6 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                     />
                   ))}
                 </Stack>
-              )}
-
-              {props.workspaceQuota && (
-                <WorkspaceQuota
-                  quota={props.workspaceQuota}
-                  error={
-                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
-                  }
-                />
               )}
 
               <FormFooter
