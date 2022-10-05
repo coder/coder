@@ -120,31 +120,23 @@ export const AppRouter: FC = () => {
                 </AuthAndFrame>
               }
             />
+            <Route
+              path="workspace"
+              element={
+                <RequireAuth>
+                  <CreateWorkspacePage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <RequireAuth>
+                  <TemplateSettingsPage />
+                </RequireAuth>
+              }
+            />
           </Route>
-          <Route
-            path="workspace"
-            element={
-              <RequireAuth>
-                <CreateWorkspacePage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="workspace"
-            element={
-              <RequireAuth>
-                <CreateWorkspacePage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="settings"
-            element={
-              <RequireAuth>
-                <TemplateSettingsPage />
-              </RequireAuth>
-            }
-          />
         </Route>
 
         <Route path="users">
