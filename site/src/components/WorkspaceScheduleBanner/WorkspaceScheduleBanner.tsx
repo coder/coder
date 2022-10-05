@@ -38,12 +38,15 @@ export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceSchedu
   }
 
   const ScheduleButton = (
-    <Button variant="outlined" color="inherit" disabled={isLoading} onClick={onExtend} size="small">
+    <Button variant="outlined" disabled={isLoading} onClick={onExtend} size="small">
       {t("ctas.extendScheduleCta")}
     </Button>
   )
 
   return (
-    <WarningAlert text={t("warningsAndErrors.workspaceShutdownWarning")} action={ScheduleButton} />
+    <WarningAlert
+      text={t("warningsAndErrors.workspaceShutdownWarning")}
+      actions={[ScheduleButton]}
+    />
   )
 }

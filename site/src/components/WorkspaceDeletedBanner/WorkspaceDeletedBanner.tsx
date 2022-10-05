@@ -21,7 +21,7 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
   }
 
   const NewWorkspaceButton = (
-    <Button color="inherit" onClick={handleClick} size="small">
+    <Button onClick={handleClick} size="small">
       {t("ctas.createWorkspaceCta")}
     </Button>
   )
@@ -29,7 +29,7 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
   return (
     <WarningAlert
       text={t("warningsAndErrors.workspaceDeletedWarning")}
-      action={NewWorkspaceButton}
+      actions={[NewWorkspaceButton]}
     />
   )
 }
