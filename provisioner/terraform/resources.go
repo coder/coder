@@ -32,6 +32,7 @@ type agentAppAttributes struct {
 	Icon         string                     `mapstructure:"icon"`
 	URL          string                     `mapstructure:"url"`
 	Command      string                     `mapstructure:"command"`
+	ShareLevel   string                     `mapstructure:"share_level"`
 	RelativePath bool                       `mapstructure:"relative_path"`
 	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }

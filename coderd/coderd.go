@@ -57,6 +57,7 @@ type Options struct {
 
 	Auditor                        audit.Auditor
 	WorkspaceQuotaEnforcer         workspacequota.Enforcer
+	AppAuthorizer                  AppAuthorizer
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -126,6 +127,11 @@ func New(options *Options) *API {
 	if options.WorkspaceQuotaEnforcer == nil {
 		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
 	}
+	if options.AppAuthorizer == nil {
+		options.AppAuthorizer = &AGPLAppAuthorizer{
+			RBAC: options.Authorizer,
+		}
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -154,9 +160,11 @@ func New(options *Options) *API {
 		metricsCache:           metricsCache,
 		Auditor:                atomic.Pointer[audit.Auditor]{},
 		WorkspaceQuotaEnforcer: atomic.Pointer[workspacequota.Enforcer]{},
+		AppAuthorizer:          atomic.Pointer[AppAuthorizer]{},
 	}
 	api.Auditor.Store(&options.Auditor)
 	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
+	api.AppAuthorizer.Store(&options.AppAuthorizer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -517,6 +525,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
+	AppAuthorizer                     atomic.Pointer[AppAuthorizer]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
