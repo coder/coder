@@ -10,19 +10,36 @@ LIMIT
 
 -- name: GetWorkspaces :many
 SELECT
-    *
+    workspaces.*
 FROM
     workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		*
+	FROM
+		workspace_builds
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		build_number DESC
+	LIMIT
+		1
+) latest_build ON TRUE
 WHERE
     -- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
+	AND CASE
+		WHEN @status :: text != '' THEN
+			latest_build.transition = convertStatus(@status)
+		ELSE true
+	END
 	-- Filter by owner_id
 	AND CASE
 		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
 			owner_id = @owner_id
 		ELSE true
 	END
-  	-- Filter by owner_name
+	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
 			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username))
@@ -30,7 +47,7 @@ WHERE
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
-  	-- Use the organization filter to restrict to 1 org if needed.
+	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
 			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name))
@@ -45,7 +62,7 @@ WHERE
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @name :: text != '' THEN
-		    name ILIKE '%' || @name || '%'
+			name ILIKE '%' || @name || '%'
 		ELSE true
 	END
 ;
