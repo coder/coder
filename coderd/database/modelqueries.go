@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/lib/pq"
+
+	"github.com/coder/coder/coderd/rbac"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"

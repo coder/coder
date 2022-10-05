@@ -2,8 +2,9 @@ package coderd
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"golang.org/x/xerrors"
 
