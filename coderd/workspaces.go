@@ -1034,6 +1034,20 @@ func convertStatus(build codersdk.WorkspaceBuild) codersdk.WorkspaceStatus {
 	return codersdk.WorkspaceStatusFailed
 }
 
+func unconvertStatus(status codersdk.WorkspaceStatus) (codersdk.WorkspaceTransition, codersdk.ProvisionerJobStatus) {
+	switch status {
+	case codersdk.WorkspaceStatusDeleted:
+		return codersdk.WorkspaceTransitionDelete, codersdk.ProvisionerJobSucceeded
+	case codersdk.WorkspaceStatusRunning
+		return codersdk.WorkspaceTransitionStart, codersdk.ProvisionerJobSucceeded
+	case codersdk.WorkspaceStatusStopped
+		return codersdk.WorkspaceTransitionStop, codersdk.ProvisionerJobSucceeded
+	}
+
+	// it's either not a valid status, or one we can't reverse engineer with certainty
+	return "" ""
+}
+
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	if !i.Valid {
 		return nil
@@ -1150,12 +1164,14 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersd
 	// Using the query param parser here just returns consistent errors with
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
+	transition, job_status := unconvertStatus(parser.String(searchParams, "", "status"))
 	filter := database.GetWorkspacesParams{
 		Deleted:       false,
 		OwnerUsername: parser.String(searchParams, "", "owner"),
 		TemplateName:  parser.String(searchParams, "", "template"),
 		Name:          parser.String(searchParams, "", "name"),
-		Status:        parser.String(searchParams, "", "status"),
+		Transition:    transition,
+		JobStatus:     job_status,
 	}
 
 	return filter, parser.Errors
