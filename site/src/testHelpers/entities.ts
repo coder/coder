@@ -193,6 +193,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
   icon: "",
+  subdomain: false,
   health: "disabled",
   healthcheck: {
     url: "",

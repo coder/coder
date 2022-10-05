@@ -603,6 +603,7 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
+  readonly subdomain: boolean
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
