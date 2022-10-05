@@ -399,7 +399,7 @@ func New(options *Options) *API {
 					r.Get("/roles", api.userRoles)
 
 					r.Route("/keys", func(r chi.Router) {
-						r.Post("/", api.postAPIKey)
+						r.Post("/machine", api.postMachineAPIKey)
 						r.Get("/{keyid}", api.apiKey)
 					})
 

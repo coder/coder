@@ -943,8 +943,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Creates a new session key, used for logging in via the CLI.
-func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
+// Creates a new machine session key that effectively doesn't expire.
+func (api *API) postMachineAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
@@ -953,7 +953,8 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lifeTime := time.Hour * 24 * 7
+	// machine keys last 100 years
+	lifeTime := time.Hour * 876000
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
