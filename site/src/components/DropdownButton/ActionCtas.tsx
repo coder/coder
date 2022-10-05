@@ -5,7 +5,6 @@ import CloudQueueIcon from "@material-ui/icons/CloudQueue"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
-import { WorkspaceStatus } from "api/typesGenerated"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -84,16 +83,15 @@ export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ han
 }
 
 interface DisabledProps {
-  workspaceStatus: WorkspaceStatus
+  label: string
 }
 
-export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({ workspaceStatus }) => {
+export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({ label }) => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
 
   return (
     <Button disabled className={styles.actionButton}>
-      {t(`disabledButton.${workspaceStatus}`)}
+      {label}
     </Button>
   )
 }

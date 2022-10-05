@@ -13,7 +13,7 @@ export enum ButtonTypesEnum {
   updating = "updating",
   // disabled buttons
   canceling = "canceling",
-  disabled = "disabled",
+  deleted = "deleted",
   pending = "pending",
 }
 
@@ -79,7 +79,7 @@ export const WorkspaceStateActions: StateActionsType = {
     canCancel: true,
   },
   deleted: {
-    primary: ButtonTypesEnum.disabled,
+    primary: ButtonTypesEnum.deleted,
     secondary: [],
     canCancel: false,
   },

@@ -69,9 +69,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.stopping]: <ActionLoadingButton label={t("actionButton.stopping")} />,
     [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
     [ButtonTypesEnum.deleting]: <ActionLoadingButton label={t("actionButton.deleting")} />,
-    [ButtonTypesEnum.canceling]: <DisabledButton workspaceStatus={workspaceStatus} />,
-    [ButtonTypesEnum.disabled]: <DisabledButton workspaceStatus={workspaceStatus} />,
-    [ButtonTypesEnum.pending]: <DisabledButton workspaceStatus={workspaceStatus} />,
+    [ButtonTypesEnum.canceling]: <DisabledButton label={t("disabledButton.canceling")} />,
+    [ButtonTypesEnum.deleted]: <DisabledButton label={t("disabledButton.deleted")} />,
+    [ButtonTypesEnum.pending]: <DisabledButton label={t("disabledButton.pending")} />,
   }
 
   return (
