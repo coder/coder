@@ -195,7 +195,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
 	unuseID := uuid.New()
-	allUsersGroup := "allUsers"
+	allUsersGroup := "Everyone"
 
 	user := subject{
 		UserID: "me",

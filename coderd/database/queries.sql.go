@@ -1014,7 +1014,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	( $1, 'allUsers', $1) RETURNING id, name, organization_id
+	( $1, 'Everyone', $1) RETURNING id, name, organization_id
 `
 
 // We use the organization_id as the id

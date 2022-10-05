@@ -7,7 +7,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-const AllUsersGroup = "allUsers"
+const AllUsersGroup = "Everyone"
 
 // TemplateACL is a map of user_ids to permissions.
 type TemplateACL map[string][]rbac.Action
