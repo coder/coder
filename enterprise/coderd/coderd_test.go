@@ -36,7 +36,9 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			UserLimit: 100,
@@ -59,7 +61,9 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("FullLicenseToNone", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			UserLimit: 100,
@@ -85,7 +89,8 @@ func TestEntitlements(t *testing.T) {
 	t.Run("Warnings", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, &coderdenttest.Options{
-			BrowserOnly: true,
+			AuditLogging: true,
+			BrowserOnly:  true,
 		})
 		first := coderdtest.CreateFirstUser(t, client)
 		for i := 0; i < 4; i++ {
@@ -192,7 +197,9 @@ func TestAuditLogging(t *testing.T) {
 	t.Parallel()
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
-		client, _, api := coderdenttest.NewWithAPI(t, nil)
+		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			AuditLogging: true,
+		})
 		coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AuditLog: true,
@@ -200,7 +207,7 @@ func TestAuditLogging(t *testing.T) {
 		auditor := *api.AGPL.Auditor.Load()
 		ea := audit.NewAuditor(audit.DefaultFilter)
 		t.Logf("%T = %T", auditor, ea)
-		assert.Equal(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
+		assert.EqualValues(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()

@@ -267,27 +267,45 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 		Entitlement: entitlements.auditLogs,
 		Enabled:     api.AuditLogging,
 	}
-	if entitlements.auditLogs == codersdk.EntitlementGracePeriod && api.AuditLogging {
-		resp.Warnings = append(resp.Warnings,
-			"Audit logging is enabled but your license for this feature is expired.")
+	if api.AuditLogging {
+		if entitlements.auditLogs == codersdk.EntitlementNotEntitled {
+			resp.Warnings = append(resp.Warnings,
+				"Audit logging is enabled but your license is not entitled to this feature.")
+		}
+		if entitlements.auditLogs == codersdk.EntitlementGracePeriod {
+			resp.Warnings = append(resp.Warnings,
+				"Audit logging is enabled but your license for this feature is expired.")
+		}
 	}
 
 	resp.Features[codersdk.FeatureBrowserOnly] = codersdk.Feature{
 		Entitlement: entitlements.browserOnly,
 		Enabled:     api.BrowserOnly,
 	}
-	if entitlements.browserOnly == codersdk.EntitlementGracePeriod && api.BrowserOnly {
-		resp.Warnings = append(resp.Warnings,
-			"Browser only connections are enabled but your license for this feature is expired.")
+	if api.BrowserOnly {
+		if entitlements.browserOnly == codersdk.EntitlementNotEntitled {
+			resp.Warnings = append(resp.Warnings,
+				"Browser only connections are enabled but your license is not entitled to this feature.")
+		}
+		if entitlements.browserOnly == codersdk.EntitlementGracePeriod {
+			resp.Warnings = append(resp.Warnings,
+				"Browser only connections are enabled but your license for this feature is expired.")
+		}
 	}
 
 	resp.Features[codersdk.FeatureWorkspaceQuota] = codersdk.Feature{
 		Entitlement: entitlements.workspaceQuota,
 		Enabled:     api.UserWorkspaceQuota > 0,
 	}
-	if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod && api.UserWorkspaceQuota > 0 {
-		resp.Warnings = append(resp.Warnings,
-			"Workspace quotas are enabled but your license for this feature is expired.")
+	if api.UserWorkspaceQuota > 0 {
+		if entitlements.workspaceQuota == codersdk.EntitlementNotEntitled {
+			resp.Warnings = append(resp.Warnings,
+				"Workspace quotas are enabled but your license is not entitled to this feature.")
+		}
+		if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod {
+			resp.Warnings = append(resp.Warnings,
+				"Workspace quotas are enabled but your license for this feature is expired.")
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

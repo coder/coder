@@ -36,6 +36,7 @@ func init() {
 
 type Options struct {
 	*coderdtest.Options
+	AuditLogging               bool
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
@@ -57,7 +58,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		AuditLogging:               true,
+		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		UserWorkspaceQuota:         options.UserWorkspaceQuota,
