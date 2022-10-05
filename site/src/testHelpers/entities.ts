@@ -396,13 +396,14 @@ export const MockWorkspace: TypesGen.Workspace = {
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: MockWorkspaceBuildStop,
+  latest_build: { ...MockWorkspaceBuildStop, status: "stopped" },
 }
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuildStop,
     job: MockRunningProvisionerJob,
+    status: "stopping",
   },
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
@@ -411,40 +412,43 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
     ...MockWorkspaceBuild,
     job: MockRunningProvisionerJob,
     transition: "start",
+    status: "starting",
   },
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
+  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob, status: "canceling" },
 }
 export const MockCanceledWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob },
+  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob, status: "canceled" },
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockFailedProvisionerJob,
+    status: "failed",
   },
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
+  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob, status: "deleting" },
 }
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: MockWorkspaceBuildDelete,
+  latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
 }
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
-export const MockQueuedWorkspace: TypesGen.Workspace = {
+export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockPendingProvisionerJob,
     transition: "start",
+    status: "pending",
   },
 }
 

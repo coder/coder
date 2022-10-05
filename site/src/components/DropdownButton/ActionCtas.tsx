@@ -7,22 +7,9 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { combineClasses } from "util/combineClasses"
-import { WorkspaceStateEnum } from "util/workspace"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
-
-export const Language = {
-  start: "Start",
-  stop: "Stop",
-  delete: "Delete",
-  cancel: "Cancel",
-  update: "Update",
-  updating: "Updating",
-  // these labels are used in WorkspaceActions.tsx
-  starting: "Starting...",
-  stopping: "Stopping...",
-  deleting: "Deleting...",
-}
 
 interface WorkspaceAction {
   handleAction: () => void
@@ -30,49 +17,53 @@ interface WorkspaceAction {
 
 export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
     <Button className={styles.actionButton} startIcon={<CloudQueueIcon />} onClick={handleAction}>
-      {Language.update}
+      {t("actionButton.update")}
     </Button>
   )
 }
 
 export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
     <WorkspaceActionButton
       className={styles.actionButton}
       icon={<PlayCircleOutlineIcon />}
       onClick={handleAction}
-      label={Language.start}
+      label={t("actionButton.start")}
     />
   )
 }
 
 export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
     <WorkspaceActionButton
       className={styles.actionButton}
       icon={<CropSquareIcon />}
       onClick={handleAction}
-      label={Language.stop}
+      label={t("actionButton.stop")}
     />
   )
 }
 
 export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
     <WorkspaceActionButton
       className={styles.actionButton}
       icon={<DeleteOutlineIcon />}
       onClick={handleAction}
-      label={Language.delete}
+      label={t("actionButton.delete")}
     />
   )
 }
@@ -92,15 +83,15 @@ export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ han
 }
 
 interface DisabledProps {
-  workspaceState: WorkspaceStateEnum
+  label: string
 }
 
-export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({ workspaceState }) => {
+export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({ label }) => {
   const styles = useStyles()
 
   return (
     <Button disabled className={styles.actionButton}>
-      {workspaceState}
+      {label}
     </Button>
   )
 }

@@ -16,72 +16,74 @@ const defaultArgs = {
   handleDelete: action("delete"),
   handleUpdate: action("update"),
   handleCancel: action("cancel"),
+  isOutdated: false,
   isUpdating: false,
 }
 
 export const Starting = Template.bind({})
 Starting.args = {
   ...defaultArgs,
-  workspace: Mocks.MockStartingWorkspace,
+  workspaceStatus: Mocks.MockStartingWorkspace.latest_build.status,
 }
 
-export const Started = Template.bind({})
-Started.args = {
+export const Running = Template.bind({})
+Running.args = {
   ...defaultArgs,
-  workspace: Mocks.MockWorkspace,
+  workspaceStatus: Mocks.MockWorkspace.latest_build.status,
 }
 
 export const Stopping = Template.bind({})
 Stopping.args = {
   ...defaultArgs,
-  workspace: Mocks.MockStoppingWorkspace,
+  workspaceStatus: Mocks.MockStoppingWorkspace.latest_build.status,
 }
 
 export const Stopped = Template.bind({})
 Stopped.args = {
   ...defaultArgs,
-  workspace: Mocks.MockStoppedWorkspace,
+  workspaceStatus: Mocks.MockStoppedWorkspace.latest_build.status,
 }
 
 export const Canceling = Template.bind({})
 Canceling.args = {
   ...defaultArgs,
-  workspace: Mocks.MockCancelingWorkspace,
+  workspaceStatus: Mocks.MockCancelingWorkspace.latest_build.status,
 }
 
 export const Canceled = Template.bind({})
 Canceled.args = {
   ...defaultArgs,
-  workspace: Mocks.MockCanceledWorkspace,
+  workspaceStatus: Mocks.MockCanceledWorkspace.latest_build.status,
 }
 
 export const Deleting = Template.bind({})
 Deleting.args = {
   ...defaultArgs,
-  workspace: Mocks.MockDeletingWorkspace,
+  workspaceStatus: Mocks.MockDeletingWorkspace.latest_build.status,
 }
 
 export const Deleted = Template.bind({})
 Deleted.args = {
   ...defaultArgs,
-  workspace: Mocks.MockDeletedWorkspace,
+  workspaceStatus: Mocks.MockDeletedWorkspace.latest_build.status,
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
   ...defaultArgs,
-  workspace: Mocks.MockOutdatedWorkspace,
+  isOutdated: true,
+  workspaceStatus: Mocks.MockOutdatedWorkspace.latest_build.status,
 }
 
-export const Errored = Template.bind({})
-Errored.args = {
+export const Failed = Template.bind({})
+Failed.args = {
   ...defaultArgs,
-  workspace: Mocks.MockFailedWorkspace,
+  workspaceStatus: Mocks.MockFailedWorkspace.latest_build.status,
 }
 
 export const Updating = Template.bind({})
 Updating.args = {
   ...defaultArgs,
   isUpdating: true,
-  workspace: Mocks.MockOutdatedWorkspace,
+  workspaceStatus: Mocks.MockOutdatedWorkspace.latest_build.status,
 }
