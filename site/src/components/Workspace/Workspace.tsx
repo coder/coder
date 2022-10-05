@@ -15,6 +15,8 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import { WarningAlert } from "../WarningAlert/WarningAlert"
+import { useTranslation } from "react-i18next"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -71,19 +73,21 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
   const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
-  const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
+  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-  ) : (
-    <></>
   )
-  const cancellationError = workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
+
+  const cancellationError = Boolean(workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]) && (
     <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-  ) : (
-    <></>
+  )
+
+  const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
+    <WarningAlert text={t("warningsAndErrors.workspaceRefreshWarning")} dismissible />
   )
 
   return (
@@ -127,6 +131,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
         {buildError}
         {cancellationError}
+        {workspaceRefreshWarning}
 
         <WorkspaceScheduleBanner
           isLoading={bannerProps.isLoading}

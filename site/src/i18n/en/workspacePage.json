@@ -7,6 +7,15 @@
     "editDeadlineMinus": "Subtract one hour",
     "editDeadlinePlus": "Add one hour"
   },
+  "ctas": {
+    "createWorkspaceCta": "Create new workspace",
+    "extendScheduleCta": "Extend"
+  },
+  "warningsAndErrors": {
+    "workspaceRefreshWarning": "We're having difficulty fetching the latest workspace state. Refresh the page to see the newest changes.",
+    "workspaceDeletedWarning": "This workspace has been deleted and cannot be edited.",
+    "workspaceShutdownWarning": "Your workspace is scheduled to automatically shut down soon."
+  },
   "actionButton": {
     "start": "Start",
     "stop": "Stop",
