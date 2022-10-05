@@ -579,6 +579,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentInactiveDisconnectTimeout:
 		// The connection died without updating the last connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
+		// Client code needs an accurate disconnected at if the agent has been inactive.
+		workspaceAgent.DisconnectedAt = &dbAgent.LastConnectedAt.Time
 	case dbAgent.LastConnectedAt.Valid:
 		// The agent should be assumed connected if it's under inactivity timeouts
 		// and last connected at has been properly set.
