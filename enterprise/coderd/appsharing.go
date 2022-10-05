@@ -14,7 +14,11 @@ import (
 // EnterpriseAppAuthorizer provides an enterprise implementation of
 // agplcoderd.AppAuthorizer that allows apps to be shared at certain levels.
 type EnterpriseAppAuthorizer struct {
-	RBAC rbac.Authorizer
+	RBAC                      rbac.Authorizer
+	LevelOwnerAllowed         bool
+	LevelTemplateAllowed      bool
+	LevelAuthenticatedAllowed bool
+	LevelPublicAllowed        bool
 }
 
 var _ agplcoderd.AppAuthorizer = &EnterpriseAppAuthorizer{}
@@ -22,6 +26,28 @@ var _ agplcoderd.AppAuthorizer = &EnterpriseAppAuthorizer{}
 // Authorize implements agplcoderd.AppAuthorizer.
 func (a *EnterpriseAppAuthorizer) Authorize(r *http.Request, db database.Store, shareLevel database.AppShareLevel, workspace database.Workspace) (bool, error) {
 	ctx := r.Context()
+
+	// TODO: better errors displayed to the user in this case
+	switch shareLevel {
+	case database.AppShareLevelOwner:
+		if !a.LevelOwnerAllowed {
+			return false, nil
+		}
+	case database.AppShareLevelTemplate:
+		if !a.LevelTemplateAllowed {
+			return false, nil
+		}
+	case database.AppShareLevelAuthenticated:
+		if !a.LevelAuthenticatedAllowed {
+			return false, nil
+		}
+	case database.AppShareLevelPublic:
+		if !a.LevelPublicAllowed {
+			return false, nil
+		}
+	default:
+		return false, xerrors.Errorf("unknown workspace app sharing level %q", shareLevel)
+	}
 
 	// Short circuit if not authenticated.
 	roles, ok := httpmw.UserAuthorizationOptional(r)
@@ -33,6 +59,9 @@ func (a *EnterpriseAppAuthorizer) Authorize(r *http.Request, db database.Store, 
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
 	// other RBAC rules that may be in place.
+	//
+	// Regardless of share level, the owner of the workspace can always access
+	// applications.
 	err := a.RBAC.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, workspace.ApplicationConnectRBAC())
 	if err == nil {
 		return true, nil

@@ -12,14 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/testutil"
 )
 
-func TestEnterpriseAppAuthorizer(t *testing.T) {
-	t.Parallel()
-
+func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppShareLevel) (workspace codersdk.Workspace, agent codersdk.WorkspaceAgent, user codersdk.User, client *codersdk.Client, clientWithTemplateAccess *codersdk.Client, clientWithNoTemplateAccess *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 	//nolint:gosec
 	const password = "password"
 
@@ -42,23 +41,23 @@ func TestEnterpriseAppAuthorizer(t *testing.T) {
 	require.True(t, ok)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Cleanup(cancel)
 
 	// Setup a user, template with apps, workspace on a coderdtest using the
 	// EnterpriseAppAuthorizer.
-	client := coderdenttest.New(t, &coderdenttest.Options{
+	client = coderdenttest.New(t, &coderdenttest.Options{
+		AllowedApplicationSharingLevels: allowedSharingLevels,
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
-	user, err := client.User(ctx, firstUser.UserID.String())
+	user, err = client.User(ctx, firstUser.UserID.String())
 	require.NoError(t, err)
 	coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		// TODO: license stuff
-		BrowserOnly: true,
+		ApplicationSharing: true,
 	})
-	workspace, agent := setupWorkspaceAgent(t, client, firstUser, uint16(tcpAddr.Port))
+	workspace, agent = setupWorkspaceAgent(t, client, firstUser, uint16(tcpAddr.Port))
 
 	// Create a user in the same org (should be able to read the template).
 	userWithTemplateAccess, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
@@ -69,7 +68,7 @@ func TestEnterpriseAppAuthorizer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clientWithTemplateAccess := codersdk.New(client.URL)
+	clientWithTemplateAccess = codersdk.New(client.URL)
 	loginRes, err := clientWithTemplateAccess.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 		Email:    userWithTemplateAccess.Email,
 		Password: password,
@@ -80,7 +79,7 @@ func TestEnterpriseAppAuthorizer(t *testing.T) {
 	// Create a user in a different org (should not be able to read the
 	// template).
 	differentOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name: "a different org",
+		Name: "a-different-org",
 	})
 	require.NoError(t, err)
 	userWithNoTemplateAccess, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
@@ -91,7 +90,7 @@ func TestEnterpriseAppAuthorizer(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clientWithNoTemplateAccess := codersdk.New(client.URL)
+	clientWithNoTemplateAccess = codersdk.New(client.URL)
 	loginRes, err = clientWithNoTemplateAccess.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 		Email:    userWithNoTemplateAccess.Email,
 		Password: password,
@@ -100,10 +99,27 @@ func TestEnterpriseAppAuthorizer(t *testing.T) {
 	clientWithNoTemplateAccess.SessionToken = loginRes.SessionToken
 
 	// Create an unauthenticated codersdk client.
-	clientWithNoAuth := codersdk.New(client.URL)
+	clientWithNoAuth = codersdk.New(client.URL)
+
+	return workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth
+}
+
+func TestEnterpriseAppAuthorizer(t *testing.T) {
+	t.Parallel()
+
+	// For the purposes of these tests we allow all levels.
+	workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppShareLevel{
+		database.AppShareLevelOwner,
+		database.AppShareLevelTemplate,
+		database.AppShareLevelAuthenticated,
+		database.AppShareLevelPublic,
+	})
 
 	verifyAccess := func(t *testing.T, appName string, client *codersdk.Client, shouldHaveAccess bool) {
 		t.Helper()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
 		appPath := fmt.Sprintf("/@%s/%s.%s/apps/%s", user.Username, workspace.Name, agent.Name, appName)
 		res, err := client.Request(ctx, http.MethodGet, appPath, nil)

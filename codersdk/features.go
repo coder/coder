@@ -15,11 +15,12 @@ const (
 )
 
 const (
-	FeatureUserLimit      = "user_limit"
-	FeatureAuditLog       = "audit_log"
-	FeatureBrowserOnly    = "browser_only"
-	FeatureSCIM           = "scim"
-	FeatureWorkspaceQuota = "workspace_quota"
+	FeatureUserLimit          = "user_limit"
+	FeatureAuditLog           = "audit_log"
+	FeatureBrowserOnly        = "browser_only"
+	FeatureSCIM               = "scim"
+	FeatureWorkspaceQuota     = "workspace_quota"
+	FeatureApplicationSharing = "application_sharing"
 )
 
 var FeatureNames = []string{
@@ -28,6 +29,7 @@ var FeatureNames = []string{
 	FeatureBrowserOnly,
 	FeatureSCIM,
 	FeatureWorkspaceQuota,
+	FeatureApplicationSharing,
 }
 
 type Feature struct {
