@@ -100,7 +100,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
-              workspace={workspace}
+              workspaceStatus={workspace.latest_build.status}
+              isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}

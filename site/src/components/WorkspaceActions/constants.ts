@@ -21,71 +21,65 @@ export type ButtonMapping = {
   [key in ButtonTypesEnum]: ReactNode
 }
 
-type StateActionsType = Record<
-  WorkspaceStatus,
-  {
-    primary: ButtonTypesEnum
-    secondary: ButtonTypesEnum[]
-    canCancel: boolean
-  }
->
+interface WorkspaceAbilities {
+  actions: ButtonTypesEnum[]
+  canCancel: boolean
+  canAcceptJobs: boolean
+}
 
-// A mapping of workspace state to button type
-// 'Primary' actions are the main ctas
-// 'Secondary' actions are ctas housed within the popover
-export const WorkspaceStateActions: StateActionsType = {
+export const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
-    primary: ButtonTypesEnum.starting,
-    secondary: [],
+    actions: [ButtonTypesEnum.starting],
     canCancel: true,
+    canAcceptJobs: false,
   },
   running: {
-    primary: ButtonTypesEnum.stop,
-    secondary: [ButtonTypesEnum.delete],
+    actions: [ButtonTypesEnum.stop, ButtonTypesEnum.delete],
     canCancel: false,
+    canAcceptJobs: true,
   },
   stopping: {
-    primary: ButtonTypesEnum.stopping,
-    secondary: [],
+    actions: [ButtonTypesEnum.stopping],
     canCancel: true,
+    canAcceptJobs: false,
   },
   stopped: {
-    primary: ButtonTypesEnum.start,
-    secondary: [ButtonTypesEnum.delete],
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.delete],
     canCancel: false,
+    canAcceptJobs: true,
   },
   canceled: {
-    primary: ButtonTypesEnum.start,
-    secondary: [ButtonTypesEnum.stop, ButtonTypesEnum.delete],
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop, ButtonTypesEnum.delete],
     canCancel: false,
+    canAcceptJobs: true,
   },
   // in the case of an error
   failed: {
-    primary: ButtonTypesEnum.start, // give the user the ability to start a workspace again
-    secondary: [ButtonTypesEnum.delete], // allows the user to delete
+    actions: [ButtonTypesEnum.start, ButtonTypesEnum.delete],
     canCancel: false,
+    canAcceptJobs: true,
   },
   /**
    * disabled states
    */
   canceling: {
-    primary: ButtonTypesEnum.canceling,
-    secondary: [],
+    actions: [ButtonTypesEnum.canceling],
     canCancel: false,
+    canAcceptJobs: false,
   },
   deleting: {
-    primary: ButtonTypesEnum.deleting,
-    secondary: [],
+    actions: [ButtonTypesEnum.deleting],
     canCancel: true,
+    canAcceptJobs: false,
   },
   deleted: {
-    primary: ButtonTypesEnum.deleted,
-    secondary: [],
+    actions: [ButtonTypesEnum.deleted],
     canCancel: false,
+    canAcceptJobs: true,
   },
   pending: {
-    primary: ButtonTypesEnum.pending,
-    secondary: [],
+    actions: [ButtonTypesEnum.pending],
     canCancel: false,
+    canAcceptJobs: false,
   },
 }
