@@ -20,6 +20,8 @@ import (
 // It extends the generated interface to add transaction support.
 type Store interface {
 	querier
+	// customQuerier contains custom queries that are not generated.
+	customQuerier
 
 	InTx(func(Store) error) error
 }

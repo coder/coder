@@ -244,6 +244,7 @@ export interface Entitlements {
   readonly features: Record<string, Feature>
   readonly warnings: string[]
   readonly has_license: boolean
+  readonly experimental: boolean
 }
 
 // From codersdk/features.go
@@ -602,6 +603,7 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
+  readonly subdomain: boolean
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }

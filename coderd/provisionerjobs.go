@@ -151,6 +151,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
 
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close() // Also closes conn.

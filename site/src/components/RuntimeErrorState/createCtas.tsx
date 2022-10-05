@@ -48,9 +48,10 @@ const ReloadAppButton = (): ReactElement => {
  * createCtas generates an array of buttons to be used with our error boundary UI
  */
 export const createCtas = (codeBlock: string[]): ReactElement[] => {
-  // REMARK: we don't have to worry about key order changing
-  // eslint-disable-next-line react/jsx-key
-  return [<CopyStackButton text={codeBlock.join("\r\n")} />, <ReloadAppButton />]
+  return [
+    <CopyStackButton key="copy-stack-btn" text={codeBlock.join("\r\n")} />,
+    <ReloadAppButton key="reload-app-btn" />,
+  ]
 }
 
 const useStyles = makeStyles((theme) => ({

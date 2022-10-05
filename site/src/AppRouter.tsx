@@ -34,9 +34,6 @@ const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
-const WorkspaceAppErrorPage = lazy(
-  () => import("./pages/WorkspaceAppErrorPage/WorkspaceAppErrorPage"),
-)
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 const TemplatePage = lazy(() => import("./pages/TemplatePage/TemplatePage"))
@@ -188,17 +185,6 @@ export const AppRouter: FC = () => {
                 </RequireAuth>
               }
             />
-
-            <Route path="apps">
-              <Route
-                path=":app/*"
-                element={
-                  <AuthAndFrame>
-                    <WorkspaceAppErrorPage />
-                  </AuthAndFrame>
-                }
-              />
-            </Route>
 
             <Route
               path="builds/:buildNumber"

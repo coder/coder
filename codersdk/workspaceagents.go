@@ -387,7 +387,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if isFirst {
-				if err != nil && res.StatusCode == http.StatusConflict {
+				if res != nil && res.StatusCode == http.StatusConflict {
 					first <- readBodyAsError(res)
 					return
 				}
