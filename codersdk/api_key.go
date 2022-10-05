@@ -22,6 +22,15 @@ type APIKey struct {
 	LifetimeSeconds int64     `json:"lifetime_seconds" validate:"required"`
 }
 
+type LoginType string
+
+const (
+	LoginTypePassword LoginType = "password"
+	LoginTypeGithub   LoginType = "github"
+	LoginTypeOIDC     LoginType = "oidc"
+	LoginTypeMachine  LoginType = "machine"
+)
+
 // CreateMachineKey generates an API key that doesn't expire.
 func (c *Client) CreateMachineKey(ctx context.Context) (*GenerateAPIKeyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/machine", Me), nil)

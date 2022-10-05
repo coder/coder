@@ -22,14 +22,6 @@ const (
 	UserStatusSuspended UserStatus = "suspended"
 )
 
-type LoginType string
-
-const (
-	LoginTypePassword LoginType = "password"
-	LoginTypeGithub   LoginType = "github"
-	LoginTypeOIDC     LoginType = "oidc"
-)
-
 type UsersRequest struct {
 	Search string `json:"search,omitempty" typescript:"-"`
 	// Filter users by status.
