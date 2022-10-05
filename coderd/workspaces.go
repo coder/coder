@@ -1038,14 +1038,14 @@ func unconvertStatus(status codersdk.WorkspaceStatus) (codersdk.WorkspaceTransit
 	switch status {
 	case codersdk.WorkspaceStatusDeleted:
 		return codersdk.WorkspaceTransitionDelete, codersdk.ProvisionerJobSucceeded
-	case codersdk.WorkspaceStatusRunning
+	case codersdk.WorkspaceStatusRunning:
 		return codersdk.WorkspaceTransitionStart, codersdk.ProvisionerJobSucceeded
-	case codersdk.WorkspaceStatusStopped
+	case codersdk.WorkspaceStatusStopped:
 		return codersdk.WorkspaceTransitionStop, codersdk.ProvisionerJobSucceeded
 	}
 
 	// it's either not a valid status, or one we can't reverse engineer with certainty
-	return "" ""
+	return "", ""
 }
 
 func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
