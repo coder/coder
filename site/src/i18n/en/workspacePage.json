@@ -10,7 +10,6 @@
   "ctas": {
     "createWorkspaceCta": "Create new workspace",
     "extendScheduleCta": "Extend"
-
   },
   "warningsAndErrors": {
     "workspaceRefreshWarning": "We're having difficulty fetching the latest workspace state. Refresh the page to see the newest changes.",
