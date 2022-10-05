@@ -130,6 +130,10 @@ resource "kubernetes_manifest" "vcluster" {
         "values" = <<-EOT
         service:
           type: NodePort
+        securityContext:
+          runAsUser: 12345
+          runAsNonRoot: true
+          privileged: false
         syncer:
           extraArgs:
             - --tls-san="${data.coder_workspace.me.name}.${var.base_domain}"
@@ -159,51 +163,51 @@ resource "kubernetes_manifest" "configmap_capi_init" {
   }
 }
 
-data "kubernetes_secret" "vcluster-kubeconfig" {
-  metadata {
-    name      = "${data.coder_workspace.me.name}-kubeconfig"
-    namespace = data.coder_workspace.me.name
-  }
+# data "kubernetes_secret" "vcluster-kubeconfig" {
+#   metadata {
+#     name      = "${data.coder_workspace.me.name}-kubeconfig"
+#     namespace = data.coder_workspace.me.name
+#   }
 
-  depends_on = [
-    kubernetes_manifest.cluster,
-    kubernetes_manifest.vcluster,
-    kubernetes_manifest.clusterresourceset_capi_init
-  ]
-}
+#   depends_on = [
+#     kubernetes_manifest.cluster,
+#     kubernetes_manifest.vcluster,
+#     kubernetes_manifest.clusterresourceset_capi_init
+#   ]
+# }
 
-// using a manifest instead of secret, so that the wait capability works
-resource "kubernetes_manifest" "configmap_capi_kubeconfig" {
-  manifest = {
-    "kind" = "Secret"
-    "metadata" = {
-      "name"      = "vcluster-kubeconfig"
-      "namespace" = data.coder_workspace.me.name
-    }
-    "apiVersion" = "v1"
-    "type"       = "addons.cluster.x-k8s.io/resource-set"
-    "data" = {
-      "kubeconfig.yaml" = base64encode(data.kubernetes_secret.vcluster-kubeconfig.data.value)
-    }
-  }
+# // using a manifest instead of secret, so that the wait capability works
+# resource "kubernetes_manifest" "configmap_capi_kubeconfig" {
+#   manifest = {
+#     "kind" = "Secret"
+#     "metadata" = {
+#       "name"      = "vcluster-kubeconfig"
+#       "namespace" = data.coder_workspace.me.name
+#     }
+#     "apiVersion" = "v1"
+#     "type"       = "addons.cluster.x-k8s.io/resource-set"
+#     "data" = {
+#       "kubeconfig.yaml" = base64encode(data.kubernetes_secret.vcluster-kubeconfig.data.value)
+#     }
+#   }
 
-  depends_on = [
-    kubernetes_manifest.cluster,
-    kubernetes_manifest.vcluster,
-    kubernetes_manifest.clusterresourceset_capi_init,
-    data.kubernetes_secret.vcluster-kubeconfig
-  ]
+#   depends_on = [
+#     kubernetes_manifest.cluster,
+#     kubernetes_manifest.vcluster,
+#     kubernetes_manifest.clusterresourceset_capi_init,
+#     data.kubernetes_secret.vcluster-kubeconfig
+#   ]
 
-  wait {
-    fields = {
-      "data[\"kubeconfig.yaml\"]" = "*"
-    }
-  }
+#   wait {
+#     fields = {
+#       "data[\"kubeconfig.yaml\"]" = "*"
+#     }
+#   }
 
-  timeouts {
-    create = "1m"
-  }
-}
+#   timeouts {
+#     create = "1m"
+#   }
+# }
 
 resource "kubernetes_manifest" "clusterresourceset_capi_init" {
   manifest = {
@@ -224,10 +228,10 @@ resource "kubernetes_manifest" "clusterresourceset_capi_init" {
           "kind" = "ConfigMap"
           "name" = "capi-init"
         },
-        {
-          "kind" = "Secret"
-          "name" = "vcluster-kubeconfig"
-        },
+        # {
+        #   "kind" = "Secret"
+        #   "name" = "vcluster-kubeconfig"
+        # },
       ]
       "strategy" = "ApplyOnce"
     }
@@ -252,48 +256,32 @@ resource "kubernetes_manifest" "clusterresourceset_capi_init" {
 # Need to find a way for it to wait before running, so that the secret exists
 
 # We'll need to use the kubeconfig from above to provision the coder/pair environment
-resource "kubernetes_manifest" "ingress_capi_kubeapi" {
+resource "kubernetes_manifest" "ingress_vcluster" {
   manifest = {
-    "apiVersion" = "networking.k8s.io/v1"
-    "kind"       = "Ingress"
+    "apiVersion" = "projectcontour.io/v1"
+    "kind"       = "HTTPProxy"
     "metadata" = {
-      "annotations" = {
-        "nginx.ingress.kubernetes.io/backend-protocol" = "HTTPS"
-        "nginx.ingress.kubernetes.io/ssl-redirect"     = "true"
-      }
-      "name"      = "kubeapi"
+      "name"      = "${data.coder_workspace.me.name}-apiserver"
       "namespace" = data.coder_workspace.me.name
+      "annotations" = {
+        "projectcontour.io/ingress.class" = "contour-external"
+      }
     }
     "spec" = {
-      "ingressClassName" = "contour-external"
-      "rules" = [
-        {
-          "host" = "${data.coder_workspace.me.name}.${var.base_domain}"
-          "http" = {
-            "paths" = [
-              {
-                "backend" = {
-                  "service" = {
-                    "name" = "vcluster1"
-                    "port" = {
-                      "number" = 443
-                    }
-                  }
-                }
-                "path"     = "/"
-                "pathType" = "ImplementationSpecific"
-              },
-            ]
-          }
-        },
-      ]
-      "tls" = [
-        {
-          "hosts" = [
-            "${data.coder_workspace.me.name}.${var.base_domain}"
-          ]
-        },
-      ]
+      "tcpproxy" = {
+        "services" = [
+          {
+            "name" = "${data.coder_workspace.me.name}"
+            "port" = 443
+          },
+        ]
+      }
+      "virtualhost" = {
+        "fqdn" = "${data.coder_workspace.me.name}.${var.base_domain}"
+        "tls" = {
+          "passthrough" = true
+        }
+      }
     }
   }
 }
