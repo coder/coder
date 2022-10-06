@@ -92,7 +92,7 @@ resource "coder_app" "code-server" {
   icon     = "/icon/code.svg"
 
   healthcheck {
-    url       = "http://localhost:1337/healthz"
+    url       = "http://localhost:13337/healthz"
     interval  = 3
     threshold = 10
   }
