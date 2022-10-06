@@ -1,18 +1,22 @@
 # Google Cloud Platform
 
+In this quickstart, you will learn how to deploy the Coder control plane instance, and deploy your first template. 
+
 ## Requirements
 
-This quick start assumes you have administrator access to your Google Cloud Platform instance. 
+This quickstart assumes you have `roles/compute.instanceAdmin.v1` access to your Google Cloud Platform project.  
 
 ## Setting Up your VM  
 
-If this is the first time you’re creating a VM on this project, you will need to enable the `Compute Engine API`. Click `enable` and wait for the service to finish connecting.
+If this is the first time you’re creating a VM on this project, you will need to enable the `Compute Engine API`. On the Compute Engine API page, click `enable` and wait for the service to finish connecting.
 
-This will pull up the `Create an Instance` page - name the instance something relevant to this project, following your naming convention of choice. In addition, select a region and zone that is relevant / close to your physical location. For this instance, we will use the base suggested image. 
+<img src="../images/quickstart/google-cloud-platform/gcp0.png">
+
+This will pull up the `Create an Instance` page - name the instance something relevant to this project, following your naming convention of choice. In addition, select a region and zone that is close to your physical location. For this instance, we will use the base suggested image.
 
 <img src="../images/quickstart/google-cloud-platform/gcp1.png">
 
-Under `Identity and API Access`, and click `Allow full access to all Cloud APIs`. Scroll down to `Firewall` and click `Allow HTTPS traffic` and `Allow HTTP traffic`.
+Under `Identity and API Access`, click `Allow full access to all Cloud APIs`. Scroll down to `Firewall` and click `Allow HTTPS traffic` and `Allow HTTP traffic`.
 
 <img src="../images/quickstart/google-cloud-platform/gcp2.png">
 
@@ -26,7 +30,7 @@ On the Compute Engine Dashboard, click on the VM for this project. Under `Detail
 
 <img src="../images/quickstart/google-cloud-platform/gcp3.png">
 
-This will give you a terminal to maneuver, manipulate the VM, and install Coder.
+This will give you a terminal into the VM athat we will use to install Coder.
 
 ## Install Coder
 
@@ -72,17 +76,15 @@ Copy the URL and run the following command to create the workspace admin:
 coder login <url***.try.coder.app>
 ```
 
-Fill out the prompts and be sure to save use email and password. These are your admin username and password. 
-
-You can now access Coder on your local machine by navigating to the `***.try.coder.app` URL and logging in with the username and password. 
+Fill out the prompts and be sure to save use email and password. These are your admin username and password. Now, you can now access Coder from your local machine by navigating to the `***.try.coder.app` URL and logging in with that same username and password. 
 
 ## Creating and Uploading your First Template
 
-First, run `coder template init` to create your first template. You’ll be given a list of possible templates to potentially use. This tutorial will show you how to create a Linux based template on GCP. 
+First, run `coder template init` to create your first template. You’ll be given a list of possible prefabricated templates. This tutorial shows you how to create a Linux based template on GCP. 
 
 <img src="../images/quickstart/google-cloud-platform/gcp6.png">
 
-Select the `Develop in Linux on Google Cloud`, then `cd ./gcp-linux` into the folder created from initializing a template. 
+Select the `Develop in Linux on Google Cloud`, then `cd ./gcp-linux`. 
 
 Run the following command: 
 
@@ -92,7 +94,7 @@ coder templates create
 
 It will ask for your `project-id`, which you can find on the home page of your GCP Dashboard. 
 
-Given it’s your first time setting up Coder, it may an error that will look like the following:
+Given it’s your first time setting up Coder, it may give an error that will look like the following:
 
 <img src="../images/quickstart/google-cloud-platform/gcp7.png">
 
@@ -106,7 +108,7 @@ Once initialized, click create credentials in the upper right-hand corner. Selec
 
 Back in your GCP terminal, run the `coder templates create` one more time. 
 
-Congrats! You can now create new Linux-based workspaces that use Google Cloud Platform. 
+Congrats! You can now create new Linux-based workspaces that use Google Cloud Platform. Go onto your Coder dashboard, build your workspace, and get started coding!
 
 ## Next Steps
 
