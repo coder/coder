@@ -45,6 +45,20 @@ func (c *Client) CreateToken(ctx context.Context, userID string) (*GenerateAPIKe
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
+// CreateAPIKey generates an API key for the user ID provided.
+func (c *Client) CreateAPIKey(ctx context.Context, user string) (*GenerateAPIKeyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", user), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusCreated {
+		return nil, readBodyAsError(res)
+	}
+	apiKey := &GenerateAPIKeyResponse{}
+	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+}
+
 // GetTokens list machine API keys.
 func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
