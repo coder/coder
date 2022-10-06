@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func TestMachineKeys(t *testing.T) {
+func TestTokens(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

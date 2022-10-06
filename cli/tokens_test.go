@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 )
 
-func TestMachineKeys(t *testing.T) {
+func TestTokens(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)

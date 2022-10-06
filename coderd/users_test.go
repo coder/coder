@@ -1194,7 +1194,7 @@ func TestGetUsers(t *testing.T) {
 	})
 }
 
-func TestPostMachineKey(t *testing.T) {
+func TestPostTokens(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
