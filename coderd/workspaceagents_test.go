@@ -368,55 +368,50 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	coderdPort, err := strconv.Atoi(client.URL.Port())
+	require.NoError(t, err)
 
-	setup := func(t *testing.T) (client *codersdk.Client, agentID uuid.UUID, coderdPort uint16) {
-		client = coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
-		coderdPortInt, err := strconv.Atoi(client.URL.Port())
-		require.NoError(t, err)
-
-		user := coderdtest.CreateFirstUser(t, client)
-		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
 						}},
-					},
+					}},
 				},
-			}},
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
-		agentCloser := agent.New(agent.Options{
-			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-		})
-		t.Cleanup(func() {
-			_ = agentCloser.Close()
-		})
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-
-		return client, resources[0].Agents[0].ID, uint16(coderdPortInt)
-	}
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	t.Cleanup(func() {
+		_ = agentCloser.Close()
+	})
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 
 	t.Run("LinuxAndWindows", func(t *testing.T) {
 		t.Parallel()
@@ -424,8 +419,6 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			t.Skip("only runs on linux and windows")
 			return
 		}
-
-		client, agentID, coderdPort := setup(t)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -438,7 +431,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		tcpAddr, _ := l.Addr().(*net.TCPAddr)
 
 		// List ports and ensure that the port we expect to see is there.
-		res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
+		res, err := client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 
 		var (
@@ -446,7 +439,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				// expect the listener we made
 				uint16(tcpAddr.Port): false,
 				// expect the coderdtest server
-				coderdPort: false,
+				uint16(coderdPort): false,
 			}
 		)
 		for _, port := range res.Ports {
@@ -468,7 +461,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		// Close the listener and check that the port is no longer in the response.
 		require.NoError(t, l.Close())
 		time.Sleep(2 * time.Second) // avoid cache
-		res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+		res, err = client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 
 		for _, port := range res.Ports {
@@ -485,8 +478,6 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			return
 		}
 
-		client, agentID, _ := setup(t)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -496,7 +487,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		defer l.Close()
 
 		// List ports and ensure that the list is empty because we're on darwin.
-		res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
+		res, err := client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		require.Len(t, res.Ports, 0)
 	})
