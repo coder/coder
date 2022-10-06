@@ -1,4 +1,5 @@
-//go:build !linux && !(windows && amd64)
+//go:build !linux && !windows
+// +build !linux,!windows
 
 package agent
 
