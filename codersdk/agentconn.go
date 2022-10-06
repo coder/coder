@@ -229,8 +229,8 @@ const (
 )
 
 type ListeningPort struct {
-	ProcessName string               `json:"process_name"`
-	Network     ListeningPortNetwork `json:"network"` // only "tcp" at the moment
+	ProcessName string               `json:"process_name"` // may be empty
+	Network     ListeningPortNetwork `json:"network"`      // only "tcp" at the moment
 	Port        uint16               `json:"port"`
 }
 
