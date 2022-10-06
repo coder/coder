@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -206,6 +207,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
 		}
 	}()
+
 	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for reconnecting pty", slog.Error(err))
@@ -240,6 +242,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
 	}()
+
 	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for speedtest", slog.Error(err))
@@ -259,6 +262,31 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 				defer a.connCloseWait.Done()
 				_ = speedtest.ServeConn(conn)
 			}()
+		}
+	}()
+
+	statisticsListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for statistics", slog.Error(err))
+		return
+	}
+	go func() {
+		defer statisticsListener.Close()
+		server := &http.Server{
+			Handler:           a.statisticsHandler(),
+			ReadTimeout:       20 * time.Second,
+			ReadHeaderTimeout: 20 * time.Second,
+			WriteTimeout:      20 * time.Second,
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
+		}
+		go func() {
+			<-ctx.Done()
+			_ = server.Close()
+		}()
+
+		err = server.Serve(statisticsListener)
+		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
+			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
 		}
 	}()
 }

@@ -13,8 +13,8 @@ export default {
 
 const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
 
-export const Started = Template.bind({})
-Started.args = {
+export const Running = Template.bind({})
+Running.args = {
   bannerProps: {
     isLoading: false,
     onExtend: action("extend"),
@@ -53,42 +53,32 @@ Started.args = {
 
 export const WithoutUpdateAccess = Template.bind({})
 WithoutUpdateAccess.args = {
-  ...Started.args,
+  ...Running.args,
   canUpdateWorkspace: false,
 }
 
 export const Starting = Template.bind({})
 Starting.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockStartingWorkspace,
 }
 
 export const Stopped = Template.bind({})
 Stopped.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockStoppedWorkspace,
 }
 
 export const Stopping = Template.bind({})
 Stopping.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockStoppingWorkspace,
 }
 
-export const Error = Template.bind({})
-Error.args = {
-  ...Started.args,
-  workspace: {
-    ...Mocks.MockFailedWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      job: {
-        ...Mocks.MockProvisionerJob,
-        status: "failed",
-      },
-      transition: "start",
-    },
-  },
+export const Failed = Template.bind({})
+Failed.args = {
+  ...Running.args,
+  workspace: Mocks.MockFailedWorkspace,
   workspaceErrors: {
     [WorkspaceErrors.BUILD_ERROR]: Mocks.makeMockApiError({
       message: "A workspace build is already active.",
@@ -98,37 +88,37 @@ Error.args = {
 
 export const Deleting = Template.bind({})
 Deleting.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockDeletingWorkspace,
 }
 
 export const Deleted = Template.bind({})
 Deleted.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockDeletedWorkspace,
 }
 
 export const Canceling = Template.bind({})
 Canceling.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockCancelingWorkspace,
 }
 
 export const Canceled = Template.bind({})
 Canceled.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockCanceledWorkspace,
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
-  ...Started.args,
+  ...Running.args,
   workspace: Mocks.MockOutdatedWorkspace,
 }
 
 export const GetBuildsError = Template.bind({})
 GetBuildsError.args = {
-  ...Started.args,
+  ...Running.args,
   workspaceErrors: {
     [WorkspaceErrors.GET_BUILDS_ERROR]: Mocks.makeMockApiError({
       message: "There is a problem fetching builds.",
@@ -138,7 +128,7 @@ GetBuildsError.args = {
 
 export const GetResourcesError = Template.bind({})
 GetResourcesError.args = {
-  ...Started.args,
+  ...Running.args,
   workspaceErrors: {
     [WorkspaceErrors.GET_RESOURCES_ERROR]: Mocks.makeMockApiError({
       message: "There is a problem fetching workspace resources.",
@@ -148,7 +138,7 @@ GetResourcesError.args = {
 
 export const CancellationError = Template.bind({})
 CancellationError.args = {
-  ...Error.args,
+  ...Failed.args,
   workspaceErrors: {
     [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.makeMockApiError({
       message: "Job could not be canceled.",
