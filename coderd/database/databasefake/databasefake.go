@@ -279,6 +279,19 @@ func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginType) ([]database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apiKeys := make([]database.APIKey, 0)
+	for _, key := range q.apiKeys {
+		if key.LoginType == t {
+			apiKeys = append(apiKeys, key)
+		}
+	}
+	return apiKeys, nil
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -520,7 +533,13 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+	// A nil auth filter means no auth filter.
+	workspaces, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
+	return workspaces, err
+}
+
+func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -559,6 +578,11 @@ func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspace
 			if !match {
 				continue
 			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+			continue
 		}
 		workspaces = append(workspaces, workspace)
 	}
@@ -2058,7 +2082,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
-		RelativePath:         arg.RelativePath,
+		Subdomain:            arg.Subdomain,
 		HealthcheckUrl:       arg.HealthcheckUrl,
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
