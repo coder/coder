@@ -34,7 +34,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// machine keys last 100 years
+	// tokens last 100 years
 	lifeTime := time.Hour * 876000
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
