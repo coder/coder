@@ -1,9 +1,9 @@
 import Button from "@material-ui/core/Button"
 import { FC } from "react"
-import * as TypesGen from "../../api/typesGenerated"
-import { isWorkspaceDeleted } from "../../util/workspace"
+import * as TypesGen from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
+import { Maybe } from "components/Conditionals/Maybe"
 
 export interface WorkspaceDeletedBannerProps {
   workspace: TypesGen.Workspace
@@ -16,10 +16,6 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
 }) => {
   const { t } = useTranslation("workspacePage")
 
-  if (!isWorkspaceDeleted(workspace)) {
-    return null
-  }
-
   const NewWorkspaceButton = (
     <Button onClick={handleClick} size="small">
       {t("ctas.createWorkspaceCta")}
@@ -27,10 +23,12 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
   )
 
   return (
-    <AlertBanner
-      text={t("warningsAndErrors.workspaceDeletedWarning")}
-      actions={[NewWorkspaceButton]}
-      severity="warning"
-    />
+    <Maybe condition={workspace.latest_build.status === "deleted"}>
+      <AlertBanner
+        text={t("warningsAndErrors.workspaceDeletedWarning")}
+        actions={[NewWorkspaceButton]}
+        severity="warning"
+      />
+    </Maybe>
   )
 }

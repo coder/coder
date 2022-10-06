@@ -1,7 +1,7 @@
 {
   "workspaceStatus": {
     "loading": "Loading",
-    "started": "Running",
+    "running": "Running",
     "starting": "Starting",
     "stopping": "Stopping",
     "stopped": "Stopped",
@@ -10,7 +10,7 @@
     "canceling": "Canceling action",
     "canceled": "Canceled action",
     "failed": "Failed",
-    "queued": "Queued"
+    "pending": "Pending"
   },
   "deleteDialog": {
     "title": "Delete {{entity}}",

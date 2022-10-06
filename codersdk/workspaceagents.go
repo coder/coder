@@ -387,7 +387,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if isFirst {
-				if err != nil && res.StatusCode == http.StatusConflict {
+				if res != nil && res.StatusCode == http.StatusConflict {
 					first <- readBodyAsError(res)
 					return
 				}
@@ -518,6 +518,21 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, readBodyAsError(res)
 	}
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
+// WorkspaceAgentListeningPorts returns a list of ports that are currently being
+// listened on inside the workspace agent's network namespace.
+func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (ListeningPortsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/listening-ports", agentID), nil)
+	if err != nil {
+		return ListeningPortsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListeningPortsResponse{}, readBodyAsError(res)
+	}
+	var listeningPorts ListeningPortsResponse
+	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
 // Stats records the Agent's network connection statistics for use in
