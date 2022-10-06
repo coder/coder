@@ -13,6 +13,7 @@ export default defineConfig({
   define: {
     "process.env": {
       NODE_ENV: process.env.NODE_ENV,
+      INSPECT_XSTATE: process.env.INSPECT_XSTATE,
     },
   },
   server: {

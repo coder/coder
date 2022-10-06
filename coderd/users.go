@@ -1018,6 +1018,43 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(rw, cookie)
 
+	// Delete the session token from database.
+	apiKey := httpmw.APIKey(r)
+	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Deployments should not host app tokens on the same domain as the
+	// primary deployment. But in the case they are, we should also delete this
+	// token.
+	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+		appCookieRemove := &http.Cookie{
+			// MaxAge < 0 means to delete the cookie now.
+			MaxAge: -1,
+			Name:   httpmw.DevURLSessionTokenCookie,
+			Path:   "/",
+			Domain: "." + api.AccessURL.Hostname(),
+		}
+		http.SetCookie(rw, appCookieRemove)
+
+		id, _, err := httpmw.SplitAPIToken(appCookie.Value)
+		if err == nil {
+			err = api.Database.DeleteAPIKeyByID(ctx, id)
+			if err != nil {
+				// Don't block logout, just log any errors.
+				api.Logger.Warn(r.Context(), "failed to delete devurl token on logout",
+					slog.Error(err),
+					slog.F("id", id),
+				)
+			}
+		}
+	}
+
 	// This code should be removed after Jan 1 2023.
 	// This code logs out of the old session cookie before we renamed it
 	// if it is a valid coder token. Otherwise, this old cookie hangs around
@@ -1034,17 +1071,6 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 			}
 			http.SetCookie(rw, cookie)
 		}
-	}
-
-	// Delete the session token from database.
-	apiKey := httpmw.APIKey(r)
-	err = api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error deleting API key.",
-			Detail:  err.Error(),
-		})
-		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{

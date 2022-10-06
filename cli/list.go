@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -128,13 +127,9 @@ func list() *cobra.Command {
 		},
 	}
 
-	v := reflect.Indirect(reflect.ValueOf(displayWorkspaces))
-	availColumns, err := cliui.TypeToTableHeaders(v.Type().Elem())
+	availColumns, err := cliui.TableHeaders(displayWorkspaces)
 	if err != nil {
 		panic(err)
-	}
-	for i, s := range availColumns {
-		availColumns[i] = strings.Replace(s, " ", "_", -1)
 	}
 	columnString := strings.Join(availColumns[:], ", ")
 

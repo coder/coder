@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.15"
+      version = "0.5.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -71,11 +71,11 @@ resource "coder_agent" "main" {
 
 # code-server
 resource "coder_app" "code-server" {
-  agent_id      = coder_agent.main.id
-  name          = "code-server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:13337?folder=/home/coder"
-  relative_path = true
+  agent_id  = coder_agent.main.id
+  name      = "code-server"
+  icon      = "/icon/code.svg"
+  url       = "http://localhost:13337?folder=/home/coder"
+  subdomain = false
 
   healthcheck {
     url       = "http://localhost:1337/healthz"

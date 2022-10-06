@@ -13,7 +13,7 @@ import (
 var site embed.FS
 
 func FS() fs.FS {
-	// the out directory is where webpack builds are created. It is in the same
+	// the out directory is where FE builds are created. It is in the same
 	// directory as this file (package site).
 	out, err := fs.Sub(site, "out")
 	if err != nil {

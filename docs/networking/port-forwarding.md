@@ -12,12 +12,32 @@ There are three ways to forward ports in Coder:
 
 The `coder port-forward` command is generally more performant.
 
-## coder port-forward
+## The `coder port-forward` command
 
-Forward the remote TCP port `8080` to local port `8000` like so:
+This command can be used to forward TCP or UDP ports from the remote
+workspace so they can be accessed locally. Both the TCP and UDP command
+line flags (`--tcp` and `--udp`) can be given once or multiple times.
+
+The supported syntax variations for the `--tcp` and `--udp` flag are:
+
+- Single port with optional remote port: `local_port[:remote_port]`
+- Comma separation `local_port1,local_port2`
+- Port ranges `start_port-end_port`
+- Any combination of the above
+
+### Examples
+
+Forward the remote TCP port `8080` to local port `8000`:
 
 ```console
 coder port-forward myworkspace --tcp 8000:8080
+```
+
+Forward the remote TCP port `3000` and all ports from `9990` to `9999`
+to their respective local ports.
+
+```console
+coder port-forward myworkspace --tcp 3000,9990-9999
 ```
 
 For more examples, see `coder port-forward --help`.

@@ -67,7 +67,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 	}
 
 	// Get the list of table column headers.
-	headersRaw, err := TypeToTableHeaders(v.Type().Elem())
+	headersRaw, err := typeToTableHeaders(v.Type().Elem())
 	if err != nil {
 		return "", xerrors.Errorf("get table headers recursively for type %q: %w", v.Type().Elem().String(), err)
 	}
@@ -207,10 +207,10 @@ func isStructOrStructPointer(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct || (t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Struct)
 }
 
-// TypeToTableHeaders converts a type to a slice of column names. If the given
+// typeToTableHeaders converts a type to a slice of column names. If the given
 // type is invalid (not a struct or a pointer to a struct, has invalid table
 // tags, etc.), an error is returned.
-func TypeToTableHeaders(t reflect.Type) ([]string, error) {
+func typeToTableHeaders(t reflect.Type) ([]string, error) {
 	if !isStructOrStructPointer(t) {
 		return nil, xerrors.Errorf("typeToTableHeaders called with a non-struct or a non-pointer-to-a-struct type")
 	}
@@ -235,7 +235,7 @@ func TypeToTableHeaders(t reflect.Type) ([]string, error) {
 				return nil, xerrors.Errorf("field %q in type %q is marked as recursive but does not contain a struct or a pointer to a struct", field.Name, t.String())
 			}
 
-			childNames, err := TypeToTableHeaders(fieldType)
+			childNames, err := typeToTableHeaders(fieldType)
 			if err != nil {
 				return nil, xerrors.Errorf("get child field header names for field %q in type %q: %w", field.Name, fieldType.String(), err)
 			}
@@ -304,4 +304,19 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 	}
 
 	return row, nil
+}
+
+// TableHeaders returns the table header names of all
+// fields in tSlice. tSlice must be a slice of some type.
+func TableHeaders(tSlice any) ([]string, error) {
+	v := reflect.Indirect(reflect.ValueOf(tSlice))
+	rawHeaders, err := typeToTableHeaders(v.Type().Elem())
+	if err != nil {
+		return nil, xerrors.Errorf("type to table headers: %w", err)
+	}
+	out := make([]string, 0, len(rawHeaders))
+	for _, hdr := range rawHeaders {
+		out = append(out, strings.Replace(hdr, " ", "_", -1))
+	}
+	return out, nil
 }
