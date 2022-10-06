@@ -410,7 +410,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	t.Run("LinuxAndWindows", func(t *testing.T) {
 		t.Parallel()
