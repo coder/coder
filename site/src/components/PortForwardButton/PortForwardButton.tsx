@@ -34,6 +34,7 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
   useEffect(() => {
     getAgentListeningPorts(agentID)
       .then((res) => {
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         setPorts(res.ports.filter((p) => p.network === "tcp"))
       })
       .catch(() => {
