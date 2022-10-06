@@ -165,19 +165,19 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, entitlements.Trial)
 	})
 
-	t.Run("TrialEntitledAll", func(t *testing.T) {
+	t.Run("AllFeatures", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				Trial: true,
+				AllFeatures: true,
 			}),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.True(t, entitlements.Trial)
+		require.False(t, entitlements.Trial)
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
 				continue

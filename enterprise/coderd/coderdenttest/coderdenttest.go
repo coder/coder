@@ -88,6 +88,7 @@ type LicenseOptions struct {
 	AccountType    string
 	AccountID      string
 	Trial          bool
+	AllFeatures    bool
 	GraceAt        time.Time
 	ExpiresAt      time.Time
 	UserLimit      int64
@@ -143,6 +144,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		AccountID:      options.AccountID,
 		Trial:          options.Trial,
 		Version:        license.CurrentVersion,
+		AllFeatures:    options.AllFeatures,
 		Features: license.Features{
 			UserLimit:      options.UserLimit,
 			AuditLog:       auditLog,

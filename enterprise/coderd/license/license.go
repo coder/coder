@@ -41,6 +41,8 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 		return entitlements, xerrors.Errorf("query active user count: %w", err)
 	}
 
+	allFeatures := false
+
 	// Here we loop through licenses to detect enabled features.
 	for _, l := range licenses {
 		claims, err := validateDBLicense(l, keys)
@@ -94,9 +96,12 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 				Enabled:     enablements[codersdk.FeatureWorkspaceQuota],
 			}
 		}
+		if claims.AllFeatures {
+			allFeatures = true
+		}
 	}
 
-	if entitlements.Trial {
+	if allFeatures {
 		for _, featureName := range codersdk.FeatureNames {
 			// No user limit!
 			if featureName == codersdk.FeatureUserLimit {
@@ -171,6 +176,7 @@ type Claims struct {
 	AccountType    string           `json:"account_type,omitempty"`
 	AccountID      string           `json:"account_id,omitempty"`
 	Trial          bool             `json:"trial"`
+	AllFeatures    bool             `json:"all_features"`
 	Version        uint64           `json:"version"`
 	Features       Features         `json:"features"`
 }
