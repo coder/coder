@@ -520,6 +520,21 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
+// WorkspaceAgentListeningPorts returns a list of ports that are currently being
+// listened on inside the workspace agent's network namespace.
+func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (ListeningPortsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/listening-ports", agentID), nil)
+	if err != nil {
+		return ListeningPortsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListeningPortsResponse{}, readBodyAsError(res)
+	}
+	var listeningPorts ListeningPortsResponse
+	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
+}
+
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 // Each member value must be written and read with atomic.
