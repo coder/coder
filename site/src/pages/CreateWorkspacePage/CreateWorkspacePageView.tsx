@@ -20,6 +20,7 @@ export enum CreateWorkspaceErrors {
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
   GET_WORKSPACE_QUOTA_ERROR = "getWorkspaceQuotaError",
+  CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -148,13 +149,24 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
               />
 
               {props.canCreateForUser && (
-                <UserAutocomplete
-                  value={props.owner}
-                  onChange={props.setOwner}
-                  label={t("ownerLabel")}
-                  inputMargin="dense"
-                  showAvatar
-                />
+                <>
+                  {Boolean(
+                    props.createWorkspaceErrors[CreateWorkspaceErrors.CHECK_PERMISSIONS_ERROR],
+                  ) && (
+                    <ErrorSummary
+                      error={
+                        props.createWorkspaceErrors[CreateWorkspaceErrors.CHECK_PERMISSIONS_ERROR]
+                      }
+                    />
+                  )}
+                  <UserAutocomplete
+                    value={props.owner}
+                    onChange={props.setOwner}
+                    label={t("ownerLabel")}
+                    inputMargin="dense"
+                    showAvatar
+                  />
+                </>
               )}
 
               {props.workspaceQuota && (

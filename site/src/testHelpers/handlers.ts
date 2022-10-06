@@ -173,4 +173,8 @@ export const handlers = [
   rest.get("/api/v2/applications/host", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json({ host: "dev.coder.com" }))
   }),
+
+  rest.get("/api/v2/workspace-quota/:userId", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockWorkspaceQuota))
+  }),
 ]
