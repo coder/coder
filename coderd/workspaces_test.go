@@ -713,6 +713,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 	})
 	t.Run("Status", func(t *testing.T) {
 		t.Parallel()
+
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -729,34 +730,32 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		defer cancel()
 
 		// filter finds both running workspaces
-		ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Status: "running",
-		})
+		ws1, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
-		require.Len(t, ws, 2)
+		require.Len(t, ws1, 2)
 
 		// stop workspace1
 		build1 := coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStop)
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build1.ID)
 
 		// filter finds one running workspace
-		ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		ws2, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Status: "running",
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 1)
-		require.Equal(t, workspace2.ID, ws[0].ID)
+		require.Len(t, ws2, 1)
+		require.Equal(t, workspace2.ID, ws2[0].ID)
 
 		// stop workspace2
 		build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build2.ID)
 
 		// filter finds no running workspaces
-		ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		ws3, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Status: "running",
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 0)
+		require.Len(t, ws3, 0)
 	})
 	t.Run("FilterQuery", func(t *testing.T) {
 		t.Parallel()

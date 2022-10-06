@@ -10,19 +10,23 @@ LIMIT
 
 -- name: GetWorkspaces :many
 SELECT
-    workspaces.*
+	workspaces.*
 FROM
-    workspaces
+	workspaces
 LEFT JOIN LATERAL (
 	SELECT
-		*
-	FROM (
-			workspace_builds
-		LEFT JOIN
-			provisioner_jobs
-		ON
-			provisioner_jobs.id = workspace_builds.job_id
-	)
+		workspace_builds.transition,
+		provisioner_jobs.started_at,
+		provisioner_jobs.updated_at,
+		provisioner_jobs.canceled_at,
+		provisioner_jobs.completed_at,
+		provisioner_jobs.error
+	FROM
+		workspace_builds
+	LEFT JOIN
+		provisioner_jobs
+	ON
+		provisioner_jobs.id = workspace_builds.job_id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -31,13 +35,59 @@ LEFT JOIN LATERAL (
 		1
 ) latest_build ON TRUE
 WHERE
-    -- Optionally include deleted workspaces
+	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
 	AND CASE
 		WHEN @status :: text != '' THEN
 			CASE
-				WHEN latest_build.transition =  THEN
-				latest_build.transition = @status
+				WHEN @status = 'pending' THEN
+					latest_build.started_at IS NULL
+				WHEN @status = 'starting' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'start'::workspace_transition
+				WHEN @status = 'running' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'start'::workspace_transition
+				WHEN @status = 'stopping' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'stop'::workspace_transition
+				WHEN @status = 'stopped' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'stop'::workspace_transition
+				WHEN @status = 'failed' THEN
+					(latest_build.canceled_at IS NOT NULL AND
+						latest_build.error IS NOT NULL) OR
+					(latest_build.completed_at IS NOT NULL AND
+						latest_build.error IS NOT NULL)
+				WHEN @status = 'canceling' THEN
+					latest_build.canceled_at IS NOT NULL AND
+					latest_build.completed_at IS NULL
+				WHEN @status = 'canceled' THEN
+					latest_build.canceled_at IS NOT NULL AND
+					latest_build.completed_at IS NOT NULL
+				WHEN @status = 'deleted' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'delete'::workspace_transition
+				WHEN @status = 'deleting' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error = '' AND
+					latest_build.transition = 'delete'::workspace_transition
+				ELSE
+					true
 			END
 		ELSE true
 	END
