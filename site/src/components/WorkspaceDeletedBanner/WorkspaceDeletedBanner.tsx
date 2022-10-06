@@ -26,10 +26,19 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
     </Button>
   )
 
+  // return (
+  //   <WarningAlert
+  //     text={t("warningsAndErrors.workspaceDeletedWarning")}
+  //     actions={[NewWorkspaceButton]}
+  //     severity="warning"
+  //   />
+  // )
+
   return (
     <WarningAlert
       text={t("warningsAndErrors.workspaceDeletedWarning")}
       actions={[NewWorkspaceButton]}
+      severity="error"
     />
   )
 }

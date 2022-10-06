@@ -47,6 +47,7 @@ export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceSchedu
     <WarningAlert
       text={t("warningsAndErrors.workspaceShutdownWarning")}
       actions={[ScheduleButton]}
+      severity="warning"
     />
   )
 }

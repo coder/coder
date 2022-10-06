@@ -13,6 +13,7 @@ export const ExampleWithDismiss = Template.bind({})
 ExampleWithDismiss.args = {
   text: "This is a warning",
   dismissible: true,
+  severity: "warning",
 }
 
 const ExampleAction = (
@@ -25,6 +26,7 @@ export const ExampleWithAction = Template.bind({})
 ExampleWithAction.args = {
   text: "This is a warning",
   actions: [ExampleAction],
+  severity: "warning",
 }
 
 export const ExampleWithActionAndDismiss = Template.bind({})
@@ -32,4 +34,5 @@ ExampleWithActionAndDismiss.args = {
   text: "This is a warning",
   actions: [ExampleAction],
   dismissible: true,
+  severity: "warning",
 }

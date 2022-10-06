@@ -87,7 +87,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   )
 
   const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
-    <WarningAlert text={t("warningsAndErrors.workspaceRefreshWarning")} dismissible />
+    <WarningAlert
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
+      severity="warning"
+      dismissible
+    />
   )
 
   return (
