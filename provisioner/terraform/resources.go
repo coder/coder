@@ -235,7 +235,6 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			}
 		}
 
-		subdomain := attrs.Subdomain
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -247,7 +246,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Command:     attrs.Command,
 					Url:         attrs.URL,
 					Icon:        attrs.Icon,
-					Subdomain:   subdomain,
+					Subdomain:   attrs.Subdomain,
 					Healthcheck: healthcheck,
 				})
 			}
