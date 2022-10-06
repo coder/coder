@@ -25,14 +25,14 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string                     `mapstructure:"agent_id"`
-	Name         string                     `mapstructure:"name"`
-	Icon         string                     `mapstructure:"icon"`
-	URL          string                     `mapstructure:"url"`
-	Command      string                     `mapstructure:"command"`
-	SharingLevel string                     `mapstructure:"share_level"`
-	Subdomain    bool                       `mapstructure:"subdomain"`
-	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	AgentID     string                     `mapstructure:"agent_id"`
+	Name        string                     `mapstructure:"name"`
+	Icon        string                     `mapstructure:"icon"`
+	URL         string                     `mapstructure:"url"`
+	Command     string                     `mapstructure:"command"`
+	Share       string                     `mapstructure:"share"`
+	Subdomain   bool                       `mapstructure:"subdomain"`
+	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -236,6 +236,18 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			}
 		}
 
+		sharingLevel := proto.AppSharingLevel_OWNER
+		switch strings.ToLower(attrs.Share) {
+		case "owner":
+			sharingLevel = proto.AppSharingLevel_OWNER
+		case "template":
+			sharingLevel = proto.AppSharingLevel_TEMPLATE
+		case "authenticated":
+			sharingLevel = proto.AppSharingLevel_AUTHENTICATED
+		case "public":
+			sharingLevel = proto.AppSharingLevel_PUBLIC
+		}
+
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -243,12 +255,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:        attrs.Name,
-					Command:     attrs.Command,
-					Url:         attrs.URL,
-					Icon:        attrs.Icon,
-					Subdomain:   attrs.Subdomain,
-					Healthcheck: healthcheck,
+					Name:         attrs.Name,
+					Command:      attrs.Command,
+					Url:          attrs.URL,
+					Icon:         attrs.Icon,
+					Subdomain:    attrs.Subdomain,
+					SharingLevel: sharingLevel,
+					Healthcheck:  healthcheck,
 				})
 			}
 		}
