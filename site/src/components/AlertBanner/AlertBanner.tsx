@@ -86,7 +86,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     backgroundColor: `${colors.gray[16]}`,
 
     "& svg": {
-      marginTop: props.hasDetail ? "8px" : "inherit",
+      marginTop: props.hasDetail ? `${theme.spacing(1)}px` : "inherit",
     },
   }),
 }))
