@@ -1,6 +1,6 @@
 # Google Cloud Platform
 
-In this quickstart, you will learn how to deploy the Coder control plane instance, and deploy your first template. 
+In this quickstart, you will learn how to deploy the Coder control plane instance and your first template. 
 
 ## Requirements
 
@@ -30,7 +30,7 @@ On the Compute Engine Dashboard, click on the VM for this project. Under `Detail
 
 <img src="../images/quickstart/google-cloud-platform/gcp3.png">
 
-This will give you a terminal into the VM athat we will use to install Coder.
+This will give you a terminal into the VM that we will use to install Coder.
 
 ## Install Coder
 
@@ -42,7 +42,7 @@ curl -fsSL https://coder.com/install.sh | sh
 
 ## Run Coder
 
-For this tutorial, we will run Coder as a System service. You can run Coder in [a multitude of different ways](https://coder.com/docs/coder-oss/latest/install).
+For this tutorial, we will run Coder as a `systemd` service. You can run Coder in [a multitude of different ways](https://coder.com/docs/coder-oss/latest/install).
 
 First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value to true with the following command:
 
@@ -58,13 +58,11 @@ Exit vim and run the following command to start Coder as a system service:
 sudo systemctl enable --now coder
 ``` 
 
-The following command will get you information about the Coder service that is running and is also where the access URL for this Coder instance is written. 
+The following command shows the Coder service's logs, including the Access URL. The Access URL will be used to access the Coder control plane.  
 
 ```sh
 journalctl -u coder.service -b 
 ``` 
-
-This will return a series of logs from launching Coder, however, embedded in the launch is the URL for accessing Coder. 
 
 <img src="../images/quickstart/google-cloud-platform/gcp5.png">
 
@@ -76,11 +74,11 @@ Copy the URL and run the following command to create the workspace admin:
 coder login <url***.try.coder.app>
 ```
 
-Fill out the prompts and be sure to save use email and password. These are your admin username and password. Now, you can now access Coder from your local machine by navigating to the `***.try.coder.app` URL and logging in with that same username and password. 
+Fill out the prompts and be sure to save use email and password. This is your admin login. Now, you can now access Coder from your local machine by navigating to the `***.try.coder.app` URL and logging in with that same username and password. 
 
 ## Creating and Uploading your First Template
 
-First, run `coder template init` to create your first template. You’ll be given a list of possible prefabricated templates. This tutorial shows you how to create a Linux based template on GCP. 
+First, run `coder template init` to create your first template. You’ll be given a list of prefabricated templates. This tutorial shows you how to create a Linux based template on GCP. 
 
 <img src="../images/quickstart/google-cloud-platform/gcp6.png">
 
