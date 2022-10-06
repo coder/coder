@@ -53,6 +53,41 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
+// Creates a new session key, used for logging in via the CLI.
+func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	lifeTime := time.Hour * 24 * 7
+	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+		UserID:     user.ID,
+		LoginType:  database.LoginTypePassword,
+		RemoteAddr: r.RemoteAddr,
+		// All api generated keys will last 1 week. Browser login tokens have
+		// a shorter life.
+		ExpiresAt:       database.Now().Add(lifeTime),
+		LifetimeSeconds: int64(lifeTime.Seconds()),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// We intentionally do not set the cookie on the response here.
+	// Setting the cookie will couple the browser sesion to the API
+	// key we return here, meaning logging out of the website would
+	// invalid your CLI key.
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
+}
+
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()

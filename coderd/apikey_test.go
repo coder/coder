@@ -39,3 +39,15 @@ func TestTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, keys)
 }
+
+func TestAPIKey(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	res, err := client.CreateAPIKey(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Greater(t, len(res.Key), 2)
+}
