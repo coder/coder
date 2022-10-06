@@ -25,16 +25,13 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID   string `mapstructure:"agent_id"`
-	Name      string `mapstructure:"name"`
-	Icon      string `mapstructure:"icon"`
-	URL       string `mapstructure:"url"`
-	Command   string `mapstructure:"command"`
-	Subdomain bool   `mapstructure:"subdomain"`
-	// RelativePath is deprecated in favor of Subdomain. This value is a pointer
-	// because we prefer it over Subdomain it was explicitly set.
-	RelativePath *bool                      `mapstructure:"relative_path"`
-	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	AgentID     string                     `mapstructure:"agent_id"`
+	Name        string                     `mapstructure:"name"`
+	Icon        string                     `mapstructure:"icon"`
+	URL         string                     `mapstructure:"url"`
+	Command     string                     `mapstructure:"command"`
+	Subdomain   bool                       `mapstructure:"subdomain"`
+	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -238,12 +235,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			}
 		}
 
-		// Default attrs.RelativePath to true if unspecified in Terraform.
 		subdomain := attrs.Subdomain
-		if attrs.RelativePath != nil {
-			subdomain = !*attrs.RelativePath
-		}
-
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
