@@ -16,8 +16,13 @@ FROM
 LEFT JOIN LATERAL (
 	SELECT
 		*
-	FROM
-		workspace_builds
+	FROM (
+			workspace_builds
+		LEFT JOIN
+			provisioner_jobs
+		ON
+			provisioner_jobs.id = workspace_builds.job_id
+	)
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -30,7 +35,10 @@ WHERE
 	workspaces.deleted = @deleted
 	AND CASE
 		WHEN @status :: text != '' THEN
-			latest_build.transition = convertStatus(@status)
+			CASE
+				WHEN latest_build.transition =  THEN
+				latest_build.transition = @status
+			END
 		ELSE true
 	END
 	-- Filter by owner_id
