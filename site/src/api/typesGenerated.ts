@@ -686,7 +686,7 @@ export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export type LogSource = "provisioner" | "provisioner_daemon"
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "machine" | "oidc" | "password"
+export type LoginType = "github" | "oidc" | "password" | "token"
 
 // From codersdk/parameters.go
 export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"

@@ -120,7 +120,7 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
-	LoginTypeMachine  LoginType = "machine"
+	LoginTypeToken    LoginType = "token"
 )
 
 func (e *LoginType) Scan(src interface{}) error {

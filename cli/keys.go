@@ -12,59 +12,59 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func keys() *cobra.Command {
+func tokens() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "keys",
-		Short:   "Manage machine keys",
-		Long:    "Machine keys are used to authenticate automated clients to Coder.",
-		Aliases: []string{"key"},
+		Use:     "tokens",
+		Short:   "Manage personal access tokens",
+		Long:    "Tokens are used to authenticate automated clients to Coder.",
+		Aliases: []string{"token"},
 		Example: formatExamples(
 			example{
-				Description: "Create a machine key for CI/CD scripts",
-				Command:     "coder keys create",
+				Description: "Create a token for automation",
+				Command:     "coder tokens create",
 			},
 			example{
-				Description: "List your machine keys",
-				Command:     "coder keys ls",
+				Description: "List your tokens",
+				Command:     "coder tokens ls",
 			},
 			example{
-				Description: "Remove a key by ID",
-				Command:     "coder keys rm WuoWs4ZsMX",
+				Description: "Remove a token by ID",
+				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
 		),
 	}
 	cmd.AddCommand(
-		createKey(),
-		listKeys(),
-		removeKey(),
+		createToken(),
+		listTokens(),
+		removeToken(),
 	)
 
 	return cmd
 }
 
-func createKey() *cobra.Command {
+func createToken() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a machine key",
+		Short: "Create a tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			res, err := client.CreateMachineKey(cmd.Context(), codersdk.Me)
+			res, err := client.CreateToken(cmd.Context(), codersdk.Me)
 			if err != nil {
-				return xerrors.Errorf("create machine key: %w", err)
+				return xerrors.Errorf("create tokens: %w", err)
 			}
 
 			cmd.Println(cliui.Styles.Wrap.Render(
-				"Here is your API key. 🪄",
+				"Here is your token. 🪄",
 			))
 			cmd.Println()
 			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(res.Key)))
 			cmd.Println()
 			cmd.Println(cliui.Styles.Wrap.Render(
-				fmt.Sprintf("You can use this API key by setting --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenKey),
+				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenKey),
 			))
 
 			return nil
@@ -74,38 +74,38 @@ func createKey() *cobra.Command {
 	return cmd
 }
 
-type keyRow struct {
+type tokenRow struct {
 	ID        string    `table:"ID"`
 	LastUsed  time.Time `table:"Last Used"`
 	ExpiresAt time.Time `table:"Expires At"`
 	CreatedAt time.Time `table:"Created At"`
 }
 
-func listKeys() *cobra.Command {
+func listTokens() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		Short:   "List machine keys",
+		Short:   "List tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.GetMachineKeys(cmd.Context(), codersdk.Me)
+			keys, err := client.GetTokens(cmd.Context(), codersdk.Me)
 			if err != nil {
-				return xerrors.Errorf("create machine key: %w", err)
+				return xerrors.Errorf("create tokens: %w", err)
 			}
 
 			if len(keys) == 0 {
 				cmd.Println(cliui.Styles.Wrap.Render(
-					"No machine keys found.",
+					"No tokens found.",
 				))
 			}
 
-			var rows []keyRow
+			var rows []tokenRow
 			for _, key := range keys {
-				rows = append(rows, keyRow{
+				rows = append(rows, tokenRow{
 					ID:        key.ID,
 					LastUsed:  key.LastUsed,
 					ExpiresAt: key.ExpiresAt,
@@ -126,11 +126,11 @@ func listKeys() *cobra.Command {
 	return cmd
 }
 
-func removeKey() *cobra.Command {
+func removeToken() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "remove [id]",
 		Aliases: []string{"rm"},
-		Short:   "Delete a machine key",
+		Short:   "Delete a token",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
@@ -144,7 +144,7 @@ func removeKey() *cobra.Command {
 			}
 
 			cmd.Println(cliui.Styles.Wrap.Render(
-				"API key has been deleted.",
+				"Token has been deleted.",
 			))
 
 			return nil

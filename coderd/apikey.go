@@ -24,8 +24,8 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-// Creates a new machine session key that effectively doesn't expire.
-func (api *API) postMachineAPIKey(rw http.ResponseWriter, r *http.Request) {
+// Creates a new token API key that effectively doesn't expire.
+func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
@@ -38,7 +38,7 @@ func (api *API) postMachineAPIKey(rw http.ResponseWriter, r *http.Request) {
 	lifeTime := time.Hour * 876000
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
-		LoginType:       database.LoginTypeMachine,
+		LoginType:       database.LoginTypeToken,
 		ExpiresAt:       database.Now().Add(lifeTime),
 		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
@@ -50,10 +50,6 @@ func (api *API) postMachineAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// We intentionally do not set the cookie on the response here.
-	// Setting the cookie will couple the browser sesion to the API
-	// key we return here, meaning logging out of the website would
-	// invalid your CLI key.
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
@@ -85,7 +81,7 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
 }
 
-func (api *API) machineKeys(rw http.ResponseWriter, r *http.Request) {
+func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		user = httpmw.UserParam(r)
@@ -96,7 +92,7 @@ func (api *API) machineKeys(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeMachine)
+	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.APIKey{})
 		return

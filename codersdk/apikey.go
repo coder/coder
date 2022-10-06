@@ -28,12 +28,12 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
-	LoginTypeMachine  LoginType = "machine"
+	LoginTypeToken    LoginType = "token"
 )
 
-// CreateMachineKey generates an API key that doesn't expire.
-func (c *Client) CreateMachineKey(ctx context.Context, userID string) (*GenerateAPIKeyResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/machine", userID), nil)
+// CreateToken generates an API key that doesn't expire.
+func (c *Client) CreateToken(ctx context.Context, userID string) (*GenerateAPIKeyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +45,9 @@ func (c *Client) CreateMachineKey(ctx context.Context, userID string) (*Generate
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
-// GetMachineKeys list machine API keys.
-func (c *Client) GetMachineKeys(ctx context.Context, userID string) ([]APIKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/machine", userID), nil)
+// GetTokens list machine API keys.
+func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
 	if err != nil {
 		return nil, err
 	}

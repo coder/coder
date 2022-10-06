@@ -17,16 +17,16 @@ func TestMachineKeys(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	// helpful empty response
-	cmd, root := clitest.New(t, "keys", "ls")
+	cmd, root := clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
 	err := cmd.Execute()
 	require.NoError(t, err)
 	res := buf.String()
-	require.Contains(t, res, "keys found")
+	require.Contains(t, res, "tokens found")
 
-	cmd, root = clitest.New(t, "keys", "create")
+	cmd, root = clitest.New(t, "tokens", "create")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -40,7 +40,7 @@ func TestMachineKeys(t *testing.T) {
 	key := r.FindString(res)
 	id := key[:10]
 
-	cmd, root = clitest.New(t, "keys", "ls")
+	cmd, root = clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -54,7 +54,7 @@ func TestMachineKeys(t *testing.T) {
 	require.Contains(t, res, "LAST USED")
 	require.Contains(t, res, id)
 
-	cmd, root = clitest.New(t, "keys", "rm", id)
+	cmd, root = clitest.New(t, "tokens", "rm", id)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)

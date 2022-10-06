@@ -18,15 +18,15 @@ func TestMachineKeys(t *testing.T) {
 	defer cancel()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	_ = coderdtest.CreateFirstUser(t, client)
-	keys, err := client.GetMachineKeys(ctx, codersdk.Me)
+	keys, err := client.GetTokens(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Empty(t, keys)
 
-	res, err := client.CreateMachineKey(ctx, codersdk.Me)
+	res, err := client.CreateToken(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
 
-	keys, err = client.GetMachineKeys(ctx, codersdk.Me)
+	keys, err = client.GetTokens(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
@@ -35,7 +35,7 @@ func TestMachineKeys(t *testing.T) {
 
 	err = client.DeleteAPIKey(ctx, codersdk.Me, keys[0].ID)
 	require.NoError(t, err)
-	keys, err = client.GetMachineKeys(ctx, codersdk.Me)
+	keys, err = client.GetTokens(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Empty(t, keys)
 }

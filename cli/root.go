@@ -93,7 +93,7 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
-		keys(),
+		tokens(),
 	}
 }
 

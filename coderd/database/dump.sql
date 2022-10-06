@@ -34,7 +34,7 @@ CREATE TYPE login_type AS ENUM (
     'password',
     'github',
     'oidc',
-    'machine'
+    'token'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
