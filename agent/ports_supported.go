@@ -30,11 +30,19 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, 
 		return nil, xerrors.Errorf("scan listening ports: %w", err)
 	}
 
+	seen := make(map[uint16]struct{}, len(tabs))
 	ports := []codersdk.ListeningPort{}
 	for _, tab := range tabs {
 		if tab.LocalAddr == nil || tab.LocalAddr.Port < uint16(codersdk.MinimumListeningPort) {
 			continue
 		}
+
+		// Don't include ports that we've already seen. This can happen on
+		// Windows, and maybe on Linux if you're using a shared listener socket.
+		if _, ok := seen[tab.LocalAddr.Port]; ok {
+			continue
+		}
+		seen[tab.LocalAddr.Port] = struct{}{}
 
 		procName := ""
 		if tab.Process != nil {
