@@ -7,12 +7,15 @@ import ReportProblemOutlinedIcon from "@material-ui/icons/ReportProblemOutlined"
 import Button from "@material-ui/core/Button"
 import { useTranslation } from "react-i18next"
 import ErrorOutlineOutlinedIcon from "@material-ui/icons/ErrorOutlineOutlined"
+import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
+import { Expander } from "components/Expander/Expander"
 
 type Severity = "warning" | "error"
 
 export interface WarningAlertProps {
   text: string
   severity: Severity
+  error?: ApiError | Error | unknown
   dismissible?: boolean
   actions?: ReactElement[]
 }
@@ -24,19 +27,34 @@ const severityConstants: Record<Severity, { color: string; icon: ReactElement }>
   },
   error: {
     color: colors.red[7],
-    icon: <ErrorOutlineOutlinedIcon fontSize="small" style={{ color: colors.red[7] }} />,
+    icon: (
+      <ErrorOutlineOutlinedIcon
+        fontSize="small"
+        style={{ color: colors.red[7], marginTop: "8px" }}
+      />
+    ),
   },
 }
 
 export const WarningAlert: FC<WarningAlertProps> = ({
   text,
   severity,
+  error,
   dismissible = false,
   actions = [],
 }) => {
   const { t } = useTranslation("common")
-  const [open, setOpen] = useState(true)
   const classes = useStyles({ severity })
+
+  const [open, setOpen] = useState(true)
+
+  // if an error is passed in, display that error, otherwise
+  // display the text passed in, e.g. warning text
+  const alertMessage = getErrorMessage(error, text)
+
+  // if we have an error, check if there's detail to display
+  const detail = error ? getErrorDetail(error) : undefined
+  const [showDetails, setShowDetails] = useState(false)
 
   return (
     <Collapse in={open}>
@@ -49,8 +67,16 @@ export const WarningAlert: FC<WarningAlertProps> = ({
       >
         <Stack direction="row" spacing={1}>
           {severityConstants[severity].icon}
-          {text}
+          <Stack spacing={0}>
+            {alertMessage}
+            {detail && (
+              <Expander expanded={showDetails} setExpanded={setShowDetails}>
+                <div>{detail}</div>
+              </Expander>
+            )}
+          </Stack>
         </Stack>
+
         <Stack direction="row">
           {actions.length > 0 && actions.map((action) => <div key={String(action)}>{action}</div>)}
           {dismissible && (

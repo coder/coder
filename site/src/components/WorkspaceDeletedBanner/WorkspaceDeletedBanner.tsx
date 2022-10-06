@@ -4,6 +4,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { isWorkspaceDeleted } from "../../util/workspace"
 import { WarningAlert } from "components/WarningAlert/WarningAlert"
 import { useTranslation } from "react-i18next"
+import { makeMockApiError } from "testHelpers/entities"
 
 export interface WorkspaceDeletedBannerProps {
   workspace: TypesGen.Workspace
@@ -34,11 +35,23 @@ export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeleted
   //   />
   // )
 
+  const error = makeMockApiError({
+    message: "Email or password was invalid",
+    detail: "you screwd up",
+    validations: [
+      {
+        field: "password",
+        detail: "Password is invalid.",
+      },
+    ],
+  })
+
   return (
     <WarningAlert
       text={t("warningsAndErrors.workspaceDeletedWarning")}
       actions={[NewWorkspaceButton]}
       severity="error"
+      error={error}
     />
   )
 }
