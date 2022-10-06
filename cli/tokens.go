@@ -32,6 +32,9 @@ func tokens() *cobra.Command {
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
 		),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		createToken(),
