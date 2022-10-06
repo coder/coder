@@ -58,13 +58,13 @@ func createKey() *cobra.Command {
 			}
 
 			cmd.Println(cliui.Styles.Wrap.Render(
-				"This is your API key for authenticating to Coder in automated services. 🪄",
+				"Here is your API key. 🪄",
 			))
 			cmd.Println()
 			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(res.Key)))
 			cmd.Println()
 			cmd.Println(cliui.Styles.Wrap.Render(
-				"You can use this API key by setting --%s CLI flag, the %s environment variable, or the %s HTTP header.",
+				fmt.Sprintf("You can use this API key by setting --%s CLI flag, the %s environment variable, or the \"%s\" HTTP header.", varToken, envSessionToken, codersdk.SessionTokenKey),
 			))
 
 			return nil
@@ -75,10 +75,10 @@ func createKey() *cobra.Command {
 }
 
 type keyRow struct {
-	ID        string    `table:"id"`
-	LastUsed  time.Time `json:"last_used"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string    `table:"ID"`
+	LastUsed  time.Time `table:"Last Used"`
+	ExpiresAt time.Time `table:"Expires At"`
+	CreatedAt time.Time `table:"Created At"`
 }
 
 func listKeys() *cobra.Command {
@@ -92,9 +92,15 @@ func listKeys() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.ListMachineKeys(cmd.Context(), codersdk.Me)
+			keys, err := client.GetMachineKeys(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("create machine key: %w", err)
+			}
+
+			if len(keys) == 0 {
+				cmd.Println(cliui.Styles.Wrap.Render(
+					"No machine keys found.",
+				))
 			}
 
 			var rows []keyRow

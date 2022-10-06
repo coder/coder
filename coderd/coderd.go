@@ -399,8 +399,14 @@ func New(options *Options) *API {
 					r.Get("/roles", api.userRoles)
 
 					r.Route("/keys", func(r chi.Router) {
-						r.Post("/machine", api.postMachineAPIKey)
-						r.Get("/{keyid}", api.apiKey)
+						r.Route("/machine", func(r chi.Router) {
+							r.Post("/", api.postMachineAPIKey)
+							r.Get("/", api.machineKeys)
+						})
+						r.Route("/{keyid}", func(r chi.Router) {
+							r.Get("/", api.apiKey)
+							r.Delete("/", api.deleteAPIKey)
+						})
 					})
 
 					r.Route("/organizations", func(r chi.Router) {

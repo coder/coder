@@ -279,6 +279,19 @@ func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginType) ([]database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apiKeys := make([]database.APIKey, 0)
+	for _, key := range q.apiKeys {
+		if key.LoginType == t {
+			apiKeys = append(apiKeys, key)
+		}
+	}
+	return apiKeys, nil
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

@@ -45,8 +45,8 @@ func (c *Client) CreateMachineKey(ctx context.Context, userID string) (*Generate
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
-// ListMachineKeys list machine API keys.
-func (c *Client) ListMachineKeys(ctx context.Context, userID string) ([]APIKey, error) {
+// GetMachineKeys list machine API keys.
+func (c *Client) GetMachineKeys(ctx context.Context, userID string) ([]APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/machine", userID), nil)
 	if err != nil {
 		return nil, err
