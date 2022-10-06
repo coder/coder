@@ -267,7 +267,9 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 		Entitlement: entitlements.auditLogs,
 		Enabled:     api.AuditLogging,
 	}
-	if api.AuditLogging {
+	// Audit logging is enabled by default. We don't want to display
+	// a warning if they don't have a license.
+	if entitlements.hasLicense && api.AuditLogging {
 		if entitlements.auditLogs == codersdk.EntitlementNotEntitled {
 			resp.Warnings = append(resp.Warnings,
 				"Audit logging is enabled but your license is not entitled to this feature.")
