@@ -6,24 +6,41 @@ import TextField from "@material-ui/core/TextField"
 import OpenInNewOutlined from "@material-ui/icons/OpenInNewOutlined"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Stack } from "components/Stack/Stack"
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect, Fragment } from "react"
 import { colors } from "theme/colors"
 import { CodeExample } from "../CodeExample/CodeExample"
+import { ListeningPort } from "api/typesGenerated"
 import { HelpTooltipLink, HelpTooltipLinksGroup, HelpTooltipText } from "../Tooltips/HelpTooltip"
+import { getAgentListeningPorts } from "api/api"
 
 export interface PortForwardButtonProps {
   host: string
   username: string
   workspaceName: string
   agentName: string
+  agentID: string
 }
 
 const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
-  const { host, workspaceName, agentName, username } = props
+  const { host, workspaceName, agentName, agentID, username } = props
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const { location } = window
   const urlExample = `${location.protocol}//${port}--${agentName}--${workspaceName}--${username}.${host}`
+
+  // Load listening ports from the server and display them as a list below the
+  // text box.
+  const [ports, setPorts] = useState<ListeningPort[]>([])
+  useEffect(() => {
+    getAgentListeningPorts(agentID)
+      .then((res) => {
+        setPorts(res.ports.filter((p) => p.network === "tcp"))
+      })
+      .catch(() => {
+        // Do nothing. It's not the end of the world if the user can't see the
+        // listening ports.
+      })
+  }, [agentID, setPorts])
 
   return (
     <Stack direction="column" spacing={1}>
@@ -57,26 +74,58 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
         </Link>
       </Stack>
 
+      <ChooseOne>
+        <Cond condition={ports.length > 0}>
+          <HelpTooltipText>
+            {ports.map((p, i) => {
+              const url = `${location.protocol}//${p.port}--${agentName}--${workspaceName}--${username}.${host}`
+              let label = `${p.port}`
+              if (p.process_name) {
+                label = `${p.process_name} - ${p.port}`
+              }
+
+              return (
+                <Fragment key={i}>
+                  {i > 0 && <span style={{ margin: "0 0.6em" }}>&middot;</span>}
+                  <Link href={url} target="_blank" rel="noreferrer">
+                    {label}
+                  </Link>
+                </Fragment>
+              )
+            })}
+          </HelpTooltipText>
+        </Cond>
+        <Cond></Cond>
+      </ChooseOne>
+
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
-          Learn more about port forward
+          Learn more about web port forwarding
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </Stack>
   )
 }
 
-const DisabledView: React.FC<PortForwardButtonProps> = () => {
+const DisabledView: React.FC<PortForwardButtonProps> = ({ workspaceName, agentName }) => {
+  const cliExample = `coder port-forward ${workspaceName}.${agentName} --tcp 3000`
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        <strong>Your deployment does not have port forward enabled.</strong> See the docs for more
-        details.
+        <strong>Your deployment does not have web port forwarding enabled.</strong> See the docs for
+        more details.
       </HelpTooltipText>
+
+      <HelpTooltipText>
+        You can use the Coder CLI to forward ports from your workspace to your local machine, as
+        shown below.
+      </HelpTooltipText>
+
+      <CodeExample code={cliExample} />
 
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
-          Learn more about port forward
+          Learn more about web port forwarding
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </Stack>

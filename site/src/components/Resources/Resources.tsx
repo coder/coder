@@ -158,6 +158,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                     host={applicationsHost}
                                     workspaceName={workspace.name}
                                     agentName={agent.name}
+                                    agentID={agent.id}
                                     username={workspace.owner_name}
                                   />
                                 )}
