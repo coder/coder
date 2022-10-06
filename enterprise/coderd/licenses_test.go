@@ -12,8 +12,8 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -25,7 +25,7 @@ func TestPostLicense(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountType: coderd.AccountTypeSalesforce,
+			AccountType: license.AccountTypeSalesforce,
 			AccountID:   "testing",
 			AuditLog:    true,
 		})

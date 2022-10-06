@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/coderd/license"
 )
 
 const (
@@ -24,6 +25,8 @@ const (
 var (
 	testPrivateKey ed25519.PrivateKey
 	testPublicKey  ed25519.PublicKey
+
+	Keys = map[string]ed25519.PublicKey{}
 )
 
 func init() {
@@ -32,6 +35,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	Keys[testKeyID] = testPublicKey
 }
 
 type Options struct {
@@ -64,9 +68,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys: map[string]ed25519.PublicKey{
-			testKeyID: testPublicKey,
-		},
+		Keys:                       Keys,
 	})
 	assert.NoError(t, err)
 	srv.Config.Handler = coderAPI.AGPL.RootHandler
@@ -97,11 +99,11 @@ type LicenseOptions struct {
 
 // AddLicense generates a new license with the options provided and inserts it.
 func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) codersdk.License {
-	license, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+	l, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 		License: GenerateLicense(t, options),
 	})
 	require.NoError(t, err)
-	return license
+	return l
 }
 
 // GenerateLicense returns a signed JWT using the test key.
@@ -129,7 +131,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		workspaceQuota = 1
 	}
 
-	c := &coderd.Claims{
+	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
 			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
@@ -140,8 +142,8 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		AccountType:    options.AccountType,
 		AccountID:      options.AccountID,
 		Trial:          options.Trial,
-		Version:        coderd.CurrentVersion,
-		Features: coderd.Features{
+		Version:        license.CurrentVersion,
+		Features: license.Features{
 			UserLimit:      options.UserLimit,
 			AuditLog:       auditLog,
 			BrowserOnly:    browserOnly,
@@ -150,7 +152,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
-	tok.Header[coderd.HeaderKeyID] = testKeyID
+	tok.Header[license.HeaderKeyID] = testKeyID
 	signedTok, err := tok.SignedString(testPrivateKey)
 	require.NoError(t, err)
 	return signedTok
