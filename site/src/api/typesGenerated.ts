@@ -604,6 +604,7 @@ export interface WorkspaceApp {
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
+  readonly sharing_level: WorkspaceAppSharingLevel
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
@@ -737,6 +738,9 @@ export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public" | "template"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

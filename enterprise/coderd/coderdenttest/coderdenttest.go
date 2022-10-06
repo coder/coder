@@ -42,7 +42,7 @@ type Options struct {
 	EntitlementsUpdateInterval      time.Duration
 	SCIMAPIKey                      []byte
 	UserWorkspaceQuota              int
-	AllowedApplicationSharingLevels []database.AppShareLevel
+	AllowedApplicationSharingLevels []database.AppSharingLevel
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.

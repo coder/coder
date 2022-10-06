@@ -24,53 +24,53 @@ type EnterpriseAppAuthorizer struct {
 var _ agplcoderd.AppAuthorizer = &EnterpriseAppAuthorizer{}
 
 // Authorize implements agplcoderd.AppAuthorizer.
-func (a *EnterpriseAppAuthorizer) Authorize(r *http.Request, db database.Store, shareLevel database.AppShareLevel, workspace database.Workspace) (bool, error) {
+func (a *EnterpriseAppAuthorizer) Authorize(r *http.Request, db database.Store, SharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
 	ctx := r.Context()
-
-	// TODO: better errors displayed to the user in this case
-	switch shareLevel {
-	case database.AppShareLevelOwner:
-		if !a.LevelOwnerAllowed {
-			return false, nil
-		}
-	case database.AppShareLevelTemplate:
-		if !a.LevelTemplateAllowed {
-			return false, nil
-		}
-	case database.AppShareLevelAuthenticated:
-		if !a.LevelAuthenticatedAllowed {
-			return false, nil
-		}
-	case database.AppShareLevelPublic:
-		if !a.LevelPublicAllowed {
-			return false, nil
-		}
-	default:
-		return false, xerrors.Errorf("unknown workspace app sharing level %q", shareLevel)
-	}
 
 	// Short circuit if not authenticated.
 	roles, ok := httpmw.UserAuthorizationOptional(r)
 	if !ok {
 		// The user is not authenticated, so they can only access the app if it
-		// is public.
-		return shareLevel == database.AppShareLevelPublic, nil
+		// is public and the public level is allowed.
+		return SharingLevel == database.AppSharingLevelPublic && a.LevelPublicAllowed, nil
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
 	// other RBAC rules that may be in place.
 	//
-	// Regardless of share level, the owner of the workspace can always access
-	// applications.
+	// Regardless of share level or whether it's enabled or not, the owner of
+	// the workspace can always access applications.
 	err := a.RBAC.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, workspace.ApplicationConnectRBAC())
 	if err == nil {
 		return true, nil
 	}
 
-	switch shareLevel {
-	case database.AppShareLevelOwner:
+	// Ensure the app's share level is allowed.
+	switch SharingLevel {
+	case database.AppSharingLevelOwner:
+		if !a.LevelOwnerAllowed {
+			return false, nil
+		}
+	case database.AppSharingLevelTemplate:
+		if !a.LevelTemplateAllowed {
+			return false, nil
+		}
+	case database.AppSharingLevelAuthenticated:
+		if !a.LevelAuthenticatedAllowed {
+			return false, nil
+		}
+	case database.AppSharingLevelPublic:
+		if !a.LevelPublicAllowed {
+			return false, nil
+		}
+	default:
+		return false, xerrors.Errorf("unknown workspace app sharing level %q", SharingLevel)
+	}
+
+	switch SharingLevel {
+	case database.AppSharingLevelOwner:
 		// We essentially already did this above.
-	case database.AppShareLevelTemplate:
+	case database.AppSharingLevelTemplate:
 		// Check if the user has access to the same template as the workspace.
 		template, err := db.GetTemplateByID(ctx, workspace.TemplateID)
 		if err != nil {
@@ -81,7 +81,7 @@ func (a *EnterpriseAppAuthorizer) Authorize(r *http.Request, db database.Store, 
 		if err == nil {
 			return true, nil
 		}
-	case database.AppShareLevelAuthenticated:
+	case database.AppSharingLevelAuthenticated:
 		// The user is authenticated at this point, but we need to make sure
 		// that they have ApplicationConnect permissions to their own
 		// workspaces. This ensures that the key's scope has permission to
@@ -91,7 +91,7 @@ func (a *EnterpriseAppAuthorizer) Authorize(r *http.Request, db database.Store, 
 		if err == nil {
 			return true, nil
 		}
-	case database.AppShareLevelPublic:
+	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
 		// Someone with a restricted-scope API key could just not submit the
 		// API key cookie in the request and access the page.

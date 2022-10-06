@@ -25,13 +25,13 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID    string `mapstructure:"agent_id"`
-	Name       string `mapstructure:"name"`
-	Icon       string `mapstructure:"icon"`
-	URL        string `mapstructure:"url"`
-	Command    string `mapstructure:"command"`
-	ShareLevel string `mapstructure:"share_level"`
-	Subdomain  bool   `mapstructure:"subdomain"`
+	AgentID      string `mapstructure:"agent_id"`
+	Name         string `mapstructure:"name"`
+	Icon         string `mapstructure:"icon"`
+	URL          string `mapstructure:"url"`
+	Command      string `mapstructure:"command"`
+	SharingLevel string `mapstructure:"share_level"`
+	Subdomain    bool   `mapstructure:"subdomain"`
 	// RelativePath is deprecated in favor of Subdomain. This value is a pointer
 	// because we prefer it over Subdomain it was explicitly set.
 	RelativePath *bool                      `mapstructure:"relative_path"`

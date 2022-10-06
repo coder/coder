@@ -42,10 +42,13 @@ const (
 
 type AppAuthorizer interface {
 	// Authorize returns true if the request is authorized to access an app at
-	// share level `appShareLevel` in `workspace`. An error is only returned if
+	// share level `AppSharingLevel` in `workspace`. An error is only returned if
 	// there is a processing error. "Unauthorized" errors should not be
 	// returned.
-	Authorize(r *http.Request, db database.Store, appShareLevel database.AppShareLevel, workspace database.Workspace) (bool, error)
+	//
+	// It must be able to handle optional user authorization. Use
+	// `httpmw.*Optional` methods.
+	Authorize(r *http.Request, db database.Store, AppSharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error)
 }
 
 type AGPLAppAuthorizer struct {
@@ -56,7 +59,7 @@ var _ AppAuthorizer = &AGPLAppAuthorizer{}
 
 // Authorize provides an AGPL implementation of AppAuthorizer. It does not
 // support app sharing levels as they are an enterprise feature.
-func (a AGPLAppAuthorizer) Authorize(r *http.Request, _ database.Store, _ database.AppShareLevel, workspace database.Workspace) (bool, error) {
+func (a AGPLAppAuthorizer) Authorize(r *http.Request, _ database.Store, _ database.AppSharingLevel, workspace database.Workspace) (bool, error) {
 	roles, ok := httpmw.UserAuthorizationOptional(r)
 	if !ok {
 		return false, nil
@@ -85,11 +88,25 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	shareLevel := database.AppShareLevelOwner
-	if app.ShareLevel != "" {
-		shareLevel = app.ShareLevel
+	AppSharingLevel := database.AppSharingLevelOwner
+	if app.SharingLevel != "" {
+		AppSharingLevel = app.SharingLevel
 	}
-	if !api.checkWorkspaceApplicationAuth(rw, r, workspace, shareLevel) {
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, AppSharingLevel)
+	if !ok {
+		return
+	}
+	if !authed {
+		_, hasAPIKey := httpmw.APIKeyOptional(r)
+		if hasAPIKey {
+			// The request has a valid API key but insufficient permissions.
+			renderApplicationNotFound(rw, r, api.AccessURL)
+			return
+		}
+
+		// Redirect to login as they don't have permission to access the app and
+		// they aren't signed in.
+		httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
 		return
 	}
 
@@ -204,11 +221,11 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 
 				// Verify application auth. This function will redirect or
 				// return an error page if the user doesn't have permission.
-				shareLevel := database.AppShareLevelOwner
-				if workspaceAppPtr != nil && workspaceAppPtr.ShareLevel != "" {
-					shareLevel = workspaceAppPtr.ShareLevel
+				SharingLevel := database.AppSharingLevelOwner
+				if workspaceAppPtr != nil && workspaceAppPtr.SharingLevel != "" {
+					SharingLevel = workspaceAppPtr.SharingLevel
 				}
-				if !api.verifyWorkspaceApplicationAuth(rw, r, host, workspace, shareLevel) {
+				if !api.verifyWorkspaceApplicationSubdomainAuth(rw, r, host, workspace, SharingLevel) {
 					return
 				}
 
@@ -308,12 +325,12 @@ func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agen
 	return app, true
 }
 
-// checkWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
-// for a given app share level in the given workspace. If the user is not
-// authorized or a server error occurs, a discrete HTML error page is rendered
+// fetchWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
+// for a given app share level in the given workspace. The user's authorization
+// status is returned. If a server error occurs, a HTML error page is rendered
 // and false is returned so the caller can return early.
-func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, appShareLevel database.AppShareLevel) bool {
-	ok, err := (*api.AppAuthorizer.Load()).Authorize(r, api.Database, appShareLevel, workspace)
+func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, AppSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
+	ok, err := (*api.AppAuthorizer.Load()).Authorize(r, api.Database, AppSharingLevel, workspace)
 	if err != nil {
 		api.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -323,9 +340,22 @@ func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 			RetryEnabled: true,
 			DashboardURL: api.AccessURL.String(),
 		})
+		return false, false
+	}
+
+	return ok, true
+}
+
+// checkWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
+// for a given app share level in the given workspace. If the user is not
+// authorized or a server error occurs, a discrete HTML error page is rendered
+// and false is returned so the caller can return early.
+func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, AppSharingLevel database.AppSharingLevel) bool {
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, AppSharingLevel)
+	if !ok {
 		return false
 	}
-	if !ok {
+	if !authed {
 		renderApplicationNotFound(rw, r, api.AccessURL)
 		return false
 	}
@@ -333,15 +363,24 @@ func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 	return true
 }
 
-// verifyWorkspaceApplicationAuth checks that the request is authorized to
-// access the given application. If the user does not have a app session key,
+// verifyWorkspaceApplicationSubdomainAuth checks that the request is authorized
+// to access the given application. If the user does not have a app session key,
 // they will be redirected to the route below. If the user does have a session
 // key but insufficient permissions a static error page will be rendered.
-func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, appShareLevel database.AppShareLevel) bool {
-	_, ok := httpmw.APIKeyOptional(r)
-	if ok {
-		// Request should be all good to go as long as it passes auth checks!
-		return api.checkWorkspaceApplicationAuth(rw, r, workspace, appShareLevel)
+func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, AppSharingLevel database.AppSharingLevel) bool {
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, AppSharingLevel)
+	if !ok {
+		return false
+	}
+	if authed {
+		return true
+	}
+
+	_, hasAPIKey := httpmw.APIKeyOptional(r)
+	if hasAPIKey {
+		// The request has a valid API key but insufficient permissions.
+		renderApplicationNotFound(rw, r, api.AccessURL)
+		return false
 	}
 
 	// If the request has the special query param then we need to set a cookie
@@ -522,9 +561,9 @@ type proxyApplication struct {
 	App  *database.WorkspaceApp
 	Port uint16
 
-	// ShareLevel MUST be set to database.AppShareLevelOwner by default for
+	// SharingLevel MUST be set to database.AppSharingLevelOwner by default for
 	// ports.
-	ShareLevel database.AppShareLevel
+	SharingLevel database.AppSharingLevel
 	// Path must either be empty or have a leading slash.
 	Path string
 }
@@ -532,11 +571,11 @@ type proxyApplication struct {
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	shareLevel := database.AppShareLevelOwner
-	if proxyApp.App != nil && proxyApp.App.ShareLevel != "" {
-		shareLevel = proxyApp.App.ShareLevel
+	SharingLevel := database.AppSharingLevelOwner
+	if proxyApp.App != nil && proxyApp.App.SharingLevel != "" {
+		SharingLevel = proxyApp.App.SharingLevel
 	}
-	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.Workspace, shareLevel) {
+	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.Workspace, SharingLevel) {
 		return
 	}
 
@@ -759,8 +798,8 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 func renderApplicationNotFound(rw http.ResponseWriter, r *http.Request, accessURL *url.URL) {
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 		Status:       http.StatusNotFound,
-		Title:        "Application not found",
-		Description:  "The application or workspace you are trying to access does not exist.",
+		Title:        "Application Not Found",
+		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
 		RetryEnabled: false,
 		DashboardURL: accessURL.String(),
 	})

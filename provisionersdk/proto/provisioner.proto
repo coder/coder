@@ -87,6 +87,13 @@ message Agent {
     }
 }
 
+enum AppSharingLevel {
+	OWNER = 0;
+	TEMPLATE = 1;
+	AUTHENTICATED = 2;
+	PUBLIC = 3;
+}
+
 // App represents a dev-accessible application on the workspace.
 message App {
     string name = 1;
@@ -95,6 +102,7 @@ message App {
     string icon = 4;
     bool subdomain = 5;
     Healthcheck healthcheck = 6;
+	AppSharingLevel sharing_level = 7;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

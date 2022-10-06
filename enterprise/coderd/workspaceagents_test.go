@@ -85,20 +85,24 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 							// TODO: sharing levels
 							Apps: []*proto.App{
 								{
-									Name: testAppNameOwner,
-									Url:  fmt.Sprintf("http://localhost:%d", appPort),
+									Name:         testAppNameOwner,
+									SharingLevel: proto.AppSharingLevel_OWNER,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name: testAppNameTemplate,
-									Url:  fmt.Sprintf("http://localhost:%d", appPort),
+									Name:         testAppNameTemplate,
+									SharingLevel: proto.AppSharingLevel_TEMPLATE,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name: testAppNameAuthenticated,
-									Url:  fmt.Sprintf("http://localhost:%d", appPort),
+									Name:         testAppNameAuthenticated,
+									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name: testAppNamePublic,
-									Url:  fmt.Sprintf("http://localhost:%d", appPort),
+									Name:         testAppNamePublic,
+									SharingLevel: proto.AppSharingLevel_PUBLIC,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 							},
 						}},
@@ -118,9 +122,9 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
-	defer func() {
+	t.Cleanup(func() {
 		_ = agentCloser.Close()
-	}()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

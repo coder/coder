@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -18,7 +19,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppShareLevel) (workspace codersdk.Workspace, agent codersdk.WorkspaceAgent, user codersdk.User, client *codersdk.Client, clientWithTemplateAccess *codersdk.Client, clientWithNoTemplateAccess *codersdk.Client, clientWithNoAuth *codersdk.Client) {
+func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppSharingLevel) (workspace codersdk.Workspace, agent codersdk.WorkspaceAgent, user codersdk.User, client *codersdk.Client, clientWithTemplateAccess *codersdk.Client, clientWithNoTemplateAccess *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 	//nolint:gosec
 	const password = "password"
 
@@ -51,6 +52,10 @@ func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppSha
 			IncludeProvisionerDaemon: true,
 		},
 	})
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	user, err = client.User(ctx, firstUser.UserID.String())
 	require.NoError(t, err)
@@ -58,6 +63,21 @@ func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppSha
 		ApplicationSharing: true,
 	})
 	workspace, agent = setupWorkspaceAgent(t, client, firstUser, uint16(tcpAddr.Port))
+
+	// Verify that the apps have the correct sharing levels set.
+	workspaceBuild, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	found := map[string]codersdk.WorkspaceAppSharingLevel{}
+	expected := map[string]codersdk.WorkspaceAppSharingLevel{
+		testAppNameOwner:         codersdk.WorkspaceAppSharingLevelOwner,
+		testAppNameTemplate:      codersdk.WorkspaceAppSharingLevelTemplate,
+		testAppNameAuthenticated: codersdk.WorkspaceAppSharingLevelAuthenticated,
+		testAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
+	}
+	for _, app := range workspaceBuild.Resources[0].Agents[0].Apps {
+		found[app.Name] = app.SharingLevel
+	}
+	require.Equal(t, expected, found, "apps have incorrect sharing levels")
 
 	// Create a user in the same org (should be able to read the template).
 	userWithTemplateAccess, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
@@ -75,6 +95,13 @@ func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppSha
 	})
 	require.NoError(t, err)
 	clientWithTemplateAccess.SessionToken = loginRes.SessionToken
+	clientWithTemplateAccess.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	// Double check that the user can read the template.
+	_, err = clientWithTemplateAccess.Template(ctx, workspace.TemplateID)
+	require.NoError(t, err)
 
 	// Create a user in a different org (should not be able to read the
 	// template).
@@ -97,9 +124,19 @@ func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppSha
 	})
 	require.NoError(t, err)
 	clientWithNoTemplateAccess.SessionToken = loginRes.SessionToken
+	clientWithNoTemplateAccess.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	// Double check that the user cannot read the template.
+	_, err = clientWithNoTemplateAccess.Template(ctx, workspace.TemplateID)
+	require.Error(t, err)
 
 	// Create an unauthenticated codersdk client.
 	clientWithNoAuth = codersdk.New(client.URL)
+	clientWithNoAuth.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 
 	return workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth
 }
@@ -107,21 +144,13 @@ func setupAppAuthorizerTest(t *testing.T, allowedSharingLevels []database.AppSha
 func TestEnterpriseAppAuthorizer(t *testing.T) {
 	t.Parallel()
 
-	// For the purposes of these tests we allow all levels.
-	workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppShareLevel{
-		database.AppShareLevelOwner,
-		database.AppShareLevelTemplate,
-		database.AppShareLevelAuthenticated,
-		database.AppShareLevelPublic,
-	})
-
-	verifyAccess := func(t *testing.T, appName string, client *codersdk.Client, shouldHaveAccess bool) {
+	verifyAccess := func(t *testing.T, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
 		t.Helper()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		appPath := fmt.Sprintf("/@%s/%s.%s/apps/%s", user.Username, workspace.Name, agent.Name, appName)
+		appPath := fmt.Sprintf("/@%s/%s.%s/apps/%s/", username, workspaceName, agentName, appName)
 		res, err := client.Request(ctx, http.MethodGet, appPath, nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -131,74 +160,202 @@ func TestEnterpriseAppAuthorizer(t *testing.T) {
 		t.Logf("response dump: %s", dump)
 
 		if !shouldHaveAccess {
-			require.Equal(t, http.StatusForbidden, res.StatusCode)
+			if shouldRedirectToLogin {
+				assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "should not have access, expected temporary redirect")
+				location, err := res.Location()
+				require.NoError(t, err)
+				assert.Equal(t, "/login", location.Path, "should not have access, expected redirect to /login")
+			} else {
+				// If the user doesn't have access we return 404 to avoid
+				// leaking information about the existence of the app.
+				assert.Equal(t, http.StatusNotFound, res.StatusCode, "should not have access, expected not found")
+			}
 		}
 
 		if shouldHaveAccess {
-			require.Equal(t, http.StatusOK, res.StatusCode)
-			require.Contains(t, string(dump), "Hello World")
+			assert.Equal(t, http.StatusOK, res.StatusCode, "should have access, expected ok")
+			assert.Contains(t, string(dump), "Hello World", "should have access, expected hello world")
 		}
 	}
 
-	t.Run("LevelOwner", func(t *testing.T) {
+	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
+		workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppSharingLevel{
+			// Disabled basically means only the owner level is allowed. This
+			// should have feature parity with the AGPL version.
+			database.AppSharingLevelOwner,
+		})
 
 		// Owner should be able to access their own workspace.
-		verifyAccess(t, testAppNameOwner, client, true)
+		verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, client, true, false)
 
 		// User with or without template access should not have access to a
 		// workspace that they do not own.
-		verifyAccess(t, testAppNameOwner, clientWithTemplateAccess, false)
-		verifyAccess(t, testAppNameOwner, clientWithNoTemplateAccess, false)
+		verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithTemplateAccess, false, false)
+		verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithNoTemplateAccess, false, false)
 
 		// Unauthenticated user should not have any access.
-		verifyAccess(t, testAppNameOwner, clientWithNoAuth, false)
+		verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithNoAuth, false, true)
 	})
 
-	t.Run("LevelTemplate", func(t *testing.T) {
+	t.Run("Level", func(t *testing.T) {
 		t.Parallel()
 
-		// Owner should be able to access their own workspace.
-		verifyAccess(t, testAppNameTemplate, client, true)
+		// For the purposes of the level tests we allow all levels.
+		workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppSharingLevel{
+			database.AppSharingLevelOwner,
+			database.AppSharingLevelTemplate,
+			database.AppSharingLevelAuthenticated,
+			database.AppSharingLevelPublic,
+		})
 
-		// User with template access should be able to access the workspace.
-		verifyAccess(t, testAppNameTemplate, clientWithTemplateAccess, true)
+		t.Run("Owner", func(t *testing.T) {
+			t.Parallel()
 
-		// User without template access should not have access to a workspace
-		// that they do not own.
-		verifyAccess(t, testAppNameTemplate, clientWithNoTemplateAccess, false)
+			// Owner should be able to access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, client, true, false)
 
-		// Unauthenticated user should not have any access.
-		verifyAccess(t, testAppNameTemplate, clientWithNoAuth, false)
+			// User with or without template access should not have access to a
+			// workspace that they do not own.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithNoTemplateAccess, false, false)
+
+			// Unauthenticated user should not have any access.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithNoAuth, false, true)
+		})
+
+		t.Run("Template", func(t *testing.T) {
+			t.Parallel()
+
+			// Owner should be able to access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, client, true, false)
+
+			// User with template access should be able to access the workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, clientWithTemplateAccess, true, false)
+
+			// User without template access should not have access to a workspace
+			// that they do not own.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, clientWithNoTemplateAccess, false, false)
+
+			// Unauthenticated user should not have any access.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, clientWithNoAuth, false, true)
+		})
+
+		t.Run("Authenticated", func(t *testing.T) {
+			t.Parallel()
+
+			// Owner should be able to access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, client, true, false)
+
+			// User with or without template access should be able to access the
+			// workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, clientWithTemplateAccess, true, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, clientWithNoTemplateAccess, true, false)
+
+			// Unauthenticated user should not have any access.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, clientWithNoAuth, false, true)
+		})
+
+		t.Run("Public", func(t *testing.T) {
+			t.Parallel()
+
+			// Owner should be able to access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, client, true, false)
+
+			// User with or without template access should be able to access the
+			// workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, clientWithTemplateAccess, true, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, clientWithNoTemplateAccess, true, false)
+
+			// Unauthenticated user should be able to access the workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, clientWithNoAuth, true, false)
+		})
 	})
 
-	t.Run("LevelAuthenticated", func(t *testing.T) {
+	t.Run("LevelBlockedByAdmin", func(t *testing.T) {
 		t.Parallel()
 
-		// Owner should be able to access their own workspace.
-		verifyAccess(t, testAppNameAuthenticated, client, true)
+		t.Run("Owner", func(t *testing.T) {
+			t.Parallel()
 
-		// User with or without template access should be able to access the
-		// workspace.
-		verifyAccess(t, testAppNameAuthenticated, clientWithTemplateAccess, true)
-		verifyAccess(t, testAppNameAuthenticated, clientWithNoTemplateAccess, true)
+			// All levels allowed except owner.
+			workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppSharingLevel{
+				database.AppSharingLevelTemplate,
+				database.AppSharingLevelAuthenticated,
+				database.AppSharingLevelPublic,
+			})
 
-		// Unauthenticated user should not have any access.
-		verifyAccess(t, testAppNameAuthenticated, clientWithNoAuth, false)
-	})
+			// Owner can always access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, client, true, false)
 
-	t.Run("LevelPublic", func(t *testing.T) {
-		t.Parallel()
+			// All other users should always be blocked anyways.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithNoTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameOwner, clientWithNoAuth, false, true)
+		})
 
-		// Owner should be able to access their own workspace.
-		verifyAccess(t, testAppNamePublic, client, true)
+		t.Run("Template", func(t *testing.T) {
+			t.Parallel()
 
-		// User with or without template access should be able to access the
-		// workspace.
-		verifyAccess(t, testAppNamePublic, clientWithTemplateAccess, true)
-		verifyAccess(t, testAppNamePublic, clientWithNoTemplateAccess, true)
+			// All levels allowed except template.
+			workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppSharingLevel{
+				database.AppSharingLevelOwner,
+				database.AppSharingLevelAuthenticated,
+				database.AppSharingLevelPublic,
+			})
 
-		// Unauthenticated user should be able to access the workspace.
-		verifyAccess(t, testAppNamePublic, clientWithNoAuth, true)
+			// Owner can always access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, client, true, false)
+
+			// User with template access should not be able to access the
+			// workspace as the template level is disallowed.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, clientWithTemplateAccess, false, false)
+
+			// All other users should always be blocked anyways.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, clientWithNoTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameTemplate, clientWithNoAuth, false, true)
+		})
+
+		t.Run("Authenticated", func(t *testing.T) {
+			t.Parallel()
+
+			// All levels allowed except authenticated.
+			workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppSharingLevel{
+				database.AppSharingLevelOwner,
+				database.AppSharingLevelTemplate,
+				database.AppSharingLevelPublic,
+			})
+
+			// Owner can always access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, client, true, false)
+
+			// User with or without template access should not be able to access
+			// the workspace as the authenticated level is disallowed.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, clientWithTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, clientWithNoTemplateAccess, false, false)
+
+			// Unauthenticated users should be blocked anyways.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNameAuthenticated, clientWithNoAuth, false, true)
+		})
+
+		t.Run("Public", func(t *testing.T) {
+			t.Parallel()
+
+			// All levels allowed except public.
+			workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setupAppAuthorizerTest(t, []database.AppSharingLevel{
+				database.AppSharingLevelOwner,
+				database.AppSharingLevelTemplate,
+				database.AppSharingLevelAuthenticated,
+			})
+
+			// Owner can always access their own workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, client, true, false)
+
+			// All other users should be blocked because the public level is
+			// disallowed.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, clientWithTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, clientWithNoTemplateAccess, false, false)
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, testAppNamePublic, clientWithNoAuth, false, true)
+		})
 	})
 }

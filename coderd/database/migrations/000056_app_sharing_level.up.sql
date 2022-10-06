@@ -1,5 +1,5 @@
--- Add enum app_share_level
-CREATE TYPE app_share_level AS ENUM (
+-- Add enum app_sharing_level
+CREATE TYPE app_sharing_level AS ENUM (
 	-- only the workspace owner can access the app
 	'owner',
 	-- the workspace owner and other users that can read the workspace template
@@ -11,5 +11,5 @@ CREATE TYPE app_share_level AS ENUM (
 	'public'
 );
 
--- Add share_level column to workspace_apps table
-ALTER TABLE workspace_apps ADD COLUMN share_level app_share_level NOT NULL DEFAULT 'owner'::app_share_level;
+-- Add sharing_level column to workspace_apps table
+ALTER TABLE workspace_apps ADD COLUMN sharing_level app_sharing_level NOT NULL DEFAULT 'owner'::app_sharing_level;

@@ -50,13 +50,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		)
 		for _, v := range options.AllowedApplicationSharingLevels {
 			switch v {
-			case database.AppShareLevelOwner:
+			case database.AppSharingLevelOwner:
 				levelOwnerAllowed = true
-			case database.AppShareLevelTemplate:
+			case database.AppSharingLevelTemplate:
 				levelTemplateAllowed = true
-			case database.AppShareLevelAuthenticated:
+			case database.AppSharingLevelAuthenticated:
 				levelAuthenticatedAllowed = true
-			case database.AppShareLevelPublic:
+			case database.AppSharingLevelPublic:
 				levelPublicAllowed = true
 			default:
 				return nil, xerrors.Errorf("unknown workspace app sharing level %q", v)
@@ -109,7 +109,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
 			})
 		})
@@ -145,9 +145,9 @@ type Options struct {
 	BrowserOnly        bool
 	SCIMAPIKey         []byte
 	UserWorkspaceQuota int
-	// Defaults to []database.AppShareLevel{database.AppShareLevelOwner} which
+	// Defaults to []database.AppSharingLevel{database.AppSharingLevelOwner} which
 	// essentially means "function identically to AGPL Coder".
-	AllowedApplicationSharingLevels []database.AppShareLevel
+	AllowedApplicationSharingLevels []database.AppSharingLevel
 
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -358,7 +358,7 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	// App sharing is disabled if no levels are allowed or the only allowed
 	// level is "owner".
 	appSharingEnabled := true
-	if len(api.AllowedApplicationSharingLevels) == 0 || (len(api.AllowedApplicationSharingLevels) == 1 && api.AllowedApplicationSharingLevels[0] == database.AppShareLevelOwner) {
+	if len(api.AllowedApplicationSharingLevels) == 0 || (len(api.AllowedApplicationSharingLevels) == 1 && api.AllowedApplicationSharingLevels[0] == database.AppSharingLevelOwner) {
 		appSharingEnabled = false
 	}
 	resp.Features[codersdk.FeatureApplicationSharing] = codersdk.Feature{
