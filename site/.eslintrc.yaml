@@ -54,6 +54,7 @@ rules:
     - error
     - argsIgnorePattern: "^_"
       varsIgnorePattern: "^_"
+      ignoreRestSiblings: true
   "@typescript-eslint/no-use-before-define": "off"
   "@typescript-eslint/object-curly-spacing": ["error", "always"]
   "@typescript-eslint/triple-slash-reference": "off"
