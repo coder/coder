@@ -692,4 +692,23 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 	})
+
+	t.Run("ProxyPortMinimumError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		port := uint16(codersdk.MinimumListeningPort - 1)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Should have an error response.
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var resBody codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		require.NoError(t, err)
+		require.Contains(t, resBody.Message, "Coder reserves ports less than")
+	})
 }

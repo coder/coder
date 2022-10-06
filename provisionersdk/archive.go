@@ -75,7 +75,7 @@ func Tar(directory string, limit int64) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-		if strings.HasPrefix(rel, ".") {
+		if strings.HasPrefix(rel, ".") || strings.HasPrefix(filepath.Base(rel), ".") {
 			if fileInfo.IsDir() && rel != "." {
 				// Don't archive hidden files!
 				return filepath.SkipDir

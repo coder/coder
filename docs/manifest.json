@@ -72,11 +72,13 @@
         {
           "title": "AWS",
           "description": "Setup Coder with AWS",
+          "icon_path": "./images/aws.svg",
           "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
           "description": "Setup Coder with Azure",
+          "icon_path": "./images/azure.svg",
           "path": "./quickstart/azure.md"
         }
       ]

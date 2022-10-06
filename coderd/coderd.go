@@ -438,6 +438,7 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/pty", api.workspaceAgentPTY)
+				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 				// TODO: This can be removed in October. It allows for a friendly

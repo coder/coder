@@ -88,6 +88,16 @@ The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
 our Enterprise Edition. [Reach out to sales](mailto:sales@coder.com) to learn more.
 
+## Browser-only connections
+
+<blockquote class="info">
+Browser-only connections are available in the Enterprise Edition.
+</blockquote>
+
+Some Coder deployments must only permit access through the browser to comply
+with security policies. In these cases, pass the `--browser-only` flag to
+`coder server` or set `CODER_BROWSER_ONLY=true`.
+
 ## Troubleshooting
 
 The `coder speedtest <workspace>` command measures user <-> workspace throughput.

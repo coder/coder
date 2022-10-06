@@ -288,6 +288,18 @@ export interface License {
   readonly claims: Record<string, any>
 }
 
+// From codersdk/agentconn.go
+export interface ListeningPort {
+  readonly process_name: string
+  readonly network: ListeningPortNetwork
+  readonly port: number
+}
+
+// From codersdk/agentconn.go
+export interface ListeningPortsResponse {
+  readonly ports: ListeningPort[]
+}
+
 // From codersdk/users.go
 export interface LoginWithPasswordRequest {
   readonly email: string
@@ -603,6 +615,7 @@ export interface WorkspaceApp {
   readonly name: string
   readonly command?: string
   readonly icon?: string
+  readonly subdomain: boolean
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
@@ -678,6 +691,9 @@ export type BuildReason = "autostart" | "autostop" | "initiator"
 
 // From codersdk/features.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled"
+
+// From codersdk/agentconn.go
+export type ListeningPortNetwork = "tcp"
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
