@@ -5,7 +5,6 @@ import Autocomplete from "@material-ui/lab/Autocomplete"
 import { useMachine } from "@xstate/react"
 import { Group, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
-import { useOrganizationId } from "hooks/useOrganizationId"
 import debounce from "just-debounce-it"
 import { ChangeEvent, useState } from "react"
 import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService"
@@ -19,14 +18,15 @@ const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
 export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue
   onChange: (value: UserOrGroupAutocompleteValue) => void
+  organizationId: string
 }
 
 export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = ({
   value,
   onChange,
+  organizationId,
 }) => {
   const styles = useStyles()
-  const organizationId = useOrganizationId()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUsersAndGroupsMachine, {
     context: {

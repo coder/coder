@@ -7,6 +7,7 @@ import { Paywall } from "components/Paywall/Paywall"
 import { Stack } from "components/Stack/Stack"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
+import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
@@ -14,6 +15,7 @@ import { templateACLMachine } from "xServices/template/templateACLXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
 export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () => {
+  const organizationId = useOrganizationId()
   const { context } = useTemplateLayoutContext()
   const { template, permissions } = context
   if (!template || !permissions) {
@@ -59,6 +61,7 @@ export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () 
         </Cond>
         <Cond>
           <TemplatePermissionsPageView
+            organizationId={organizationId}
             templateACL={templateACL}
             canUpdatePermissions={permissions.canUpdateTemplate}
             onAddUser={(user, role, reset) => {

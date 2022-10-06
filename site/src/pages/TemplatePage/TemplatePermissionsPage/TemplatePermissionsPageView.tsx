@@ -24,13 +24,14 @@ import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 
 const AddTemplateUserOrGroup: React.FC<{
+  organizationId: string
   isLoading: boolean
   onSubmit: (
     userOrGroup: TemplateUser | TemplateGroup,
     role: TemplateRole,
     reset: () => void,
   ) => void
-}> = ({ isLoading, onSubmit }) => {
+}> = ({ isLoading, onSubmit, organizationId }) => {
   const styles = useStyles()
   const [selectedOption, setSelectedOption] = useState<UserOrGroupAutocompleteValue>(null)
   const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
@@ -59,6 +60,7 @@ const AddTemplateUserOrGroup: React.FC<{
     >
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserOrGroupAutocomplete
+          organizationId={organizationId}
           value={selectedOption}
           onChange={(newValue) => {
             setSelectedOption(newValue)
@@ -98,10 +100,11 @@ const AddTemplateUserOrGroup: React.FC<{
 
 export interface TemplatePermissionsPageViewProps {
   templateACL: TemplateACL | undefined
+  organizationId: string
+  canUpdatePermissions: boolean
   // User
   onAddUser: (user: TemplateUser, role: TemplateRole, reset: () => void) => void
   isAddingUser: boolean
-  canUpdatePermissions: boolean
   onUpdateUser: (user: TemplateUser, role: TemplateRole) => void
   updatingUser: TemplateUser | undefined
   onRemoveUser: (user: TemplateUser) => void
@@ -118,6 +121,7 @@ export const TemplatePermissionsPageView: FC<
 > = ({
   templateACL,
   canUpdatePermissions,
+  organizationId,
   // User
   onAddUser,
   isAddingUser,
@@ -140,6 +144,7 @@ export const TemplatePermissionsPageView: FC<
     <Stack spacing={2.5}>
       <Maybe condition={canUpdatePermissions}>
         <AddTemplateUserOrGroup
+          organizationId={organizationId}
           isLoading={isAddingUser || isAddingGroup}
           onSubmit={(value, role, resetAutocomplete) =>
             "members" in value

@@ -867,3 +867,13 @@ export const MockGroup: TypesGen.Group = {
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
 }
+
+export const MockTemplateACL: TypesGen.TemplateACL = {
+  group: [{ ...MockGroup, role: "admin" }],
+  users: [{ ...MockUser, role: "view" }],
+}
+
+export const MockTemplateACLEmpty: TypesGen.TemplateACL = {
+  group: [],
+  users: [],
+}
