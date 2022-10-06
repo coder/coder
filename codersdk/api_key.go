@@ -32,8 +32,8 @@ const (
 )
 
 // CreateMachineKey generates an API key that doesn't expire.
-func (c *Client) CreateMachineKey(ctx context.Context) (*GenerateAPIKeyResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/machine", Me), nil)
+func (c *Client) CreateMachineKey(ctx context.Context, userID string) (*GenerateAPIKeyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/machine", userID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +45,23 @@ func (c *Client) CreateMachineKey(ctx context.Context) (*GenerateAPIKeyResponse,
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
-func (c *Client) GetAPIKey(ctx context.Context, user string, id string) (*APIKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", user, id), nil)
+// ListMachineKeys list machine API keys.
+func (c *Client) ListMachineKeys(ctx context.Context, userID string) ([]APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/machine", userID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var apiKey = []APIKey{}
+	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+}
+
+// GetAPIKey returns the api key by id.
+func (c *Client) GetAPIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -56,4 +71,17 @@ func (c *Client) GetAPIKey(ctx context.Context, user string, id string) (*APIKey
 	}
 	apiKey := &APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+}
+
+// DeleteAPIKey deletes API key by id.
+func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
 }
