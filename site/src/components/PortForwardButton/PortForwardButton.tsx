@@ -6,55 +6,50 @@ import TextField from "@material-ui/core/TextField"
 import OpenInNewOutlined from "@material-ui/icons/OpenInNewOutlined"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Stack } from "components/Stack/Stack"
-import { useRef, useState, useEffect, Fragment } from "react"
+import { useRef, useState, Fragment } from "react"
 import { colors } from "theme/colors"
 import { CodeExample } from "../CodeExample/CodeExample"
-import { ListeningPort } from "api/typesGenerated"
-import { HelpTooltipLink, HelpTooltipLinksGroup, HelpTooltipText } from "../Tooltips/HelpTooltip"
-import { getAgentListeningPorts } from "api/api"
+import {
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "../Tooltips/HelpTooltip"
+import { Maybe } from "components/Conditionals/Maybe"
+import { useMachine } from "@xstate/react"
+import { portForwardMachine } from "xServices/portForward/portForwardXService"
 
 export interface PortForwardButtonProps {
   host: string
   username: string
   workspaceName: string
   agentName: string
-  agentID: string
+  agentId: string
 }
 
 const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
-  const { host, workspaceName, agentName, agentID, username } = props
+  const { host, workspaceName, agentName, agentId, username } = props
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const { location } = window
   const urlExample = `${location.protocol}//${port}--${agentName}--${workspaceName}--${username}.${host}`
-
-  // Load listening ports from the server and display them as a list below the
-  // text box.
-  const [ports, setPorts] = useState<ListeningPort[]>([])
-  useEffect(() => {
-    getAgentListeningPorts(agentID)
-      .then((res) => {
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        setPorts(res.ports.filter((p) => p.network === "tcp"))
-      })
-      .catch(() => {
-        // Do nothing. It's not the end of the world if the user can't see the
-        // listening ports.
-      })
-  }, [agentID, setPorts])
+  const [state] = useMachine(portForwardMachine, {
+    context: { agentId: agentId },
+  })
+  const ports = state.context.listeningPorts?.ports
 
   return (
-    <Stack direction="column" spacing={1}>
+    <>
       <HelpTooltipText>
         Access ports running on the agent with the <strong>port, agent name, workspace name</strong>{" "}
         and <strong>your username</strong> URL schema, as shown below.
       </HelpTooltipText>
 
-      <CodeExample code={urlExample} />
+      <CodeExample code={urlExample} className={styles.code} />
 
       <HelpTooltipText>Use the form to open applications in a new tab.</HelpTooltipText>
 
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1} alignItems="center" className={styles.form}>
         <TextField
           label="Port"
           type="number"
@@ -75,10 +70,10 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
         </Link>
       </Stack>
 
-      <ChooseOne>
-        <Cond condition={ports.length > 0}>
-          <HelpTooltipText>
-            {ports.map((p, i) => {
+      <Maybe condition={Boolean(ports && ports.length > 0)}>
+        <HelpTooltipText>
+          {ports &&
+            ports.map((p, i) => {
               const url = `${location.protocol}//${p.port}--${agentName}--${workspaceName}--${username}.${host}`
               let label = `${p.port}`
               if (p.process_name) {
@@ -94,24 +89,24 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
                 </Fragment>
               )
             })}
-          </HelpTooltipText>
-        </Cond>
-        <Cond></Cond>
-      </ChooseOne>
+        </HelpTooltipText>
+      </Maybe>
 
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
           Learn more about web port forwarding
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
-    </Stack>
+    </>
   )
 }
 
 const DisabledView: React.FC<PortForwardButtonProps> = ({ workspaceName, agentName }) => {
   const cliExample = `coder port-forward ${workspaceName}.${agentName} --tcp 3000`
+  const styles = useStyles()
+
   return (
-    <Stack direction="column" spacing={1}>
+    <>
       <HelpTooltipText>
         <strong>Your deployment does not have web port forwarding enabled.</strong> See the docs for
         more details.
@@ -122,14 +117,14 @@ const DisabledView: React.FC<PortForwardButtonProps> = ({ workspaceName, agentNa
         shown below.
       </HelpTooltipText>
 
-      <CodeExample code={cliExample} />
+      <CodeExample code={cliExample} className={styles.code} />
 
       <HelpTooltipLinksGroup>
         <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
           Learn more about web port forwarding
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
-    </Stack>
+    </>
   )
 }
 
@@ -171,6 +166,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
           horizontal: "left",
         }}
       >
+        <HelpTooltipTitle>Port forward</HelpTooltipTitle>
         <ChooseOne>
           <Cond condition={host !== ""}>
             <EnabledView {...props} />
@@ -187,7 +183,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
     padding: `${theme.spacing(2.5)}px ${theme.spacing(3.5)}px ${theme.spacing(3.5)}px`,
-    width: theme.spacing(46),
+    width: theme.spacing(52),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),
   },
@@ -201,5 +197,13 @@ const useStyles = makeStyles((theme) => ({
     "& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline": {
       borderColor: colors.gray[10],
     },
+  },
+
+  code: {
+    margin: theme.spacing(2, 0),
+  },
+
+  form: {
+    margin: theme.spacing(1.5, 0, 0),
   },
 }))
