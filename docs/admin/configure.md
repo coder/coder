@@ -1,11 +1,6 @@
 Coder server's primary configuration is done via environment variables. For a full list
 of the options, run `coder server --help` on the host.
 
-## Tunnel
-
-For proof-of-concept deployments, you can set `CODER_TUNNEL=true` to run Coder on a unique `*.try.coder.app` URL.
-This is a quick way to allow users and workspaces outside your LAN to connect to Coder.
-
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the external URL
@@ -13,6 +8,11 @@ that users and workspaces use to connect to Coder (e.g. https://coder.example.co
 should not be localhost.
 
 > Access URL should be a external IP address or domain with DNS records pointing to Coder.
+
+### Tunnel
+
+If an access URL is not specified, Coder will create
+a publicly accessible URL to reverse proxy your deployment for simple setup.
 
 ## Wildcard access URL
 

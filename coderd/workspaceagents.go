@@ -311,7 +311,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   derpMap,
-		Logger:    api.Logger.Named("tailnet").Leveled(slog.LevelDebug),
+		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
@@ -453,7 +453,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	// Ignore all trace spans after this.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
