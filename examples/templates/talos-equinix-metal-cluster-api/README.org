@@ -1,0 +1,46 @@
+#+title: Coder on Talos+Equinix Metal+Cluster-API
+
+* Purpose
+
+Deploy Coder onto Equinix Metal with Cluster-API.
+Eventually deployed through Terraform.
+
+* State
+
+This is currently in exploration and may go away.
+
+* Initialise
+
+#+begin_src tmate
+EXP_CLUSTER_RESOURCE_SET=true clusterctl init --infrastructure=packet
+#+end_src
+
+* Render template
+
+List variables
+#+begin_src shell
+clusterctl generate cluster talos-em --from ./talos-packet-cluster-template.yaml --list-variables
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Required Variables:
+  - CONTROLPLANE_NODE_TYPE
+  - FACILITY
+  - PACKET_PROJECT_ID
+  - WORKER_NODE_TYPE
+
+Optional Variables:
+  - CLUSTER_NAME                 (defaults to talos-em)
+  - CONTROL_PLANE_MACHINE_COUNT  (defaults to 1)
+  - KUBERNETES_VERSION           (defaults to 1.23.5)
+  - POD_CIDR                     (defaults to "192.168.0.0/16")
+  - SERVICE_CIDR                 (defaults to "172.26.0.0/16")
+  - WORKER_MACHINE_COUNT         (defaults to 0)
+
+#+end_example
+
+Render into something applyable
+#+begin_src tmate
+clusterctl generate cluster talos-em --from ./talos-packet-cluster-template.yaml > /tmp/talos-em-rendered.yaml
+#+end_src

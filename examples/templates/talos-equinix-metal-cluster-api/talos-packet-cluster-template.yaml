@@ -1,0 +1,163 @@
+kind: TalosControlPlane
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  version: ${KUBERNETES_VERSION}
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  infrastructureTemplate:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: PacketMachineTemplate
+    name: "${CLUSTER_NAME}-control-plane"
+  controlPlaneConfig:
+    init:
+      generateType: init
+      configPatches:
+        - op: replace
+          path: /machine/install
+          value:
+            disk: /dev/sda
+            image: ghcr.io/siderolabs/installer:v1.2.3
+            bootloader: true
+            wipe: false
+        - op: add
+          path: /machine/kubelet/extraArgs
+          value:
+            cloud-provider: external
+        - op: add
+          path: /cluster/apiServer/extraArgs
+          value:
+            cloud-provider: external
+        - op: add
+          path: /cluster/controllerManager/extraArgs
+          value:
+            cloud-provider: external
+        - op: add
+          path: /cluster/extraManifests
+          value:
+            - https://github.com/equinix/cloud-provider-equinix-metal/releases/download/v3.5.0/deployment.yaml
+        - op: add
+          path: /cluster/allowSchedulingOnMasters
+          value: true
+    controlplane:
+      generateType: controlplane
+      configPatches:
+        - op: replace
+          path: /machine/install
+          value:
+            disk: /dev/sda
+            image: ghcr.io/siderolabs/installer:v1.2.3
+            bootloader: true
+            wipe: false
+        - op: add
+          path: /machine/kubelet/extraArgs
+          value:
+            cloud-provider: external
+        - op: add
+          path: /cluster/apiServer/extraArgs
+          value:
+            cloud-provider: external
+        - op: add
+          path: /cluster/controllerManager/extraArgs
+          value:
+            cloud-provider: external
+        - op: add
+          path: /cluster/allowSchedulingOnMasters
+          value: true
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-control-plane"
+spec:
+  template:
+    spec:
+      os: talos_v1
+      billingCycle: hourly
+      machineType: "${CONTROLPLANE_NODE_TYPE}"
+      tags: []
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - ${POD_CIDR:=192.168.0.0/16}
+    services:
+      cidrBlocks:
+        - ${SERVICE_CIDR:=172.26.0.0/16}
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: PacketCluster
+    name: "${CLUSTER_NAME}"
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+    kind: TalosControlPlane
+    name: "${CLUSTER_NAME}-control-plane"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  projectID: "${PACKET_PROJECT_ID}"
+  facility: "${FACILITY}"
+  vipManager: CPEM
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}-worker-a
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    pool: worker-a
+spec:
+  replicas: ${WORKER_MACHINE_COUNT}
+  clusterName: ${CLUSTER_NAME}
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+      pool: worker-a
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+        pool: worker-a
+    spec:
+      version: ${KUBERNETES_VERSION}
+      clusterName: ${CLUSTER_NAME}
+      bootstrap:
+        configRef:
+          name: ${CLUSTER_NAME}-worker-a
+          apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+          kind: TalosConfigTemplate
+      infrastructureRef:
+        name: ${CLUSTER_NAME}-worker-a
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: PacketMachineTemplate
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: PacketMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}-worker-a
+spec:
+  template:
+    spec:
+      os: talos_v1
+      billingCycle: hourly
+      machineType: "${WORKER_NODE_TYPE}"
+      tags: []
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}-worker-a
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+spec:
+  template:
+    spec:
+      generateType: init
