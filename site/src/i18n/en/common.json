@@ -22,6 +22,10 @@
   "ctas": {
     "dismissCta": "Dismiss",
     "expand": "Click here to learn more",
-    "collapse": "Click here to hide"
+    "collapse": "Click here to hide",
+    "retry": "Retry"
+  },
+  "warningsAndErrors": {
+    "somethingWentWrong": "Something went wrong."
   }
 }

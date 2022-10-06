@@ -1,59 +1,43 @@
-import { useState, FC, ReactElement } from "react"
+import { useState, FC } from "react"
 import Collapse from "@material-ui/core/Collapse"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import { colors } from "theme/colors"
-import ReportProblemOutlinedIcon from "@material-ui/icons/ReportProblemOutlined"
-import Button from "@material-ui/core/Button"
 import { useTranslation } from "react-i18next"
-import ErrorOutlineOutlinedIcon from "@material-ui/icons/ErrorOutlineOutlined"
-import { ApiError, getErrorDetail, getErrorMessage } from "api/errors"
+import { getErrorDetail, getErrorMessage } from "api/errors"
 import { Expander } from "components/Expander/Expander"
+import { Severity, AlertBannerProps } from "./alertTypes"
+import { severityConstants } from "./severityConstants"
+import { AlertBannerCtas } from "./AlertBannerCtas"
 
-type Severity = "warning" | "error"
-
-export interface WarningAlertProps {
-  text: string
-  severity: Severity
-  error?: ApiError | Error | unknown
-  dismissible?: boolean
-  actions?: ReactElement[]
-}
-
-const severityConstants: Record<Severity, { color: string; icon: ReactElement }> = {
-  warning: {
-    color: colors.orange[7],
-    icon: <ReportProblemOutlinedIcon fontSize="small" style={{ color: colors.orange[7] }} />,
-  },
-  error: {
-    color: colors.red[7],
-    icon: (
-      <ErrorOutlineOutlinedIcon
-        fontSize="small"
-        style={{ color: colors.red[7], marginTop: "8px" }}
-      />
-    ),
-  },
-}
-
-export const WarningAlert: FC<WarningAlertProps> = ({
-  text,
+/**
+ * severity: the level of alert severity (see ./severityTypes.ts)
+ * text: default text to be displayed to the user; useful for warnings or as a fallback error message
+ * error: should be passed in if the severity is 'Error'; warnings can use 'text' instead
+ * actions: an array of CTAs passed in by the consumer
+ * dismissible: determines whether or not the banner should have a `Dismiss` CTA
+ * retry: a handler to retry the action that spawned the error
+ */
+export const AlertBanner: FC<AlertBannerProps> = ({
   severity,
+  text,
   error,
-  dismissible = false,
   actions = [],
+  retry,
+  dismissible = false,
 }) => {
   const { t } = useTranslation("common")
-  const classes = useStyles({ severity })
 
   const [open, setOpen] = useState(true)
 
   // if an error is passed in, display that error, otherwise
   // display the text passed in, e.g. warning text
-  const alertMessage = getErrorMessage(error, text)
+  const alertMessage = getErrorMessage(error, text ?? t("warningsAndErrors.somethingWentWrong"))
 
   // if we have an error, check if there's detail to display
   const detail = error ? getErrorDetail(error) : undefined
+  const classes = useStyles({ severity, hasDetail: Boolean(detail) })
+
   const [showDetails, setShowDetails] = useState(false)
 
   return (
@@ -66,7 +50,7 @@ export const WarningAlert: FC<WarningAlertProps> = ({
         justifyContent="space-between"
       >
         <Stack direction="row" spacing={1}>
-          {severityConstants[severity].icon}
+          <div className={classes.iconContainer}>{severityConstants[severity].icon}</div>
           <Stack spacing={0}>
             {alertMessage}
             {detail && (
@@ -77,14 +61,12 @@ export const WarningAlert: FC<WarningAlertProps> = ({
           </Stack>
         </Stack>
 
-        <Stack direction="row">
-          {actions.length > 0 && actions.map((action) => <div key={String(action)}>{action}</div>)}
-          {dismissible && (
-            <Button size="small" onClick={() => setOpen(false)} variant="outlined">
-              {t("ctas.dismissCta")}
-            </Button>
-          )}
-        </Stack>
+        <AlertBannerCtas
+          actions={actions}
+          dismissible={dismissible}
+          retry={retry}
+          setOpen={setOpen}
+        />
       </Stack>
     </Collapse>
   )
@@ -92,6 +74,7 @@ export const WarningAlert: FC<WarningAlertProps> = ({
 
 interface StyleProps {
   severity: Severity
+  hasDetail: boolean
 }
 
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
@@ -101,5 +84,8 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     borderRadius: theme.shape.borderRadius,
     padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
     backgroundColor: `${colors.gray[16]}`,
+  }),
+  iconContainer: (props) => ({
+    marginTop: props.hasDetail ? "8px" : "unset",
   }),
 }))
