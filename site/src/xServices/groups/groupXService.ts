@@ -59,24 +59,42 @@ export const groupMachine = createMachine(
         type: "parallel",
         states: {
           data: {
-            invoke: {
-              src: "loadGroup",
-              onDone: {
-                actions: ["assignGroup"],
+            initial: "loading",
+            states: {
+              loading: {
+                invoke: {
+                  src: "loadGroup",
+                  onDone: {
+                    actions: ["assignGroup"],
+                    target: "success",
+                  },
+                  onError: {
+                    actions: ["displayLoadGroupError"],
+                  },
+                },
               },
-              onError: {
-                actions: ["displayLoadGroupError"],
+              success: {
+                type: "final",
               },
             },
           },
           permissions: {
-            invoke: {
-              src: "loadPermissions",
-              onDone: {
-                actions: ["assignPermissions"],
+            initial: "loading",
+            states: {
+              loading: {
+                invoke: {
+                  src: "loadPermissions",
+                  onDone: {
+                    actions: ["assignPermissions"],
+                    target: "success",
+                  },
+                  onError: {
+                    actions: ["displayLoadPermissionsError"],
+                  },
+                },
               },
-              onError: {
-                actions: ["displayLoadPermissionsError"],
+              success: {
+                type: "final",
               },
             },
           },
