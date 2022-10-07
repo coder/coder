@@ -23,12 +23,6 @@ describe("UserDropdownContent", () => {
     expect(screen.getByText(Language.signOutLabel)).toBeDefined()
   })
 
-  it("displays the user's roles", () => {
-    render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
-
-    expect(screen.getByText(MockOwnerRole.display_name)).toBeDefined()
-  })
-
   it("has the correct link for the account item", () => {
     render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
 
