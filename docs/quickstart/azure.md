@@ -49,15 +49,7 @@ curl -fsSL <https://coder.com/install.sh> | sh
 
 ## Run Coder
 
-First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value to true with the following command:
-
-```sh
-sudo vim /etc/coder.d/coder.env
-```
-
-<img src="../images/quickstart/azure/azure7.png">
-
-Exit vim and run the following command to start Coder as a system level service:
+Run the following command to start Coder as a system level service:
 
 ```sh
  sudo systemctl enable --now coder

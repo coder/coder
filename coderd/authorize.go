@@ -119,7 +119,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Logger.Warn(ctx, "check-auth",
+	api.Logger.Debug(ctx, "check-auth",
 		slog.F("my_id", httpmw.APIKey(r).UserID),
 		slog.F("got_id", auth.ID),
 		slog.F("name", auth.Username),
