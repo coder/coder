@@ -386,7 +386,9 @@ func (a *agent) init(ctx context.Context) {
 		a.logger.Warn(ctx, "change working directory failed, unable to get current user", slog.Error(err))
 	} else {
 		err = os.Chdir(u.HomeDir)
-		a.logger.Warn(ctx, "change working directory failed", slog.Error(err))
+		if err != nil {
+			a.logger.Warn(ctx, "change working directory failed", slog.Error(err))
+		}
 	}
 
 	a.logger.Info(ctx, "generating host key")
