@@ -22,7 +22,7 @@ export const Language = {
   actionLabel: "Action",
   durationLabel: "Duration",
   startedAtLabel: "Started at",
-  statusLabel: "Current Status",
+  statusLabel: "Build Status",
 }
 
 export interface BuildsTableProps {

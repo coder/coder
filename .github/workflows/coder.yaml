@@ -659,8 +659,6 @@ jobs:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
-        env:
-          LOG_LEVEL: 'debug'
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
