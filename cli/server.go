@@ -322,6 +322,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				MetricsCacheRefreshInterval: dflags.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   dflags.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
+				DeploymentFlags:             &dflags,
 			}
 
 			if dflags.Oauth2GithubClientSecret.Value != "" {

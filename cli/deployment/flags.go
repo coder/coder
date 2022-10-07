@@ -140,7 +140,6 @@ func NewFlags() codersdk.DeploymentFlags {
 			Flag:        "postgres-url",
 			EnvVar:      "CODER_PG_CONNECTION_URL",
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\"",
-			Secret:      true,
 		},
 		Oauth2GithubClientID: codersdk.StringFlag{
 			Name:        "Oauth2 Github Client ID",
@@ -153,7 +152,6 @@ func NewFlags() codersdk.DeploymentFlags {
 			Flag:        "oauth2-github-client-secret",
 			EnvVar:      "CODER_OAUTH2_GITHUB_CLIENT_SECRET",
 			Description: "Client secret for Login with GitHub.",
-			Secret:      true,
 		},
 		Oauth2GithubAllowedOrganizations: codersdk.StringArrayFlag{
 			Name:        "Oauth2 Github Allowed Organizations",
@@ -197,7 +195,6 @@ func NewFlags() codersdk.DeploymentFlags {
 			Flag:        "oidc-client-secret",
 			EnvVar:      "CODER_OIDC_CLIENT_SECRET",
 			Description: "Client secret to use for Login with OIDC.",
-			Secret:      true,
 		},
 		OidcEmailDomain: codersdk.StringFlag{
 			Name:        "OIDC Email Domain",
