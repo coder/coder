@@ -60,16 +60,16 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 			entitlement = codersdk.EntitlementGracePeriod
 		}
 		if claims.Features.UserLimit > 0 {
+			limit := claims.Features.UserLimit
+			priorLimit := entitlements.Features[codersdk.FeatureUserLimit]
+			if priorLimit.Limit != nil && *priorLimit.Limit > limit {
+				limit = *priorLimit.Limit
+			}
 			entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
 				Enabled:     true,
 				Entitlement: entitlement,
-				Limit:       &claims.Features.UserLimit,
+				Limit:       &limit,
 				Actual:      &activeUserCount,
-			}
-			if activeUserCount > claims.Features.UserLimit {
-				entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-					"Your deployment has %d active users but is only licensed for %d.",
-					activeUserCount, claims.Features.UserLimit))
 			}
 		}
 		if claims.Features.AuditLog > 0 {
@@ -114,6 +114,13 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 	}
 
 	if entitlements.HasLicense {
+		userLimit := entitlements.Features[codersdk.FeatureUserLimit].Limit
+		if userLimit != nil && activeUserCount > *userLimit {
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+				"Your deployment has %d active users but is only licensed for %d.",
+				activeUserCount, *userLimit))
+		}
+
 		for _, featureName := range codersdk.FeatureNames {
 			// The user limit has it's own warnings!
 			if featureName == codersdk.FeatureUserLimit {

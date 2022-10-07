@@ -141,6 +141,28 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.Contains(t, entitlements.Warnings, "Your deployment has 2 active users but is only licensed for 1.")
 	})
+	t.Run("MaximizeUserLimit", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		db.InsertUser(context.Background(), database.InsertUserParams{})
+		db.InsertUser(context.Background(), database.InsertUserParams{})
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				UserLimit: 10,
+			}),
+			Exp: time.Now().Add(time.Hour),
+		})
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				UserLimit: 1,
+			}),
+			Exp: time.Now().Add(time.Hour),
+		})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Empty(t, entitlements.Warnings)
+	})
 	t.Run("MultipleLicenseEnabled", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
