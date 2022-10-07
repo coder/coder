@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react"
-import { MockOwnerRole, MockUser } from "../../testHelpers/entities"
+import { MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
