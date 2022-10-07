@@ -60,11 +60,12 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:      100,
-				AuditLog:       true,
-				BrowserOnly:    true,
-				SCIM:           true,
-				WorkspaceQuota: true,
+				UserLimit:        100,
+				AuditLog:         true,
+				BrowserOnly:      true,
+				SCIM:             true,
+				WorkspaceQuota:   true,
+				HighAvailability: true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -81,13 +82,14 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:      100,
-				AuditLog:       true,
-				BrowserOnly:    true,
-				SCIM:           true,
-				WorkspaceQuota: true,
-				GraceAt:        time.Now().Add(-time.Hour),
-				ExpiresAt:      time.Now().Add(time.Hour),
+				UserLimit:        100,
+				AuditLog:         true,
+				BrowserOnly:      true,
+				SCIM:             true,
+				WorkspaceQuota:   true,
+				HighAvailability: true,
+				GraceAt:          time.Now().Add(-time.Hour),
+				ExpiresAt:        time.Now().Add(time.Hour),
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
