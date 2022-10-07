@@ -378,6 +378,17 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 }
 
 func (a *agent) init(ctx context.Context) {
+	// Change current working directory to the users home
+	// directory so that SFTP connections land there.
+	// https://github.com/coder/coder/issues/3620
+	u, err := user.Current()
+	if err != nil {
+		a.logger.Warn(ctx, "change working directory failed, unable to get current user", slog.Error(err))
+	} else {
+		err = os.Chdir(u.HomeDir)
+		a.logger.Warn(ctx, "change working directory failed", slog.Error(err))
+	}
+
 	a.logger.Info(ctx, "generating host key")
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
