@@ -132,6 +132,10 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.WorkspaceQuota {
 		workspaceQuota = 1
 	}
+	highAvailability := int64(0)
+	if options.HighAvailability {
+		highAvailability = 1
+	}
 
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -147,11 +151,12 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
 		Features: license.Features{
-			UserLimit:      options.UserLimit,
-			AuditLog:       auditLog,
-			BrowserOnly:    browserOnly,
-			SCIM:           scim,
-			WorkspaceQuota: workspaceQuota,
+			UserLimit:        options.UserLimit,
+			AuditLog:         auditLog,
+			BrowserOnly:      browserOnly,
+			SCIM:             scim,
+			WorkspaceQuota:   workspaceQuota,
+			HighAvailability: highAvailability,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
