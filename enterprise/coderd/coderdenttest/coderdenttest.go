@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/coderd/license"
 )
 
 const (
@@ -24,6 +25,8 @@ const (
 var (
 	testPrivateKey ed25519.PrivateKey
 	testPublicKey  ed25519.PublicKey
+
+	Keys = map[string]ed25519.PublicKey{}
 )
 
 func init() {
@@ -32,13 +35,16 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	Keys[testKeyID] = testPublicKey
 }
 
 type Options struct {
 	*coderdtest.Options
+	AuditLogging               bool
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
+	UserWorkspaceQuota         int
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -56,14 +62,13 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		AuditLogging:               true,
+		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys: map[string]ed25519.PublicKey{
-			testKeyID: testPublicKey,
-		},
+		Keys:                       Keys,
 	})
 	assert.NoError(t, err)
 	srv.Config.Handler = coderAPI.AGPL.RootHandler
@@ -80,23 +85,26 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType string
-	AccountID   string
-	GraceAt     time.Time
-	ExpiresAt   time.Time
-	UserLimit   int64
-	AuditLog    bool
-	BrowserOnly bool
-	SCIM        bool
+	AccountType    string
+	AccountID      string
+	Trial          bool
+	AllFeatures    bool
+	GraceAt        time.Time
+	ExpiresAt      time.Time
+	UserLimit      int64
+	AuditLog       bool
+	BrowserOnly    bool
+	SCIM           bool
+	WorkspaceQuota bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
 func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) codersdk.License {
-	license, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+	l, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 		License: GenerateLicense(t, options),
 	})
 	require.NoError(t, err)
-	return license
+	return l
 }
 
 // GenerateLicense returns a signed JWT using the test key.
@@ -119,8 +127,12 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.SCIM {
 		scim = 1
 	}
+	workspaceQuota := int64(0)
+	if options.WorkspaceQuota {
+		workspaceQuota = 1
+	}
 
-	c := &coderd.Claims{
+	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
 			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
@@ -130,16 +142,19 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
 		AccountType:    options.AccountType,
 		AccountID:      options.AccountID,
-		Version:        coderd.CurrentVersion,
-		Features: coderd.Features{
-			UserLimit:   options.UserLimit,
-			AuditLog:    auditLog,
-			BrowserOnly: browserOnly,
-			SCIM:        scim,
+		Trial:          options.Trial,
+		Version:        license.CurrentVersion,
+		AllFeatures:    options.AllFeatures,
+		Features: license.Features{
+			UserLimit:      options.UserLimit,
+			AuditLog:       auditLog,
+			BrowserOnly:    browserOnly,
+			SCIM:           scim,
+			WorkspaceQuota: workspaceQuota,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
-	tok.Header[coderd.HeaderKeyID] = testKeyID
+	tok.Header[license.HeaderKeyID] = testKeyID
 	signedTok, err := tok.SignedString(testPrivateKey)
 	require.NoError(t, err)
 	return signedTok

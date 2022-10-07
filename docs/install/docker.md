@@ -4,20 +4,26 @@ You can install and run Coder using the official Docker images published on [Git
 
 Docker is required. See the [official installation documentation](https://docs.docker.com/install/).
 
-## Run Coder with built-in database and tunnel (quick)
+## Run Coder with the built-in database (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with
 the following command:
 
 ```sh
 export CODER_DATA=$HOME/.config/coderv2-docker
+export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 mkdir -p $CODER_DATA
 docker run --rm -it \
-  -e CODER_TUNNEL=true \
   -v $CODER_DATA:/home/coder/.config \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  --group-add $DOCKER_GROUP \
   ghcr.io/coder/coder:latest
 ```
+
+**<sup>Note:</sup>** <sup>Coder runs as a non-root user, we use `--group-add` to
+ensure Coder has permissions to manage Docker via `docker.sock`. If the host
+systems `/var/run/docker.sock` is not group writeable or does not belong to the
+`docker` group, the above may not work as-is.</sup>
 
 Coder configuration is defined via environment variables.
 Learn more about Coder's [configuration options](../admin/configure.md).
@@ -55,13 +61,13 @@ an PostgreSQL container and volume.
 3. Start Coder with `docker-compose up`:
 
    In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
-   
+
    For proof-of-concept deployments, you can use [Coder's tunnel](../admin/configure.md#tunnel):
 
    ```sh
    cd coder
 
-   CODER_TUNNEL=true docker-compose up
+   docker-compose up
    ```
 
    For production deployments, we recommend setting an [access URL](../admin/configure.md#access-url):
@@ -72,9 +78,7 @@ an PostgreSQL container and volume.
    CODER_ACCESS_URL=https://coder.example.com docker-compose up
    ```
 
-   > Without `CODER_ACCESS_URL` or `CODER_TUNNEL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
-
-4. Visit the web ui via the configured url. You can add `/login` to the base url to create the first user via the ui. 
+4. Visit the web ui via the configured url. You can add `/login` to the base url to create the first user via the ui.
 
 5. Follow the on-screen instructions log in and create your first template and workspace
 

@@ -2,10 +2,10 @@ import { inspect } from "@xstate/inspect"
 import { createRoot } from "react-dom/client"
 import { Interpreter } from "xstate"
 import { App } from "./app"
-
 import "./i18n"
 
 // if this is a development build and the developer wants to inspect
+// helpful to see realtime changes on the services
 if (process.env.NODE_ENV === "development" && process.env.INSPECT_XSTATE === "true") {
   // configure the XState inspector to open in a new tab
   inspect({

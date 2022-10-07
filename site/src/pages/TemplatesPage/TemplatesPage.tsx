@@ -27,3 +27,5 @@ export const TemplatesPage: React.FC = () => {
     </>
   )
 }
+
+export default TemplatesPage

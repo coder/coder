@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -106,13 +105,12 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		telemetryEnable                  bool
 		telemetryTraceEnable             bool
 		telemetryURL                     string
-		tlsCertFile                      string
+		tlsCertFiles                     []string
 		tlsClientCAFile                  string
 		tlsClientAuth                    string
 		tlsEnable                        bool
-		tlsKeyFile                       string
+		tlsKeyFiles                      []string
 		tlsMinVersion                    string
-		tunnel                           bool
 		traceEnable                      bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
@@ -221,7 +219,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			defer listener.Close()
 
 			if tlsEnable {
-				listener, err = configureTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile)
+				listener, err = configureServerTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFiles, tlsKeyFiles, tlsClientCAFile)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
@@ -244,26 +242,23 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			if tlsEnable {
 				localURL.Scheme = "https"
 			}
-			if accessURL == "" {
-				accessURL = localURL.String()
-			}
 
 			var (
 				ctxTunnel, closeTunnel = context.WithCancel(ctx)
-				devTunnel              *devtunnel.Tunnel
-				devTunnelErr           <-chan error
+				tunnel                 *devtunnel.Tunnel
+				tunnelErr              <-chan error
 			)
 			defer closeTunnel()
 
-			// If we're attempting to tunnel in dev-mode, the access URL
-			// needs to be changed to use the tunnel.
-			if tunnel {
-				cmd.Printf("Opening tunnel so workspaces can connect to your deployment\n")
-				devTunnel, devTunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+			// If the access URL is empty, we attempt to run a reverse-proxy tunnel
+			// to make the initial setup really simple.
+			if accessURL == "" {
+				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
+				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				accessURL = devTunnel.URL
+				accessURL = tunnel.URL
 			}
 
 			accessURLParsed, err := parseURL(ctx, accessURL)
@@ -289,11 +284,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
-				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 			}
 
-			cmd.Printf("View the Web UI: %s\n", accessURLParsed.String())
+			// A newline is added before for visibility in terminal output.
+			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -328,9 +323,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			}
 
 			defaultRegion := &tailcfg.DERPRegion{
-				RegionID:   derpServerRegionID,
-				RegionCode: derpServerRegionCode,
-				RegionName: derpServerRegionName,
+				EmbeddedRelay: true,
+				RegionID:      derpServerRegionID,
+				RegionCode:    derpServerRegionCode,
+				RegionName:    derpServerRegionName,
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", derpServerRegionID),
 					RegionID:  derpServerRegionID,
@@ -368,6 +364,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: metricsCacheRefreshInterval,
 				AgentStatsRefreshInterval:   agentStatRefreshInterval,
+				Experimental:                ExperimentalEnabled(cmd),
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -471,7 +468,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 					OIDCIssuerURL:   oidcIssuerURL,
 					Prometheus:      promEnabled,
 					STUN:            len(derpServerSTUNAddrs) != 0,
-					Tunnel:          tunnel,
+					Tunnel:          tunnel != nil,
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
@@ -568,17 +565,17 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			eg.Go(func() error {
 				// Make sure to close the tunnel listener if we exit so the
 				// errgroup doesn't wait forever!
-				if tunnel {
-					defer devTunnel.Listener.Close()
+				if tunnel != nil {
+					defer tunnel.Listener.Close()
 				}
 
 				return server.Serve(listener)
 			})
-			if tunnel {
+			if tunnel != nil {
 				eg.Go(func() error {
 					defer listener.Close()
 
-					return server.Serve(devTunnel.Listener)
+					return server.Serve(tunnel.Listener)
 				})
 			}
 			go func() {
@@ -623,7 +620,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
-			case exitErr = <-devTunnelErr:
+			case exitErr = <-tunnelErr:
 				if exitErr == nil {
 					exitErr = xerrors.New("dev tunnel closed unexpectedly")
 				}
@@ -649,9 +646,9 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cmd.Println("Shutting down API server...")
-			err = shutdownWithTimeout(server.Shutdown, 5*time.Second)
+			err = shutdownWithTimeout(server.Shutdown, 3*time.Second)
 			if err != nil {
-				cmd.Printf("API server shutdown took longer than 5s: %s", err)
+				cmd.Printf("API server shutdown took longer than 3s: %s\n", err)
 			} else {
 				cmd.Printf("Gracefully shut down API server\n")
 			}
@@ -693,10 +690,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			cmd.Println("Done waiting for WebSocket connections")
 
 			// Close tunnel after we no longer have in-flight connections.
-			if tunnel {
+			if tunnel != nil {
 				cmd.Println("Waiting for tunnel to close...")
 				closeTunnel()
-				<-devTunnelErr
+				<-tunnelErr
 				cmd.Println("Done waiting for tunnel")
 			}
 
@@ -785,11 +782,16 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"Serve pprof metrics on the address defined by `pprof-address`.")
 	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060",
 		"The bind address to serve pprof.")
-	defaultCacheDir := filepath.Join(os.TempDir(), "coder-cache")
+
+	defaultCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		defaultCacheDir = os.TempDir()
+	}
 	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
 		// For compatibility with systemd.
 		defaultCacheDir = dir
 	}
+	defaultCacheDir = filepath.Join(defaultCacheDir, "coder")
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CODER_CACHE_DIRECTORY", defaultCacheDir,
 		"The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.")
 	cliflag.BoolVarP(root.Flags(), &inMemoryDatabase, "in-memory", "", "CODER_INMEMORY", false,
@@ -836,8 +838,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	_ = root.Flags().MarkHidden("telemetry-url")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false,
 		"Whether TLS will be enabled.")
-	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
-		"Path to the certificate for TLS. It requires a PEM-encoded file. "+
+	cliflag.StringArrayVarP(root.Flags(), &tlsCertFiles, "tls-cert-file", "", "CODER_TLS_CERT_FILE", []string{},
+		"Path to each certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
 			"and the CA certificate together. The primary certificate should appear first in the combined file.")
 	cliflag.StringVarP(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
@@ -845,12 +847,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 	cliflag.StringVarP(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
 		`Policy the server will follow for TLS Client Authentication. `+
 			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
-	cliflag.StringVarP(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
-		"Path to the private key for the certificate. It requires a PEM-encoded file")
+	cliflag.StringArrayVarP(root.Flags(), &tlsKeyFiles, "tls-key-file", "", "CODER_TLS_KEY_FILE", []string{},
+		"Paths to the private keys for each of the certificates. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
-		"Workspaces must be able to reach the `access-url`. This overrides your access URL with a public access URL that tunnels your Coder deployment.")
 	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace", "", "CODER_TRACE", false,
 		"Whether application tracing data is collected.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false,
@@ -1034,7 +1034,32 @@ func printLogo(cmd *cobra.Command, spooky bool) {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Remote development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
-func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile string) (net.Listener, error) {
+func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
+	if len(tlsCertFiles) != len(tlsKeyFiles) {
+		return nil, xerrors.New("--tls-cert-file and --tls-key-file must be used the same amount of times")
+	}
+	if len(tlsCertFiles) == 0 {
+		return nil, xerrors.New("--tls-cert-file is required when tls is enabled")
+	}
+	if len(tlsKeyFiles) == 0 {
+		return nil, xerrors.New("--tls-key-file is required when tls is enabled")
+	}
+
+	certs := make([]tls.Certificate, len(tlsCertFiles))
+	for i := range tlsCertFiles {
+		certFile, keyFile := tlsCertFiles[i], tlsKeyFiles[i]
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, xerrors.Errorf("load TLS key pair %d (%q, %q): %w", i, certFile, keyFile, err)
+		}
+
+		certs[i] = cert
+	}
+
+	return certs, nil
+}
+
+func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (net.Listener, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
@@ -1066,36 +1091,31 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 		return nil, xerrors.Errorf("unrecognized tls client auth: %q", tlsClientAuth)
 	}
 
-	if tlsCertFile == "" {
-		return nil, xerrors.New("tls-cert-file is required when tls is enabled")
+	certs, err := loadCertificates(tlsCertFiles, tlsKeyFiles)
+	if err != nil {
+		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
-	if tlsKeyFile == "" {
-		return nil, xerrors.New("tls-key-file is required when tls is enabled")
-	}
+	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		// If there's only one certificate, return it.
+		if len(certs) == 1 {
+			return &certs[0], nil
+		}
 
-	certPEMBlock, err := os.ReadFile(tlsCertFile)
-	if err != nil {
-		return nil, xerrors.Errorf("read file %q: %w", tlsCertFile, err)
-	}
-	keyPEMBlock, err := os.ReadFile(tlsKeyFile)
-	if err != nil {
-		return nil, xerrors.Errorf("read file %q: %w", tlsKeyFile, err)
-	}
-	keyBlock, _ := pem.Decode(keyPEMBlock)
-	if keyBlock == nil {
-		return nil, xerrors.New("decoded pem is blank")
-	}
-	cert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
-	if err != nil {
-		return nil, xerrors.Errorf("create key pair: %w", err)
-	}
-	tlsConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		return &cert, nil
-	}
+		// Expensively check which certificate matches the client hello.
+		for _, cert := range certs {
+			cert := cert
+			if err := hi.SupportsCertificate(&cert); err == nil {
+				return &cert, nil
+			}
+		}
 
-	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(certPEMBlock)
-	tlsConfig.RootCAs = certPool
+		// Return the first certificate if we have one, or return nil so the
+		// server doesn't fail.
+		if len(certs) > 0 {
+			return &certs[0], nil
+		}
+		return nil, nil //nolint:nilnil
+	}
 
 	if tlsClientCAFile != "" {
 		caPool := x509.NewCertPool()

@@ -1,6 +1,5 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import { WorkspaceStateEnum } from "util/workspace"
 import { DeleteButton, DisabledButton, StartButton, UpdateButton } from "./ActionCtas"
 import { DropdownButton, DropdownButtonProps } from "./DropdownButton"
 
@@ -23,7 +22,7 @@ WithDropdown.args = {
 
 export const WithCancel = Template.bind({})
 WithCancel.args = {
-  primaryAction: <DisabledButton workspaceState={WorkspaceStateEnum.deleting} />,
+  primaryAction: <DisabledButton workspaceStatus="deleting" />,
   secondaryActions: [],
   canCancel: true,
   handleCancel: action("cancel"),

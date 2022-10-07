@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+
+<!--
+    ▄█▀    ▀█▄
+     ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
+ ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
+█▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
+     ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
+  -->
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#17172E" />
+  <meta name="application-name" content="Coder2" />
+  <meta property="og:type" content="website" />
+  <meta property="csp-nonce" content="{{ .CSP.Nonce }}" />
+  <meta property="csrf-token" content="{{ .CSRF.Token }}" />
+  <!-- We need to set data-react-helmet to be able to override it in the workspace page -->
+  <link
+    rel="alternate icon"
+    type="image/png"
+    href="/favicons/favicon.png"
+    data-react-helmet="true"
+  />
+  <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg" data-react-helmet="true" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="./src/Main.tsx"></script>
+</body>

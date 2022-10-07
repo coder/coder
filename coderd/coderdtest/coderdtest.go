@@ -218,9 +218,10 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		DERPMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
 				1: {
-					RegionID:   1,
-					RegionCode: "coder",
-					RegionName: "Coder",
+					EmbeddedRelay: true,
+					RegionID:      1,
+					RegionCode:    "coder",
+					RegionName:    "Coder",
 					Nodes: []*tailcfg.DERPNode{{
 						Name:             "1a",
 						RegionID:         1,
@@ -485,18 +486,22 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
 	t.Helper()
 
-	t.Logf("waiting for workspace agents (build %s)", build)
+	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
-		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
+		workspace, err := client.Workspace(context.Background(), workspaceID)
 		if !assert.NoError(t, err) {
 			return false
 		}
-		for _, resource := range resources {
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
 					t.Logf("agent %s not connected yet", agent.Name)
@@ -504,6 +509,8 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 				}
 			}
 		}
+		resources = workspace.LatestBuild.Resources
+
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
 	return resources
@@ -523,7 +530,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	for _, mutator := range mutators {
 		mutator(&req)
 	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
+	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
 	require.NoError(t, err)
 	return workspace
 }

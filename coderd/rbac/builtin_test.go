@@ -82,10 +82,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		},
 	}
 
-	authorizer, err := rbac.NewAuthorizer()
-	if err != nil {
-		require.NoError(b, err)
-	}
+	authorizer := rbac.NewAuthorizer()
 	for _, c := range benchCases {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
@@ -119,8 +116,7 @@ type authSubject struct {
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
-	auth, err := rbac.NewAuthorizer()
-	require.NoError(t, err, "new rego authorizer")
+	auth := rbac.NewAuthorizer()
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()
@@ -178,13 +174,23 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name: "MyWorkspaceInOrg",
+			Name: "ReadMyWorkspaceInOrg",
 			// When creating the WithID won't be set, but it does not change the result.
-			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgMemberMe, orgAdmin, templateAdmin},
 				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			},
+		},
+		{
+			Name: "C_RDMyWorkspaceInOrg",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
+			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, templateAdmin},
 			},
 		},
 		{

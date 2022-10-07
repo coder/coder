@@ -8,8 +8,8 @@ import {
   deadlineExtensionMax,
   deadlineExtensionMin,
   extractTimezone,
-  maxDeadline,
-  minDeadline,
+  getMaxDeadline,
+  getMinDeadline,
   stripTimezone,
 } from "./schedule"
 
@@ -55,7 +55,7 @@ describe("maxDeadline", () => {
       }
 
       // Then: deadlineMinusDisabled should be falsy
-      const delta = maxDeadline(workspace, template).diff(now)
+      const delta = getMaxDeadline(workspace, template).diff(now)
       expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
     })
   })
@@ -68,7 +68,7 @@ describe("maxDeadline", () => {
       }
 
       // Then: deadlineMinusDisabled should be falsy
-      const delta = maxDeadline(workspace, template).diff(now)
+      const delta = getMaxDeadline(workspace, template).diff(now)
       expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
     })
   })
@@ -76,7 +76,7 @@ describe("maxDeadline", () => {
 
 describe("minDeadline", () => {
   it("should never be less than 30 minutes", () => {
-    const delta = minDeadline().diff(now)
+    const delta = getMinDeadline().diff(now)
     expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
   })
 })

@@ -65,6 +65,35 @@ func TestFirstUser(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 	})
 
+	t.Run("LastSeenAt", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		firstUserResp := coderdtest.CreateFirstUser(t, client)
+
+		firstUser, err := client.User(ctx, firstUserResp.UserID.String())
+		require.NoError(t, err)
+
+		_ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
+
+		allUsers, err := client.Users(ctx, codersdk.UsersRequest{})
+		require.NoError(t, err)
+
+		require.Len(t, allUsers, 2)
+
+		// We sent the "GET Users" request with the first user, but the second user
+		// should be Never since they haven't performed a request.
+		for _, user := range allUsers {
+			if user.ID == firstUser.ID {
+				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
+			} else {
+				require.Zero(t, user.LastSeenAt)
+			}
+		}
+	})
+
 	t.Run("AutoImportsTemplates", func(t *testing.T) {
 		t.Parallel()
 
@@ -227,8 +256,16 @@ func TestPostLogin(t *testing.T) {
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
+
 		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
+			Password: req.Password,
+		})
+		require.NoError(t, err)
+
+		// Login should be case insensitive
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    strings.ToUpper(req.Email),
 			Password: req.Password,
 		})
 		require.NoError(t, err)
@@ -248,16 +285,15 @@ func TestPostLogin(t *testing.T) {
 		require.NoError(t, err, "fetch login key")
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
-		// Generated tokens have a longer life
-		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
-		require.NoError(t, err, "make new api key")
+		// tokens have a longer life
+		token, err := client.CreateToken(ctx, codersdk.Me)
+		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
 		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*6)), "api key lasts more than 6 days")
-		require.True(t, apiKey.ExpiresAt.After(key.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
-		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "api key should have longer lifetime")
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*438300)), "tokens lasts more than 50 years")
+		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "token should have longer lifetime")
 	})
 }
 
@@ -1158,36 +1194,18 @@ func TestGetUsers(t *testing.T) {
 	})
 }
 
-func TestPostAPIKey(t *testing.T) {
+func TestPostTokens(t *testing.T) {
 	t.Parallel()
-	t.Run("InvalidUser", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		client.SessionToken = ""
-		_, err := client.CreateAPIKey(ctx, codersdk.Me)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		apiKey, err := client.CreateAPIKey(ctx, codersdk.Me)
-		require.NotNil(t, apiKey)
-		require.GreaterOrEqual(t, len(apiKey.Key), 2)
-		require.NoError(t, err)
-	})
+	apiKey, err := client.CreateToken(ctx, codersdk.Me)
+	require.NotNil(t, apiKey)
+	require.GreaterOrEqual(t, len(apiKey.Key), 2)
+	require.NoError(t, err)
 }
 
 func TestWorkspacesByUser(t *testing.T) {

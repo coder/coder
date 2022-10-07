@@ -11,7 +11,7 @@ import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
-import { getFormHelpersWithError, onChangeTrimmed } from "../../util/formUtils"
+import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 
@@ -113,10 +113,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     onSubmit,
     initialTouched,
   })
-  const getFieldHelpers = getFormHelpersWithError<BuiltInAuthFormValues>(
-    form,
-    loginErrors.authError,
-  )
+  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form, loginErrors.authError)
 
   return (
     <>

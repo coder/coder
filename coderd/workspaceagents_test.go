@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"net"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -61,10 +63,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.Equal(t, tmpDir, resources[0].Agents[0].Directory)
-		_, err = client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+		require.Equal(t, tmpDir, workspace.LatestBuild.Resources[0].Agents[0].Directory)
+		_, err = client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
 		require.NoError(t, err)
 	})
 }
@@ -119,7 +121,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
 		require.NoError(t, err)
 		defer func() {
@@ -246,7 +248,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer agentCloser.Close()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -313,8 +315,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
@@ -324,7 +325,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 	// First attempt to resize the TTY.
 	// The websocket will close if it fails!
-	data, err := json.Marshal(agent.ReconnectingPTYRequest{
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
 		Height: 250,
 		Width:  250,
 	})
@@ -337,7 +338,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	// the shell is simultaneously sending a prompt.
 	time.Sleep(100 * time.Millisecond)
 
-	data, err = json.Marshal(agent.ReconnectingPTYRequest{
+	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
 		Data: "echo test\r\n",
 	})
 	require.NoError(t, err)
@@ -362,4 +363,240 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 	expectLine(matchEchoCommand)
 	expectLine(matchEchoOutput)
+}
+
+func TestWorkspaceAgentListeningPorts(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	coderdPort, err := strconv.Atoi(client.URL.Port())
+	require.NoError(t, err)
+
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	t.Cleanup(func() {
+		_ = agentCloser.Close()
+	})
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	t.Run("LinuxAndWindows", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
+			t.Skip("only runs on linux and windows")
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create a TCP listener on a random port that we expect to see in the
+		// response.
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		defer l.Close()
+		tcpAddr, _ := l.Addr().(*net.TCPAddr)
+
+		// List ports and ensure that the port we expect to see is there.
+		res, err := client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
+		require.NoError(t, err)
+
+		var (
+			expected = map[uint16]bool{
+				// expect the listener we made
+				uint16(tcpAddr.Port): false,
+				// expect the coderdtest server
+				uint16(coderdPort): false,
+			}
+		)
+		for _, port := range res.Ports {
+			if port.Network == codersdk.ListeningPortNetworkTCP {
+				if val, ok := expected[port.Port]; ok {
+					if val {
+						t.Fatalf("expected to find TCP port %d only once in response", port.Port)
+					}
+				}
+				expected[port.Port] = true
+			}
+		}
+		for port, found := range expected {
+			if !found {
+				t.Fatalf("expected to find TCP port %d in response", port)
+			}
+		}
+
+		// Close the listener and check that the port is no longer in the response.
+		require.NoError(t, l.Close())
+		time.Sleep(2 * time.Second) // avoid cache
+		res, err = client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
+		require.NoError(t, err)
+
+		for _, port := range res.Ports {
+			if port.Network == codersdk.ListeningPortNetworkTCP && port.Port == uint16(tcpAddr.Port) {
+				t.Fatalf("expected to not find TCP port %d in response", tcpAddr.Port)
+			}
+		}
+	})
+
+	t.Run("Darwin", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "darwin" {
+			t.Skip("only runs on darwin")
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Create a TCP listener on a random port.
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		defer l.Close()
+
+		// List ports and ensure that the list is empty because we're on darwin.
+		res, err := client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		require.Len(t, res.Ports, 0)
+	})
+}
+
+func TestWorkspaceAgentAppHealth(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	apps := []*proto.App{
+		{
+			Name:    "code-server",
+			Command: "some-command",
+			Url:     "http://localhost:3000",
+			Icon:    "/code.svg",
+		},
+		{
+			Name:    "code-server-2",
+			Command: "some-command",
+			Url:     "http://localhost:3000",
+			Icon:    "/code.svg",
+			Healthcheck: &proto.Healthcheck{
+				Url:       "http://localhost:3000",
+				Interval:  5,
+				Threshold: 6,
+			},
+		},
+	}
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+							Apps: apps,
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+
+	apiApps, err := agentClient.WorkspaceAgentApps(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, apiApps[0].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, apiApps[1].Health)
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{})
+	require.Error(t, err)
+	// empty
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{})
+	require.Error(t, err)
+	// invalid name
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"bad-name": codersdk.WorkspaceAppHealthDisabled,
+		},
+	})
+	require.Error(t, err)
+	// healcheck disabled
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server": codersdk.WorkspaceAppHealthInitializing,
+		},
+	})
+	require.Error(t, err)
+	// invalid value
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server-2": codersdk.WorkspaceAppHealth("bad-value"),
+		},
+	})
+	require.Error(t, err)
+	// update to healthy
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server-2": codersdk.WorkspaceAppHealthHealthy,
+		},
+	})
+	require.NoError(t, err)
+	apiApps, err = agentClient.WorkspaceAgentApps(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, apiApps[1].Health)
+	// update to unhealthy
+	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+		Healths: map[string]codersdk.WorkspaceAppHealth{
+			"code-server-2": codersdk.WorkspaceAppHealthUnhealthy,
+		},
+	})
+	require.NoError(t, err)
+	apiApps, err = agentClient.WorkspaceAgentApps(ctx)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, apiApps[1].Health)
 }

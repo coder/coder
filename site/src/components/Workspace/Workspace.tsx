@@ -15,6 +15,8 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -39,6 +41,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
@@ -46,6 +49,7 @@ export interface WorkspaceProps {
   hideSSHButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
+  applicationsHost?: string
 }
 
 /**
@@ -60,26 +64,34 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   workspace,
+  isUpdating,
   resources,
   builds,
   canUpdateWorkspace,
   workspaceErrors,
   hideSSHButton,
   buildInfo,
+  applicationsHost,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
   const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
-  const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
+  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-  ) : (
-    <></>
   )
-  const cancellationError = workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
+
+  const cancellationError = Boolean(workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]) && (
     <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-  ) : (
-    <></>
+  )
+
+  const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
+    <AlertBanner
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
+      severity="warning"
+      dismissible
+    />
   )
 
   return (
@@ -96,12 +108,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
-              workspace={workspace}
+              workspaceStatus={workspace.latest_build.status}
+              isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              isUpdating={isUpdating}
             />
           </Stack>
         }
@@ -121,6 +135,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
         {buildError}
         {cancellationError}
+        {workspaceRefreshWarning}
 
         <WorkspaceScheduleBanner
           isLoading={bannerProps.isLoading}
@@ -140,6 +155,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             canUpdateWorkspace={canUpdateWorkspace}
             buildInfo={buildInfo}
             hideSSHButton={hideSSHButton}
+            applicationsHost={applicationsHost}
           />
         )}
 

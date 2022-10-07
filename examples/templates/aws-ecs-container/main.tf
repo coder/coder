@@ -6,7 +6,7 @@ terraform {
     }
     coder = {
       source  = "coder/coder"
-      version = "0.4.11"
+      version = "0.5.0"
     }
   }
 }
@@ -105,9 +105,15 @@ resource "coder_agent" "coder" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id      = coder_agent.coder.id
-  name          = "code-server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:13337?folder=/home/coder"
-  relative_path = true
+  agent_id  = coder_agent.coder.id
+  name      = "code-server"
+  icon      = "/icon/code.svg"
+  url       = "http://localhost:13337?folder=/home/coder"
+  subdomain = false
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }

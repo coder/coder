@@ -120,6 +120,7 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
+	LoginTypeToken    LoginType = "token"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -308,6 +309,27 @@ func (e *UserStatus) Scan(src interface{}) error {
 		*e = UserStatus(s)
 	default:
 		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
+	}
+	return nil
+}
+
+type WorkspaceAppHealth string
+
+const (
+	WorkspaceAppHealthDisabled     WorkspaceAppHealth = "disabled"
+	WorkspaceAppHealthInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
+)
+
+func (e *WorkspaceAppHealth) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppHealth(s)
+	case string:
+		*e = WorkspaceAppHealth(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
 	}
 	return nil
 }
@@ -528,6 +550,7 @@ type User struct {
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
 	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
+	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 }
 
 type UserLink struct {
@@ -576,14 +599,18 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceApp struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name                 string             `db:"name" json:"name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
+	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 }
 
 type WorkspaceBuild struct {

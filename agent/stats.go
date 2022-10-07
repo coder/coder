@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/codersdk"
 )
 
 // statsConn wraps a net.Conn with statistics.
@@ -40,8 +41,8 @@ type Stats struct {
 	TxBytes  int64 `json:"tx_bytes"`
 }
 
-func (s *Stats) Copy() *Stats {
-	return &Stats{
+func (s *Stats) Copy() *codersdk.AgentStats {
+	return &codersdk.AgentStats{
 		NumConns: atomic.LoadInt64(&s.NumConns),
 		RxBytes:  atomic.LoadInt64(&s.RxBytes),
 		TxBytes:  atomic.LoadInt64(&s.TxBytes),
@@ -63,5 +64,5 @@ func (s *Stats) wrapConn(conn net.Conn) net.Conn {
 type StatsReporter func(
 	ctx context.Context,
 	log slog.Logger,
-	stats func() *Stats,
+	stats func() *codersdk.AgentStats,
 ) (io.Closer, error)

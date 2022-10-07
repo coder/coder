@@ -51,7 +51,6 @@ module.exports = {
     "!<rootDir>/e2e/**/*.*",
     "!<rootDir>/jest-runner.eslint.config.js",
     "!<rootDir>/jest.config.js",
-    "!<rootDir>/webpack.*.ts",
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
   ],

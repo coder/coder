@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -55,6 +56,7 @@ type Options struct {
 	CacheDir string
 
 	Auditor                        audit.Auditor
+	WorkspaceQuotaEnforcer         workspacequota.Enforcer
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -79,6 +81,7 @@ type Options struct {
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+	Experimental                bool
 }
 
 // New constructs a Coder API handler.
@@ -109,13 +112,7 @@ func New(options *Options) *API {
 		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.Authorizer == nil {
-		var err error
-		options.Authorizer, err = rbac.NewAuthorizer()
-		if err != nil {
-			// This should never happen, as the unit tests would fail if the
-			// default built in authorizer failed.
-			panic(xerrors.Errorf("rego authorize panic: %w", err))
-		}
+		options.Authorizer = rbac.NewAuthorizer()
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
@@ -125,6 +122,9 @@ func New(options *Options) *API {
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
+	}
+	if options.WorkspaceQuotaEnforcer == nil {
+		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
 	}
 
 	siteCacheDir := options.CacheDir
@@ -151,10 +151,12 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
+		metricsCache:           metricsCache,
+		Auditor:                atomic.Pointer[audit.Auditor]{},
+		WorkspaceQuotaEnforcer: atomic.Pointer[workspacequota.Enforcer]{},
 	}
 	api.Auditor.Store(&options.Auditor)
+	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -298,7 +300,6 @@ func New(options *Options) *API {
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 				})
-				r.Post("/workspaces", api.postWorkspacesByOrganization)
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
@@ -307,6 +308,7 @@ func New(options *Options) *API {
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
+						r.Post("/workspaces", api.postWorkspacesByOrganization)
 					})
 				})
 			})
@@ -398,7 +400,14 @@ func New(options *Options) *API {
 
 					r.Route("/keys", func(r chi.Router) {
 						r.Post("/", api.postAPIKey)
-						r.Get("/{keyid}", api.apiKey)
+						r.Route("/tokens", func(r chi.Router) {
+							r.Post("/", api.postToken)
+							r.Get("/", api.tokens)
+						})
+						r.Route("/{keyid}", func(r chi.Router) {
+							r.Get("/", api.apiKey)
+							r.Delete("/", api.deleteAPIKey)
+						})
 					})
 
 					r.Route("/organizations", func(r chi.Router) {
@@ -420,8 +429,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
+				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Get("/report-stats", api.workspaceAgentReportStats)
@@ -434,6 +445,7 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/pty", api.workspaceAgentPTY)
+				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 				// TODO: This can be removed in October. It allows for a friendly
@@ -445,14 +457,6 @@ func New(options *Options) *API {
 					})
 				})
 			})
-		})
-		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractWorkspaceResourceParam(options.Database),
-				httpmw.ExtractWorkspaceParam(options.Database),
-			)
-			r.Get("/", api.workspaceResource)
 		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
@@ -520,6 +524,7 @@ type API struct {
 	*Options
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
+	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"

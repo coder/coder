@@ -110,8 +110,18 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 
-		diff := Diff(p.Audit, req.Old, req.New)
-		diffRaw, _ := json.Marshal(diff)
+		var diffRaw = []byte("{}")
+		// Only generate diffs if the request succeeded.
+		if sw.Status < 400 {
+			diff := Diff(p.Audit, req.Old, req.New)
+
+			var err error
+			diffRaw, err = json.Marshal(diff)
+			if err != nil {
+				p.Log.Warn(logCtx, "marshal diff", slog.Error(err))
+				diffRaw = []byte("{}")
+			}
+		}
 
 		ip, err := parseIP(p.Request.RemoteAddr)
 		if err != nil {

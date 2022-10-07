@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "*"
 
   pull_request:
 
@@ -36,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@master
+        uses: crate-ci/typos@v1.12.8
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -489,6 +487,7 @@ jobs:
           go mod download
 
           version="$(./scripts/version.sh)"
+          make gen/mark-fresh
           make -j \
             build/coder_"$version"_windows_amd64.zip \
             build/coder_"$version"_linux_amd64.{tar.gz,deb}

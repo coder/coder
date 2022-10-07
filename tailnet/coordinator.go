@@ -35,14 +35,25 @@ type Coordinator interface {
 
 // Node represents a node in the network.
 type Node struct {
-	ID            tailcfg.NodeID     `json:"id"`
-	Key           key.NodePublic     `json:"key"`
-	DiscoKey      key.DiscoPublic    `json:"disco"`
-	PreferredDERP int                `json:"preferred_derp"`
-	DERPLatency   map[string]float64 `json:"derp_latency"`
-	Addresses     []netip.Prefix     `json:"addresses"`
-	AllowedIPs    []netip.Prefix     `json:"allowed_ips"`
-	Endpoints     []string           `json:"endpoints"`
+	// ID is used to identify the connection.
+	ID tailcfg.NodeID `json:"id"`
+	// Key is the Wireguard public key of the node.
+	Key key.NodePublic `json:"key"`
+	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.
+	DiscoKey key.DiscoPublic `json:"disco"`
+	// PreferredDERP is the DERP server that peered connections
+	// should meet at to establish.
+	PreferredDERP int `json:"preferred_derp"`
+	// DERPLatency is the latency in seconds to each DERP server.
+	DERPLatency map[string]float64 `json:"derp_latency"`
+	// Addresses are the IP address ranges this connection exposes.
+	Addresses []netip.Prefix `json:"addresses"`
+	// AllowedIPs specify what addresses can dial the connection.
+	// We allow all by default.
+	AllowedIPs []netip.Prefix `json:"allowed_ips"`
+	// Endpoints are ip:port combinations that can be used to establish
+	// peer-to-peer connections.
+	Endpoints []string `json:"endpoints"`
 }
 
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
@@ -184,32 +195,21 @@ func (c *memoryCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder
 	}
 
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
-	// Update the node of this client in our in-memory map. If an agent
-	// entirely shuts down and reconnects, it needs to be aware of all clients
-	// attempting to establish connections.
+	// Update the node of this client in our in-memory map. If an agent entirely
+	// shuts down and reconnects, it needs to be aware of all clients attempting
+	// to establish connections.
 	c.nodes[id] = &node
 
-	// Write the new node from this client to the actively
-	// connected agent.
-	err = c.writeNodeToAgent(agent, &node)
-	if err != nil {
-		return xerrors.Errorf("write node to agent: %w", err)
-	}
-
-	return nil
-}
-
-func (c *memoryCoordinator) writeNodeToAgent(agent uuid.UUID, node *Node) error {
 	agentSocket, ok := c.agentSockets[agent]
 	if !ok {
+		c.mutex.Unlock()
 		return nil
 	}
+	c.mutex.Unlock()
 
-	// Write the new node from this client to the actively
-	// connected agent.
-	data, err := json.Marshal([]*Node{node})
+	// Write the new node from this client to the actively connected agent.
+	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
@@ -221,6 +221,7 @@ func (c *memoryCoordinator) writeNodeToAgent(agent uuid.UUID, node *Node) error 
 		}
 		return xerrors.Errorf("write json: %w", err)
 	}
+
 	return nil
 }
 
@@ -288,16 +289,17 @@ func (c *memoryCoordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.D
 	}
 
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
 
 	c.nodes[id] = &node
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
+		c.mutex.Unlock()
 		return nil
 	}
 
 	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
+		c.mutex.Unlock()
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
 
@@ -313,6 +315,7 @@ func (c *memoryCoordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.D
 		}()
 	}
 
+	c.mutex.Unlock()
 	wg.Wait()
 	return nil
 }
