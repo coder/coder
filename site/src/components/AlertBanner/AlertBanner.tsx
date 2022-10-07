@@ -85,7 +85,8 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
     backgroundColor: `${colors.gray[16]}`,
 
-    "& svg": {
+    // targeting the alert icon rather than the expander icon
+    "& svg:nth-child(2)": {
       marginTop: props.hasDetail ? `${theme.spacing(1)}px` : "inherit",
       marginRight: `${theme.spacing(1)}px`,
     },
