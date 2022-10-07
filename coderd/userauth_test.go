@@ -81,6 +81,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
 
 	stateActive := "active"
+	statePending := "pending"
 
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
 		t.Parallel()
@@ -307,7 +308,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				OAuth2Config:       &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
-						State: nil,
+						State: &statePending,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
