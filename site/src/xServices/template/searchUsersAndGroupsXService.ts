@@ -10,6 +10,7 @@ export type SearchUsersAndGroupsEvent =
 export const searchUsersAndGroupsMachine = createMachine(
   {
     id: "searchUsersAndGroups",
+    predictableActionArguments: true,
     schema: {
       context: {} as {
         organizationId: string
@@ -31,7 +32,10 @@ export const searchUsersAndGroupsMachine = createMachine(
     states: {
       idle: {
         on: {
-          SEARCH: "searching",
+          SEARCH: {
+            target: "searching",
+            cond: "queryHasMinLength",
+          },
           CLEAR_RESULTS: {
             actions: ["clearResults"],
             target: "idle",
@@ -69,6 +73,9 @@ export const searchUsersAndGroupsMachine = createMachine(
         userResults: (_) => [],
         groupResults: (_) => [],
       }),
+    },
+    guards: {
+      queryHasMinLength: (_, { query }) => query.length >= 3,
     },
   },
 )

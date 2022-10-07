@@ -23,18 +23,27 @@ import {
 import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 
-const AddTemplateUserOrGroup: React.FC<{
+type AddTemplateUserOrGroupProps = {
   organizationId: string
   isLoading: boolean
+  templateACL: TemplateACL | undefined
   onSubmit: (
     userOrGroup: TemplateUser | TemplateGroup,
     role: TemplateRole,
     reset: () => void,
   ) => void
-}> = ({ isLoading, onSubmit, organizationId }) => {
+}
+
+const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
+  isLoading,
+  onSubmit,
+  organizationId,
+  templateACL,
+}) => {
   const styles = useStyles()
   const [selectedOption, setSelectedOption] = useState<UserOrGroupAutocompleteValue>(null)
   const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
+  const excludeFromAutocomplete = templateACL ? [...templateACL.group, ...templateACL.users] : []
 
   const resetValues = () => {
     setSelectedOption(null)
@@ -60,6 +69,7 @@ const AddTemplateUserOrGroup: React.FC<{
     >
       <Stack direction="row" alignItems="center" spacing={1}>
         <UserOrGroupAutocomplete
+          exclude={excludeFromAutocomplete}
           organizationId={organizationId}
           value={selectedOption}
           onChange={(newValue) => {
@@ -144,6 +154,7 @@ export const TemplatePermissionsPageView: FC<
     <Stack spacing={2.5}>
       <Maybe condition={canUpdatePermissions}>
         <AddTemplateUserOrGroup
+          templateACL={templateACL}
           organizationId={organizationId}
           isLoading={isAddingUser || isAddingGroup}
           onSubmit={(value, role, resetAutocomplete) =>

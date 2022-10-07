@@ -19,12 +19,14 @@ export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue
   onChange: (value: UserOrGroupAutocompleteValue) => void
   organizationId: string
+  exclude: UserOrGroupAutocompleteValue[]
 }
 
 export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = ({
   value,
   onChange,
   organizationId,
+  exclude,
 }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
@@ -36,6 +38,11 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
     },
   })
   const { userResults, groupResults } = searchState.context
+  const options = [...groupResults, ...userResults].filter((result) => {
+    const excludeIds = exclude.map((optionToExclude) => optionToExclude?.id)
+    return !excludeIds.includes(result.id)
+  })
+
   const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
     sendSearch("SEARCH", { query: event.target.value })
   }, 500)
@@ -80,7 +87,7 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
           />
         )
       }}
-      options={[...groupResults, ...userResults]}
+      options={options}
       loading={searchState.matches("searching")}
       className={styles.autocomplete}
       renderInput={(params) => (
