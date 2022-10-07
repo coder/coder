@@ -99,6 +99,7 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 // in-memory.
 func NewMemoryCoordinator() Coordinator {
 	return &memoryCoordinator{
+		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
 		agentSockets:             map[uuid.UUID]net.Conn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]net.Conn{},
@@ -112,7 +113,8 @@ func NewMemoryCoordinator() Coordinator {
 // This coordinator is incompatible with multiple Coder
 // replicas as all node data is in-memory.
 type memoryCoordinator struct {
-	mutex sync.Mutex
+	mutex  sync.Mutex
+	closed bool
 
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
@@ -135,6 +137,11 @@ func (c *memoryCoordinator) Node(id uuid.UUID) *Node {
 // with the specified ID.
 func (c *memoryCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	c.mutex.Lock()
+
+	if c.closed {
+		return xerrors.New("coordinator is closed")
+	}
+
 	// When a new connection is requested, we update it with the latest
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
@@ -229,6 +236,11 @@ func (c *memoryCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder
 // listens to incoming connections and publishes node updates.
 func (c *memoryCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	c.mutex.Lock()
+
+	if c.closed {
+		return xerrors.New("coordinator is closed")
+	}
+
 	sockets, ok := c.agentToConnectionSockets[id]
 	if ok {
 		// Publish all nodes that want to connect to the
@@ -320,4 +332,36 @@ func (c *memoryCoordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.D
 	return nil
 }
 
-func (*memoryCoordinator) Close() error { return nil }
+// Close closes all of the open connections in the coordinator and stops the
+// coordinator from accepting new connections.
+func (c *memoryCoordinator) Close() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.closed = true
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(len(c.agentSockets))
+	for _, socket := range c.agentSockets {
+		socket := socket
+		go func() {
+			_ = socket.Close()
+			wg.Done()
+		}()
+	}
+
+	for _, connMap := range c.agentToConnectionSockets {
+		wg.Add(len(connMap))
+		for _, socket := range connMap {
+			socket := socket
+			go func() {
+				_ = socket.Close()
+				wg.Done()
+			}()
+		}
+	}
+
+	wg.Wait()
+	return nil
+}

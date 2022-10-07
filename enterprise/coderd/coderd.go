@@ -170,6 +170,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}
 
+	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
+		enforcer := workspacequota.NewNop()
+		if enabled {
+			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+		}
+		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
+	}
+
 	api.entitlements = entitlements
 
 	return nil

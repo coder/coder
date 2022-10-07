@@ -14,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	agpl "github.com/coder/coder/tailnet"
 )
@@ -288,8 +287,37 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	return &node, nil
 }
 
+// Close closes all of the open connections in the coordinator and stops the
+// coordinator from accepting new connections.
 func (c *haCoordinator) Close() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	close(c.close)
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(len(c.agentSockets))
+	for _, socket := range c.agentSockets {
+		socket := socket
+		go func() {
+			_ = socket.Close()
+			wg.Done()
+		}()
+	}
+
+	for _, connMap := range c.agentToConnectionSockets {
+		wg.Add(len(connMap))
+		for _, socket := range connMap {
+			socket := socket
+			go func() {
+				_ = socket.Close()
+				wg.Done()
+			}()
+		}
+	}
+
+	wg.Wait()
 	return nil
 }
 
