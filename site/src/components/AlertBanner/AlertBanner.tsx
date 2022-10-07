@@ -49,7 +49,7 @@ export const AlertBanner: FC<AlertBannerProps> = ({
         spacing={0}
         justifyContent="space-between"
       >
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" alignItems="center" spacing={1}>
           {severityConstants[severity].icon}
           <Stack spacing={0}>
             {alertMessage}
@@ -87,6 +87,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
 
     "& svg": {
       marginTop: props.hasDetail ? `${theme.spacing(1)}px` : "inherit",
+      marginRight: `${theme.spacing(1)}px`,
     },
   }),
 }))
