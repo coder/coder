@@ -259,6 +259,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/settings", func(r chi.Router) {
+			r.Get("/deployment", api.deploymentSettings)
+		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
