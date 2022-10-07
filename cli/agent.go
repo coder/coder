@@ -168,15 +168,15 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 
-			ctx, cancelFunc := context.WithTimeout(cmd.Context(), time.Hour)
-			defer cancelFunc()
-			for retry.New(100*time.Millisecond, 5*time.Second).Wait(ctx) {
-				err := client.PostWorkspaceAgentVersion(cmd.Context(), version)
+			retryCtx, cancelRetry := context.WithTimeout(cmd.Context(), time.Hour)
+			defer cancelRetry()
+			for retrier := retry.New(100*time.Millisecond, 5*time.Second); retrier.Wait(retryCtx); {
+				err := client.PostWorkspaceAgentVersion(retryCtx, version)
 				if err != nil {
-					logger.Warn(cmd.Context(), "post agent version: %w", slog.Error(err), slog.F("version", version))
+					logger.Warn(retryCtx, "post agent version: %w", slog.Error(err), slog.F("version", version))
 					continue
 				}
-				logger.Info(ctx, "updated agent version", slog.F("version", version))
+				logger.Info(retryCtx, "updated agent version", slog.F("version", version))
 				break
 			}
 
