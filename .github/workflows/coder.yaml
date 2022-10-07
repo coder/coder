@@ -628,7 +628,7 @@ jobs:
         with:
           name: failed-test-videos
           path: ./site/test-results/**/*.webm
-          retention:days: 7
+          retention-days: 7
 
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
