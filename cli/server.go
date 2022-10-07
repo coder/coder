@@ -260,10 +260,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 
 			// Validate provided auto-import templates.
 			var (
-				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(autoImportTemplates))
-				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(autoImportTemplates))
+				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(dflags.AutoImportTemplates.Value))
+				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(dflags.AutoImportTemplates.Value))
 			)
-			for i, autoImportTemplate := range autoImportTemplates {
+			for i, autoImportTemplate := range dflags.AutoImportTemplates.Value {
 				var v coderd.AutoImportTemplate
 				switch autoImportTemplate {
 				case "kubernetes":
@@ -281,27 +281,27 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
-				RegionID:      derpServerRegionID,
-				RegionCode:    derpServerRegionCode,
-				RegionName:    derpServerRegionName,
+				RegionID:      dflags.DerpServerRegionID.Value,
+				RegionCode:    dflags.DerpServerRegionCode.Value,
+				RegionName:    dflags.DerpServerRegionName.Value,
 				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%db", derpServerRegionID),
-					RegionID:  derpServerRegionID,
+					Name:      fmt.Sprintf("%db", dflags.DerpServerRegionID.Value),
+					RegionID:  dflags.DerpServerRegionID.Value,
 					HostName:  accessURLParsed.Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: accessURLParsed.Scheme == "http",
 				}},
 			}
-			if !derpServerEnabled {
+			if !dflags.DerpServerEnable.Value {
 				defaultRegion = nil
 			}
-			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, derpServerSTUNAddrs, derpConfigURL, derpConfigPath)
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, dflags.DerpServerSTUNAddresses.Value, dflags.DerpConfigURL.Value, dflags.DerpConfigPath.Value)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
-			appHostname := strings.TrimPrefix(wildcardAccessURL, "http://")
+			appHostname := strings.TrimPrefix(dflags.WildcardAccessURL.Value, "http://")
 			appHostname = strings.TrimPrefix(appHostname, "https://")
 			appHostname = strings.TrimPrefix(appHostname, "*.")
 
@@ -312,34 +312,41 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
 				Pubsub:                      database.NewPubsubInMemory(),
-				CacheDir:                    cacheDir,
+				CacheDir:                    dflags.CacheDir.Value,
 				GoogleTokenValidator:        googleTokenValidator,
-				SecureAuthCookie:            secureAuthCookie,
+				SecureAuthCookie:            dflags.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
 				AutoImportTemplates:         validatedAutoImportTemplates,
-				MetricsCacheRefreshInterval: metricsCacheRefreshInterval,
-				AgentStatsRefreshInterval:   agentStatRefreshInterval,
+				MetricsCacheRefreshInterval: dflags.MetricsCacheRefreshInterval.Value,
+				AgentStatsRefreshInterval:   dflags.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
 			}
 
-			if oauth2GithubClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations, oauth2GithubAllowedTeams, oauth2GithubEnterpriseBaseURL)
+			if dflags.Oauth2GithubClientSecret.Value != "" {
+				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
+					dflags.Oauth2GithubClientID.Value,
+					dflags.Oauth2GithubClientSecret.Value,
+					dflags.Oauth2GithubAllowSignups.Value,
+					dflags.Oauth2GithubAllowedOrganizations.Value,
+					dflags.Oauth2GithubAllowedTeams.Value,
+					dflags.Oauth2GithubEnterpriseBaseURL.Value,
+				)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
 			}
 
-			if oidcClientSecret != "" {
-				if oidcClientID == "" {
+			if dflags.OidcClientSecret.Value != "" {
+				if dflags.OidcClientID.Value == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
-				if oidcIssuerURL == "" {
+				if dflags.OidcIssuerURL.Value == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
+				oidcProvider, err := oidc.NewProvider(ctx, dflags.OidcIssuerURL.Value)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
@@ -349,25 +356,25 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
-						ClientID:     oidcClientID,
-						ClientSecret: oidcClientSecret,
+						ClientID:     dflags.OidcClientID.Value,
+						ClientSecret: dflags.OidcClientSecret.Value,
 						RedirectURL:  redirectURL.String(),
 						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       oidcScopes,
+						Scopes:       dflags.OidcScopes.Value,
 					},
 					Verifier: oidcProvider.Verifier(&oidc.Config{
-						ClientID: oidcClientID,
+						ClientID: dflags.OidcClientID.Value,
 					}),
-					EmailDomain:  oidcEmailDomain,
-					AllowSignups: oidcAllowSignups,
+					EmailDomain:  dflags.OidcEmailDomain.Value,
+					AllowSignups: dflags.OidcAllowSignups.Value,
 				}
 			}
 
-			if inMemoryDatabase {
+			if dflags.InMemoryDatabase.Value {
 				options.Database = databasefake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
-				sqlDB, err := sql.Open(sqlDriver, postgresURL)
+				sqlDB, err := sql.Open(sqlDriver, dflags.PostgresURL.Value)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
@@ -382,7 +389,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 					return xerrors.Errorf("migrate up: %w", err)
 				}
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, postgresURL)
+				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, dflags.PostgresURL.Value)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
@@ -405,26 +412,26 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(ctx, telemetryURL)
+			telemetryURL, err := parseURL(ctx, dflags.TelemetryURL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
-			if inMemoryDatabase && !cmd.Flags().Changed("telemetry") {
-				telemetryEnable = false
+			if dflags.InMemoryDatabase.Value && !cmd.Flags().Changed(dflags.TelemetryEnable.Flag) {
+				dflags.TelemetryEnable.Value = false
 			}
-			if telemetryEnable {
+			if dflags.TelemetryEnable.Value {
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
 					Database:        options.Database,
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
-					GitHubOAuth:     oauth2GithubClientID != "",
-					OIDCAuth:        oidcClientID != "",
-					OIDCIssuerURL:   oidcIssuerURL,
-					Prometheus:      promEnabled,
-					STUN:            len(derpServerSTUNAddrs) != 0,
+					GitHubOAuth:     dflags.Oauth2GithubClientID.Value != "",
+					OIDCAuth:        dflags.OidcClientID.Value != "",
+					OIDCIssuerURL:   dflags.OidcIssuerURL.Value,
+					Prometheus:      dflags.PromEnabled.Value,
+					STUN:            len(dflags.DerpServerSTUNAddresses.Value) != 0,
 					Tunnel:          tunnel != nil,
 				})
 				if err != nil {
@@ -435,11 +442,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			if pprofEnabled {
+			if dflags.PprofEnabled.Value {
 				//nolint:revive
-				defer serveHandler(ctx, logger, nil, pprofAddress, "pprof")()
+				defer serveHandler(ctx, logger, nil, dflags.PprofAddress.Value, "pprof")()
 			}
-			if promEnabled {
+			if dflags.PromEnabled.Value {
 				options.PrometheusRegistry = prometheus.NewRegistry()
 				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
@@ -456,7 +463,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				//nolint:revive
 				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				), promAddress, "prometheus")()
+				), dflags.PromAddress.Value, "prometheus")()
 			}
 
 			coderAPI, err := newAPI(ctx, options)
@@ -466,7 +473,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			defer coderAPI.Close()
 
 			client := codersdk.New(localURL)
-			if tlsEnable {
+			if dflags.TLSEnable.Value {
 				// Secure transport isn't needed for locally communicating!
 				client.HTTPClient.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{
@@ -490,8 +497,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 					_ = daemon.Close()
 				}
 			}()
-			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cacheDir, errCh, false)
+			for i := 0; i < dflags.ProvisionerDaemonCount.Value; i++ {
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, dflags.CacheDir.Value, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -557,7 +564,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(autobuildPollInterval)
+			autobuildPoller := time.NewTicker(dflags.AutobuildPollInterval.Value)
 			defer autobuildPoller.Stop()
 			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
@@ -622,7 +629,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				go func() {
 					defer wg.Done()
 
-					if verbose {
+					if dflags.Verbose.Value {
 						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
@@ -635,7 +642,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
 						return
 					}
-					if verbose {
+					if dflags.Verbose.Value {
 						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
 					}
 				}()
@@ -687,7 +694,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if verbose {
+			if dflags.Verbose.Value {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
