@@ -158,6 +158,10 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 				if val != nil {
 					v = val.Format(time.RFC3339)
 				}
+			case *int64:
+				if val != nil {
+					v = *val
+				}
 			case fmt.Stringer:
 				if val != nil {
 					v = val.String()
