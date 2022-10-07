@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/enterprise/tailnet"
+	agpltailnet "github.com/coder/coder/tailnet"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -171,11 +173,27 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		enforcer := workspacequota.NewNop()
+		coordinator := agpltailnet.NewMemoryCoordinator()
 		if enabled {
-			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+			haCoordinator, err := tailnet.NewHACoordinator(api.Logger, api.Pubsub)
+			if err != nil {
+				api.Logger.Error(ctx, "unable to setup HA tailnet coordinator", slog.Error(err))
+				// If we try to setup the HA coordinator and it fails, nothing
+				// is actually changing.
+				changed = false
+			} else {
+				coordinator = haCoordinator
+			}
 		}
-		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
+
+		// Recheck changed in case the HA coordinator failed to set up.
+		if changed {
+			oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
+			err := oldCoordinator.Close()
+			if err != nil {
+				api.Logger.Error(ctx, "unable to setup HA tailnet coordinator", slog.Error(err))
+			}
+		}
 	}
 
 	api.entitlements = entitlements
