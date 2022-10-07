@@ -250,7 +250,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "MyFile",
-			Actions:  []rbac.Action{rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceFile.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, memberMe, orgMemberMe, templateAdmin},
