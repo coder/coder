@@ -36,6 +36,10 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         textTransform: "none",
         letterSpacing: "none",
         border: `1px solid ${palette.divider}`,
+
+        "&:focus-visible": {
+          outline: `2px solid ${palette.primary.dark}`,
+        },
       },
       contained: {
         boxShadow: "none",
