@@ -245,6 +245,7 @@ export interface Entitlements {
   readonly warnings: string[]
   readonly has_license: boolean
   readonly experimental: boolean
+  readonly trial: boolean
 }
 
 // From codersdk/features.go
