@@ -20,6 +20,9 @@ func parameters() *cobra.Command {
 		// constructing curl requests.
 		Hidden:  true,
 		Aliases: []string{"params"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		parameterList(),
