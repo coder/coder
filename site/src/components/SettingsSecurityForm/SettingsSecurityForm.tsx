@@ -1,11 +1,11 @@
 import TextField from "@material-ui/core/TextField"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 interface SecurityFormValues {
   old_password: string
@@ -68,7 +68,9 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateSecurityError ? <ErrorSummary error={updateSecurityError} /> : <></>}
+          {Boolean(updateSecurityError) && (
+            <AlertBanner severity="error" error={updateSecurityError} />
+          )}
           <TextField
             {...getFieldHelpers("old_password")}
             onChange={onChangeTrimmed(form)}

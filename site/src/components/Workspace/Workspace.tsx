@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
@@ -79,17 +78,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
+      dismissible
+    />
   )
 
   const cancellationError = Boolean(workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]) && (
-    <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
+      dismissible
+    />
   )
 
   const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
     <AlertBanner
-      text={t("warningsAndErrors.workspaceRefreshWarning")}
       severity="warning"
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
       dismissible
     />
   )
@@ -161,7 +168,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+            <AlertBanner
+              severity="error"
+              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+            />
           ) : (
             <BuildsTable builds={builds} className={styles.timelineTable} />
           )}
