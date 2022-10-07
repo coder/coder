@@ -1,5 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { ErrorSummary } from "./ErrorSummary"
+import { i18n } from "i18n"
+
+const { t } = i18n
 
 describe("ErrorSummary", () => {
   it("renders", async () => {
@@ -26,7 +29,8 @@ describe("ErrorSummary", () => {
     render(<ErrorSummary error={error} />)
 
     // Then
-    fireEvent.click(screen.getByText("More"))
+    const expandText = t("ctas.expand", { ns: "common" })
+    fireEvent.click(screen.getByText(expandText))
     const element = await screen.findByText(
       "The resource you requested does not exist in the database.",
       { exact: false },
@@ -48,8 +52,11 @@ describe("ErrorSummary", () => {
     render(<ErrorSummary error={error} />)
 
     // Then
-    fireEvent.click(screen.getByText("More"))
-    fireEvent.click(screen.getByText("Less"))
+    const expandText = t("ctas.expand", { ns: "common" })
+    const collapseText = t("ctas.collapse", { ns: "common" })
+
+    fireEvent.click(screen.getByText(expandText))
+    fireEvent.click(screen.getByText(collapseText))
     const element = await screen.findByText(
       "The resource you requested does not exist in the database.",
       { exact: false },

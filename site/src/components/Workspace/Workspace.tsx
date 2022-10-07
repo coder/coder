@@ -15,7 +15,7 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
-import { WarningAlert } from "../WarningAlert/WarningAlert"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 
 export enum WorkspaceErrors {
@@ -87,7 +87,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   )
 
   const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
-    <WarningAlert text={t("warningsAndErrors.workspaceRefreshWarning")} dismissible />
+    <AlertBanner
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
+      severity="warning"
+      dismissible
+    />
   )
 
   return (

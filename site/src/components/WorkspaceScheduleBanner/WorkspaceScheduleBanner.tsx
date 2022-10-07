@@ -5,7 +5,7 @@ import utc from "dayjs/plugin/utc"
 import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"
 import { isWorkspaceOn } from "util/workspace"
-import { WarningAlert } from "components/WarningAlert/WarningAlert"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 
 dayjs.extend(utc)
@@ -44,9 +44,10 @@ export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceSchedu
   )
 
   return (
-    <WarningAlert
+    <AlertBanner
       text={t("warningsAndErrors.workspaceShutdownWarning")}
       actions={[ScheduleButton]}
+      severity="warning"
     />
   )
 }

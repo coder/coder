@@ -1,4 +1,3 @@
-import Collapse from "@material-ui/core/Collapse"
 import { makeStyles } from "@material-ui/core/styles"
 import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
@@ -43,17 +42,16 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
               {Language.upgrade}
             </a>
           </div>
-          <Expander expanded={showDetails} setExpanded={setShowDetails} />
+          <Expander expanded={showDetails} setExpanded={setShowDetails}>
+            <ul className={styles.list}>
+              {warnings.map((warning) => (
+                <li className={styles.listItem} key={`${warning}`}>
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </Expander>
         </div>
-        <Collapse in={showDetails}>
-          <ul className={styles.list}>
-            {warnings.map((warning) => (
-              <li className={styles.listItem} key={`${warning}`}>
-                {warning}
-              </li>
-            ))}
-          </ul>
-        </Collapse>
       </div>
     )
   }
