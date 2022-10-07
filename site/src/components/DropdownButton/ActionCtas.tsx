@@ -1,3 +1,4 @@
+import Tooltip from "@material-ui/core/Tooltip"
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import BlockIcon from "@material-ui/icons/Block"
@@ -73,12 +74,19 @@ export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ han
 
   // this is an icon button, so it's important to include an aria label
   return (
-    <WorkspaceActionButton
-      icon={<BlockIcon />}
-      onClick={handleAction}
-      className={styles.cancelButton}
-      ariaLabel="cancel action"
-    />
+    <div>
+      <Tooltip title="Cancel action">
+        {/* We had to wrap the button to make it work with the tooltip. */}
+        <div>
+          <WorkspaceActionButton
+            icon={<BlockIcon />}
+            onClick={handleAction}
+            className={styles.cancelButton}
+            ariaLabel="cancel action"
+          />
+        </div>
+      </Tooltip>
+    </div>
   )
 }
 
