@@ -191,7 +191,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
 			err := oldCoordinator.Close()
 			if err != nil {
-				api.Logger.Error(ctx, "unable to setup HA tailnet coordinator", slog.Error(err))
+				api.Logger.Error(ctx, "close old tailnet coordinator", slog.Error(err))
 			}
 		}
 	}

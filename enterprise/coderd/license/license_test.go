@@ -20,10 +20,11 @@ import (
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	all := map[string]bool{
-		codersdk.FeatureAuditLog:       true,
-		codersdk.FeatureBrowserOnly:    true,
-		codersdk.FeatureSCIM:           true,
-		codersdk.FeatureWorkspaceQuota: true,
+		codersdk.FeatureAuditLog:         true,
+		codersdk.FeatureBrowserOnly:      true,
+		codersdk.FeatureSCIM:             true,
+		codersdk.FeatureWorkspaceQuota:   true,
+		codersdk.FeatureHighAvailability: true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {

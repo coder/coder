@@ -85,17 +85,18 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType    string
-	AccountID      string
-	Trial          bool
-	AllFeatures    bool
-	GraceAt        time.Time
-	ExpiresAt      time.Time
-	UserLimit      int64
-	AuditLog       bool
-	BrowserOnly    bool
-	SCIM           bool
-	WorkspaceQuota bool
+	AccountType      string
+	AccountID        string
+	Trial            bool
+	AllFeatures      bool
+	GraceAt          time.Time
+	ExpiresAt        time.Time
+	UserLimit        int64
+	AuditLog         bool
+	BrowserOnly      bool
+	SCIM             bool
+	WorkspaceQuota   bool
+	HighAvailability bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
