@@ -85,7 +85,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    paddingTop: theme.spacing(3),
+    padding: theme.spacing(3, 2),
     textAlign: "center",
   },
   avatarContainer: {
@@ -107,7 +107,7 @@ const useStyles = makeStyles((theme) => ({
   },
   userName: {
     fontSize: 16,
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(1),
   },
   userEmail: {
     fontSize: 14,
