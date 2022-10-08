@@ -202,13 +202,15 @@
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment.",
           "icon_path": "./images/icons/radar.svg",
-          "path": "./admin/audit-logs.md"
+          "path": "./admin/audit-logs.md",
+          "state": "enterprise"
         },
         {
           "title": "Quotas",
           "description": "Learn how to use Workspace Quotas in Coder.",
           "icon_path": "./images/icons/dollar.svg",
-          "path": "./admin/quotas.md"
+          "path": "./admin/quotas.md",
+          "state": "enterprise"
         },
         {
           "title": "Enterprise",
