@@ -17,10 +17,10 @@ spec:
       protocol: TCP
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
-  loadBalancerIP: {{ . }}
+  loadBalancerIP: {{ . | quote }}
   {{- end }}
   {{- with .Values.coder.service.externalTrafficPolicy }}
-  externalTrafficPolicy: {{ . }}
+  externalTrafficPolicy: {{ . | quote }}
   {{- end }}
   {{- end }}
   selector:
