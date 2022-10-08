@@ -187,7 +187,7 @@ func New(options *Options) *API {
 		// app URL. If it is, it will serve that application.
 		api.handleSubdomainApplications(
 			// Middleware to impose on the served application.
-			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
 				OAuth2Configs: oauthConfigs,
@@ -212,7 +212,7 @@ func New(options *Options) *API {
 	apps := func(r chi.Router) {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
-			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			apiKeyMiddlewareRedirect,
 			httpmw.ExtractUserParam(api.Database),
 			// Extracts the <workspace.agent> from the url
@@ -240,7 +240,7 @@ func New(options *Options) *API {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
-			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
@@ -273,7 +273,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
-				httpmw.RateLimitPerMinute(12),
+				httpmw.RateLimit(12, time.Minute),
 			)
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
@@ -359,7 +359,13 @@ func New(options *Options) *API {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
-			r.Post("/login", api.postLogin)
+			r.Group(func(r chi.Router) {
+				// We use a tight limit for password login to protect
+				// against audit-log write DoS, pbkdf2 DoS, and simple
+				// brute-force attacks.
+				r.Use(httpmw.RateLimit(10, time.Minute))
+				r.Post("/login", api.postLogin)
+			})
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {

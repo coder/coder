@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestRateLimit(t *testing.T) {
 	t.Run("NoUser", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.RateLimitPerMinute(5))
+		rtr.Use(httpmw.RateLimit(5, time.Second))
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})
