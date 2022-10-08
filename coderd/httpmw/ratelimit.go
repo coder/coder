@@ -5,10 +5,13 @@ import (
 	"time"
 
 	"github.com/go-chi/httprate"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 )
 
 // RateLimit returns a handler that limits requests per-minute based
@@ -26,10 +29,33 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
 			// Prioritize by user, but fallback to IP.
 			apiKey, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey)
-			if ok {
+			if !ok {
+				return httprate.KeyByIP(r)
+			}
+
+			if r.Header.Get(codersdk.BypassRatelimitHeader) == "" {
 				return apiKey.UserID.String(), nil
 			}
-			return httprate.KeyByIP(r)
+
+			// Allow Owner to bypass rate limiting for load tests
+			// and automation.
+			auth := UserAuthorization(r)
+
+			for _, role := range auth.Roles {
+				if role == rbac.RoleOwner() {
+					// HACK: use a random key each time to
+					// de facto disable rate limiting. The
+					// `httprate` package has no
+					// support for selectively changing the limit
+					// for particular keys.
+					return cryptorand.String(16)
+				}
+			}
+
+			return apiKey.UserID.String(), xerrors.Errorf(
+				"%q provided but user is not %v",
+				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
+			)
 		}, httprate.KeyByEndpoint),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
