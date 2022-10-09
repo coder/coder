@@ -731,10 +731,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, file) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	// TODO(JonA): Readd this check once we update the unique constraint
+	// on files to be owner + hash.
+	// if !api.Authorize(r, rbac.ActionRead, file) {
+	// 	httpapi.ResourceNotFound(rw)
+	// 	return
+	// }
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
