@@ -645,6 +645,7 @@ export interface WorkspaceBuild {
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
+  readonly Since: string
 }
 
 // From codersdk/workspaces.go

@@ -821,14 +821,17 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
-	params database.GetWorkspaceBuildByWorkspaceIDParams,
+func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
+	params database.GetWorkspaceBuildsByWorkspaceIDParams,
 ) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	history := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.CreatedAt.Before(params.Since) {
+			continue
+		}
 		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
 			history = append(history, workspaceBuild)
 		}
