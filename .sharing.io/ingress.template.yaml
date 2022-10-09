@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: contour-external
+  name: coder
+  namespace: coder
+spec:
+  rules:
+    - host: coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
+      http:
+        paths:
+          - backend:
+              service:
+                name: coder
+                port:
+                  number: 80
+            path: /
+            pathType: ImplementationSpecific
+  tls:
+    - hosts:
+        - coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
+      secretName: letsencrypt-prod
+status:
+  loadBalancer: {}

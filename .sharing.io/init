@@ -1,0 +1,70 @@
+#!/bin/env bash
+set -x
+
+# upgrade go to 1.19.1
+go version | grep 1.19.1 || curl -L https://dl.google.com/go/go1.19.1.linux-amd64.tar.gz | sudo tar --directory /usr/local --extract --ungzip
+# shfmt needed for make
+which shfmt || sudo apt-get install shfmt
+# for converting k8s yaml to HCL
+go install github.com/jrhouston/tfk8s@latest
+# TODO: Make still failing, possible dependencies still missing.
+
+# install coder binary until we can build from src
+which coder || (
+	curl -OL https://github.com/coder/coder/releases/download/v0.9.1/coder_0.9.1_linux_amd64.deb
+	sudo dpkg -i coder_0.9.1_linux_amd64.deb
+	# Add completion
+	echo '. <(coder completion bash)' >>~/.bashrc
+)
+
+# Deploying coder (from helm for now)
+kubectl create namespace coder
+# ensure ingress works / certs secrets get copied
+kubectl label ns coder cert-manager-tls=sync
+# needs a postgres db
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install postgres bitnami/postgresql \
+	--namespace coder \
+	--set auth.username=coder \
+	--set auth.password=coder \
+	--set auth.database=coder \
+	--set persistence.size=10Gi
+# deploy via helm for now
+envsubst <.sharing.io/values.template.yaml >.sharing.io/values.yaml
+helm install coder ./helm/ \
+	--namespace coder \
+	--values .sharing.io/values.yaml
+# setup ingress
+envsubst <.sharing.io/ingress.template.yaml >.sharing.io/ingress.yaml
+kubectl apply -f .sharing.io/ingress.yaml
+# Wait for coder to deploy
+kubectl rollout status deployment coder -n coder
+kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
+
+# create the initial user
+# populate ii or pair as an admin user without logging in
+CODER_EMAIL=ii@ii.coop
+CODER_PASSWORD=ii
+CODER_USERNAME=ii
+CODER_URL=https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
+# export vars to we can emulate a tty with a short expect script
+export CODER_EMAIL CODER_PASSWORD CODER_USERNAME
+coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
+export HELM_VALUES="service:\n  type: NodePort\nsyncer:\n  extraArgs:\n    - --tls-san=${SHARINGIO_PAIR_BASE_DNS_NAME}"
+export EXP_CLUSTER_RESOURCE_SET=true
+# Install kubevirt
+export RELEASE=$(curl https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt)
+# Deploy the KubeVirt operator
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${RELEASE}/kubevirt-operator.yaml
+# Create the KubeVirt CR (instance deployment request) which triggers the actual installation
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${RELEASE}/kubevirt-cr.yaml
+# wait until all KubeVirt components are up
+kubectl -n kubevirt wait kv kubevirt --for condition=Available
+
+clusterctl init --infrastructure vcluster
+clusterctl init --infrastructure kubevirt
+clusterctl init --infrastructure=packet
+
+kubectl create ns coder-workspaces
+
+#TODO : upload / update the kubernetes template

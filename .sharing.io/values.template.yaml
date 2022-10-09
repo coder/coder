@@ -1,0 +1,34 @@
+coder:
+  # You can specify any environment variables you'd like to pass to Coder
+  # here. Coder consumes environment variables listed in
+  # `coder server --help`, and these environment variables are also passed
+  # to the workspace provisioner (so you can consume them in your Terraform
+  # templates for auth keys etc.).
+  #
+  # Please keep in mind that you should not set `CODER_ADDRESS`,
+  # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
+  # they are already set by the Helm chart and will cause conflicts.
+  image:
+    tag: "v0.9.0"
+  env:
+    - name: CODER_ACCESS_URL
+      value: "https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"
+    - name: CODER_PG_CONNECTION_URL
+      value: "postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
+    # This env variable controls whether or not to auto-import the "kubernetes"
+    # template on first startup. This will not work unless
+    # coder.serviceAccount.workspacePerms is true.
+    - name: CODER_TEMPLATE_AUTOIMPORT
+      value: "kubernetes"
+    - name: CODER_VERBOSE
+      value: "true"
+    - name: CODER_AUDIT_LOGGING
+      value: "false"
+    - name: CODER_TELEMETRY
+      value: "false"
+    - name: CODER_TELEMETRY_TRACE
+      value: "false"
+    - name: CODER_WILDCARD_ACCESS_URL
+      value: "*.coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"
+  tls:
+    secretName: null

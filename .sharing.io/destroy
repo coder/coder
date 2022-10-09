@@ -1,0 +1,8 @@
+#!/bin/env bash
+set -x
+kubectl delete -f .sharingio/ingress.yaml
+helm delete coder --namespace coder
+helm delete postgres --namespace coder
+kubectl delete namespace coder
+# TODO : populate ii or pair as an admin user without logging in
+# TODO : upload / update the kubernetes template

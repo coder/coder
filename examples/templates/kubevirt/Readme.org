@@ -1,0 +1,29 @@
+#+title: Readme
+
+* kubevirt workspace
+** create template and cluster
+#+nobegin_src shell :dir "../../.."
+#+begin_src tmate :dir "../../.." :window kubevirt
+cd ~/sharingio/coder
+export CRI_PATH=/var/run/containerd/containerd.sock
+export IMAGE_REPO=k8s.gcr.io
+export NODE_VM_IMAGE_TEMPLATE=quay.io/capk/ubuntu-2004-container-disk:v1.22.0
+coder template create kubevirt -d examples/templates/kubevirt --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
+coder create kv1 --template kubevirt --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
+#+end_src
+** update template and new cluster
+#+nobegin_src shell :dir "../../.."
+#+begin_src tmate :dir "../../.." :window kubevirt
+export WORKSPACE=kv1
+coder template push kubevirt -d examples/templates/kubevirt --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
+coder create $WORKSPACE --template kubevirt --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
+unset KUBECONFIG
+TMPFILE=$(mktemp -t kubeconfig-XXXXX)
+kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
+export KUBECONFIG=$TMPFILE
+kubectl get ns
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example

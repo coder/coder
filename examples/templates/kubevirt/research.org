@@ -1,0 +1,159 @@
+#+title: Research
+* Installing KubeVirt
+https://kubevirt.io/user-guide/operations/installation/
+** kube-apiserver --allow-privileged=true
+
+Kubernetes apiserver must have --allow-privileged=true in order to run KubeVirt's privileged DaemonSet.
+
+#+begin_src shell
+kubectl get pods -n kube-system -l component=kube-apiserver -o jsonpath='{.items[0].spec.containers[0].command}' | jq -r .[] | grep allow-privileged=true
+#+end_src
+
+#+RESULTS:
+#+begin_example
+--allow-privileged=true
+#+end_example
+** virt-host-validate
+This is run on the host of the pod... we nsenter to install/run for now.
+*** install
+#+begin_src shell
+docker run -i --rm --privileged --pid=host alpine:edge nsenter -t 1 -m -u -n -i su root -c "cd $EXEC_PWD; /bin/bash -c \"apt-get install -y libvirt-clients\""
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Reading package lists...
+Building dependency tree...
+Reading state information...
+libvirt-clients is already the newest version (6.0.0-0ubuntu8.16).
+0 upgraded, 0 newly installed, 0 to remove and 14 not upgraded.
+#+end_example
+
+*** run virt-host-validate
+
+Ignoring the PASS, we note a couple WARNS, neither of which are show stoppers for now and we can fix if we really want.
+
+#+name: virt-host-validate
+#+begin_src shell :prologue "(\n" :epilogue "\n) 2>&1\n:\n"
+docker run -i --rm --privileged --pid=host alpine:edge nsenter -t 1 -m -u -n -i su root -c "cd $EXEC_PWD; /bin/bash -c \"virt-host-validate | grep -v PASS\""
+#+end_src
+
+#+RESULTS: virt-host-validate
+#+begin_example
+  QEMU: Checking if IOMMU is enabled by kernel                               : WARN (IOMMU appears to be disabled in kernel. Add intel_iommu=on to kernel cmdline arguments)
+  QEMU: Checking for secure guest support                                    : WARN (Unknown if this platform has Secure Guest support)
+#+end_example
+** installing KubeVirt
+#+begin_src tmate :window install_kubevirt
+export RELEASE=$(curl https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt)
+# Deploy the KubeVirt operator
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${RELEASE}/kubevirt-operator.yaml
+# Create the KubeVirt CR (instance deployment request) which triggers the actual installation
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${RELEASE}/kubevirt-cr.yaml
+# wait until all KubeVirt components are up
+kubectl -n kubevirt wait kv kubevirt --for condition=Available
+#+end_src
+
+** exploring kubevirt
+#+begin_src shell
+kubectl get pods -n kubevirt
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME                               READY   STATUS    RESTARTS   AGE
+virt-api-644f978d88-cltqm          1/1     Running   0          3m19s
+virt-controller-64c6d77bd9-pcspl   1/1     Running   0          2m54s
+virt-controller-64c6d77bd9-zx772   1/1     Running   0          2m54s
+virt-handler-c5kmp                 1/1     Running   0          2m54s
+virt-operator-57d5c5d569-gprmv     1/1     Running   0          4m9s
+virt-operator-57d5c5d569-ldxv8     1/1     Running   0          4m9s
+#+end_example
+* Installing ClusterAPI+KubeVirt
+** necessary vars
+#+begin_src shell :prologue "(\n" :epilogue "\n) 2>&1\n:\n"
+clusterctl generate cluster kv2 --infrastructure kubevirt --list-variables
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Required Variables:
+  - CRI_PATH
+  - IMAGE_REPO
+  - NODE_VM_IMAGE_TEMPLATE
+
+Optional Variables:
+  - CLUSTER_NAME                 (defaults to kv2)
+  - CONTROL_PLANE_MACHINE_COUNT  (defaults to 1)
+  - KUBERNETES_VERSION           (defaults to 1.23.5)
+  - NAMESPACE                    (defaults to current Namespace in the KubeConfig file)
+  - WORKER_MACHINE_COUNT         (defaults to 0)
+
+#+end_example
+
+** good default values
+#+begin_src shell
+export CRI_PATH=/var/run/containerd/containerd.sock
+export IMAGE_REPO=k8s.gcr.io
+export NODE_VM_IMAGE_TEMPLATE=quay.io/capk/ubuntu-2004-container-disk:v1.22.0
+#+end_src
+* Explore
+** pod is up
+#+begin_src shell :prologue "(\n" :epilogue "\n) 2>&1\n:\n"
+export WORKSPACE=kv4
+unset KUBECONFIG
+TMPFILE=$(mktemp -t kubeconfig-XXXXX)
+kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
+export KUBECONFIG=$TMPFILE
+kubectl get all -A
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAMESPACE     NAME                                    READY   STATUS    RESTARTS   AGE
+default       pod/code-server-0                       0/1     Pending   0          17m
+kube-system   pod/coredns-749558f7dd-6dgp6            0/1     Pending   0          17m
+kube-system   pod/coredns-749558f7dd-w5bnv            0/1     Pending   0          17m
+kube-system   pod/etcd-kv4-xf9gk                      1/1     Running   0          17m
+kube-system   pod/kube-apiserver-kv4-xf9gk            1/1     Running   0          17m
+kube-system   pod/kube-controller-manager-kv4-xf9gk   1/1     Running   0          17m
+kube-system   pod/kube-proxy-hzzn2                    1/1     Running   0          17m
+kube-system   pod/kube-scheduler-kv4-xf9gk            1/1     Running   0          17m
+
+NAMESPACE     NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       service/kubernetes   ClusterIP   10.95.0.1    <none>        443/TCP                  17m
+kube-system   service/kube-dns     ClusterIP   10.95.0.10   <none>        53/UDP,53/TCP,9153/TCP   17m
+
+NAMESPACE     NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-system   daemonset.apps/kube-proxy   1         1         1       1            1           kubernetes.io/os=linux   17m
+
+NAMESPACE     NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system   deployment.apps/coredns   0/2     2            0           17m
+
+NAMESPACE     NAME                                 DESIRED   CURRENT   READY   AGE
+kube-system   replicaset.apps/coredns-749558f7dd   2         2         0       17m
+
+NAMESPACE   NAME                           READY   AGE
+default     statefulset.apps/code-server   0/1     17m
+#+end_example
+
+** cni not yet working
+#+begin_src shell :prologue "(\n" :epilogue "\n) 2>&1\n:\n"
+export WORKSPACE=kv4
+unset KUBECONFIG
+TMPFILE=$(mktemp -t kubeconfig-XXXXX)
+kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
+export KUBECONFIG=$TMPFILE
+kubectl describe nodes kv4-xf9gk | grep -B6 KubeletNotReady
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Sat, 08 Oct 2022 22:08:53 -0700   Sat, 08 Oct 2022 21:53:32 -0700   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Sat, 08 Oct 2022 22:08:53 -0700   Sat, 08 Oct 2022 21:53:32 -0700   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Sat, 08 Oct 2022 22:08:53 -0700   Sat, 08 Oct 2022 21:53:32 -0700   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            False   Sat, 08 Oct 2022 22:08:53 -0700   Sat, 08 Oct 2022 21:53:32 -0700   KubeletNotReady              container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized
+#+end_example
