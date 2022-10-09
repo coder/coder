@@ -21,7 +21,9 @@ export interface SSHKeysPageViewProps {
   onRegenerateClick: () => void
 }
 
-export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> = ({
+export const SSHKeysPageView: FC<
+  React.PropsWithChildren<SSHKeysPageViewProps>
+> = ({
   isLoading,
   hasLoaded,
   getSSHKeyError,
@@ -42,7 +44,9 @@ export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> 
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
 
-      {Boolean(getSSHKeyError) && <AlertBanner severity="error" error={getSSHKeyError} />}
+      {Boolean(getSSHKeyError) && (
+        <AlertBanner severity="error" error={getSSHKeyError} />
+      )}
       {Boolean(regenerateSSHKeyError) && (
         <AlertBanner
           severity="error"
@@ -55,7 +59,9 @@ export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> 
         <>
           <CodeExample code={sshKey.public_key.trim()} />
           <div>
-            <Button onClick={onRegenerateClick}>{Language.regenerateLabel}</Button>
+            <Button onClick={onRegenerateClick}>
+              {Language.regenerateLabel}
+            </Button>
           </div>
         </>
       )}

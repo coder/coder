@@ -2,7 +2,9 @@ import * as TypesGen from "../api/typesGenerated"
 import { queryToFilter } from "./filters"
 
 describe("queryToFilter", () => {
-  it.each<[string | undefined, TypesGen.WorkspaceFilter | TypesGen.UsersRequest]>([
+  it.each<
+    [string | undefined, TypesGen.WorkspaceFilter | TypesGen.UsersRequest]
+  >([
     [undefined, {}],
     ["", { q: "" }],
     ["asdkfvjn", { q: "asdkfvjn" }],

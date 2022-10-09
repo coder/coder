@@ -2,7 +2,11 @@ import { ActorRefFrom, assign, createMachine, spawn } from "xstate"
 import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displayMsg, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import {
+  displayError,
+  displayMsg,
+  displaySuccess,
+} from "../../components/GlobalSnackbar/utils"
 import { queryToFilter } from "../../util/filters"
 
 /**
@@ -58,7 +62,10 @@ export const workspaceItemMachine = createMachine(
                 // We can improve the UI by optimistically updating the workspace status
                 // to "Pending" so the UI can display the updated state right away and we
                 // don't need to display an extra spinner.
-                actions: ["assignPendingStatus", "displayUpdatingVersionMessage"],
+                actions: [
+                  "assignPendingStatus",
+                  "displayUpdatingVersionMessage",
+                ],
               },
               UPDATE_DATA: {
                 actions: "assignUpdatedData",
@@ -110,7 +117,10 @@ export const workspaceItemMachine = createMachine(
                 },
                 {
                   target: "idle",
-                  actions: ["assignUpdatedData", "displayUpdatedSuccessMessage"],
+                  actions: [
+                    "assignUpdatedData",
+                    "displayUpdatedSuccessMessage",
+                  ],
                 },
               ],
             },
@@ -130,7 +140,10 @@ export const workspaceItemMachine = createMachine(
           throw new Error("Updated template is not loaded.")
         }
 
-        return API.startWorkspace(context.data.id, context.updatedTemplate.active_version_id)
+        return API.startWorkspace(
+          context.data.id,
+          context.updatedTemplate.active_version_id,
+        )
       },
       getWorkspace: (context) => API.getWorkspace(context.data.id),
     },
@@ -147,7 +160,10 @@ export const workspaceItemMachine = createMachine(
         },
       }),
       displayUpdateVersionError: (_, event) => {
-        const message = getErrorMessage(event.data, "Error on update workspace version.")
+        const message = getErrorMessage(
+          event.data,
+          "Error on update workspace version.",
+        )
         displayError(message)
       },
       displayUpdatingVersionMessage: () => {
@@ -268,9 +284,12 @@ export const workspacesMachine = createMachine(
       assignGetWorkspacesError: assign({
         getWorkspacesError: (_, event) => event.data,
       }),
-      clearGetWorkspacesError: (context) => assign({ ...context, getWorkspacesError: undefined }),
+      clearGetWorkspacesError: (context) =>
+        assign({ ...context, getWorkspacesError: undefined }),
       triggerUpdateVersion: (context, event) => {
-        const workspaceRef = context.workspaceRefs?.find((ref) => ref.id === event.workspaceId)
+        const workspaceRef = context.workspaceRefs?.find(
+          (ref) => ref.id === event.workspaceId,
+        )
 
         if (!workspaceRef) {
           throw new Error(`No workspace ref found for ${event.workspaceId}.`)
@@ -292,7 +311,9 @@ export const workspacesMachine = createMachine(
             const ref = workspaceRefs.find((ref) => ref.id === data.id)
 
             if (!ref) {
-              workspaceRefs.push(spawn(workspaceItemMachine.withContext({ data }), data.id))
+              workspaceRefs.push(
+                spawn(workspaceItemMachine.withContext({ data }), data.id),
+              )
             } else {
               ref.send({ type: "UPDATE_DATA", data })
             }
@@ -300,7 +321,9 @@ export const workspacesMachine = createMachine(
 
           // Remove workspaces that were deleted
           for (const ref of workspaceRefs) {
-            const refData = event.data.find((workspaceData) => workspaceData.id === ref.id)
+            const refData = event.data.find(
+              (workspaceData) => workspaceData.id === ref.id,
+            )
 
             // If there is no refData, it is because the workspace was deleted
             if (!refData) {
@@ -310,7 +333,9 @@ export const workspacesMachine = createMachine(
               }
 
               // Remove ref from the array
-              workspaceRefs = workspaceRefs.filter((oldRef) => oldRef.id !== ref.id)
+              workspaceRefs = workspaceRefs.filter(
+                (oldRef) => oldRef.id !== ref.id,
+              )
             }
           }
 
@@ -319,7 +344,8 @@ export const workspacesMachine = createMachine(
       }),
     },
     services: {
-      getWorkspaces: (context) => API.getWorkspaces(queryToFilter(context.filter)),
+      getWorkspaces: (context) =>
+        API.getWorkspaces(queryToFilter(context.filter)),
     },
   },
 )

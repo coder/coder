@@ -3,7 +3,10 @@ import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { ReactElement } from "react"
-import { FormTextField, FormTextFieldProps } from "../FormTextField/FormTextField"
+import {
+  FormTextField,
+  FormTextFieldProps,
+} from "../FormTextField/FormTextField"
 
 export interface FormDropdownItem {
   value: string

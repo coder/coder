@@ -70,7 +70,9 @@ describe("NavbarView", () => {
   })
 
   it("audit nav link is hidden for members", async () => {
-    render(<NavbarView user={MockUser2} onSignOut={noop} canViewAuditLog={false} />)
+    render(
+      <NavbarView user={MockUser2} onSignOut={noop} canViewAuditLog={false} />,
+    )
     const auditLink = screen.queryByText(navLanguage.audit)
     expect(auditLink).not.toBeInTheDocument()
   })

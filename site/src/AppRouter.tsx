@@ -23,25 +23,42 @@ import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
-const CliAuthenticationPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"))
+const CliAuthenticationPage = lazy(
+  () => import("./pages/CliAuthPage/CliAuthPage"),
+)
 const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
-const AccountPage = lazy(() => import("./pages/UserSettingsPage/AccountPage/AccountPage"))
-const SecurityPage = lazy(() => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"))
-const SSHKeysPage = lazy(() => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"))
-const CreateUserPage = lazy(() => import("./pages/UsersPage/CreateUserPage/CreateUserPage"))
-const WorkspaceBuildPage = lazy(() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"))
+const AccountPage = lazy(
+  () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
+)
+const SecurityPage = lazy(
+  () => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"),
+)
+const SSHKeysPage = lazy(
+  () => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"),
+)
+const CreateUserPage = lazy(
+  () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
+)
+const WorkspaceBuildPage = lazy(
+  () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
+)
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
-const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
+const CreateWorkspacePage = lazy(
+  () => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
+)
 const TemplatePage = lazy(() => import("./pages/TemplatePage/TemplatePage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
-  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+  const featureVisibility = useSelector(
+    xServices.entitlementsXService,
+    selectFeatureVisibility,
+  )
 
   return (
     <Suspense fallback={<FullScreenLoader />}>
@@ -142,7 +159,8 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={
-                    featureVisibility[FeatureNames.AuditLog] && Boolean(permissions?.viewAuditLog)
+                    featureVisibility[FeatureNames.AuditLog] &&
+                    Boolean(permissions?.viewAuditLog)
                   }
                 >
                   <AuditPage />

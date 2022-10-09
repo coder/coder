@@ -51,7 +51,9 @@ export interface TemplatePageViewProps {
   canDeleteTemplate: boolean
 }
 
-export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>> = ({
+export const TemplatePageView: FC<
+  React.PropsWithChildren<TemplatePageViewProps>
+> = ({
   template,
   activeTemplateVersion,
   templateResources,
@@ -70,11 +72,17 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   )
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
-    return resources.filter((resource) => resource.workspace_transition === "start")
+    return resources.filter(
+      (resource) => resource.workspace_transition === "start",
+    )
   }
 
   const createWorkspaceButton = (className?: string) => (
-    <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
+    <Link
+      underline="none"
+      component={RouterLink}
+      to={`/templates/${template.name}/workspace`}
+    >
       <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
         {Language.createButton}
       </Button>
@@ -104,7 +112,9 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
                     {
                       action: "delete",
                       button: (
-                        <DeleteButton handleAction={() => handleDeleteTemplate(template.id)} />
+                        <DeleteButton
+                          handleAction={() => handleDeleteTemplate(template.id)}
+                        />
                       ),
                     },
                   ]}
@@ -123,13 +133,17 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
                   <img src={template.icon} alt="" />
                 </div>
               ) : (
-                <Avatar className={styles.avatar}>{firstLetter(template.name)}</Avatar>
+                <Avatar className={styles.avatar}>
+                  {firstLetter(template.name)}
+                </Avatar>
               )}
             </div>
             <div>
               <PageHeaderTitle>{template.name}</PageHeaderTitle>
               <PageHeaderSubtitle condensed>
-                {template.description === "" ? Language.noDescription : template.description}
+                {template.description === ""
+                  ? Language.noDescription
+                  : template.description}
               </PageHeaderSubtitle>
             </div>
           </Stack>
@@ -138,8 +152,13 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
         <Stack spacing={2.5}>
           {deleteError}
           {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
-          <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-          <TemplateResourcesTable resources={getStartedResources(templateResources)} />
+          <TemplateStats
+            template={template}
+            activeVersion={activeTemplateVersion}
+          />
+          <TemplateResourcesTable
+            resources={getStartedResources(templateResources)}
+          />
           <WorkspaceSection
             title={Language.readmeTitle}
             contentsProps={{ className: styles.readmeContents }}

@@ -2,7 +2,11 @@ import DialogActions from "@material-ui/core/DialogActions"
 import { alpha, makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React, { ReactNode } from "react"
-import { Dialog, DialogActionButtons, DialogActionButtonsProps } from "../Dialog"
+import {
+  Dialog,
+  DialogActionButtons,
+  DialogActionButtonsProps,
+} from "../Dialog"
 import { ConfirmDialogType } from "../types"
 
 interface ConfirmDialogTypeConfig {
@@ -10,7 +14,10 @@ interface ConfirmDialogTypeConfig {
   hideCancel: boolean
 }
 
-const CONFIRM_DIALOG_DEFAULTS: Record<ConfirmDialogType, ConfirmDialogTypeConfig> = {
+const CONFIRM_DIALOG_DEFAULTS: Record<
+  ConfirmDialogType,
+  ConfirmDialogTypeConfig
+> = {
   delete: {
     confirmText: "Delete",
     hideCancel: false,
@@ -26,7 +33,10 @@ const CONFIRM_DIALOG_DEFAULTS: Record<ConfirmDialogType, ConfirmDialogTypeConfig
 }
 
 export interface ConfirmDialogProps
-  extends Omit<DialogActionButtonsProps, "color" | "confirmDialog" | "onCancel"> {
+  extends Omit<
+    DialogActionButtonsProps,
+    "color" | "confirmDialog" | "onCancel"
+  > {
   readonly description?: React.ReactNode
   /**
    * hideCancel hides the cancel button when set true, and shows the cancel
@@ -78,7 +88,9 @@ const useStyles = makeStyles((theme) => ({
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
  */
-export const ConfirmDialog: React.FC<React.PropsWithChildren<ConfirmDialogProps>> = ({
+export const ConfirmDialog: React.FC<
+  React.PropsWithChildren<ConfirmDialogProps>
+> = ({
   cancelText,
   confirmLoading,
   confirmText,
@@ -100,7 +112,12 @@ export const ConfirmDialog: React.FC<React.PropsWithChildren<ConfirmDialogProps>
   }
 
   return (
-    <Dialog className={styles.dialogWrapper} maxWidth="sm" onClose={onClose} open={open}>
+    <Dialog
+      className={styles.dialogWrapper}
+      maxWidth="sm"
+      onClose={onClose}
+      open={open}
+    >
       <div className={styles.dialogContent}>
         <Typography className={styles.titleText} variant="h3">
           {title}

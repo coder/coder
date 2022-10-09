@@ -1,4 +1,8 @@
-import { getValidationErrorMessage, isApiError, mapApiErrorToFieldErrors } from "./errors"
+import {
+  getValidationErrorMessage,
+  isApiError,
+  mapApiErrorToFieldErrors,
+} from "./errors"
 
 describe("isApiError", () => {
   it("returns true when the object is an API Error", () => {
@@ -8,7 +12,9 @@ describe("isApiError", () => {
         response: {
           data: {
             message: "Invalid entry",
-            errors: [{ detail: "Username is already in use", field: "username" }],
+            errors: [
+              { detail: "Username is already in use", field: "username" },
+            ],
           },
         },
       }),
@@ -29,7 +35,9 @@ describe("mapApiErrorToFieldErrors", () => {
     expect(
       mapApiErrorToFieldErrors({
         message: "Invalid entry",
-        validations: [{ detail: "Username is already in use", field: "username" }],
+        validations: [
+          { detail: "Username is already in use", field: "username" },
+        ],
       }),
     ).toEqual({
       username: "Username is already in use",

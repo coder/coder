@@ -36,10 +36,9 @@ export interface WorkspaceScheduleProps {
   canUpdateWorkspace: boolean
 }
 
-export const WorkspaceSchedule: FC<React.PropsWithChildren<WorkspaceScheduleProps>> = ({
-  workspace,
-  canUpdateWorkspace,
-}) => {
+export const WorkspaceSchedule: FC<
+  React.PropsWithChildren<WorkspaceScheduleProps>
+> = ({ workspace, canUpdateWorkspace }) => {
   const styles = useStyles()
   const timezone = workspace.autostart_schedule
     ? extractTimezone(workspace.autostart_schedule)
@@ -53,15 +52,21 @@ export const WorkspaceSchedule: FC<React.PropsWithChildren<WorkspaceScheduleProp
           <span className={styles.scheduleValue}>{timezone}</span>
         </div>
         <div>
-          <span className={styles.scheduleLabel}>{ScheduleLanguage.autoStartLabel}</span>
+          <span className={styles.scheduleLabel}>
+            {ScheduleLanguage.autoStartLabel}
+          </span>
           <span className={styles.scheduleValue}>
             {autoStartDisplay(workspace.autostart_schedule)}
           </span>
         </div>
         <div>
-          <span className={styles.scheduleLabel}>{ScheduleLanguage.autoStopLabel}</span>
+          <span className={styles.scheduleLabel}>
+            {ScheduleLanguage.autoStopLabel}
+          </span>
           <Stack direction="row">
-            <span className={styles.scheduleValue}>{autoStopDisplay(workspace)}</span>
+            <span className={styles.scheduleValue}>
+              {autoStopDisplay(workspace)}
+            </span>
           </Stack>
         </div>
         {canUpdateWorkspace && (

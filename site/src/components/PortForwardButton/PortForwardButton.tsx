@@ -9,7 +9,11 @@ import { Stack } from "components/Stack/Stack"
 import { useRef, useState } from "react"
 import { colors } from "theme/colors"
 import { CodeExample } from "../CodeExample/CodeExample"
-import { HelpTooltipLink, HelpTooltipLinksGroup, HelpTooltipText } from "../Tooltips/HelpTooltip"
+import {
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+} from "../Tooltips/HelpTooltip"
 
 export interface PortForwardButtonProps {
   host: string
@@ -28,13 +32,16 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        Access ports running on the agent with the <strong>port, agent name, workspace name</strong>{" "}
-        and <strong>your username</strong> URL schema, as shown below.
+        Access ports running on the agent with the{" "}
+        <strong>port, agent name, workspace name</strong> and{" "}
+        <strong>your username</strong> URL schema, as shown below.
       </HelpTooltipText>
 
       <CodeExample code={urlExample} />
 
-      <HelpTooltipText>Use the form to open applications in a new tab.</HelpTooltipText>
+      <HelpTooltipText>
+        Use the form to open applications in a new tab.
+      </HelpTooltipText>
 
       <Stack direction="row" spacing={1} alignItems="center">
         <TextField
@@ -70,8 +77,8 @@ const DisabledView: React.FC<PortForwardButtonProps> = () => {
   return (
     <Stack direction="column" spacing={1}>
       <HelpTooltipText>
-        <strong>Your deployment does not have port forward enabled.</strong> See the docs for more
-        details.
+        <strong>Your deployment does not have port forward enabled.</strong> See
+        the docs for more details.
       </HelpTooltipText>
 
       <HelpTooltipLinksGroup>
@@ -136,7 +143,9 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2.5)}px ${theme.spacing(3.5)}px ${theme.spacing(3.5)}px`,
+    padding: `${theme.spacing(2.5)}px ${theme.spacing(3.5)}px ${theme.spacing(
+      3.5,
+    )}px`,
     width: theme.spacing(46),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),

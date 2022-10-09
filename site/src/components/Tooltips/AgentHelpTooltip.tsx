@@ -1,4 +1,8 @@
-import { HelpTooltip, HelpTooltipText, HelpTooltipTitle } from "./HelpTooltip/HelpTooltip"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "./HelpTooltip/HelpTooltip"
 
 export const Language = {
   agentTooltipTitle: "What is an agent?",

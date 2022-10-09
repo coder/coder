@@ -10,10 +10,9 @@ export interface WorkspaceDeletedBannerProps {
   handleClick: () => void
 }
 
-export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeletedBannerProps>> = ({
-  workspace,
-  handleClick,
-}) => {
+export const WorkspaceDeletedBanner: FC<
+  React.PropsWithChildren<WorkspaceDeletedBannerProps>
+> = ({ workspace, handleClick }) => {
   const { t } = useTranslation("workspacePage")
 
   const NewWorkspaceButton = (

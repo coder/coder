@@ -8,12 +8,19 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { Skeleton } from "@material-ui/lab"
 import useTheme from "@material-ui/styles/useTheme"
-import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
+import {
+  CloseDropdown,
+  OpenDropdown,
+} from "components/DropdownArrows/DropdownArrows"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { TableCellDataPrimary } from "components/TableCellData/TableCellData"
 import { FC, useState } from "react"
 import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
-import { BuildInfoResponse, Workspace, WorkspaceResource } from "../../api/typesGenerated"
+import {
+  BuildInfoResponse,
+  Workspace,
+  WorkspaceResource,
+} from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
@@ -58,7 +65,8 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   const styles = useStyles()
   const theme: Theme = useTheme()
   const serverVersion = buildInfo?.version || ""
-  const [shouldDisplayHideResources, setShouldDisplayHideResources] = useState(false)
+  const [shouldDisplayHideResources, setShouldDisplayHideResources] =
+    useState(false)
   const displayResources = shouldDisplayHideResources
     ? resources
     : resources.filter((resource) => !resource.hide)
@@ -95,13 +103,18 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                     /* We need to initialize the agents to display the resource */
                   }
                   const agents = resource.agents ?? [null]
-                  const resourceName = <ResourceAvatarData resource={resource} />
+                  const resourceName = (
+                    <ResourceAvatarData resource={resource} />
+                  )
 
                   return agents.map((agent, agentIndex) => {
                     {
                       /* If there is no agent, just display the resource name */
                     }
-                    if (!agent || workspace.latest_build.transition === "stop") {
+                    if (
+                      !agent ||
+                      workspace.latest_build.transition === "stop"
+                    ) {
                       return (
                         <TableRow key={`${resource.id}-${agentIndex}`}>
                           <TableCell>{resourceName}</TableCell>
@@ -109,27 +122,33 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                         </TableRow>
                       )
                     }
-                    const { displayVersion, outdated } = getDisplayVersionStatus(
-                      agent.version,
-                      serverVersion,
-                    )
+                    const { displayVersion, outdated } =
+                      getDisplayVersionStatus(agent.version, serverVersion)
                     const agentStatus = getDisplayAgentStatus(theme, agent)
                     return (
                       <TableRow key={`${resource.id}-${agent.id}`}>
                         {/* We only want to display the name in the first row because we are using rowSpan */}
                         {/* The rowspan should be the same than the number of agents */}
                         {agentIndex === 0 && (
-                          <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
+                          <TableCell
+                            className={styles.resourceNameCell}
+                            rowSpan={agents.length}
+                          >
                             {resourceName}
                           </TableCell>
                         )}
 
                         <TableCell className={styles.agentColumn}>
-                          <TableCellDataPrimary highlight>{agent.name}</TableCellDataPrimary>
+                          <TableCellDataPrimary highlight>
+                            {agent.name}
+                          </TableCellDataPrimary>
                           <div className={styles.data}>
                             <div className={styles.dataRow}>
                               <strong>{Language.statusLabel}</strong>
-                              <span style={{ color: agentStatus.color }} className={styles.status}>
+                              <span
+                                style={{ color: agentStatus.color }}
+                                className={styles.status}
+                              >
                                 {agentStatus.status}
                               </span>
                             </div>
@@ -141,7 +160,9 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                             </div>
                             <div className={styles.dataRow}>
                               <strong>{Language.versionLabel}</strong>
-                              <span className={styles.agentVersion}>{displayVersion}</span>
+                              <span className={styles.agentVersion}>
+                                {displayVersion}
+                              </span>
                               <AgentOutdatedTooltip outdated={outdated} />
                             </div>
                             <div className={styles.dataRow}>
@@ -151,49 +172,51 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                         </TableCell>
                         <TableCell>
                           <div className={styles.accessLinks}>
-                            {canUpdateWorkspace && agent.status === "connected" && (
-                              <>
-                                {applicationsHost !== undefined && (
-                                  <PortForwardButton
-                                    host={applicationsHost}
+                            {canUpdateWorkspace &&
+                              agent.status === "connected" && (
+                                <>
+                                  {applicationsHost !== undefined && (
+                                    <PortForwardButton
+                                      host={applicationsHost}
+                                      workspaceName={workspace.name}
+                                      agentName={agent.name}
+                                      username={workspace.owner_name}
+                                    />
+                                  )}
+                                  {!hideSSHButton && (
+                                    <SSHButton
+                                      workspaceName={workspace.name}
+                                      agentName={agent.name}
+                                    />
+                                  )}
+                                  <TerminalLink
                                     workspaceName={workspace.name}
                                     agentName={agent.name}
-                                    username={workspace.owner_name}
+                                    userName={workspace.owner_name}
                                   />
-                                )}
-                                {!hideSSHButton && (
-                                  <SSHButton
-                                    workspaceName={workspace.name}
-                                    agentName={agent.name}
-                                  />
-                                )}
-                                <TerminalLink
-                                  workspaceName={workspace.name}
-                                  agentName={agent.name}
-                                  userName={workspace.owner_name}
-                                />
-                                {agent.apps.map((app) => (
-                                  <AppLink
-                                    key={app.name}
-                                    appsHost={applicationsHost}
-                                    appIcon={app.icon}
-                                    appName={app.name}
-                                    appCommand={app.command}
-                                    appSubdomain={app.subdomain}
-                                    username={workspace.owner_name}
-                                    workspaceName={workspace.name}
-                                    agentName={agent.name}
-                                    health={app.health}
-                                  />
-                                ))}
-                              </>
-                            )}
-                            {canUpdateWorkspace && agent.status === "connecting" && (
-                              <>
-                                <Skeleton width={80} height={60} />
-                                <Skeleton width={120} height={60} />
-                              </>
-                            )}
+                                  {agent.apps.map((app) => (
+                                    <AppLink
+                                      key={app.name}
+                                      appsHost={applicationsHost}
+                                      appIcon={app.icon}
+                                      appName={app.name}
+                                      appCommand={app.command}
+                                      appSubdomain={app.subdomain}
+                                      username={workspace.owner_name}
+                                      workspaceName={workspace.name}
+                                      agentName={agent.name}
+                                      health={app.health}
+                                    />
+                                  ))}
+                                </>
+                              )}
+                            {canUpdateWorkspace &&
+                              agent.status === "connecting" && (
+                                <>
+                                  <Skeleton width={80} height={60} />
+                                  <Skeleton width={120} height={60} />
+                                </>
+                              )}
                           </div>
                         </TableCell>
                       </TableRow>
