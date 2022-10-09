@@ -41,8 +41,9 @@ func TestEntitlements(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			UserLimit: 100,
-			AuditLog:  true,
+			UserLimit:   100,
+			AuditLog:    true,
+			RBACEnabled: true,
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)
