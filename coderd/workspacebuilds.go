@@ -202,7 +202,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	workspaceBuild, err := api.Database.GetWorkspaceBuildsByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildsByWorkspaceIDAndBuildNumberParams{
+	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 		WorkspaceID: workspace.ID,
 		BuildNumber: int32(buildNumber),
 	})

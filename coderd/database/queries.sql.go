@@ -4452,7 +4452,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 	return items, nil
 }
 
-const getWorkspaceBuildsByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildsByWorkspaceIDAndBuildNumber :one
+const GetWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
@@ -4462,13 +4462,13 @@ WHERE
 	AND build_number = $2
 `
 
-type GetWorkspaceBuildsByWorkspaceIDAndBuildNumberParams struct {
+type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	BuildNumber int32     `db:"build_number" json:"build_number"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildsByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, GetWorkspaceBuildByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
