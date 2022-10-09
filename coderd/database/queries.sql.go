@@ -4368,18 +4368,19 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 	return i, err
 }
 
-const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID :many
+const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
 	workspace_builds.workspace_id = $1
+	AND workspace_builds.created_at > $2
     AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the build_number field, so select all
 			-- rows after the cursor.
@@ -4389,28 +4390,30 @@ WHERE
 				FROM
 					workspace_builds
 				WHERE
-					id = $2
+					id = $3
 			)
 		)
 		ELSE true
 END
 ORDER BY
-    build_number desc OFFSET $3
+    build_number desc OFFSET $4
 LIMIT
     -- A null limit means "no limit", so 0 means return all
-    NULLIF($4 :: int, 0)
+    NULLIF($5 :: int, 0)
 `
 
-type GetWorkspaceBuildByWorkspaceIDParams struct {
+type GetWorkspaceBuildsByWorkspaceIDParams struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Since       time.Time `db:"since" json:"since"`
 	AfterID     uuid.UUID `db:"after_id" json:"after_id"`
 	OffsetOpt   int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID,
+func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsByWorkspaceID,
 		arg.WorkspaceID,
+		arg.Since,
 		arg.AfterID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -4449,7 +4452,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg Get
 	return items, nil
 }
 
-const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
+const getWorkspaceBuildsByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildsByWorkspaceIDAndBuildNumber :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
@@ -4459,13 +4462,13 @@ WHERE
 	AND build_number = $2
 `
 
-type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
+type GetWorkspaceBuildsByWorkspaceIDAndBuildNumberParams struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	BuildNumber int32     `db:"build_number" json:"build_number"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
+func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildsByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,

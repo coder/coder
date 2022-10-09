@@ -44,12 +44,13 @@ type Client struct {
 
 type RequestOption func(*http.Request)
 
-func WithQueryParams(params map[string]string) RequestOption {
+func WithQueryParam(key, value string) RequestOption {
 	return func(r *http.Request) {
-		q := r.URL.Query()
-		for k, v := range params {
-			q.Add(k, v)
+		if value == "" {
+			return
 		}
+		q := r.URL.Query()
+		q.Add(key, value)
 		r.URL.RawQuery = q.Encode()
 	}
 }
