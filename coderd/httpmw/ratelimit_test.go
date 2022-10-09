@@ -43,7 +43,9 @@ func insertAPIKey(ctx context.Context, t *testing.T, db database.Store, userID u
 
 func randRemoteAddr() string {
 	var b [4]byte
+	// nolint:gosec
 	rand.Read(b[:])
+	// nolint:gosec
 	return fmt.Sprintf("%s:%v", net.IP(b[:]).String(), rand.Int31()%(1<<16))
 }
 
