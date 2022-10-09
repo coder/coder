@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
 
@@ -254,6 +255,58 @@ func TestTemplateACL(t *testing.T) {
 			Group: group,
 			Role:  codersdk.TemplateRoleView,
 		})
+	})
+
+	t.Run("AdminCanPushVersions", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			RBACEnabled: true,
+		})
+
+		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user1.ID.String(): codersdk.TemplateRoleView,
+			},
+		})
+		require.NoError(t, err)
+
+		data, err := echo.Tar(nil)
+		require.NoError(t, err)
+		file, err := client1.Upload(context.Background(), codersdk.ContentTypeTar, data)
+		require.NoError(t, err)
+
+		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "testme",
+			TemplateID:    template.ID,
+			StorageSource: file.Hash,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.Error(t, err)
+
+		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user1.ID.String(): codersdk.TemplateRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "testme",
+			TemplateID:    template.ID,
+			StorageSource: file.Hash,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
 	})
 }
 
