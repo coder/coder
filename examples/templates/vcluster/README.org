@@ -1,0 +1,216 @@
+#+title: Readme
+
+* Cluster API
+Needs on or against run a kubernetes cluster w/ cluster-api
+#+begin_src shell
+kubectl create ns vclusters
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+* Terraform Styles
+Don't use "heredoc" strings to generate JSON or YAML. Instead, use the jsonencode function or the yamlencode function so that Terraform can be responsible for guaranteeing valid JSON or YAML syntax.
+- https://www.terraform.io/language/expressions/strings#generating-json-or-yaml
+* build coder
+#+begin_src shell :dir "../../.."
+go build cmd/coder
+sudo cp coder /usr/local/bin
+ls -la /usr/local/bin/coder
+/usr/local/bin/coder version
+#+end_src
+
+#+RESULTS:
+#+begin_example
+-rwxr-xr-x 1 root root 63885468 Oct  2 22:19 /usr/local/bin/coder
+Coder v0.0.0-devel+8850ed7 Thu Sep 29 18:49:51 UTC 2022
+https://github.com/coder/coder/commit/8850ed7e5eda8979030b3affd7e1cfebac7d632c
+#+end_example
+
+* Coder Iteration Loop
+** Start Coder
+#+begin_src tmate :window coder :dir "../../.."
+
+cd ~/sharingio/coder
+rm -rf ~/.config/coderv2/ # delete database
+coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 --tunnel \
+    2>&1 | tee coder-server.log
+#+end_src
+#+begin_src shell
+coder login `cat ~/.config/coderv2/url` -u ii -p ii -e ii@ii.nz
+#+end_src
+
+#+RESULTS:
+#+begin_example
+> Your Coder deployment hasn't been set up!
+
+  Welcome to Coder, ii! You're authenticated.
+
+  Get started by creating a template:  coder templates init
+#+end_example
+
+** kubernetes workspace
+#+begin_src shell :dir "../../.."
+coder template create kubernetes -d examples/templates/kubernetes --yes --parameter-file examples/templates/kubernetes/kubernetes.param.yaml
+coder create k1 --template kubernetes --parameter-file examples/templates/kubernetes/kubernetes.param.yaml --yes
+#+end_src
+
+#+RESULTS:
+#+begin_example
+⧗  Queued
+✔ Queued [460ms]
+⧗  Setting up
+✔ Setting up [56ms]
+⧗  Adding README.md...
+✔ Adding README.md... [55ms]
+⧗  Parsing template parameters
+✔ Parsing template parameters [115ms]
+⧗  Cleaning Up
+✘ Cleaning Up [106ms]
+
+  Attempting to read the variables from the parameter file. 
+
+
+  This template has required variables! They are scoped to
+  the template, and not viewable after being set.
+
+
+⧗  Queued
+✔ Queued [130ms]
+⧗  Setting up 
+✔ Setting up [56ms]
+⧗  Adding README.md... 
+✔ Adding README.md... [56ms]
+⧗  Parsing template parameters
+✔ Parsing template parameters [117ms]
+⧗  Detecting persistent resources
+  Terraform 1.2.4
+  data.coder_workspace.me: Refreshing...
+  data.coder_workspace.me: Refresh complete after 0s [id=a5e5f05a-cddf-4b99-8e7d-52504a5aa775]
+  coder_agent.main: Plan to create
+  coder_app.code-server: Plan to create
+  kubernetes_persistent_volume_claim.home: Plan to create
+  kubernetes_pod.main[0]: Plan to create
+  Plan: 4 to add, 0 to change, 0 to destroy.
+✔ Detecting persistent resources [3374ms]
+⧗  Detecting ephemeral resources
+  Terraform 1.2.4
+  data.coder_workspace.me: Refreshing...
+  data.coder_workspace.me: Refresh complete after 0s [id=ecf39110-bf1f-4490-8043-f92e6c0d4a54]
+  coder_agent.main: Plan to create
+  coder_app.code-server: Plan to create
+  kubernetes_persistent_volume_claim.home: Plan to create
+  Plan: 3 to add, 0 to change, 0 to destroy.
+✔ Detecting ephemeral resources [3671ms]
+⧗  Cleaning Up
+✔ Cleaning Up [116ms]
+┌─────────────────────────────────────────────┐
+│ Template Preview                            │
+├─────────────────────────────────────────────┤
+│ RESOURCE                                    │
+├─────────────────────────────────────────────┤
+│ kubernetes_persistent_volume_claim.home     │
+├─────────────────────────────────────────────┤
+│ kubernetes_pod.main                         │
+│ └─ main (linux, amd64)                      │
+└─────────────────────────────────────────────┘
+
+The kubernetes template has been created at Oct  2 22:20:06! Developers can
+provision a workspace with this template using:
+
+   coder create --template="kubernetes" [workspace name]
+
+
+  Attempting to read the variables from the parameter file. 
+
+
+  This template has customizable parameters. Values can be
+  changed after create, but may have unintended side effects
+  (like data loss).                                         
+
+
+Planning workspace...
+⧗  Queued
+✔ Queued [415ms]
+⧗  Setting up 
+✔ Setting up [1490ms]
+⧗  Detecting persistent resources 
+✔ Detecting persistent resources [1846ms]
+⧗  Cleaning Up
+✔ Cleaning Up [111ms]
+┌───────────────────────────────────────────────────────────┐
+│ Workspace Preview                                         │
+├───────────────────────────────────────────────────────────┤
+│ RESOURCE                                 ACCESS           │
+├───────────────────────────────────────────────────────────┤
+│ kubernetes_persistent_volume_claim.home                   │
+├───────────────────────────────────────────────────────────┤
+│ kubernetes_pod.main                                       │
+│ └─ main (linux, amd64)                    coder ssh k1    │
+└───────────────────────────────────────────────────────────┘
+⧗  Queued
+✔ Queued [19ms]
+⧗  Setting up
+✔ Setting up [54ms]
+⧗  Starting workspace
+  Terraform 1.2.4
+  data.coder_workspace.me: Refreshing...
+  data.coder_workspace.me: Refresh complete after 0s [id=b14cb471-6ca6-4999-946c-f4a19f953145]
+  coder_agent.main: Plan to create
+  coder_app.code-server: Plan to create
+  kubernetes_persistent_volume_claim.home: Plan to create
+  kubernetes_pod.main[0]: Plan to create
+  Plan: 4 to add, 0 to change, 0 to destroy.
+  coder_agent.main: Creating...
+  coder_agent.main: Creation complete after 0s [id=b7cc64b6-e2a2-44d4-aeab-e2d4f70f849d]
+  coder_app.code-server: Creating...
+  coder_app.code-server: Creation complete after 0s [id=1966a6a6-c6fd-426e-977f-f426b94f2b2a]
+  kubernetes_persistent_volume_claim.home: Creating...
+  kubernetes_persistent_volume_claim.home: Creation complete after 0s [id=coder-workspaces/coder-ii-k1-home]
+  kubernetes_pod.main[0]: Creating...
+  kubernetes_pod.main[0]: Still creating... [10s elapsed]
+  kubernetes_pod.main[0]: Creation complete after 13s [id=coder-workspaces/coder-ii-k1]
+  Apply complete! Resources: 4 added, 0 changed, 0 destroyed.
+  Outputs: 0
+✔ Starting workspace [16687ms]
+⧗  Cleaning Up
+✔ Cleaning Up [108ms]
+
+The k1 workspace has been created at Oct  2 22:20:27!
+#+end_example
+
+** vcluster workspace
+*** create template and cluster
+#+nobegin_src shell :dir "../../.."
+#+begin_src tmate :dir "../../.." :window vcluster
+cd ~/sharingio/coder
+coder template create vcluster -d examples/templates/vcluster --yes --parameter-file examples/templates/vcluster/vcluster.param.yaml
+coder create v1 --template vcluster --parameter-file examples/templates/vcluster/vcluster.param.yaml --yes
+#+end_src
+*** update template and new cluster
+#+nobegin_src shell :dir "../../.."
+#+begin_src tmate :dir "../../.." :window vcluster
+export WORKSPACE=v7
+coder template push vcluster -d examples/templates/vcluster --yes --parameter-file examples/templates/vcluster/vcluster.param.yaml
+coder create $WORKSPACE --template vcluster --parameter-file examples/templates/vcluster/vcluster.param.yaml --yes
+unset KUBECONFIG
+TMPFILE=$(mktemp -t kubeconfig-XXXXX)
+kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
+export KUBECONFIG=$TMPFILE
+kubectl get ns
+#+end_src
+
+#+RESULTS:
+#+begin_example
+#+end_example
+
+** coder url
+#+begin_src shell :dir "../../.."
+grep "coder login https://" coder-server.log | cut -d\  -f 4
+#+end_src
+
+#+RESULTS:
+#+begin_example
+https://fcca4fb3bd56fd75311a90cf0d331cfa.pit-1.try.coder.app
+#+end_example
