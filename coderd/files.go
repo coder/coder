@@ -23,7 +23,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	// This requires the site wide action to create files.
 	// Once created, a user can read their own files uploaded
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceFile) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
 		httpapi.Forbidden(rw)
 		return
 	}
