@@ -21,10 +21,10 @@ import (
 func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
-		scim := api.entitlements.scim
+		scim := api.entitlements.Features[codersdk.FeatureSCIM].Enabled
 		api.entitlementsMu.RUnlock()
 
-		if scim == codersdk.EntitlementNotEntitled {
+		if !scim {
 			httpapi.RouteNotFound(rw)
 			return
 		}
@@ -37,10 +37,10 @@ func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 func (api *API) rbacEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
-		rbac := api.entitlements.rbac
+		rbac := api.entitlements.Features[codersdk.FeatureRBAC].Enabled
 		api.entitlementsMu.RUnlock()
 
-		if rbac == codersdk.EntitlementNotEntitled {
+		if rbac {
 			httpapi.RouteNotFound(rw)
 			return
 		}

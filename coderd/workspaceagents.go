@@ -195,6 +195,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
 
 	_, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
@@ -216,6 +217,52 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(wsNetConn, ptNetConn)
 	}()
 	_, _ = io.Copy(ptNetConn, wsNetConn)
+}
+
+func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, workspaceAgent, nil, api.AgentInactiveDisconnectTimeout)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	portsResponse, err := agentConn.ListeningPorts(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching listening ports.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.AgentConn, error) {
@@ -264,7 +311,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   derpMap,
-		Logger:    api.Logger.Named("tailnet").Leveled(slog.LevelDebug),
+		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
@@ -356,6 +403,8 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
@@ -404,7 +453,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	// Ignore all trace spans after this.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
@@ -477,6 +526,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetCoordinator.ServeClient(websocket.NetConn(ctx, conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
 	if err != nil {
@@ -489,10 +540,11 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{
-			ID:      dbApp.ID,
-			Name:    dbApp.Name,
-			Command: dbApp.Command.String,
-			Icon:    dbApp.Icon,
+			ID:        dbApp.ID,
+			Name:      dbApp.Name,
+			Command:   dbApp.Command.String,
+			Icon:      dbApp.Icon,
+			Subdomain: dbApp.Subdomain,
 			Healthcheck: codersdk.Healthcheck{
 				URL:       dbApp.HealthcheckUrl,
 				Interval:  dbApp.HealthcheckInterval,
@@ -574,6 +626,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentInactiveDisconnectTimeout:
 		// The connection died without updating the last connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
+		// Client code needs an accurate disconnected at if the agent has been inactive.
+		workspaceAgent.DisconnectedAt = &dbAgent.LastConnectedAt.Time
 	case dbAgent.LastConnectedAt.Valid:
 		// The agent should be assumed connected if it's under inactivity timeouts
 		// and last connected at has been properly set.
@@ -582,6 +636,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator *tailnet.Coordi
 
 	return workspaceAgent, nil
 }
+
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -628,6 +683,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	defer conn.Close(websocket.StatusGoingAway, "")
 
 	var lastReport codersdk.AgentStatsReportResponse

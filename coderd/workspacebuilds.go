@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -75,6 +76,21 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var since time.Time
+
+	sinceParam := r.URL.Query().Get("since")
+	if sinceParam != "" {
+		var err error
+		since, err = time.Parse(time.RFC3339, sinceParam)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "bad `since` format, must be RFC3339",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	var workspaceBuilds []database.WorkspaceBuild
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
@@ -97,13 +113,14 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		req := database.GetWorkspaceBuildByWorkspaceIDParams{
+		req := database.GetWorkspaceBuildsByWorkspaceIDParams{
 			WorkspaceID: workspace.ID,
 			AfterID:     paginationParams.AfterID,
 			OffsetOpt:   int32(paginationParams.Offset),
 			LimitOpt:    int32(paginationParams.Limit),
+			Since:       database.Time(since),
 		}
-		workspaceBuilds, err = store.GetWorkspaceBuildByWorkspaceID(ctx, req)
+		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}

@@ -20,7 +20,7 @@ INSERT INTO
         icon,
         command,
         url,
-        relative_path,
+        subdomain,
         healthcheck_url,
         healthcheck_interval,
         healthcheck_threshold,

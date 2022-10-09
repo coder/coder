@@ -90,11 +90,15 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 type WorkspaceBuildsRequest struct {
 	WorkspaceID uuid.UUID
 	Pagination
+	Since time.Time
 }
 
 func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
-		nil, req.Pagination.asRequestOption())
+	res, err := c.Request(
+		ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
+		nil, req.Pagination.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
+	)
 	if err != nil {
 		return nil, err
 	}

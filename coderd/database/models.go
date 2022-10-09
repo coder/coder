@@ -121,6 +121,7 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
+	LoginTypeToken    LoginType = "token"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -619,11 +620,11 @@ type WorkspaceApp struct {
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
-	RelativePath         bool               `db:"relative_path" json:"relative_path"`
 	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
 	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 }
 
 type WorkspaceBuild struct {

@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
@@ -15,6 +14,8 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -71,19 +72,33 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
   const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
 
-  const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
-    <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-  ) : (
-    <></>
+  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
+      dismissible
+    />
   )
-  const cancellationError = workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
-    <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-  ) : (
-    <></>
+
+  const cancellationError = Boolean(workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]) && (
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
+      dismissible
+    />
+  )
+
+  const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
+    <AlertBanner
+      severity="warning"
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
+      dismissible
+    />
   )
 
   return (
@@ -100,7 +115,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
-              workspace={workspace}
+              workspaceStatus={workspace.latest_build.status}
+              isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}
@@ -126,6 +142,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
         {buildError}
         {cancellationError}
+        {workspaceRefreshWarning}
 
         <WorkspaceScheduleBanner
           isLoading={bannerProps.isLoading}
@@ -151,7 +168,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+            <AlertBanner
+              severity="error"
+              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+            />
           ) : (
             <BuildsTable builds={builds} className={styles.timelineTable} />
           )}
