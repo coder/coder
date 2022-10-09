@@ -22,24 +22,24 @@ kubectl create namespace coder
 # ensure ingress works / certs secrets get copied
 kubectl label ns coder cert-manager-tls=sync
 # needs a postgres db
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install postgres bitnami/postgresql \
-	--namespace coder \
-	--set auth.username=coder \
-	--set auth.password=coder \
-	--set auth.database=coder \
-	--set persistence.size=10Gi
+# helm repo add bitnami https://charts.bitnami.com/bitnami
+# helm install postgres bitnami/postgresql \
+# 	--namespace coder \
+# 	--set auth.username=coder \
+# 	--set auth.password=coder \
+# 	--set auth.database=coder \
+# 	--set persistence.size=10Gi
 # deploy via helm for now
-envsubst <.sharing.io/values.template.yaml >.sharing.io/values.yaml
-helm install coder ./helm/ \
-	--namespace coder \
-	--values .sharing.io/values.yaml
-# setup ingress
-envsubst <.sharing.io/ingress.template.yaml >.sharing.io/ingress.yaml
-kubectl apply -f .sharing.io/ingress.yaml
-# Wait for coder to deploy
-kubectl rollout status deployment coder -n coder
-kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
+# envsubst <.sharing.io/values.template.yaml >.sharing.io/values.yaml
+# helm install coder ./helm/ \
+# 	--namespace coder \
+# 	--values .sharing.io/values.yaml
+# # setup ingress
+# envsubst <.sharing.io/ingress.template.yaml >.sharing.io/ingress.yaml
+# kubectl apply -f .sharing.io/ingress.yaml
+# # Wait for coder to deploy
+# kubectl rollout status deployment coder -n coder
+# kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
 
 # create the initial user
 # populate ii or pair as an admin user without logging in
@@ -49,7 +49,7 @@ CODER_USERNAME=ii
 CODER_URL=https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}
 # export vars to we can emulate a tty with a short expect script
 export CODER_EMAIL CODER_PASSWORD CODER_USERNAME
-coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
+# coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
 export HELM_VALUES="service:\n  type: NodePort\nsyncer:\n  extraArgs:\n    - --tls-san=${SHARINGIO_PAIR_BASE_DNS_NAME}"
 export EXP_CLUSTER_RESOURCE_SET=true
 # Install kubevirt

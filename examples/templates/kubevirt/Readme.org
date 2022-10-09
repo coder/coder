@@ -1,7 +1,39 @@
 #+title: Readme
+* Coder Iteration Loop
+** Start Coder
+#+begin_src tmate :window coder :dir "../../.."
+
+cd ~/sharingio/coder
+rm -rf ~/.config/coderv2/ # delete database
+coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 --tunnel \
+    2>&1 | tee coder-server.log
+#+end_src
+#+begin_src shell
+coder login `cat ~/.config/coderv2/url` -u ii -p ii -e ii@ii.nz
+#+end_src
+
+#+RESULTS:
+#+begin_example
+> Your Coder deployment hasn't been set up!
+
+  Welcome to Coder, ii! You're authenticated.
+
+  Get started by creating a template:  coder templates init
+#+end_example
+** coder url
+#+begin_src shell :dir "../../.."
+grep "coder login https://" coder-server.log | cut -d\  -f 4
+#+end_src
+
+#+RESULTS:
+#+begin_example
+https://fcca6c2cae4534be6d63b1e72f9a5371.pit-1.try.coder.app
+#+end_example
+
 
 * kubevirt workspace
 ** create template and cluster
+
 #+nobegin_src shell :dir "../../.."
 #+begin_src tmate :dir "../../.." :window kubevirt
 cd ~/sharingio/coder
@@ -11,12 +43,19 @@ export NODE_VM_IMAGE_TEMPLATE=quay.io/capk/ubuntu-2004-container-disk:v1.22.0
 coder template create kubevirt -d examples/templates/kubevirt --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
 coder create kv1 --template kubevirt --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
 #+end_src
+
 ** update template and new cluster
-#+nobegin_src shell :dir "../../.."
+
 #+begin_src tmate :dir "../../.." :window kubevirt
 export WORKSPACE=kv1
 coder template push kubevirt -d examples/templates/kubevirt --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
 coder create $WORKSPACE --template kubevirt --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
+#+end_src
+
+** grab new cluster kubeconfig
+
+#+begin_src tmate :dir "../../.." :window kubectl
+export WORKSPACE=kv1
 unset KUBECONFIG
 TMPFILE=$(mktemp -t kubeconfig-XXXXX)
 kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
@@ -24,6 +63,62 @@ export KUBECONFIG=$TMPFILE
 kubectl get ns
 #+end_src
 
+** inner cluster
+#+begin_src shell
+export WORKSPACE=kv1
+unset KUBECONFIG
+TMPFILE=$(mktemp -t kubeconfig-XXXXX)
+kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
+export KUBECONFIG=$TMPFILE
+kubectl get all -A
+#+end_src
+
 #+RESULTS:
 #+begin_example
+NAMESPACE     NAME                                    READY   STATUS    RESTARTS   AGE
+default       pod/code-server-0                       0/1     Pending   0          81s
+kube-system   pod/coredns-749558f7dd-mwwff            0/1     Pending   0          81s
+kube-system   pod/coredns-749558f7dd-ppw92            0/1     Pending   0          81s
+kube-system   pod/etcd-kv1-97525                      1/1     Running   0          90s
+kube-system   pod/kube-apiserver-kv1-97525            1/1     Running   0          90s
+kube-system   pod/kube-controller-manager-kv1-97525   1/1     Running   0          90s
+kube-system   pod/kube-proxy-48s9l                    1/1     Running   0          81s
+kube-system   pod/kube-scheduler-kv1-97525            1/1     Running   0          90s
+
+NAMESPACE     NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       service/kubernetes   ClusterIP   10.95.0.1    <none>        443/TCP                  97s
+kube-system   service/kube-dns     ClusterIP   10.95.0.10   <none>        53/UDP,53/TCP,9153/TCP   96s
+
+NAMESPACE     NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-system   daemonset.apps/kube-proxy   1         1         1       1            1           kubernetes.io/os=linux   96s
+
+NAMESPACE     NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system   deployment.apps/coredns   0/2     2            0           96s
+
+NAMESPACE     NAME                                 DESIRED   CURRENT   READY   AGE
+kube-system   replicaset.apps/coredns-749558f7dd   2         2         0       82s
+
+NAMESPACE   NAME                           READY   AGE
+default     statefulset.apps/code-server   0/1     88s
+#+end_example
+
+** cni not yet working
+#+begin_src shell :prologue "(\n" :epilogue "\n) 2>&1\n:\n"
+export WORKSPACE=kv1
+unset KUBECONFIG
+TMPFILE=$(mktemp -t kubeconfig-XXXXX)
+kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
+export KUBECONFIG=$TMPFILE
+kubectl describe nodes | grep -B6 KubeletNotReady
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Conditions:
+  Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----             ------  -----------------                 ------------------                ------                       -------
+  MemoryPressure   False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure     False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure      False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready            False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletNotReady              container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized
 #+end_example
