@@ -1,79 +1,116 @@
-#+title: Readme
-* Coder Iteration Loop
-** Start Coder
-#+begin_src tmate :window coder :dir "../../.."
+- [Coder Iteration Loop](#org6df9caf)
+  - [Start Coder](#org8a0efd5)
+  - [coder url](#org11688e9)
+- [kubevirt workspace](#org369d0e6)
+  - [create template and cluster](#org59bbab0)
+  - [update template and new cluster](#org939dfe1)
+  - [grab new cluster kubeconfig](#org0e8b078)
+  - [inner cluster](#orge2b4dcd)
+  - [cni not yet working](#org204e816)
+
+
+
+<a id="org6df9caf"></a>
+
+# Coder Iteration Loop
+
+
+<a id="org8a0efd5"></a>
+
+## Start Coder
+
+```tmate
 
 cd ~/sharingio/coder
 rm -rf ~/.config/coderv2/ # delete database
 coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 --tunnel \
     2>&1 | tee coder-server.log
-#+end_src
-#+begin_src shell
-coder login `cat ~/.config/coderv2/url` -u ii -p ii -e ii@ii.nz
-#+end_src
+```
 
-#+RESULTS:
-#+begin_example
+```shell
+coder login `cat ~/.config/coderv2/url` -u ii -p ii -e ii@ii.nz
+```
+
+```
 > Your Coder deployment hasn't been set up!
 
   Welcome to Coder, ii! You're authenticated.
 
   Get started by creating a template:  coder templates init
-#+end_example
-** coder url
-#+begin_src shell :dir "../../.."
+```
+
+
+<a id="org11688e9"></a>
+
+## coder url
+
+```shell
 grep "coder login https://" coder-server.log | cut -d\  -f 4
-#+end_src
+```
 
-#+RESULTS:
-#+begin_example
+```
 https://fcca6c2cae4534be6d63b1e72f9a5371.pit-1.try.coder.app
-#+end_example
+```
 
 
-* kubevirt workspace
-** create template and cluster
+<a id="org369d0e6"></a>
 
-#+begin_src tmate :dir "../../.." :window kubevirt
+# kubevirt workspace
+
+
+<a id="org59bbab0"></a>
+
+## create template and cluster
+
+```tmate
 cd ~/sharingio/coder
 export CRI_PATH=/var/run/containerd/containerd.sock
 export IMAGE_REPO=k8s.gcr.io
 export NODE_VM_IMAGE_TEMPLATE=quay.io/capk/ubuntu-2004-container-disk:v1.22.0
 coder template create kubevirt -d examples/templates/kubevirt --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
 coder create kv1 --template kubevirt --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
-#+end_src
+```
 
-** update template and new cluster
 
-#+begin_src tmate :dir "../../.." :window kubevirt
+<a id="org939dfe1"></a>
+
+## update template and new cluster
+
+```tmate
 export WORKSPACE=kv1
 coder template push kubevirt -d examples/templates/kubevirt --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
 coder create $WORKSPACE --template kubevirt --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
-#+end_src
+```
 
-** grab new cluster kubeconfig
 
-#+begin_src tmate :dir "../../.." :window kubectl
+<a id="org0e8b078"></a>
+
+## grab new cluster kubeconfig
+
+```tmate
 export WORKSPACE=kv1
 unset KUBECONFIG
 TMPFILE=$(mktemp -t kubeconfig-XXXXX)
 kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
 export KUBECONFIG=$TMPFILE
 kubectl get ns
-#+end_src
+```
 
-** inner cluster
-#+begin_src shell
+
+<a id="orge2b4dcd"></a>
+
+## inner cluster
+
+```shell
 export WORKSPACE=kv1
 unset KUBECONFIG
 TMPFILE=$(mktemp -t kubeconfig-XXXXX)
 kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
 export KUBECONFIG=$TMPFILE
 kubectl get all -A
-#+end_src
+```
 
-#+RESULTS:
-#+begin_example
+```
 NAMESPACE     NAME                                    READY   STATUS    RESTARTS   AGE
 default       pod/code-server-0                       0/1     Pending   0          81s
 kube-system   pod/coredns-749558f7dd-mwwff            0/1     Pending   0          81s
@@ -99,20 +136,23 @@ kube-system   replicaset.apps/coredns-749558f7dd   2         2         0       8
 
 NAMESPACE   NAME                           READY   AGE
 default     statefulset.apps/code-server   0/1     88s
-#+end_example
+```
 
-** cni not yet working
-#+begin_src shell :prologue "(\n" :epilogue "\n) 2>&1\n:\n"
+
+<a id="org204e816"></a>
+
+## cni not yet working
+
+```shell
 export WORKSPACE=kv1
 unset KUBECONFIG
 TMPFILE=$(mktemp -t kubeconfig-XXXXX)
 kubectl get secrets -n $WORKSPACE ${WORKSPACE}-kubeconfig  -o jsonpath={.data.value} | base64 -d > $TMPFILE
 export KUBECONFIG=$TMPFILE
 kubectl describe nodes | grep -B6 KubeletNotReady
-#+end_src
+```
 
-#+RESULTS:
-#+begin_example
+```
 Conditions:
   Type             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
   ----             ------  -----------------                 ------------------                ------                       -------
@@ -120,4 +160,4 @@ Conditions:
   DiskPressure     False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletHasNoDiskPressure     kubelet has no disk pressure
   PIDPressure      False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletHasSufficientPID      kubelet has sufficient PID available
   Ready            False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletNotReady              container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized
-#+end_example
+```
