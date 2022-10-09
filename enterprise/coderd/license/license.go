@@ -96,6 +96,12 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 				Enabled:     enablements[codersdk.FeatureWorkspaceQuota],
 			}
 		}
+		if claims.Features.RBAC > 0 {
+			entitlements.Features[codersdk.FeatureRBAC] = codersdk.Feature{
+				Entitlement: entitlement,
+				Enabled:     enablements[codersdk.FeatureRBAC],
+			}
+		}
 		if claims.AllFeatures {
 			allFeatures = true
 		}

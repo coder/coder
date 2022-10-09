@@ -135,9 +135,9 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		workspaceQuota = 1
 	}
 
-	groups := int64(0)
+	rbac := int64(0)
 	if options.RBACEnabled {
-		groups = 1
+		rbac = 1
 	}
 
 	c := &license.Claims{
@@ -159,7 +159,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			BrowserOnly:    browserOnly,
 			SCIM:           scim,
 			WorkspaceQuota: workspaceQuota,
-			RBAC:           groups,
+			RBAC:           rbac,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
