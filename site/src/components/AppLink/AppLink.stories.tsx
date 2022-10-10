@@ -11,7 +11,7 @@ const Template: Story<AppLinkProps> = (args) => <AppLink {...args} />
 
 export const WithIcon = Template.bind({})
 WithIcon.args = {
-  username: "developer",
+  userName: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
   appIcon: "/icon/code.svg",
@@ -20,7 +20,7 @@ WithIcon.args = {
 
 export const WithoutIcon = Template.bind({})
 WithoutIcon.args = {
-  username: "developer",
+  userName: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
   health: "healthy",
@@ -28,7 +28,7 @@ WithoutIcon.args = {
 
 export const HealthDisabled = Template.bind({})
 HealthDisabled.args = {
-  username: "developer",
+  userName: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
   health: "disabled",
@@ -36,7 +36,7 @@ HealthDisabled.args = {
 
 export const HealthInitializing = Template.bind({})
 HealthInitializing.args = {
-  username: "developer",
+  userName: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
   health: "initializing",
@@ -44,7 +44,7 @@ HealthInitializing.args = {
 
 export const HealthUnhealthy = Template.bind({})
 HealthUnhealthy.args = {
-  username: "developer",
+  userName: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
   health: "unhealthy",

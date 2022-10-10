@@ -65,9 +65,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 	var selectedMembership *github.Membership
 	for _, membership := range memberships {
-		if membership.GetState() != "active" {
-			continue
-		}
 		for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
 			if *membership.Organization.Login != allowed {
 				continue

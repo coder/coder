@@ -34,11 +34,11 @@ const useStyles = makeStyles((theme) => ({
 
     "&[data-variant='user-dropdown'] $paperRoot": {
       paddingBottom: theme.spacing(1),
-      minWidth: 292,
+      width: 292,
     },
   },
   paperRoot: {
-    minWidth: 292,
+    width: "292px",
     border: `2px solid ${theme.palette.secondary.dark}`,
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[6],

@@ -7,6 +7,7 @@ import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
 import React from "react"
 import { PaletteIndex } from "theme/palettes"
+import { getWorkspaceStatus } from "util/workspace"
 
 const LoadingIcon: React.FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
@@ -19,18 +20,19 @@ export const getStatus = (
   text: string
   icon: React.ReactNode
 } => {
+  const status = getWorkspaceStatus(build)
   const { t } = i18next
 
-  switch (build.status) {
+  switch (status) {
     case undefined:
       return {
         text: t("workspaceStatus.loading", { ns: "common" }),
         icon: <LoadingIcon />,
       }
-    case "running":
+    case "started":
       return {
         type: "success",
-        text: t("workspaceStatus.running", { ns: "common" }),
+        text: t("workspaceStatus.started", { ns: "common" }),
         icon: <PlayIcon />,
       }
     case "starting":
@@ -75,16 +77,16 @@ export const getStatus = (
         text: t("workspaceStatus.canceled", { ns: "common" }),
         icon: <ErrorIcon />,
       }
-    case "failed":
+    case "error":
       return {
         type: "error",
         text: t("workspaceStatus.failed", { ns: "common" }),
         icon: <ErrorIcon />,
       }
-    case "pending":
+    case "queued":
       return {
         type: "info",
-        text: t("workspaceStatus.pending", { ns: "common" }),
+        text: t("workspaceStatus.queued", { ns: "common" }),
         icon: <LoadingIcon />,
       }
   }

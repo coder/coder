@@ -299,9 +299,10 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
 
 		// Load the application auth-redirect endpoint.
-		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
-			"redirect_uri", u.String(),
-		))
+		qp := codersdk.WithQueryParams(map[string]string{
+			"redirect_uri": u.String(),
+		})
+		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, qp)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -432,13 +433,15 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			c := c
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
+				qp := map[string]string{}
+				if c.redirectURI != "" {
+					qp["redirect_uri"] = c.redirectURI
+				}
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil,
-					codersdk.WithQueryParam("redirect_uri", c.redirectURI),
-				)
+				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParams(qp))
 				require.NoError(t, err)
 				defer resp.Body.Close()
 				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -687,24 +690,5 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
-	})
-
-	t.Run("ProxyPortMinimumError", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		port := uint16(codersdk.MinimumListeningPort - 1)
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Should have an error response.
-		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		var resBody codersdk.Response
-		err = json.NewDecoder(resp.Body).Decode(&resBody)
-		require.NoError(t, err)
-		require.Contains(t, resBody.Message, "Coder reserves ports less than")
 	})
 }

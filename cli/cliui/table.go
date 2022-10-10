@@ -153,14 +153,10 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			// Special type formatting.
 			switch val := v.(type) {
 			case time.Time:
-				v = val.Format(time.RFC3339)
+				v = val.Format(time.Stamp)
 			case *time.Time:
 				if val != nil {
-					v = val.Format(time.RFC3339)
-				}
-			case *int64:
-				if val != nil {
-					v = *val
+					v = val.Format(time.Stamp)
 				}
 			case fmt.Stringer:
 				if val != nil {

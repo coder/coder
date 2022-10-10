@@ -72,13 +72,11 @@
         {
           "title": "AWS",
           "description": "Setup Coder with AWS",
-          "icon_path": "./images/aws.svg",
           "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
           "description": "Setup Coder with Azure",
-          "icon_path": "./images/azure.svg",
           "path": "./quickstart/azure.md"
         }
       ]
@@ -188,7 +186,7 @@
         },
         {
           "title": "Configuration",
-          "description": "Learn how to configure Coder.",
+          "description": "Learn how to configure Coder",
           "path": "./admin/configure.md",
           "icon_path": "./images/icons/toggle_on.svg"
         },
@@ -202,15 +200,7 @@
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment.",
           "icon_path": "./images/icons/radar.svg",
-          "path": "./admin/audit-logs.md",
-          "state": "enterprise"
-        },
-        {
-          "title": "Quotas",
-          "description": "Learn how to use Workspace Quotas in Coder.",
-          "icon_path": "./images/icons/dollar.svg",
-          "path": "./admin/quotas.md",
-          "state": "enterprise"
+          "path": "./admin/audit-logs.md"
         },
         {
           "title": "Enterprise",
@@ -220,7 +210,7 @@
         },
         {
           "title": "Telemetry",
-          "description": "Learn what usage telemetry Coder collects.",
+          "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }

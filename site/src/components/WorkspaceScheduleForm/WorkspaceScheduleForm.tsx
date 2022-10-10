@@ -8,7 +8,7 @@ import MenuItem from "@material-ui/core/MenuItem"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import Switch from "@material-ui/core/Switch"
 import TextField from "@material-ui/core/TextField"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Section } from "components/Section/Section"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
@@ -227,9 +227,7 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
     <FullPageForm onCancel={onCancel} title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
-          {Boolean(submitScheduleError) && (
-            <AlertBanner severity="error" error={submitScheduleError} />
-          )}
+          {submitScheduleError ? <ErrorSummary error={submitScheduleError} /> : <></>}
           <Section title={Language.startSection}>
             <FormControlLabel
               control={

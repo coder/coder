@@ -11,9 +11,6 @@ func users() *cobra.Command {
 		Short:   "Manage users",
 		Use:     "users",
 		Aliases: []string{"user"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
 	}
 	cmd.AddCommand(
 		userCreate(),

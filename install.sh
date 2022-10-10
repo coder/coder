@@ -121,7 +121,7 @@ $1 package has been installed.
 
 To run Coder as a system service:
 
-  # Optional) Set up an external access URL
+  # Set up an external access URL or enable CODER_TUNNEL
   $ sudo vim /etc/coder.d/coder.env
   # Use systemd to start Coder now and on reboot
   $ sudo systemctl enable --now coder

@@ -4,11 +4,88 @@ import duration from "dayjs/plugin/duration"
 import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import semver from "semver"
+import { WorkspaceBuildTransition } from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
 dayjs.extend(duration)
 dayjs.extend(utc)
 dayjs.extend(minMax)
+
+// all the possible states returned by the API
+export enum WorkspaceStateEnum {
+  starting = "Starting",
+  started = "Started",
+  stopping = "Stopping",
+  stopped = "Stopped",
+  canceling = "Canceling",
+  canceled = "Canceled",
+  deleting = "Deleting",
+  deleted = "Deleted",
+  queued = "Queued",
+  error = "Error",
+  loading = "Loading",
+}
+
+export type WorkspaceStatus =
+  | "queued"
+  | "started"
+  | "starting"
+  | "stopped"
+  | "stopping"
+  | "error"
+  | "loading"
+  | "deleting"
+  | "deleted"
+  | "canceled"
+  | "canceling"
+
+const inProgressToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
+  start: "starting",
+  stop: "stopping",
+  delete: "deleting",
+}
+
+const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
+  start: "started",
+  stop: "stopped",
+  delete: "deleted",
+}
+
+// Converts a workspaces status to a human-readable form.
+export const getWorkspaceStatus = (workspaceBuild?: TypesGen.WorkspaceBuild): WorkspaceStatus => {
+  const transition = workspaceBuild?.transition as WorkspaceBuildTransition
+  const jobStatus = workspaceBuild?.job.status
+  switch (jobStatus) {
+    case undefined:
+      return "loading"
+    case "succeeded":
+      return succeededToStatus[transition]
+    case "pending":
+      return "queued"
+    case "running":
+      return inProgressToStatus[transition]
+    case "canceling":
+      return "canceling"
+    case "canceled":
+      return "canceled"
+    case "failed":
+      return "error"
+  }
+}
+
+export const DisplayStatusLanguage = {
+  loading: "Loading...",
+  started: "Running",
+  starting: "Starting",
+  stopping: "Stopping",
+  stopped: "Stopped",
+  deleting: "Deleting",
+  deleted: "Deleted",
+  canceling: "Canceling action",
+  canceled: "Canceled action",
+  failed: "Failed",
+  queued: "Queued",
+}
 
 export const DisplayWorkspaceBuildStatusLanguage = {
   succeeded: "Succeeded",
@@ -104,7 +181,6 @@ export const displayWorkspaceBuildDuration = (
 }
 
 export const DisplayAgentStatusLanguage = {
-  loading: "Loading...",
   connected: "⦿ Connected",
   connecting: "⦿ Connecting",
   disconnected: "◍ Disconnected",
@@ -121,7 +197,7 @@ export const getDisplayAgentStatus = (
     case undefined:
       return {
         color: theme.palette.text.secondary,
-        status: DisplayAgentStatusLanguage.loading,
+        status: DisplayStatusLanguage.loading,
       }
     case "connected":
       return {
@@ -169,6 +245,10 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
   return transition === "start" && status === "succeeded"
 }
 
+export const isWorkspaceDeleted = (workspace: TypesGen.Workspace): boolean => {
+  return getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
+}
+
 export const defaultWorkspaceExtension = (
   __startDate?: dayjs.Dayjs,
 ): TypesGen.PutExtendWorkspaceRequest => {
@@ -190,10 +270,11 @@ type FaviconType =
   | "favicon-running"
 
 export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
-  switch (build.status) {
+  const status = getWorkspaceStatus(build)
+  switch (status) {
     case undefined:
       return "favicon"
-    case "running":
+    case "started":
       return "favicon-success"
     case "starting":
       return "favicon-running"
@@ -209,9 +290,10 @@ export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType 
       return "favicon-warning"
     case "canceled":
       return "favicon"
-    case "failed":
+    case "error":
       return "favicon-error"
-    case "pending":
+    case "queued":
       return "favicon"
   }
+  throw new Error("unknown status " + status)
 }

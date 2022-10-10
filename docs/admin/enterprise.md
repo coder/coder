@@ -3,17 +3,13 @@
 Coder is free to use and includes some features that are only accessible with a paid license.
 Contact sales@coder.com to obtain a license.
 
-These features are available in the enterprise edition:
+Our Enterprise-only features include:
 
-- [Audit Logging](./audit-logs.md)
-- [Browser Only Connections](../networking.md#browser-only-connections)
-- [Quotas](./quotas.md)
-- [SCIM](./auth.md#scim)
-
-And we're releasing these imminently:
-
-- High Availability
+- Audit Logging
+- Browser Only Connections
 - Template RBAC
+- Quotas
+- High Availability
 
 ## Adding your license key
 

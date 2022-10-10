@@ -5,7 +5,7 @@ import {
   MockDeletedWorkspace,
   MockDeletingWorkspace,
   MockFailedWorkspace,
-  MockPendingWorkspace,
+  MockQueuedWorkspace,
   MockStartingWorkspace,
   MockStoppedWorkspace,
   MockStoppingWorkspace,
@@ -65,7 +65,7 @@ Failed.args = {
   build: MockFailedWorkspace.latest_build,
 }
 
-export const Pending = Template.bind({})
-Pending.args = {
-  build: MockPendingWorkspace.latest_build,
+export const Queued = Template.bind({})
+Queued.args = {
+  build: MockQueuedWorkspace.latest_build,
 }

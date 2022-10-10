@@ -1,5 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import * as TypesGen from "api/typesGenerated"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
 import { Loader } from "components/Loader/Loader"
@@ -13,7 +14,6 @@ import { FC, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -98,18 +98,16 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   if (props.hasTemplateErrors) {
     return (
       <Stack>
-        {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]) && (
-          <AlertBanner
-            severity="error"
+        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR] ? (
+          <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
           />
-        )}
-        {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]) && (
-          <AlertBanner
-            severity="error"
+        ) : null}
+        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] ? (
+          <ErrorSummary
             error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
           />
-        )}
+        ) : null}
       </Stack>
     )
   }
@@ -124,8 +122,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
       <form onSubmit={form.handleSubmit}>
         <Stack>
           {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]) && (
-            <AlertBanner
-              severity="error"
+            <ErrorSummary
               error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
             />
           )}
@@ -160,15 +157,6 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 />
               )}
 
-              {props.workspaceQuota && (
-                <WorkspaceQuota
-                  quota={props.workspaceQuota}
-                  error={
-                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
-                  }
-                />
-              )}
-
               {props.templateSchema.length > 0 && (
                 <Stack>
                   {props.templateSchema.map((schema) => (
@@ -185,6 +173,15 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                     />
                   ))}
                 </Stack>
+              )}
+
+              {props.workspaceQuota && (
+                <WorkspaceQuota
+                  quota={props.workspaceQuota}
+                  error={
+                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
+                  }
+                />
               )}
 
               <FormFooter

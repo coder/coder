@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -485,27 +484,6 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			DashboardURL: api.AccessURL.String(),
 		})
 		return
-	}
-
-	// Verify that the port is allowed. See the docs above
-	// `codersdk.MinimumListeningPort` for more details.
-	port := appURL.Port()
-	if port != "" {
-		portInt, err := strconv.Atoi(port)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("App URL %q has an invalid port %q.", internalURL, port),
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		if portInt < codersdk.MinimumListeningPort {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.", portInt, codersdk.MinimumListeningPort),
-			})
-			return
-		}
 	}
 
 	// Ensure path and query parameter correctness.

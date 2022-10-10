@@ -193,7 +193,6 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
   name: "test-app",
   icon: "",
-  subdomain: false,
   health: "disabled",
   healthcheck: {
     url: "",
@@ -396,14 +395,13 @@ export const MockWorkspace: TypesGen.Workspace = {
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildStop, status: "stopped" },
+  latest_build: MockWorkspaceBuildStop,
 }
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuildStop,
     job: MockRunningProvisionerJob,
-    status: "stopping",
   },
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
@@ -412,43 +410,40 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
     ...MockWorkspaceBuild,
     job: MockRunningProvisionerJob,
     transition: "start",
-    status: "starting",
   },
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob, status: "canceling" },
+  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
 }
 export const MockCanceledWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob, status: "canceled" },
+  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob },
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockFailedProvisionerJob,
-    status: "failed",
   },
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob, status: "deleting" },
+  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
 }
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
+  latest_build: MockWorkspaceBuildDelete,
 }
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
 
-export const MockPendingWorkspace: TypesGen.Workspace = {
+export const MockQueuedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockPendingProvisionerJob,
     transition: "start",
-    status: "pending",
   },
 }
 
@@ -777,14 +772,12 @@ export const MockEntitlements: TypesGen.Entitlements = {
   has_license: false,
   features: {},
   experimental: false,
-  trial: false,
 }
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
   experimental: false,
-  trial: false,
   features: {
     user_limit: {
       enabled: true,
@@ -807,7 +800,6 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   warnings: [],
   has_license: true,
   experimental: false,
-  trial: false,
   features: {
     audit_log: {
       enabled: true,

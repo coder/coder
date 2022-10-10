@@ -1,10 +1,10 @@
 import { useMachine } from "@xstate/react"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
@@ -59,17 +59,18 @@ export const WorkspaceSchedulePage: React.FC = () => {
 
   if (scheduleState.matches("error")) {
     return (
-      <AlertBanner
-        severity="error"
+      <ErrorSummary
         error={getWorkspaceError || checkPermissionsError}
-        text={getWorkspaceError ? Language.getWorkspaceError : Language.checkPermissionsError}
+        defaultMessage={
+          getWorkspaceError ? Language.getWorkspaceError : Language.checkPermissionsError
+        }
         retry={() => scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })}
       />
     )
   }
 
   if (!permissions?.updateWorkspace) {
-    return <AlertBanner severity="error" error={Error(Language.forbiddenError)} />
+    return <ErrorSummary error={Error(Language.forbiddenError)} />
   }
 
   if (scheduleState.matches("presentForm") || scheduleState.matches("submittingSchedule")) {

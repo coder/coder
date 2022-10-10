@@ -5,6 +5,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import GitHubIcon from "@material-ui/icons/GitHub"
 import KeyIcon from "@material-ui/icons/VpnKey"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
@@ -13,7 +14,6 @@ import { AuthMethods } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -120,16 +120,14 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       <Welcome />
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {Object.keys(loginErrors).map(
-            (errorKey: string) =>
-              Boolean(loginErrors[errorKey as LoginErrors]) && (
-                <AlertBanner
-                  key={errorKey}
-                  severity="error"
-                  error={loginErrors[errorKey as LoginErrors]}
-                  text={Language.errorMessages[errorKey as LoginErrors]}
-                />
-              ),
+          {Object.keys(loginErrors).map((errorKey: string) =>
+            loginErrors[errorKey as LoginErrors] ? (
+              <ErrorSummary
+                key={errorKey}
+                error={loginErrors[errorKey as LoginErrors]}
+                defaultMessage={Language.errorMessages[errorKey as LoginErrors]}
+              />
+            ) : null,
           )}
           <TextField
             {...getFieldHelpers("email")}

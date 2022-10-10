@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react"
-import { MockUser } from "../../testHelpers/entities"
+import { MockOwnerRole, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
@@ -21,6 +21,12 @@ describe("UserDropdownContent", () => {
     expect(screen.getByText(Language.accountLabel)).toBeDefined()
     expect(screen.getByText(Language.docsLabel)).toBeDefined()
     expect(screen.getByText(Language.signOutLabel)).toBeDefined()
+  })
+
+  it("displays the user's roles", () => {
+    render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
+
+    expect(screen.getByText(MockOwnerRole.display_name)).toBeDefined()
   })
 
   it("has the correct link for the account item", () => {

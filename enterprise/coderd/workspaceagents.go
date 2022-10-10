@@ -10,9 +10,9 @@ import (
 
 func (api *API) shouldBlockNonBrowserConnections(rw http.ResponseWriter) bool {
 	api.entitlementsMu.Lock()
-	browserOnly := api.entitlements.Features[codersdk.FeatureBrowserOnly].Enabled
+	browserOnly := api.entitlements.browserOnly
 	api.entitlementsMu.Unlock()
-	if browserOnly {
+	if api.BrowserOnly && browserOnly != codersdk.EntitlementNotEntitled {
 		httpapi.Write(context.Background(), rw, http.StatusConflict, codersdk.Response{
 			Message: "Non-browser connections are disabled for your deployment.",
 		})

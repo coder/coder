@@ -30,14 +30,13 @@ WHERE
 	workspace_id = $1
 	AND build_number = $2;
 
--- name: GetWorkspaceBuildsByWorkspaceID :many
+-- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
 	*
 FROM
 	workspace_builds
 WHERE
 	workspace_builds.workspace_id = $1
-	AND workspace_builds.created_at > @since
     AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without

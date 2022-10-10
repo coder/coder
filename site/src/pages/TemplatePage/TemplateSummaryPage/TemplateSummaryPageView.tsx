@@ -5,7 +5,7 @@ import {
   TemplateVersion,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Markdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
@@ -42,7 +42,7 @@ export const TemplateSummaryPageView: FC<React.PropsWithChildren<TemplateSummary
   const readme = frontMatter(activeTemplateVersion.readme)
 
   const deleteError = deleteTemplateError ? (
-    <AlertBanner severity="error" error={deleteTemplateError} dismissible />
+    <ErrorSummary error={deleteTemplateError} dismissible />
   ) : null
 
   const getStartedResources = (resources: WorkspaceResource[]) => {

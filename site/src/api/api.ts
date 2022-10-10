@@ -30,7 +30,6 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
     has_license: false,
     warnings: [],
     experimental: false,
-    trial: false,
   }
 }
 
@@ -406,10 +405,9 @@ export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitS
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
-  since: Date,
 ): Promise<TypesGen.WorkspaceBuild[]> => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
+    `/api/v2/workspaces/${workspaceId}/builds`,
   )
   return response.data
 }

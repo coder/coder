@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import LinearProgress from "@material-ui/core/LinearProgress"
 import { makeStyles } from "@material-ui/core/styles"
 import Skeleton from "@material-ui/lab/Skeleton"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -28,7 +28,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
       <Box>
         <Stack spacing={1} className={styles.stack}>
           <span className={styles.title}>Workspace Quota</span>
-          <AlertBanner severity="error" error={error} />
+          <ErrorSummary error={error} />
         </Stack>
       </Box>
     )

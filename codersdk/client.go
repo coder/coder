@@ -16,7 +16,7 @@ import (
 
 // These cookies are Coder-specific. If a new one is added or changed, the name
 // shouldn't be likely to conflict with any user-application set cookies.
-// Be sure to strip additional cookies in httpapi.StripCoderCookies!
+// Be sure to strip additional cookies in httpapi.StripCoder Cookies!
 const (
 	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
 	SessionTokenKey = "coder_session_token"
@@ -44,13 +44,12 @@ type Client struct {
 
 type RequestOption func(*http.Request)
 
-func WithQueryParam(key, value string) RequestOption {
+func WithQueryParams(params map[string]string) RequestOption {
 	return func(r *http.Request) {
-		if value == "" {
-			return
-		}
 		q := r.URL.Query()
-		q.Add(key, value)
+		for k, v := range params {
+			q.Add(k, v)
+		}
 		r.URL.RawQuery = q.Encode()
 	}
 }

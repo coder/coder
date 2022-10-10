@@ -33,8 +33,7 @@ CREATE TYPE log_source AS ENUM (
 CREATE TYPE login_type AS ENUM (
     'password',
     'github',
-    'oidc',
-    'token'
+    'oidc'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -366,11 +365,11 @@ CREATE TABLE workspace_apps (
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
+    relative_path boolean DEFAULT false NOT NULL,
     healthcheck_url text DEFAULT ''::text NOT NULL,
     healthcheck_interval integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
-    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
-    subdomain boolean DEFAULT false NOT NULL
+    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
 );
 
 CREATE TABLE workspace_builds (

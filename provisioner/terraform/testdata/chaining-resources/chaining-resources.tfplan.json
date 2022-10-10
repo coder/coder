@@ -56,7 +56,9 @@
       "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -72,9 +74,7 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {
-          "token": true
-        }
+        "after_sensitive": {}
       }
     },
     {
@@ -84,7 +84,9 @@
       "name": "a",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -103,7 +105,9 @@
       "name": "b",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -121,7 +125,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.5.0"
+        "version_constraint": "0.4.11"
       },
       "null": {
         "name": "null",
@@ -153,7 +157,9 @@
           "name": "a",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["null_resource.b"]
+          "depends_on": [
+            "null_resource.b"
+          ]
         },
         {
           "address": "null_resource.b",
@@ -162,7 +168,9 @@
           "name": "b",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.main"]
+          "depends_on": [
+            "coder_agent.main"
+          ]
         }
       ]
     }

@@ -1,5 +1,4 @@
 import { getErrorMessage } from "api/errors"
-import dayjs from "dayjs"
 import { workspaceScheduleBannerMachine } from "xServices/workspaceSchedule/workspaceScheduleBannerXService"
 import { assign, createMachine, send } from "xstate"
 import * as API from "../../api/api"
@@ -671,12 +670,7 @@ export const workspaceMachine = createMachine(
       },
       getBuilds: async (context) => {
         if (context.workspace) {
-          // For now, we only retrieve the last month of builds to minimize
-          // page bloat. We should add pagination in the future.
-          return await API.getWorkspaceBuilds(
-            context.workspace.id,
-            dayjs().add(-30, "day").toDate(),
-          )
+          return await API.getWorkspaceBuilds(context.workspace.id)
         } else {
           throw Error("Cannot get builds without id")
         }

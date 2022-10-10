@@ -1,13 +1,11 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { Language as ErrorSummaryLanguage } from "components/ErrorSummary/ErrorSummary"
 import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as AccountForm from "../../../components/SettingsAccountForm/SettingsAccountForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
 import { AccountPage } from "./AccountPage"
-import i18next from "i18next"
-
-const { t } = i18next
 
 const renderPage = () => {
   return renderWithAuth(
@@ -85,8 +83,7 @@ describe("AccountPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorText = t("warningsAndErrors.somethingWentWrong", { ns: "common" })
-      const errorMessage = await screen.findByText(errorText)
+      const errorMessage = await screen.findByText(ErrorSummaryLanguage.unknownErrorMessage)
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)

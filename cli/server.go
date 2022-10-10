@@ -111,6 +111,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		tlsEnable                        bool
 		tlsKeyFiles                      []string
 		tlsMinVersion                    string
+		tunnel                           bool
 		traceEnable                      bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
@@ -242,23 +243,26 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			if tlsEnable {
 				localURL.Scheme = "https"
 			}
+			if accessURL == "" {
+				accessURL = localURL.String()
+			}
 
 			var (
 				ctxTunnel, closeTunnel = context.WithCancel(ctx)
-				tunnel                 *devtunnel.Tunnel
-				tunnelErr              <-chan error
+				devTunnel              *devtunnel.Tunnel
+				devTunnelErr           <-chan error
 			)
 			defer closeTunnel()
 
-			// If the access URL is empty, we attempt to run a reverse-proxy tunnel
-			// to make the initial setup really simple.
-			if accessURL == "" {
-				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
-				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+			// If we're attempting to tunnel in dev-mode, the access URL
+			// needs to be changed to use the tunnel.
+			if tunnel {
+				cmd.Printf("Opening tunnel so workspaces can connect to your deployment\n")
+				devTunnel, devTunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				accessURL = tunnel.URL
+				accessURL = devTunnel.URL
 			}
 
 			accessURLParsed, err := parseURL(ctx, accessURL)
@@ -284,11 +288,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
+				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL with:\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
+				cmd.Println(cliui.Styles.Code.Render(strings.Join(os.Args, " ") + " --tunnel"))
 			}
 
-			// A newline is added before for visibility in terminal output.
-			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
+			cmd.Printf("View the Web UI: %s\n", accessURLParsed.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -468,7 +472,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 					OIDCIssuerURL:   oidcIssuerURL,
 					Prometheus:      promEnabled,
 					STUN:            len(derpServerSTUNAddrs) != 0,
-					Tunnel:          tunnel != nil,
+					Tunnel:          tunnel,
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
@@ -565,17 +569,17 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			eg.Go(func() error {
 				// Make sure to close the tunnel listener if we exit so the
 				// errgroup doesn't wait forever!
-				if tunnel != nil {
-					defer tunnel.Listener.Close()
+				if tunnel {
+					defer devTunnel.Listener.Close()
 				}
 
 				return server.Serve(listener)
 			})
-			if tunnel != nil {
+			if tunnel {
 				eg.Go(func() error {
 					defer listener.Close()
 
-					return server.Serve(tunnel.Listener)
+					return server.Serve(devTunnel.Listener)
 				})
 			}
 			go func() {
@@ -620,7 +624,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
-			case exitErr = <-tunnelErr:
+			case exitErr = <-devTunnelErr:
 				if exitErr == nil {
 					exitErr = xerrors.New("dev tunnel closed unexpectedly")
 				}
@@ -646,9 +650,9 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cmd.Println("Shutting down API server...")
-			err = shutdownWithTimeout(server.Shutdown, 3*time.Second)
+			err = shutdownWithTimeout(server.Shutdown, 5*time.Second)
 			if err != nil {
-				cmd.Printf("API server shutdown took longer than 3s: %s\n", err)
+				cmd.Printf("API server shutdown took longer than 5s: %s", err)
 			} else {
 				cmd.Printf("Gracefully shut down API server\n")
 			}
@@ -690,10 +694,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 			cmd.Println("Done waiting for WebSocket connections")
 
 			// Close tunnel after we no longer have in-flight connections.
-			if tunnel != nil {
+			if tunnel {
 				cmd.Println("Waiting for tunnel to close...")
 				closeTunnel()
-				<-tunnelErr
+				<-devTunnelErr
 				cmd.Println("Done waiting for tunnel")
 			}
 
@@ -851,6 +855,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) 
 		"Paths to the private keys for each of the certificates. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
+	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_TUNNEL", false,
+		"Workspaces must be able to reach the `access-url`. This overrides your access URL with a public access URL that tunnels your Coder deployment.")
 	cliflag.BoolVarP(root.Flags(), &traceEnable, "trace", "", "CODER_TRACE", false,
 		"Whether application tracing data is collected.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false,

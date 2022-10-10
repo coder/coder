@@ -7,7 +7,7 @@
 1. Run Coder as a system service.
 
    ```sh
-   # Optional) Set up an access URL
+   # Set up an access URL or enable CODER_TUNNEL
    sudo vim /etc/coder.d/coder.env
 
    # To systemd to start Coder now and on reboot
