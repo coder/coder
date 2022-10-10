@@ -21,26 +21,10 @@ import (
 func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
-		scim := api.entitlements.scim
+		scim := api.entitlements.Features[codersdk.FeatureSCIM].Enabled
 		api.entitlementsMu.RUnlock()
 
-		if scim == codersdk.EntitlementNotEntitled {
-			httpapi.RouteNotFound(rw)
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
-}
-
-// TODO reduce the duplication across all of these.
-func (api *API) rbacEnabledMW(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		api.entitlementsMu.RLock()
-		rbac := api.entitlements.rbac
-		api.entitlementsMu.RUnlock()
-
-		if rbac == codersdk.EntitlementNotEntitled {
+		if !scim {
 			httpapi.RouteNotFound(rw)
 			return
 		}

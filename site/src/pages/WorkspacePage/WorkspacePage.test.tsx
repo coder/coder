@@ -6,7 +6,6 @@ import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/DropdownButton/ActionCtas"
 import {
   MockBuilds,
   MockCanceledWorkspace,
@@ -28,7 +27,7 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { DisplayAgentStatusLanguage, DisplayStatusLanguage } from "../../util/workspace"
+import { DisplayAgentStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 const { t } = i18next
@@ -94,7 +93,7 @@ describe("WorkspacePage", () => {
     const stopWorkspaceMock = jest
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
-    testButton(Language.stop, stopWorkspaceMock)
+    testButton(t("actionButton.stop", { ns: "workspacePage" }), stopWorkspaceMock)
   })
 
   it("requests a delete job when the user presses Delete and confirms", async () => {
@@ -108,7 +107,8 @@ describe("WorkspacePage", () => {
     const trigger = await screen.findByTestId("workspace-actions-button")
     await user.click(trigger)
 
-    const button = await screen.findByText(Language.delete)
+    const buttonText = t("actionButton.delete", { ns: "workspacePage" })
+    const button = await screen.findByText(buttonText)
     await user.click(button)
 
     const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "workspace" })
@@ -128,7 +128,7 @@ describe("WorkspacePage", () => {
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    testButton(Language.start, startWorkspaceMock)
+    testButton(t("actionButton.start", { ns: "workspacePage" }), startWorkspaceMock)
   })
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
@@ -159,7 +159,8 @@ describe("WorkspacePage", () => {
     )
 
     await renderWorkspacePage()
-    const button = await screen.findByText(Language.update, { exact: true })
+    const buttonText = t("actionButton.update", { ns: "workspacePage" })
+    const button = await screen.findByText(buttonText, { exact: true })
     fireEvent.click(button)
 
     // getTemplate is called twice: once when the machine starts, and once after the user requests to update
@@ -177,7 +178,8 @@ describe("WorkspacePage", () => {
       }),
     )
     await renderWorkspacePage()
-    const button = await screen.findByText(Language.update, { exact: true })
+    const buttonText = t("actionButton.update", { ns: "workspacePage" })
+    const button = await screen.findByText(buttonText, { exact: true })
     fireEvent.click(button)
 
     await waitFor(() =>
@@ -185,28 +187,28 @@ describe("WorkspacePage", () => {
     )
   })
   it("shows the Stopping status when the workspace is stopping", async () => {
-    await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
+    await testStatus(MockStoppingWorkspace, t("workspaceStatus.stopping", { ns: "common" }))
   })
   it("shows the Stopped status when the workspace is stopped", async () => {
-    await testStatus(MockStoppedWorkspace, DisplayStatusLanguage.stopped)
+    await testStatus(MockStoppedWorkspace, t("workspaceStatus.stopped", { ns: "common" }))
   })
   it("shows the Building status when the workspace is starting", async () => {
-    await testStatus(MockStartingWorkspace, DisplayStatusLanguage.starting)
+    await testStatus(MockStartingWorkspace, t("workspaceStatus.starting", { ns: "common" }))
   })
-  it("shows the Running status when the workspace is started", async () => {
-    await testStatus(MockWorkspace, DisplayStatusLanguage.started)
+  it("shows the Running status when the workspace is running", async () => {
+    await testStatus(MockWorkspace, t("workspaceStatus.running", { ns: "common" }))
   })
   it("shows the Failed status when the workspace is failed or canceled", async () => {
-    await testStatus(MockFailedWorkspace, DisplayStatusLanguage.failed)
+    await testStatus(MockFailedWorkspace, t("workspaceStatus.failed", { ns: "common" }))
   })
   it("shows the Canceling status when the workspace is canceling", async () => {
-    await testStatus(MockCancelingWorkspace, DisplayStatusLanguage.canceling)
+    await testStatus(MockCancelingWorkspace, t("workspaceStatus.canceling", { ns: "common" }))
   })
   it("shows the Canceled status when the workspace is canceling", async () => {
-    await testStatus(MockCanceledWorkspace, DisplayStatusLanguage.canceled)
+    await testStatus(MockCanceledWorkspace, t("workspaceStatus.canceled", { ns: "common" }))
   })
   it("shows the Deleting status when the workspace is deleting", async () => {
-    await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
+    await testStatus(MockDeletingWorkspace, t("workspaceStatus.deleting", { ns: "common" }))
   })
   it("shows the Deleted status when the workspace is deleted", async () => {
     await testStatus(MockDeletedWorkspace, t("workspaceStatus.deleted", { ns: "common" }))
