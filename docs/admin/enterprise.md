@@ -14,6 +14,7 @@ And we're releasing these imminently:
 
 - High Availability
 - Template RBAC
+- Multiple Git Provider Authentication
 
 ## Adding your license key
 
