@@ -6,7 +6,7 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Markdown } from "components/Markdown/Markdown"
 import frontMatter from "front-matter"
 import { FC } from "react"
@@ -65,10 +65,8 @@ export const TemplatePageView: FC<React.PropsWithChildren<TemplatePageViewProps>
   const readme = frontMatter(activeTemplateVersion.readme)
   const hasIcon = template.icon && template.icon !== ""
 
-  const deleteError = deleteTemplateError ? (
-    <ErrorSummary error={deleteTemplateError} dismissible />
-  ) : (
-    <></>
+  const deleteError = Boolean(deleteTemplateError) && (
+    <AlertBanner severity="error" error={deleteTemplateError} dismissible />
   )
 
   const getStartedResources = (resources: WorkspaceResource[]) => {

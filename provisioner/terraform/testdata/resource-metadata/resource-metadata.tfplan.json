@@ -55,12 +55,7 @@
             ]
           },
           "sensitive_values": {
-            "item": [
-              {},
-              {},
-              {},
-              {}
-            ]
+            "item": [{}, {}, {}, {}]
           }
         },
         {
@@ -86,9 +81,7 @@
       "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -104,7 +97,9 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "token": true
+        }
       }
     },
     {
@@ -114,9 +109,7 @@
       "name": "about_info",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "hide": true,
@@ -164,12 +157,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "item": [
-            {},
-            {},
-            {},
-            {}
-          ]
+          "item": [{}, {}, {}, {}]
         }
       }
     },
@@ -180,9 +168,7 @@
       "name": "about",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "triggers": null
@@ -200,7 +186,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.4.11"
+        "version_constraint": "0.5.0"
       },
       "null": {
         "name": "null",
@@ -273,10 +259,7 @@
               }
             ],
             "resource_id": {
-              "references": [
-                "null_resource.about.id",
-                "null_resource.about"
-              ]
+              "references": ["null_resource.about.id", "null_resource.about"]
             }
           },
           "schema_version": 0
@@ -295,9 +278,7 @@
   "relevant_attributes": [
     {
       "resource": "null_resource.about",
-      "attribute": [
-        "id"
-      ]
+      "attribute": ["id"]
     }
   ]
 }

@@ -1,11 +1,11 @@
 import TextField from "@material-ui/core/TextField"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export interface AccountFormValues {
   username: string
@@ -53,7 +53,9 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateProfileError ? <ErrorSummary error={updateProfileError} /> : <></>}
+          {Boolean(updateProfileError) && (
+            <AlertBanner severity="error" error={updateProfileError} />
+          )}
           <TextField
             disabled
             fullWidth

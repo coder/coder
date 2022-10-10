@@ -21,6 +21,7 @@ type Authorizer interface {
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
+	Compile() (AuthorizeFilter, error)
 }
 
 // Filter takes in a list of objects, and will filter the list removing all

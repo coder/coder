@@ -380,14 +380,6 @@ func apiTokenFromRequest(r *http.Request) string {
 		return cookie.Value
 	}
 
-	// TODO: @emyrk in October 2022, remove this oldCookie check.
-	//	This is just to support the old cli for 1 release. Then everyone
-	//	must update.
-	oldCookie, err := r.Cookie("session_token")
-	if err == nil && oldCookie.Value != "" {
-		return oldCookie.Value
-	}
-
 	urlValue := r.URL.Query().Get(codersdk.SessionTokenKey)
 	if urlValue != "" {
 		return urlValue

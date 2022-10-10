@@ -177,8 +177,8 @@ runs an additional
 [terraform apply](https://www.terraform.io/cli/commands/apply), informing the
 Coder provider that the workspace has a new transition state.
 
-This template sample has one persistent resource (docker image) and one ephemeral resource
-(docker volume).
+This template sample has one persistent resource (docker volume) and one ephemeral resource
+(docker image).
 
 ```sh
 data "coder_workspace" "me" {

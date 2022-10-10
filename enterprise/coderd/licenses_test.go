@@ -12,8 +12,8 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -25,7 +25,7 @@ func TestPostLicense(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountType: coderd.AccountTypeSalesforce,
+			AccountType: license.AccountTypeSalesforce,
 			AccountID:   "testing",
 			AuditLog:    true,
 		})
@@ -89,6 +89,7 @@ func TestGetLicense(t *testing.T) {
 			AuditLog:    true,
 			SCIM:        true,
 			BrowserOnly: true,
+			Trial:       true,
 			UserLimit:   200,
 		})
 
@@ -106,6 +107,7 @@ func TestGetLicense(t *testing.T) {
 		}, licenses[0].Claims["features"])
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
+		assert.Equal(t, true, licenses[1].Claims["trial"])
 		assert.Equal(t, map[string]interface{}{
 			codersdk.FeatureUserLimit:      json.Number("200"),
 			codersdk.FeatureAuditLog:       json.Number("1"),

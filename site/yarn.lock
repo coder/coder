@@ -1815,6 +1815,11 @@
     schema-utils "^3.0.0"
     source-map "^0.7.3"
 
+"@remix-run/router@1.0.1":
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/@remix-run/router/-/router-1.0.1.tgz#88d7ac31811ab0cef14aaaeae2a0474923b278bc"
+  integrity sha512-eBV5rvW4dRFOU1eajN7FmYxjAIVz/mRHgUE9En9mBn6m3mulK3WTR5C3iQhL9MZ14rWAq+xOlEaCkDiW0/heOg==
+
 "@sinclair/typebox@^0.24.1":
   version "0.24.42"
   resolved "https://registry.yarnpkg.com/@sinclair/typebox/-/typebox-0.24.42.tgz#a74b608d494a1f4cc079738e050142a678813f52"
@@ -7578,7 +7583,7 @@ highlight.js@^10.4.1, highlight.js@~10.7.0:
   resolved "https://registry.yarnpkg.com/highlight.js/-/highlight.js-10.7.3.tgz#697272e3991356e40c3cac566a74eef681756531"
   integrity sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==
 
-history@5.3.0, history@^5.2.0:
+history@5.3.0:
   version "5.3.0"
   resolved "https://registry.yarnpkg.com/history/-/history-5.3.0.tgz#1548abaa245ba47992f063a0783db91ef201c73b"
   integrity sha512-ZqaKwjjrAYUYfLG+htGaIIZ4nioX2L70ZUMIFysS3xvBsSG4x/n1V6TXV3N8ZYNuFGlDirFg32T7B6WOUPDYcQ==
@@ -11536,20 +11541,20 @@ react-refresh@^0.14.0:
   resolved "https://registry.yarnpkg.com/react-refresh/-/react-refresh-0.14.0.tgz#4e02825378a5f227079554d4284889354e5f553e"
   integrity sha512-wViHqhAd8OHeLS/IRMJjTSDHF3U9eWi62F/MledQGPdJGDhodXJ9PBLNGr6WWL7qlH12Mt3TyTpbS+hGXMjCzQ==
 
-react-router-dom@6.3.0:
-  version "6.3.0"
-  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-6.3.0.tgz#a0216da813454e521905b5fa55e0e5176123f43d"
-  integrity sha512-uaJj7LKytRxZNQV8+RbzJWnJ8K2nPsOOEuX7aQstlMZKQT0164C+X2w6bnkqU3sjtLvpd5ojrezAyfZ1+0sStw==
+react-router-dom@6.4.1:
+  version "6.4.1"
+  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-6.4.1.tgz#99c9b7c4967890701c888517475aa5d54d25760e"
+  integrity sha512-MY7NJCrGNVJtGp8ODMOBHu20UaIkmwD2V3YsAOUQoCXFk7Ppdwf55RdcGyrSj+ycSL9Uiwrb3gTLYSnzcRoXww==
   dependencies:
-    history "^5.2.0"
-    react-router "6.3.0"
+    "@remix-run/router" "1.0.1"
+    react-router "6.4.1"
 
-react-router@6.3.0:
-  version "6.3.0"
-  resolved "https://registry.yarnpkg.com/react-router/-/react-router-6.3.0.tgz#3970cc64b4cb4eae0c1ea5203a80334fdd175557"
-  integrity sha512-7Wh1DzVQ+tlFjkeo+ujvjSqSJmkt1+8JO+T5xklPlgrh70y7ogx75ODRW0ThWhY7S+6yEDks8TYrtQe/aoboBQ==
+react-router@6.4.1:
+  version "6.4.1"
+  resolved "https://registry.yarnpkg.com/react-router/-/react-router-6.4.1.tgz#dd9cc4dfa264751d143a4b6c9d4faa60ab3ce26c"
+  integrity sha512-OJASKp5AykDWFewgWUim1vlLr7yfD4vO/h+bSgcP/ix8Md+LMHuAjovA74MQfsfhQJGGN1nHRhwS5qQQbbBt3A==
   dependencies:
-    history "^5.2.0"
+    "@remix-run/router" "1.0.1"
 
 react-syntax-highlighter@15.5.0, react-syntax-highlighter@^15.4.5:
   version "15.5.0"

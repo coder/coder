@@ -15,37 +15,21 @@ import (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                uuid.UUID       `json:"id"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	OwnerID           uuid.UUID       `json:"owner_id"`
-	OwnerName         string          `json:"owner_name"`
-	TemplateID        uuid.UUID       `json:"template_id"`
-	TemplateName      string          `json:"template_name"`
-	TemplateIcon      string          `json:"template_icon"`
-	LatestBuild       WorkspaceBuild  `json:"latest_build"`
-	Outdated          bool            `json:"outdated"`
-	Name              string          `json:"name"`
-	AutostartSchedule *string         `json:"autostart_schedule,omitempty"`
-	TTLMillis         *int64          `json:"ttl_ms,omitempty"`
-	LastUsedAt        time.Time       `json:"last_used_at"`
-	Status            WorkspaceStatus `json:"status"`
+	ID                uuid.UUID      `json:"id"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	OwnerID           uuid.UUID      `json:"owner_id"`
+	OwnerName         string         `json:"owner_name"`
+	TemplateID        uuid.UUID      `json:"template_id"`
+	TemplateName      string         `json:"template_name"`
+	TemplateIcon      string         `json:"template_icon"`
+	LatestBuild       WorkspaceBuild `json:"latest_build"`
+	Outdated          bool           `json:"outdated"`
+	Name              string         `json:"name"`
+	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
+	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
+	LastUsedAt        time.Time      `json:"last_used_at"`
 }
-
-type WorkspaceStatus string
-
-const (
-	WorkspaceStatusPending   WorkspaceStatus = "pending"
-	WorkspaceStatusStarting  WorkspaceStatus = "starting"
-	WorkspaceStatusRunning   WorkspaceStatus = "running"
-	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
-	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
-	WorkspaceStatusFailed    WorkspaceStatus = "failed"
-	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
-	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
-	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
-	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
-)
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
@@ -106,11 +90,15 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 type WorkspaceBuildsRequest struct {
 	WorkspaceID uuid.UUID
 	Pagination
+	Since time.Time
 }
 
 func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
-		nil, req.Pagination.asRequestOption())
+	res, err := c.Request(
+		ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
+		nil, req.Pagination.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
+	)
 	if err != nil {
 		return nil, err
 	}

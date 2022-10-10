@@ -175,6 +175,45 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
+const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE login_type = $1
+`
+
+func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByLoginType, loginType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []APIKey
+	for rows.Next() {
+		var i APIKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.HashedSecret,
+			&i.UserID,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LoginType,
+			&i.LifetimeSeconds,
+			&i.IPAddress,
+			&i.Scope,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
 SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
 `
@@ -2125,18 +2164,20 @@ const updateProvisionerJobWithCancelByID = `-- name: UpdateProvisionerJobWithCan
 UPDATE
 	provisioner_jobs
 SET
-	canceled_at = $2
+	canceled_at = $2,
+	completed_at = $3
 WHERE
 	id = $1
 `
 
 type UpdateProvisionerJobWithCancelByIDParams struct {
-	ID         uuid.UUID    `db:"id" json:"id"`
-	CanceledAt sql.NullTime `db:"canceled_at" json:"canceled_at"`
+	ID          uuid.UUID    `db:"id" json:"id"`
+	CanceledAt  sql.NullTime `db:"canceled_at" json:"canceled_at"`
+	CompletedAt sql.NullTime `db:"completed_at" json:"completed_at"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt)
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt, arg.CompletedAt)
 	return err
 }
 
@@ -3893,7 +3934,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg Up
 }
 
 const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 AND name = $2
+SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain FROM workspace_apps WHERE agent_id = $1 AND name = $2
 `
 
 type GetWorkspaceAppByAgentIDAndNameParams struct {
@@ -3912,17 +3953,17 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg Ge
 		&i.Icon,
 		&i.Command,
 		&i.Url,
-		&i.RelativePath,
 		&i.HealthcheckUrl,
 		&i.HealthcheckInterval,
 		&i.HealthcheckThreshold,
 		&i.Health,
+		&i.Subdomain,
 	)
 	return i, err
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -3942,11 +3983,11 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Icon,
 			&i.Command,
 			&i.Url,
-			&i.RelativePath,
 			&i.HealthcheckUrl,
 			&i.HealthcheckInterval,
 			&i.HealthcheckThreshold,
 			&i.Health,
+			&i.Subdomain,
 		); err != nil {
 			return nil, err
 		}
@@ -3962,7 +4003,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -3982,11 +4023,11 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Icon,
 			&i.Command,
 			&i.Url,
-			&i.RelativePath,
 			&i.HealthcheckUrl,
 			&i.HealthcheckInterval,
 			&i.HealthcheckThreshold,
 			&i.Health,
+			&i.Subdomain,
 		); err != nil {
 			return nil, err
 		}
@@ -4002,7 +4043,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -4022,11 +4063,11 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.Icon,
 			&i.Command,
 			&i.Url,
-			&i.RelativePath,
 			&i.HealthcheckUrl,
 			&i.HealthcheckInterval,
 			&i.HealthcheckThreshold,
 			&i.Health,
+			&i.Subdomain,
 		); err != nil {
 			return nil, err
 		}
@@ -4051,14 +4092,14 @@ INSERT INTO
         icon,
         command,
         url,
-        relative_path,
+        subdomain,
         healthcheck_url,
         healthcheck_interval,
         healthcheck_threshold,
         health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, agent_id, name, icon, command, url, relative_path, healthcheck_url, healthcheck_interval, healthcheck_threshold, health
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain
 `
 
 type InsertWorkspaceAppParams struct {
@@ -4069,7 +4110,7 @@ type InsertWorkspaceAppParams struct {
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
-	RelativePath         bool               `db:"relative_path" json:"relative_path"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
 	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
@@ -4085,7 +4126,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.Icon,
 		arg.Command,
 		arg.Url,
-		arg.RelativePath,
+		arg.Subdomain,
 		arg.HealthcheckUrl,
 		arg.HealthcheckInterval,
 		arg.HealthcheckThreshold,
@@ -4100,11 +4141,11 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.Icon,
 		&i.Command,
 		&i.Url,
-		&i.RelativePath,
 		&i.HealthcheckUrl,
 		&i.HealthcheckInterval,
 		&i.HealthcheckThreshold,
 		&i.Health,
+		&i.Subdomain,
 	)
 	return i, err
 }
@@ -4327,18 +4368,54 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 	return i, err
 }
 
-const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID :many
+const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
+SELECT
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
+FROM
+	workspace_builds
+WHERE
+	workspace_id = $1
+	AND build_number = $2
+`
+
+type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	BuildNumber int32     `db:"build_number" json:"build_number"`
+}
+
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
+	var i WorkspaceBuild
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.BuildNumber,
+		&i.Transition,
+		&i.InitiatorID,
+		&i.ProvisionerState,
+		&i.JobID,
+		&i.Deadline,
+		&i.Reason,
+	)
+	return i, err
+}
+
+const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 FROM
 	workspace_builds
 WHERE
 	workspace_builds.workspace_id = $1
+	AND workspace_builds.created_at > $2
     AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the build_number field, so select all
 			-- rows after the cursor.
@@ -4348,28 +4425,30 @@ WHERE
 				FROM
 					workspace_builds
 				WHERE
-					id = $2
+					id = $3
 			)
 		)
 		ELSE true
 END
 ORDER BY
-    build_number desc OFFSET $3
+    build_number desc OFFSET $4
 LIMIT
     -- A null limit means "no limit", so 0 means return all
-    NULLIF($4 :: int, 0)
+    NULLIF($5 :: int, 0)
 `
 
-type GetWorkspaceBuildByWorkspaceIDParams struct {
+type GetWorkspaceBuildsByWorkspaceIDParams struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Since       time.Time `db:"since" json:"since"`
 	AfterID     uuid.UUID `db:"after_id" json:"after_id"`
 	OffsetOpt   int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID,
+func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsByWorkspaceID,
 		arg.WorkspaceID,
+		arg.Since,
 		arg.AfterID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -4406,41 +4485,6 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg Get
 		return nil, err
 	}
 	return items, nil
-}
-
-const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
-SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
-FROM
-	workspace_builds
-WHERE
-	workspace_id = $1
-	AND build_number = $2
-`
-
-type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
-	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	BuildNumber int32     `db:"build_number" json:"build_number"`
-}
-
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndBuildNumber, arg.WorkspaceID, arg.BuildNumber)
-	var i WorkspaceBuild
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.BuildNumber,
-		&i.Transition,
-		&i.InitiatorID,
-		&i.ProvisionerState,
-		&i.JobID,
-		&i.Deadline,
-		&i.Reason,
-	)
-	return i, err
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many

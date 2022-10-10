@@ -1,12 +1,12 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { firstOrItem } from "../../util/array"
-import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { firstOrItem } from "util/array"
+import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 
 export const WorkspacePage: FC = () => {
@@ -30,9 +30,13 @@ export const WorkspacePage: FC = () => {
     <ChooseOne>
       <Cond condition={workspaceState.matches("error")}>
         <div className={styles.error}>
-          {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-          {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
-          {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
+          {Boolean(getWorkspaceError) && <AlertBanner severity="error" error={getWorkspaceError} />}
+          {Boolean(getTemplateWarning) && (
+            <AlertBanner severity="error" error={getTemplateWarning} />
+          )}
+          {Boolean(checkPermissionsError) && (
+            <AlertBanner severity="error" error={checkPermissionsError} />
+          )}
         </div>
       </Cond>
       <Cond condition={Boolean(workspace) && workspaceState.matches("ready")}>
