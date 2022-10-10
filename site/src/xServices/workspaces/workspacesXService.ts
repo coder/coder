@@ -321,18 +321,24 @@ export const workspacesMachine = createMachine(
       assignUpdatedWorkspaceRefs: assign({
         workspaceRefs: (_, event) => {
           const newWorkspaceRefs = event.data.newWorkspaces.map((workspace) =>
-            spawn(workspaceItemMachine.withContext({ data: workspace }), workspace.id),
+            spawn(
+              workspaceItemMachine.withContext({ data: workspace }),
+              workspace.id,
+            ),
           )
           return event.data.refsToKeep.concat(newWorkspaceRefs)
         },
       }),
     },
     services: {
-      getWorkspaces: (context) => API.getWorkspaces(queryToFilter(context.filter)),
+      getWorkspaces: (context) =>
+        API.getWorkspaces(queryToFilter(context.filter)),
       updateWorkspaceRefs: (context, event) => {
         const refsToKeep: WorkspaceItemMachineRef[] = []
         context.workspaceRefs?.forEach((ref) => {
-          const matchingWorkspace = event.data.find((workspace) => ref.id === workspace.id)
+          const matchingWorkspace = event.data.find(
+            (workspace) => ref.id === workspace.id,
+          )
           if (matchingWorkspace) {
             // if a workspace machine reference describes a workspace that has not been deleted,
             // update its data and mark it as a refToKeep
@@ -345,7 +351,8 @@ export const workspacesMachine = createMachine(
         })
 
         const newWorkspaces = event.data.filter(
-          (workspace) => !context.workspaceRefs?.find((ref) => ref.id === workspace.id),
+          (workspace) =>
+            !context.workspaceRefs?.find((ref) => ref.id === workspace.id),
         )
 
         return Promise.resolve({

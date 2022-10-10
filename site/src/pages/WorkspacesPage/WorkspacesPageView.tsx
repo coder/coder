@@ -36,7 +36,10 @@ export const WorkspacesPageView: FC<
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
-    { query: workspaceFilterQuery.running, name: Language.runningWorkspacesButton },
+    {
+      query: workspaceFilterQuery.running,
+      name: Language.runningWorkspacesButton,
+    },
   ]
 
   return (
