@@ -438,6 +438,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		licenses, err := r.options.Database.GetLicenses(ctx)
+		if err != nil {
+			return xerrors.Errorf("get licenses: %w", err)
+		}
+		snapshot.Licenses = make([]License, 0, len(licenses))
+		for _, license := range licenses {
+			snapshot.Licenses = append(snapshot.Licenses, ConvertLicense(license))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -472,6 +483,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 		Deleted:           workspace.Deleted,
 		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
+		LastUsedAt:        workspace.LastUsedAt,
 	}
 }
 
@@ -533,6 +545,9 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 		AgentID:   app.AgentID,
 		Icon:      app.Icon,
 		Subdomain: app.Subdomain,
+		Command:   app.Command.String,
+		URL:       app.Url.String,
+		Health:    app.Health,
 	}
 }
 
@@ -543,6 +558,8 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 		JobID:      resource.JobID,
 		Transition: resource.Transition,
 		Type:       resource.Type,
+		Hide:       resource.Hide,
+		Icon:       resource.Icon,
 	}
 }
 
@@ -585,6 +602,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		ActiveVersionID: dbTemplate.ActiveVersionID,
 		Name:            dbTemplate.Name,
 		Description:     dbTemplate.Description != "",
+		Icon:            dbTemplate.Icon,
 	}
 }
 
@@ -602,6 +620,16 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	return snapVersion
 }
 
+// ConvertLicense returns a license for this deployment in it's raw form.
+func ConvertLicense(license database.License) License {
+	return License{
+		ID:         license.ID,
+		UploadedAt: license.UploadedAt,
+		JWT:        license.JWT,
+		Exp:        license.Exp,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -609,6 +637,7 @@ type Snapshot struct {
 	DeploymentID string `json:"deployment_id"`
 
 	APIKeys                   []APIKey                    `json:"api_keys"`
+	Licenses                  []License                   `json:"licenses"`
 	ParameterSchemas          []ParameterSchema           `json:"parameter_schemas"`
 	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
 	Templates                 []Template                  `json:"templates"`
@@ -671,6 +700,8 @@ type WorkspaceResource struct {
 	JobID      uuid.UUID                    `json:"job_id"`
 	Transition database.WorkspaceTransition `json:"transition"`
 	Type       string                       `json:"type"`
+	Hide       bool                         `json:"hide"`
+	Icon       string                       `json:"icon"`
 }
 
 type WorkspaceResourceMetadata struct {
@@ -692,11 +723,14 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceApp struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	AgentID   uuid.UUID `json:"agent_id"`
-	Icon      string    `json:"icon"`
-	Subdomain bool      `json:"subdomain"`
+	ID        uuid.UUID                   `json:"id"`
+	CreatedAt time.Time                   `json:"created_at"`
+	AgentID   uuid.UUID                   `json:"agent_id"`
+	Icon      string                      `json:"icon"`
+	Subdomain bool                        `json:"subdomain"`
+	Command   string                      `json:"command"`
+	URL       string                      `json:"url"`
+	Health    database.WorkspaceAppHealth `json:"health"`
 }
 
 type WorkspaceBuild struct {
@@ -717,6 +751,7 @@ type Workspace struct {
 	Deleted           bool      `json:"deleted"`
 	Name              string    `json:"name"`
 	AutostartSchedule string    `json:"autostart_schedule"`
+	LastUsedAt        time.Time `json:"last_used_at"`
 }
 
 type Template struct {
@@ -729,6 +764,7 @@ type Template struct {
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	Name            string    `json:"name"`
 	Description     bool      `json:"description"`
+	Icon            string    `json:"icon"`
 }
 
 type TemplateVersion struct {
@@ -757,6 +793,13 @@ type ParameterSchema struct {
 	JobID               uuid.UUID `json:"job_id"`
 	Name                string    `json:"name"`
 	ValidationCondition string    `json:"validation_condition"`
+}
+
+type License struct {
+	ID         int32     `json:"id"`
+	UploadedAt time.Time `json:"uploaded_at"`
+	JWT        string    `json:"jwt"`
+	Exp        time.Time `json:"exp"`
 }
 
 type noopReporter struct{}
