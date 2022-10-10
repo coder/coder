@@ -1,6 +1,6 @@
 # User Groups
 
-Groups are helpful to define a set of common permissions for a group of users. It can be used with [RBAC](../rbac.md) to have a better access control.
+Groups are helpful for defining a set of common permissions for a group of users. It can be used with [RBAC](../rbac.md) to have a better access control.
 
 ## Enabling this feature
 
