@@ -1,6 +1,13 @@
 package codersdk
 
-import "time"
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"golang.org/x/xerrors"
+)
 
 type DeploymentFlags struct {
 	AccessURL                        StringFlag      `json:"access_url"`
@@ -110,4 +117,20 @@ type StringArrayFlag struct {
 	Enterprise  bool     `json:"enterprise"`
 	Default     []string `json:"default"`
 	Value       []string `json:"value"`
+}
+
+// DeploymentFlags returns the deployment level flags for the coder server.
+func (c *Client) DeploymentFlags(ctx context.Context) (DeploymentFlags, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/flags/deployment", nil)
+	if err != nil {
+		return DeploymentFlags{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return DeploymentFlags{}, readBodyAsError(res)
+	}
+
+	var df DeploymentFlags
+	return df, json.NewDecoder(res.Body).Decode(&df)
 }
