@@ -30,7 +30,7 @@ func TestDeploymentFlagSecrets(t *testing.T) {
 	df.SCIMAuthHeader.Value = hi
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentFlags: &df,
+		DeploymentFlags: df,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 	scrubbed, err := client.DeploymentFlags(ctx)
