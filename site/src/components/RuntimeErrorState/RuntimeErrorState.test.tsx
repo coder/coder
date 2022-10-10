@@ -1,7 +1,10 @@
 import { screen } from "@testing-library/react"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language as ButtonLanguage } from "./createCtas"
-import { Language as RuntimeErrorStateLanguage, RuntimeErrorState } from "./RuntimeErrorState"
+import {
+  Language as RuntimeErrorStateLanguage,
+  RuntimeErrorState,
+} from "./RuntimeErrorState"
 
 describe("RuntimeErrorState", () => {
   beforeEach(() => {

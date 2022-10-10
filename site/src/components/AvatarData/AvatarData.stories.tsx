@@ -6,7 +6,9 @@ export default {
   component: AvatarData,
 }
 
-const Template: Story<AvatarDataProps> = (args: AvatarDataProps) => <AvatarData {...args} />
+const Template: Story<AvatarDataProps> = (args: AvatarDataProps) => (
+  <AvatarData {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

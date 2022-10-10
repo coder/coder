@@ -9,7 +9,9 @@ export default {
   },
 }
 
-const Template: Story<FormCloseButtonProps> = (args) => <FormCloseButton {...args} />
+const Template: Story<FormCloseButtonProps> = (args) => (
+  <FormCloseButton {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {}

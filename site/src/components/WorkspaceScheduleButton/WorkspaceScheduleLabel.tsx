@@ -1,10 +1,17 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Workspace } from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
-import { autoStartDisplay, autoStopDisplay, isShuttingDown, Language } from "../../util/schedule"
+import {
+  autoStartDisplay,
+  autoStopDisplay,
+  isShuttingDown,
+  Language,
+} from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 
-export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
+export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({
+  workspace,
+}) => {
   const styles = useStyles()
 
   if (isWorkspaceOn(workspace)) {
@@ -23,7 +30,9 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ wor
   return (
     <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
       <strong>{Language.autoStartLabel}</strong>{" "}
-      <span className={styles.value}>{autoStartDisplay(workspace.autostart_schedule)}</span>
+      <span className={styles.value}>
+        {autoStartDisplay(workspace.autostart_schedule)}
+      </span>
     </span>
   )
 }

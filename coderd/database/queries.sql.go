@@ -3305,16 +3305,14 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at FROM users WHERE id = ANY($1 :: uuid [ ]) AND deleted = $2
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
-type GetUsersByIDsParams struct {
-	IDs     []uuid.UUID `db:"ids" json:"ids"`
-	Deleted bool        `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, arg GetUsersByIDsParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getUsersByIDs, pq.Array(arg.IDs), arg.Deleted)
+// This shouldn't check for deleted, because it's frequently used
+// to look up references to actions. eg. a user could build a workspace
+// for another user, then be deleted... we still want them to appear!
+func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}

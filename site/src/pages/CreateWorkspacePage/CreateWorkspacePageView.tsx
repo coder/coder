@@ -48,12 +48,14 @@ export const validationSchema = Yup.object({
   name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
 })
 
-export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (
-  props,
-) => {
+export const CreateWorkspacePageView: FC<
+  React.PropsWithChildren<CreateWorkspacePageViewProps>
+> = (props) => {
   const { t } = useTranslation("createWorkspacePage")
 
-  const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
+  const [parameterValues, setParameterValues] = useState<
+    Record<string, string>
+  >({})
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -98,16 +100,32 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   if (props.hasTemplateErrors) {
     return (
       <Stack>
-        {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]) && (
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+          ],
+        ) && (
           <AlertBanner
             severity="error"
-            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+              ]
+            }
           />
         )}
-        {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]) && (
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+          ],
+        ) && (
           <AlertBanner
             severity="error"
-            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+              ]
+            }
           />
         )}
       </Stack>
@@ -116,17 +134,26 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
 
   const canSubmit =
     props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
-      ? props.workspaceQuota.user_workspace_count < props.workspaceQuota.user_workspace_limit
+      ? props.workspaceQuota.user_workspace_count <
+        props.workspaceQuota.user_workspace_limit
       : true
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]) && (
+          {Boolean(
+            props.createWorkspaceErrors[
+              CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+            ],
+          ) && (
             <AlertBanner
               severity="error"
-              error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
+              error={
+                props.createWorkspaceErrors[
+                  CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+                ]
+              }
             />
           )}
           <TextField
@@ -164,7 +191,9 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 <WorkspaceQuota
                   quota={props.workspaceQuota}
                   error={
-                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
+                    props.createWorkspaceErrors[
+                      CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR
+                    ]
                   }
                 />
               )}

@@ -29,7 +29,9 @@ const fillAndSubmitForm = async () => {
   fireEvent.change(screen.getByLabelText("Old Password"), {
     target: { value: newData.old_password },
   })
-  fireEvent.change(screen.getByLabelText("New Password"), { target: { value: newData.password } })
+  fireEvent.change(screen.getByLabelText("New Password"), {
+    target: { value: newData.password },
+  })
   fireEvent.change(screen.getByLabelText("Confirm Password"), {
     target: { value: newData.confirm_password },
   })
@@ -45,7 +47,9 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const successMessage = await screen.findByText(AuthXService.Language.successSecurityUpdate)
+      const successMessage = await screen.findByText(
+        AuthXService.Language.successSecurityUpdate,
+      )
       expect(successMessage).toBeDefined()
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
@@ -59,7 +63,9 @@ describe("SecurityPage", () => {
         response: {
           data: {
             message: "Incorrect password.",
-            validations: [{ detail: "Incorrect password.", field: "old_password" }],
+            validations: [
+              { detail: "Incorrect password.", field: "old_password" },
+            ],
           },
         },
       })
@@ -107,7 +113,9 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorText = t("warningsAndErrors.somethingWentWrong", { ns: "common" })
+      const errorText = t("warningsAndErrors.somethingWentWrong", {
+        ns: "common",
+      })
       const errorMessage = await screen.findByText(errorText)
       expect(errorMessage).toBeDefined()
       expect(API.updateUserPassword).toBeCalledTimes(1)

@@ -42,9 +42,12 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
-    sendSearch("SEARCH", { query: event.target.value })
-  }, 1000)
+  const handleFilterChange = debounce(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      sendSearch("SEARCH", { query: event.target.value })
+    },
+    1000,
+  )
 
   return (
     <Autocomplete
@@ -65,7 +68,9 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
         setSelectedValue(newValue)
         onChange(newValue)
       }}
-      getOptionSelected={(option: User, value: User) => option.username === value.username}
+      getOptionSelected={(option: User, value: User) =>
+        option.username === value.username
+      }
       getOptionLabel={(option) => option.email}
       renderOption={(option: User) => (
         <AvatarData
@@ -98,11 +103,17 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             ...params.InputProps,
             onChange: handleFilterChange,
             startAdornment: (
-              <>{showAvatar && selectedValue && <AutocompleteAvatar user={selectedValue} />}</>
+              <>
+                {showAvatar && selectedValue && (
+                  <AutocompleteAvatar user={selectedValue} />
+                )}
+              </>
             ),
             endAdornment: (
               <>
-                {searchState.matches("searching") ? <CircularProgress size={16} /> : null}
+                {searchState.matches("searching") ? (
+                  <CircularProgress size={16} />
+                ) : null}
                 {params.InputProps.endAdornment}
               </>
             ),

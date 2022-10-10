@@ -76,7 +76,10 @@ type querier interface {
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
-	GetUsersByIDs(ctx context.Context, arg GetUsersByIDsParams) ([]User, error)
+	// This shouldn't check for deleted, because it's frequently used
+	// to look up references to actions. eg. a user could build a workspace
+	// for another user, then be deleted... we still want them to appear!
+	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)

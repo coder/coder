@@ -3,7 +3,10 @@ import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import * as Mocks from "../../testHelpers/entities"
-import { WorkspaceScheduleBanner, WorkspaceScheduleBannerProps } from "./WorkspaceScheduleBanner"
+import {
+  WorkspaceScheduleBanner,
+  WorkspaceScheduleBannerProps,
+} from "./WorkspaceScheduleBanner"
 
 dayjs.extend(utc)
 

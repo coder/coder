@@ -47,7 +47,11 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
   const isLoading =
-    !template || !activeTemplateVersion || !templateResources || !permissions || !templateDAUs
+    !template ||
+    !activeTemplateVersion ||
+    !templateResources ||
+    !permissions ||
+    !templateDAUs
 
   const handleDeleteTemplate = () => {
     templateSend("DELETE")

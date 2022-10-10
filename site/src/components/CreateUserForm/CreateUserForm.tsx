@@ -4,7 +4,11 @@ import { FormikContextType, FormikErrors, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../../api/typesGenerated"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
@@ -30,21 +34,19 @@ export interface CreateUserFormProps {
 }
 
 const validationSchema = Yup.object({
-  email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
+  email: Yup.string()
+    .trim()
+    .email(Language.emailInvalid)
+    .required(Language.emailRequired),
   password: Yup.string().required(Language.passwordRequired),
   username: nameValidator(Language.usernameLabel),
 })
 
-export const CreateUserForm: FC<React.PropsWithChildren<CreateUserFormProps>> = ({
-  onSubmit,
-  onCancel,
-  formErrors,
-  isLoading,
-  error,
-  myOrgId,
-}) => {
-  const form: FormikContextType<TypesGen.CreateUserRequest> = useFormik<TypesGen.CreateUserRequest>(
-    {
+export const CreateUserForm: FC<
+  React.PropsWithChildren<CreateUserFormProps>
+> = ({ onSubmit, onCancel, formErrors, isLoading, error, myOrgId }) => {
+  const form: FormikContextType<TypesGen.CreateUserRequest> =
+    useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
         email: "",
         password: "",
@@ -53,9 +55,11 @@ export const CreateUserForm: FC<React.PropsWithChildren<CreateUserFormProps>> = 
       },
       validationSchema,
       onSubmit,
-    },
+    })
+  const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(
+    form,
+    formErrors,
   )
-  const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(form, formErrors)
 
   return (
     <FullPageForm title="Create user" onCancel={onCancel}>
