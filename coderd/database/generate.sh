@@ -42,7 +42,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	rm -f queries/*.go
 
 	# Fix struct/interface names.
-	gofmt -w -r 'Querier -> querier' -- *.go
+	gofmt -w -r 'Querier -> sqlcQuerier' -- *.go
 	gofmt -w -r 'Queries -> sqlQuerier' -- *.go
 
 	# Ensure correct imports exist. Modules must all be downloaded so we get correct

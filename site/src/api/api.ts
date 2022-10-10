@@ -564,11 +564,66 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
+export const getTemplateACL = async (
+  templateId: string,
+): Promise<TypesGen.TemplateACL> => {
+  const response = await axios.get(`/api/v2/templates/${templateId}/acl`)
+  return response.data
+}
+
+export const updateTemplateACL = async (
+  templateId: string,
+  data: TypesGen.UpdateTemplateACL,
+): Promise<TypesGen.TemplateACL> => {
+  const response = await axios.patch(
+    `/api/v2/templates/${templateId}/acl`,
+    data,
+  )
+  return response.data
+}
+
 export const getApplicationsHost =
   async (): Promise<TypesGen.GetAppHostResponse> => {
     const response = await axios.get(`/api/v2/applications/host`)
     return response.data
   }
+
+export const getGroups = async (
+  organizationId: string,
+): Promise<TypesGen.Group[]> => {
+  const response = await axios.get(
+    `/api/v2/organizations/${organizationId}/groups`,
+  )
+  return response.data
+}
+
+export const createGroup = async (
+  organizationId: string,
+  data: TypesGen.CreateGroupRequest,
+): Promise<TypesGen.Group> => {
+  const response = await axios.post(
+    `/api/v2/organizations/${organizationId}/groups`,
+    data,
+  )
+  return response.data
+}
+
+export const getGroup = async (groupId: string): Promise<TypesGen.Group> => {
+  const response = await axios.get(`/api/v2/groups/${groupId}`)
+  return response.data
+}
+
+export const patchGroup = async (
+  groupId: string,
+  data: TypesGen.PatchGroupRequest,
+): Promise<TypesGen.Group> => {
+  const response = await axios.patch(`/api/v2/groups/${groupId}`, data)
+  return response.data
+}
+
+export const deleteGroup = async (groupId: string): Promise<void> => {
+  await axios.delete(`/api/v2/groups/${groupId}`)
+}
 
 export const getWorkspaceQuota = async (
   userID: string,

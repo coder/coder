@@ -164,6 +164,11 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
+// From codersdk/groups.go
+export interface CreateGroupRequest {
+  readonly name: string
+}
+
 // From codersdk/users.go
 export interface CreateOrganizationRequest {
   readonly name: string
@@ -355,6 +360,14 @@ export interface GitSSHKey {
   readonly public_key: string
 }
 
+// From codersdk/groups.go
+export interface Group {
+  readonly id: string
+  readonly name: string
+  readonly organization_id: string
+  readonly members: User[]
+}
+
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
   readonly url: string
@@ -462,6 +475,13 @@ export interface ParameterSchema {
   readonly validation_contains?: string[]
 }
 
+// From codersdk/groups.go
+export interface PatchGroupRequest {
+  readonly add_users: string[]
+  readonly remove_users: string[]
+  readonly name: string
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -563,8 +583,24 @@ export interface Template {
 }
 
 // From codersdk/templates.go
+export interface TemplateACL {
+  readonly users: TemplateUser[]
+  readonly group: TemplateGroup[]
+}
+
+// From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/templates.go
+export interface TemplateGroup extends Group {
+  readonly role: TemplateRole
+}
+
+// From codersdk/templates.go
+export interface TemplateUser extends User {
+  readonly role: TemplateRole
 }
 
 // From codersdk/templateversions.go
@@ -594,6 +630,12 @@ export interface UpdateActiveTemplateVersion {
 // From codersdk/users.go
 export interface UpdateRoles {
   readonly roles: string[]
+}
+
+// From codersdk/templates.go
+export interface UpdateTemplateACL {
+  readonly user_perms?: Record<string, TemplateRole>
+  readonly group_perms?: Record<string, TemplateRole>
 }
 
 // From codersdk/templates.go
@@ -866,6 +908,9 @@ export type ResourceType =
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"
+
+// From codersdk/templates.go
+export type TemplateRole = "" | "admin" | "view"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"

@@ -178,15 +178,35 @@ SELECT
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
 	id, username, status,
+	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
-			array_append(users.rbac_roles, 'member'),
-		-- All org_members get the org-member role for their orgs
-			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
-		AS roles
+		array_append(users.rbac_roles, 'member'),
+		(
+			SELECT
+				array_agg(org_roles)
+			FROM
+				organization_members,
+				-- All org_members get the org-member role for their orgs
+				unnest(
+					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
+				) AS org_roles
+			WHERE
+				user_id = users.id
+		)
+	) :: text[] AS roles,
+	-- All groups the user is in.
+	(
+		SELECT
+			array_agg(
+				group_members.group_id :: text
+			)
+		FROM
+			group_members
+		WHERE
+			user_id = users.id
+	) :: text[] AS groups
 FROM
 	users
-LEFT JOIN organization_members
-	ON id = user_id
 WHERE
 	id = @user_id;

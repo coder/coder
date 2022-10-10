@@ -1,6 +1,6 @@
-import useTheme from "@material-ui/styles/useTheme"
-
 import { Theme } from "@material-ui/core/styles"
+import useTheme from "@material-ui/styles/useTheme"
+import * as TypesGen from "api/typesGenerated"
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -25,7 +25,6 @@ import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { Line } from "react-chartjs-2"
-import * as TypesGen from "../../api/typesGenerated"
 
 ChartJS.register(
   CategoryScale,

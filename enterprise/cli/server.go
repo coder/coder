@@ -22,6 +22,7 @@ func server() *cobra.Command {
 			BrowserOnly:        dflags.BrowserOnly.Value,
 			SCIMAPIKey:         []byte(dflags.SCIMAuthHeader.Value),
 			UserWorkspaceQuota: dflags.UserWorkspaceQuota.Value,
+			RBACEnabled:        true,
 			Options:            options,
 		}
 		api, err := coderd.New(ctx, o)

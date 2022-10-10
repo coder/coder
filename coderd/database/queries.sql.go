@@ -807,6 +807,328 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const deleteGroupByID = `-- name: DeleteGroupByID :exec
+DELETE FROM 
+	groups 
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupByID, id)
+	return err
+}
+
+const deleteGroupMember = `-- name: DeleteGroupMember :exec
+DELETE FROM 
+	group_members 
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupMember, userID)
+	return err
+}
+
+const getAllOrganizationMembers = `-- name: GetAllOrganizationMembers :many
+SELECT
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
+FROM
+	users
+JOIN
+	organization_members
+ON
+	users.id = organization_members.user_id
+WHERE
+	organization_members.organization_id = $1
+`
+
+func (q *sqlQuerier) GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getAllOrganizationMembers, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.RBACRoles,
+			&i.LoginType,
+			&i.AvatarURL,
+			&i.Deleted,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupByID = `-- name: GetGroupByID :one
+SELECT
+	id, name, organization_id
+FROM
+	groups
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByID, id)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
+SELECT
+	id, name, organization_id
+FROM
+	groups
+WHERE
+	organization_id = $1
+AND
+	name = $2
+LIMIT
+	1
+`
+
+type GetGroupByOrgAndNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByOrgAndName, arg.OrganizationID, arg.Name)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const getGroupMembers = `-- name: GetGroupMembers :many
+SELECT
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
+FROM
+	users
+JOIN
+	group_members
+ON
+	users.id = group_members.user_id
+WHERE
+	group_members.group_id = $1
+AND
+	users.status = 'active'
+AND
+	users.deleted = 'false'
+`
+
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.RBACRoles,
+			&i.LoginType,
+			&i.AvatarURL,
+			&i.Deleted,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
+SELECT
+	id, name, organization_id
+FROM
+	groups
+WHERE
+	organization_id = $1
+AND
+	id != $1
+`
+
+func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserGroups = `-- name: GetUserGroups :many
+SELECT
+	groups.id, groups.name, groups.organization_id
+FROM
+	groups
+JOIN
+	group_members
+ON
+	groups.id = group_members.group_id
+WHERE
+	group_members.user_id = $1
+`
+
+func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getUserGroups, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAllUsersGroup = `-- name: InsertAllUsersGroup :one
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+VALUES
+	( $1, 'Everyone', $1) RETURNING id, name, organization_id
+`
+
+// We use the organization_id as the id
+// for simplicity since all users is
+// every member of the org.
+func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error) {
+	row := q.db.QueryRowContext(ctx, insertAllUsersGroup, organizationID)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const insertGroup = `-- name: InsertGroup :one
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+VALUES
+	( $1, $2, $3) RETURNING id, name, organization_id
+`
+
+type InsertGroupParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, insertGroup, arg.ID, arg.Name, arg.OrganizationID)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
+const insertGroupMember = `-- name: InsertGroupMember :exec
+INSERT INTO group_members (
+	user_id,
+	group_id
+)
+VALUES ( $1, $2)
+`
+
+type InsertGroupMemberParams struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+func (q *sqlQuerier) InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error {
+	_, err := q.db.ExecContext(ctx, insertGroupMember, arg.UserID, arg.GroupID)
+	return err
+}
+
+const updateGroupByID = `-- name: UpdateGroupByID :one
+UPDATE
+	groups
+SET
+	name = $1
+WHERE
+	id = $2
+RETURNING id, name, organization_id
+`
+
+type UpdateGroupByIDParams struct {
+	Name string    `db:"name" json:"name"`
+	ID   uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error) {
+	row := q.db.QueryRowContext(ctx, updateGroupByID, arg.Name, arg.ID)
+	var i Group
+	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	return i, err
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses
@@ -2231,7 +2553,7 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
 FROM
 	templates
 WHERE
@@ -2257,13 +2579,15 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
+		&i.userACL,
+		&i.groupACL,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
 FROM
 	templates
 WHERE
@@ -2297,12 +2621,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
+		&i.userACL,
+		&i.groupACL,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -2329,6 +2655,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.MinAutostartInterval,
 			&i.CreatedBy,
 			&i.Icon,
+			&i.userACL,
+			&i.groupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -2345,7 +2673,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
 FROM
 	templates
 WHERE
@@ -2407,6 +2735,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.MinAutostartInterval,
 			&i.CreatedBy,
 			&i.Icon,
+			&i.userACL,
+			&i.groupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -2438,7 +2768,7 @@ INSERT INTO
 		icon
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
 `
 
 type InsertTemplateParams struct {
@@ -2486,6 +2816,8 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
+		&i.userACL,
+		&i.groupACL,
 	)
 	return i, err
 }
@@ -2545,7 +2877,7 @@ SET
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -2583,6 +2915,8 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
+		&i.userACL,
+		&i.groupACL,
 	)
 	return i, err
 }
@@ -3071,16 +3405,36 @@ SELECT
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
 	id, username, status,
+	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
-			array_append(users.rbac_roles, 'member'),
-		-- All org_members get the org-member role for their orgs
-			array_append(organization_members.roles, 'organization-member:'||organization_members.organization_id::text)) :: text[]
-		AS roles
+		array_append(users.rbac_roles, 'member'),
+		(
+			SELECT
+				array_agg(org_roles)
+			FROM
+				organization_members,
+				-- All org_members get the org-member role for their orgs
+				unnest(
+					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
+				) AS org_roles
+			WHERE
+				user_id = users.id
+		)
+	) :: text[] AS roles,
+	-- All groups the user is in.
+	(
+		SELECT
+			array_agg(
+				group_members.group_id :: text
+			)
+		FROM
+			group_members
+		WHERE
+			user_id = users.id
+	) :: text[] AS groups
 FROM
 	users
-LEFT JOIN organization_members
-	ON id = user_id
 WHERE
 	id = $1
 `
@@ -3090,6 +3444,7 @@ type GetAuthorizationUserRolesRow struct {
 	Username string     `db:"username" json:"username"`
 	Status   UserStatus `db:"status" json:"status"`
 	Roles    []string   `db:"roles" json:"roles"`
+	Groups   []string   `db:"groups" json:"groups"`
 }
 
 // This function returns roles for authorization purposes. Implied member roles
@@ -3102,6 +3457,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 		&i.Username,
 		&i.Status,
 		pq.Array(&i.Roles),
+		pq.Array(&i.Groups),
 	)
 	return i, err
 }
@@ -3135,7 +3491,7 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
@@ -3166,7 +3522,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
@@ -3285,7 +3641,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
-			pq.Array(&i.RBACRoles),
+			&i.RBACRoles,
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
@@ -3328,7 +3684,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
-			pq.Array(&i.RBACRoles),
+			&i.RBACRoles,
 			&i.LoginType,
 			&i.AvatarURL,
 			&i.Deleted,
@@ -3364,14 +3720,14 @@ VALUES
 `
 
 type InsertUserParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	Email          string    `db:"email" json:"email"`
-	Username       string    `db:"username" json:"username"`
-	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	RBACRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
-	LoginType      LoginType `db:"login_type" json:"login_type"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType      `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -3382,7 +3738,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,
-		pq.Array(arg.RBACRoles),
+		arg.RBACRoles,
 		arg.LoginType,
 	)
 	var i User
@@ -3394,7 +3750,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
@@ -3468,7 +3824,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
@@ -3514,7 +3870,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
@@ -3550,7 +3906,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,
@@ -3586,7 +3942,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RBACRoles),
+		&i.RBACRoles,
 		&i.LoginType,
 		&i.AvatarURL,
 		&i.Deleted,

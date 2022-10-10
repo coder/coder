@@ -6,6 +6,8 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueGroupMembersUserIDGroupIDKey             UniqueConstraint = "group_members_user_id_group_id_key"             // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
+	UniqueGroupsNameOrganizationIDKey              UniqueConstraint = "groups_name_organization_id_key"                // ALTER TABLE ONLY groups ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
 	UniqueLicensesJWTKey                           UniqueConstraint = "licenses_jwt_key"                               // ALTER TABLE ONLY licenses ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
 	UniqueParameterSchemasJobIDNameKey             UniqueConstraint = "parameter_schemas_job_id_name_key"              // ALTER TABLE ONLY parameter_schemas ADD CONSTRAINT parameter_schemas_job_id_name_key UNIQUE (job_id, name);
 	UniqueParameterValuesScopeIDNameKey            UniqueConstraint = "parameter_values_scope_id_name_key"             // ALTER TABLE ONLY parameter_values ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);

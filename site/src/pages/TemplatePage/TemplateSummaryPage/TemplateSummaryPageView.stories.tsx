@@ -1,14 +1,17 @@
 import { Story } from "@storybook/react"
-import * as Mocks from "../../testHelpers/renderHelpers"
-import { TemplatePageView, TemplatePageViewProps } from "./TemplatePageView"
+import * as Mocks from "testHelpers/renderHelpers"
+import {
+  TemplateSummaryPageView,
+  TemplateSummaryPageViewProps,
+} from "./TemplateSummaryPageView"
 
 export default {
-  title: "pages/TemplatePageView",
-  component: TemplatePageView,
+  title: "pages/TemplateSummaryPageView",
+  component: TemplateSummaryPageView,
 }
 
-const Template: Story<TemplatePageViewProps> = (args) => (
-  <TemplatePageView {...args} />
+const Template: Story<TemplateSummaryPageViewProps> = (args) => (
+  <TemplateSummaryPageView {...args} />
 )
 
 export const Example = Template.bind({})

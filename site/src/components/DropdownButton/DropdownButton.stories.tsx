@@ -35,7 +35,7 @@ WithDropdown.args = {
 
 export const WithCancel = Template.bind({})
 WithCancel.args = {
-  primaryAction: <DisabledButton workspaceStatus="deleting" />,
+  primaryAction: <DisabledButton label="deleting" />,
   secondaryActions: [],
   canCancel: true,
   handleCancel: action("cancel"),

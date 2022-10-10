@@ -360,7 +360,6 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 						ResourceType:   "application_connect",
 						OwnerID:        "me",
 						OrganizationID: firstUser.OrganizationID.String(),
-						ResourceID:     uuid.NewString(),
 					},
 					Action: "create",
 				},

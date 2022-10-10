@@ -14,7 +14,7 @@ export const UserAvatar: FC<UserAvatarProps> = ({
   avatarURL,
 }) => {
   return (
-    <Avatar className={className}>
+    <Avatar className={className} title={username}>
       {avatarURL ? (
         <img alt={`${username}'s Avatar`} src={avatarURL} width="100%" />
       ) : (

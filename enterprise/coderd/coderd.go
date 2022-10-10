@@ -17,6 +17,7 @@ import (
 	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
@@ -58,6 +59,36 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
+		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Post("/", api.postGroupByOrganization)
+			r.Get("/", api.groups)
+		})
+
+		r.Route("/templates/{template}/acl", func(r chi.Router) {
+			r.Use(
+				api.rbacEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractTemplateParam(api.Database),
+			)
+			r.Get("/", api.templateACL)
+			r.Patch("/", api.patchTemplateACL)
+		})
+
+		r.Route("/groups/{group}", func(r chi.Router) {
+			r.Use(
+				api.rbacEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractGroupParam(api.Database),
+			)
+			r.Get("/", api.group)
+			r.Patch("/", api.patchGroup)
+			r.Delete("/", api.deleteGroup)
+		})
+
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{user}", func(r chi.Router) {
@@ -92,6 +123,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 type Options struct {
 	*coderd.Options
 
+	RBACEnabled  bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly        bool
@@ -125,6 +157,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		codersdk.FeatureBrowserOnly:    api.BrowserOnly,
 		codersdk.FeatureSCIM:           len(api.SCIMAPIKey) != 0,
 		codersdk.FeatureWorkspaceQuota: api.UserWorkspaceQuota != 0,
+		codersdk.FeatureRBAC:           api.RBACEnabled,
 	})
 	if err != nil {
 		return err
@@ -243,4 +276,8 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			continue
 		}
 	}
+}
+
+func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }

@@ -909,3 +909,20 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   user_workspace_count: 0,
   user_workspace_limit: 100,
 }
+
+export const MockGroup: TypesGen.Group = {
+  id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+  name: "Front-End",
+  organization_id: MockOrganization.id,
+  members: [MockUser, MockUser2],
+}
+
+export const MockTemplateACL: TypesGen.TemplateACL = {
+  group: [{ ...MockGroup, role: "admin" }],
+  users: [{ ...MockUser, role: "view" }],
+}
+
+export const MockTemplateACLEmpty: TypesGen.TemplateACL = {
+  group: [],
+  users: [],
+}

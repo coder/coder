@@ -283,6 +283,7 @@ func New(options *Options) *API {
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
 		})
+
 		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
