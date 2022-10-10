@@ -71,6 +71,7 @@ type StringFlag struct {
 	Shorthand   string `json:"shorthand"`
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
+	Secret      bool   `json:"secret"`
 	Default     string `json:"default"`
 	Value       string `json:"value"`
 }
