@@ -70,7 +70,9 @@ export const DisplayWorkspaceBuildInitiatedByLanguage = {
   autostop: "system/autostop",
 }
 
-export const getDisplayWorkspaceBuildInitiatedBy = (build: TypesGen.WorkspaceBuild): string => {
+export const getDisplayWorkspaceBuildInitiatedBy = (
+  build: TypesGen.WorkspaceBuild,
+): string => {
   switch (build.reason) {
     case "initiator":
       return build.initiator_name
@@ -147,7 +149,8 @@ export const getDisplayVersionStatus = (
 ): { displayVersion: string; outdated: boolean } => {
   if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
     return {
-      displayVersion: `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
+      displayVersion:
+        `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
       outdated: false,
     }
   } else if (semver.lt(agentVersion, serverVersion)) {
@@ -189,7 +192,9 @@ type FaviconType =
   | "favicon-warning"
   | "favicon-running"
 
-export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
+export const getFaviconByStatus = (
+  build: TypesGen.WorkspaceBuild,
+): FaviconType => {
   switch (build.status) {
     case undefined:
       return "favicon"

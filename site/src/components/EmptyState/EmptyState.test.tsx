@@ -13,7 +13,9 @@ describe("EmptyState", () => {
 
   it("renders description text", async () => {
     // When
-    render(<EmptyState message="Hello, world" description="Friendly greeting" />)
+    render(
+      <EmptyState message="Hello, world" description="Friendly greeting" />,
+    )
 
     // Then
     await screen.findByText("Hello, world")

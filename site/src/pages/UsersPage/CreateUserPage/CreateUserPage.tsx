@@ -23,7 +23,8 @@ export const CreateUserPage: React.FC = () => {
       },
     },
   })
-  const { createUserErrorMessage, createUserFormErrors } = createUserState.context
+  const { createUserErrorMessage, createUserFormErrors } =
+    createUserState.context
   // There is no field for organization id in Community Edition, so handle its field error like a generic error
   const genericError =
     createUserErrorMessage ||
@@ -37,7 +38,9 @@ export const CreateUserPage: React.FC = () => {
       </Helmet>
       <CreateUserForm
         formErrors={createUserFormErrors}
-        onSubmit={(user: TypesGen.CreateUserRequest) => createUserSend({ type: "CREATE", user })}
+        onSubmit={(user: TypesGen.CreateUserRequest) =>
+          createUserSend({ type: "CREATE", user })
+        }
         onCancel={() => {
           createUserSend("CANCEL_CREATE_USER")
           navigate("/users")

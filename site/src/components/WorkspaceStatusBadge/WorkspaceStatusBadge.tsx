@@ -96,10 +96,9 @@ export type WorkspaceStatusBadgeProps = {
   className?: string
 }
 
-export const WorkspaceStatusBadge: React.FC<React.PropsWithChildren<WorkspaceStatusBadgeProps>> = ({
-  build,
-  className,
-}) => {
+export const WorkspaceStatusBadge: React.FC<
+  React.PropsWithChildren<WorkspaceStatusBadgeProps>
+> = ({ build, className }) => {
   const { text, icon, type } = getStatus(build)
   return <Pill className={className} icon={icon} text={text} type={type} />
 }

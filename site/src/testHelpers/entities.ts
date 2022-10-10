@@ -51,7 +51,10 @@ export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
 
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
-export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRoles {
+export function assignableRole(
+  role: TypesGen.Role,
+  assignable: boolean,
+): TypesGen.AssignableRoles {
   return {
     ...role,
     assignable: assignable,
@@ -264,7 +267,11 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentConnecting, MockWorkspaceAgentOutdated],
+  agents: [
+    MockWorkspaceAgent,
+    MockWorkspaceAgentConnecting,
+    MockWorkspaceAgentOutdated,
+  ],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
@@ -280,7 +287,11 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
 }
 
 export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  agents: [
+    MockWorkspaceAgent,
+    MockWorkspaceAgentDisconnected,
+    MockWorkspaceAgentOutdated,
+  ],
   created_at: "",
   id: "test-workspace-resource-2",
   job_id: "",
@@ -296,7 +307,11 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
 }
 
 export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected, MockWorkspaceAgentOutdated],
+  agents: [
+    MockWorkspaceAgent,
+    MockWorkspaceAgentDisconnected,
+    MockWorkspaceAgentOutdated,
+  ],
   created_at: "",
   id: "test-workspace-resource-3",
   job_id: "",
@@ -311,15 +326,17 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
   ],
 }
 
-export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
-  schedule: "",
-}
+export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
+  {
+    schedule: "",
+  }
 
-export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest = {
-  // Runs at 9:30am Monday through Friday using Canada/Eastern
-  // (America/Toronto) time
-  schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
-}
+export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest =
+  {
+    // Runs at 9:30am Monday through Friday using Canada/Eastern
+    // (America/Toronto) time
+    schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
+  }
 
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   build_number: 1,
@@ -375,7 +392,11 @@ export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
   transition: "delete",
 }
 
-export const MockBuilds = [MockWorkspaceBuild, MockWorkspaceBuildStop, MockWorkspaceBuildDelete]
+export const MockBuilds = [
+  MockWorkspaceBuild,
+  MockWorkspaceBuildStop,
+  MockWorkspaceBuildDelete,
+]
 
 export const MockWorkspace: TypesGen.Workspace = {
   id: "test-workspace",
@@ -417,11 +438,19 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob, status: "canceling" },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockCancelingProvisionerJob,
+    status: "canceling",
+  },
 }
 export const MockCanceledWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuild, job: MockCanceledProvisionerJob, status: "canceled" },
+  latest_build: {
+    ...MockWorkspaceBuild,
+    job: MockCanceledProvisionerJob,
+    status: "canceled",
+  },
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -433,14 +462,21 @@ export const MockFailedWorkspace: TypesGen.Workspace = {
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
-  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob, status: "deleting" },
+  latest_build: {
+    ...MockWorkspaceBuildDelete,
+    job: MockRunningProvisionerJob,
+    status: "deleting",
+  },
 }
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
   latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
 }
 
-export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockFailedWorkspace, outdated: true }
+export const MockOutdatedWorkspace: TypesGen.Workspace = {
+  ...MockFailedWorkspace,
+  outdated: true,
+}
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -476,7 +512,8 @@ export const MockGitSSHKey: TypesGen.GitSSHKey = {
   user_id: "1fa0200f-7331-4524-a364-35770666caa7",
   created_at: "2022-05-16T14:30:34.148205897Z",
   updated_at: "2022-05-16T15:29:10.302441433Z",
-  public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJOQRIM7kE30rOzrfy+/+R+nQGCk7S9pioihy+2ARbq",
+  public_key:
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJOQRIM7kE30rOzrfy+/+R+nQGCk7S9pioihy+2ARbq",
 }
 
 export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
@@ -574,7 +611,8 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     log_source: "provisioner",
     log_level: "debug",
     stage: "Starting workspace",
-    output: "Terraform has created a lock file .terraform.lock.hcl to record the provider",
+    output:
+      "Terraform has created a lock file .terraform.lock.hcl to record the provider",
   },
   {
     id: "90e1f244-78ff-4d95-871e-b2bebcabc39a",
@@ -582,7 +620,8 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     log_source: "provisioner",
     log_level: "debug",
     stage: "Starting workspace",
-    output: "selections it made above. Include this file in your version control repository",
+    output:
+      "selections it made above. Include this file in your version control repository",
   },
   {
     id: "e4527d6c-2412-452b-a946-5870787caf6b",
@@ -590,7 +629,8 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     log_source: "provisioner",
     log_level: "debug",
     stage: "Starting workspace",
-    output: "so that Terraform can guarantee to make the same selections by default when",
+    output:
+      "so that Terraform can guarantee to make the same selections by default when",
   },
   {
     id: "02f96d19-d94b-4d0e-a1c4-313a0d2ff9e3",
@@ -670,7 +710,8 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     log_source: "provisioner",
     log_level: "info",
     stage: "Starting workspace",
-    output: "coder_agent.dev: Creation complete after 0s [id=d07f5bdc-4a8d-4919-9cdb-0ac6ba9e64d6]",
+    output:
+      "coder_agent.dev: Creation complete after 0s [id=d07f5bdc-4a8d-4919-9cdb-0ac6ba9e64d6]",
   },
   {
     id: "4ada8886-f5b3-4fee-a1a3-72064b50d5ae",

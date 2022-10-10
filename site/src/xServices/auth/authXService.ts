@@ -314,7 +314,10 @@ export const authMachine =
                         src: "regenerateSSHKey",
                         onDone: [
                           {
-                            actions: ["assignSSHKey", "notifySuccessSSHKeyRegenerated"],
+                            actions: [
+                              "assignSSHKey",
+                              "notifySuccessSSHKeyRegenerated",
+                            ],
                             target: "idle",
                           },
                         ],

@@ -7,13 +7,18 @@ export default {
   component: TemplatePageView,
 }
 
-const Template: Story<TemplatePageViewProps> = (args) => <TemplatePageView {...args} />
+const Template: Story<TemplatePageViewProps> = (args) => (
+  <TemplatePageView {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {
   template: Mocks.MockTemplate,
   activeTemplateVersion: Mocks.MockTemplateVersion,
-  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateResources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+  ],
   templateVersions: [Mocks.MockTemplateVersion],
 }
 
@@ -21,7 +26,10 @@ export const NoIcon = Template.bind({})
 NoIcon.args = {
   template: { ...Mocks.MockTemplate, icon: "" },
   activeTemplateVersion: Mocks.MockTemplateVersion,
-  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateResources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+  ],
   templateVersions: [Mocks.MockTemplateVersion],
 }
 
@@ -42,7 +50,10 @@ You can add instructions here
 \`\`\`
 `,
   },
-  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateResources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+  ],
   templateVersions: [Mocks.MockTemplateVersion],
 }
 SmallViewport.parameters = {

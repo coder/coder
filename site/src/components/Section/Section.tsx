@@ -16,7 +16,9 @@ export interface SectionProps {
   children?: React.ReactNode
 }
 
-type SectionFC = FC<React.PropsWithChildren<SectionProps>> & { Action: typeof SectionAction }
+type SectionFC = FC<React.PropsWithChildren<SectionProps>> & {
+  Action: typeof SectionAction
+}
 
 export const Section: SectionFC = ({
   title,
@@ -36,7 +38,9 @@ export const Section: SectionFC = ({
             <div>
               {title && <Typography variant="h4">{title}</Typography>}
               {description && typeof description === "string" && (
-                <Typography className={styles.description}>{description}</Typography>
+                <Typography className={styles.description}>
+                  {description}
+                </Typography>
               )}
               {description && typeof description !== "string" && (
                 <div className={styles.description}>{description}</div>

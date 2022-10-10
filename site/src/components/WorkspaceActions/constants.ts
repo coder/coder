@@ -49,7 +49,11 @@ export const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
     canAcceptJobs: true,
   },
   canceled: {
-    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop, ButtonTypesEnum.delete],
+    actions: [
+      ButtonTypesEnum.start,
+      ButtonTypesEnum.stop,
+      ButtonTypesEnum.delete,
+    ],
     canCancel: false,
     canAcceptJobs: true,
   },

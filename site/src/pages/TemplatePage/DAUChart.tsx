@@ -16,7 +16,11 @@ import {
 } from "chart.js"
 import "chartjs-adapter-date-fns"
 import { Stack } from "components/Stack/Stack"
-import { HelpTooltip, HelpTooltipText, HelpTooltipTitle } from "components/Tooltips/HelpTooltip"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
 import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
 import dayjs from "dayjs"
 import { FC } from "react"
@@ -42,7 +46,9 @@ export const Language = {
   chartTitle: "Daily Active Users",
 }
 
-export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData }) => {
+export const DAUChart: FC<DAUChartProps> = ({
+  templateDAUs: templateMetricsData,
+}) => {
   const theme: Theme = useTheme()
 
   if (templateMetricsData.entries.length === 0) {

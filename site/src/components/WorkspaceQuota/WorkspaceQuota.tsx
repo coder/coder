@@ -54,7 +54,9 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
     return null
   }
 
-  let value = Math.round((quota.user_workspace_count / quota.user_workspace_limit) * 100)
+  let value = Math.round(
+    (quota.user_workspace_count / quota.user_workspace_limit) * 100,
+  )
   // we don't want to round down to zero if the count is > 0
   if (quota.user_workspace_count > 0 && value === 0) {
     value = 1
@@ -74,8 +76,11 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
           variant="determinate"
         />
         <div className={styles.label}>
-          {quota.user_workspace_count} {Language.of} {quota.user_workspace_limit}{" "}
-          {quota.user_workspace_limit === 1 ? Language.workspace : Language.workspaces}
+          {quota.user_workspace_count} {Language.of}{" "}
+          {quota.user_workspace_limit}{" "}
+          {quota.user_workspace_limit === 1
+            ? Language.workspace
+            : Language.workspaces}
           {" used"}
         </div>
       </Stack>

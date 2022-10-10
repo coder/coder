@@ -15,10 +15,9 @@ export interface UserDropdownProps {
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> = ({
-  user,
-  onSignOut,
-}: UserDropdownProps) => {
+export const UserDropdown: React.FC<
+  React.PropsWithChildren<UserDropdownProps>
+> = ({ user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -64,7 +63,11 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
         variant="user-dropdown"
         onClose={onPopoverClose}
       >
-        <UserDropdownContent user={user} onPopoverClose={onPopoverClose} onSignOut={onSignOut} />
+        <UserDropdownContent
+          user={user}
+          onPopoverClose={onPopoverClose}
+          onSignOut={onSignOut}
+        />
       </BorderedMenu>
     </>
   )

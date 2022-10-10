@@ -1,12 +1,17 @@
 import { Story } from "@storybook/react"
-import { ResourceAgentLatency, ResourceAgentLatencyProps } from "./ResourceAgentLatency"
+import {
+  ResourceAgentLatency,
+  ResourceAgentLatencyProps,
+} from "./ResourceAgentLatency"
 
 export default {
   title: "components/ResourceAgentLatency",
   component: ResourceAgentLatency,
 }
 
-const Template: Story<ResourceAgentLatencyProps> = (args) => <ResourceAgentLatency {...args} />
+const Template: Story<ResourceAgentLatencyProps> = (args) => (
+  <ResourceAgentLatency {...args} />
+)
 
 export const Single = Template.bind({})
 Single.args = {

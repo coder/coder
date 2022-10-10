@@ -16,7 +16,9 @@ export interface LicenseBannerViewProps {
   warnings: string[]
 }
 
-export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }) => {
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
+  warnings,
+}) => {
   const styles = useStyles()
   const [showDetails, setShowDetails] = useState(false)
   if (warnings.length === 1) {
@@ -35,7 +37,11 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
       <div className={styles.container}>
         <div className={styles.flex}>
           <div className={styles.leftContent}>
-            <Pill text={Language.licenseIssues(warnings.length)} type="warning" lightBorder />
+            <Pill
+              text={Language.licenseIssues(warnings.length)}
+              type="warning"
+              lightBorder
+            />
             <span className={styles.text}>{Language.exceeded}</span>
             &nbsp;
             <a href="mailto:sales@coder.com" className={styles.link}>

@@ -39,7 +39,10 @@ export const stripTimezone = (raw: string): string => {
  * extractTimezone returns a leading timezone from a schedule string if one is
  * specified; otherwise the specified defaultTZ
  */
-export const extractTimezone = (raw: string, defaultTZ = DEFAULT_TIMEZONE): string => {
+export const extractTimezone = (
+  raw: string,
+  defaultTZ = DEFAULT_TIMEZONE,
+): string => {
   const matches = raw.match(/CRON_TZ=\S*\s/g)
 
   if (matches && matches.length > 0) {
@@ -62,7 +65,9 @@ export const autoStartDisplay = (schedule: string | undefined): string => {
   if (schedule) {
     return (
       cronstrue
-        .toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
+        .toString(stripTimezone(schedule), {
+          throwExceptionOnParseError: false,
+        })
         // We don't want to keep the At because it is on the label
         .replace("At", "")
     )
@@ -71,7 +76,10 @@ export const autoStartDisplay = (schedule: string | undefined): string => {
   }
 }
 
-export const isShuttingDown = (workspace: Workspace, deadline?: Dayjs): boolean => {
+export const isShuttingDown = (
+  workspace: Workspace,
+  deadline?: Dayjs,
+): boolean => {
   if (!deadline) {
     if (!workspace.latest_build.deadline) {
       return false
@@ -120,14 +128,19 @@ export const deadlineExtensionMax = dayjs.duration(24, "hours")
  * @param tpl template
  * @returns the latest datetime at which the workspace can be automatically shut down.
  */
-export function getMaxDeadline(ws: Workspace | undefined, tpl: Template): dayjs.Dayjs {
+export function getMaxDeadline(
+  ws: Workspace | undefined,
+  tpl: Template,
+): dayjs.Dayjs {
   // note: we count runtime from updated_at as started_at counts from the start of
   // the workspace build process, which can take a while.
   if (ws === undefined) {
     throw Error("Cannot calculate max deadline because workspace is undefined")
   }
   const startedAt = dayjs(ws.latest_build.updated_at)
-  const maxTemplateDeadline = startedAt.add(dayjs.duration(tpl.max_ttl_ms, "milliseconds"))
+  const maxTemplateDeadline = startedAt.add(
+    dayjs.duration(tpl.max_ttl_ms, "milliseconds"),
+  )
   const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
   return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
 }

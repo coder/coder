@@ -17,7 +17,10 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { FormikTouched, useFormik } from "formik"
-import { defaultSchedule, emptySchedule } from "pages/WorkspaceSchedulePage/schedule"
+import {
+  defaultSchedule,
+  emptySchedule,
+} from "pages/WorkspaceSchedulePage/schedule"
 import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
@@ -36,12 +39,15 @@ dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
 export const Language = {
-  errorNoDayOfWeek: "Must set at least one day of week if auto-start is enabled.",
+  errorNoDayOfWeek:
+    "Must set at least one day of week if auto-start is enabled.",
   errorNoTime: "Start time is required when auto-start is enabled.",
   errorTime: "Time must be in HH:mm format (24 hours).",
   errorTimezone: "Invalid timezone.",
-  errorNoStop: "Time until shutdown must be greater than zero when auto-stop is enabled.",
-  errorTtlMax: "Please enter a limit that is less than or equal to 168 hours (7 days).",
+  errorNoStop:
+    "Time until shutdown must be greater than zero when auto-stop is enabled.",
+  errorTtlMax:
+    "Please enter a limit that is less than or equal to 168 hours (7 days).",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
   dayMondayLabel: "Monday",
@@ -58,7 +64,8 @@ export const Language = {
   ttlCausesShutdownHelperText: "Your workspace will shut down",
   ttlCausesShutdownAfterStart:
     "after its next start. We delay shutdown by an hour whenever we detect activity",
-  ttlCausesNoShutdownHelperText: "Your workspace will not automatically shut down.",
+  ttlCausesNoShutdownHelperText:
+    "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
   startSection: "Start",
   startSwitch: "Auto-start",
@@ -95,23 +102,27 @@ export interface WorkspaceScheduleFormValues {
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export const validationSchema = Yup.object({
   sunday: Yup.boolean(),
-  monday: Yup.boolean().test("at-least-one-day", Language.errorNoDayOfWeek, function (value) {
-    const parent = this.parent as WorkspaceScheduleFormValues
+  monday: Yup.boolean().test(
+    "at-least-one-day",
+    Language.errorNoDayOfWeek,
+    function (value) {
+      const parent = this.parent as WorkspaceScheduleFormValues
 
-    if (!parent.autoStartEnabled) {
-      return true
-    } else {
-      return ![
-        parent.sunday,
-        value,
-        parent.tuesday,
-        parent.wednesday,
-        parent.thursday,
-        parent.friday,
-        parent.saturday,
-      ].every((day) => day === false)
-    }
-  }),
+      if (!parent.autoStartEnabled) {
+        return true
+      } else {
+        return ![
+          parent.sunday,
+          value,
+          parent.tuesday,
+          parent.wednesday,
+          parent.thursday,
+          parent.friday,
+          parent.saturday,
+        ].every((day) => day === false)
+      }
+    },
+  ),
   tuesday: Yup.boolean(),
   wednesday: Yup.boolean(),
   thursday: Yup.boolean(),
@@ -173,7 +184,9 @@ export const validationSchema = Yup.object({
     }),
 })
 
-export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceScheduleFormProps>> = ({
+export const WorkspaceScheduleForm: FC<
+  React.PropsWithChildren<WorkspaceScheduleFormProps>
+> = ({
   submitScheduleError,
   initialValues,
   isLoading,
@@ -189,26 +202,65 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
     validationSchema,
     initialTouched,
   })
-  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form, submitScheduleError)
+  const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(
+    form,
+    submitScheduleError,
+  )
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
-    { value: form.values.sunday, name: "sunday", label: Language.daySundayLabel },
-    { value: form.values.monday, name: "monday", label: Language.dayMondayLabel },
-    { value: form.values.tuesday, name: "tuesday", label: Language.dayTuesdayLabel },
-    { value: form.values.wednesday, name: "wednesday", label: Language.dayWednesdayLabel },
-    { value: form.values.thursday, name: "thursday", label: Language.dayThursdayLabel },
-    { value: form.values.friday, name: "friday", label: Language.dayFridayLabel },
-    { value: form.values.saturday, name: "saturday", label: Language.daySaturdayLabel },
+    {
+      value: form.values.sunday,
+      name: "sunday",
+      label: Language.daySundayLabel,
+    },
+    {
+      value: form.values.monday,
+      name: "monday",
+      label: Language.dayMondayLabel,
+    },
+    {
+      value: form.values.tuesday,
+      name: "tuesday",
+      label: Language.dayTuesdayLabel,
+    },
+    {
+      value: form.values.wednesday,
+      name: "wednesday",
+      label: Language.dayWednesdayLabel,
+    },
+    {
+      value: form.values.thursday,
+      name: "thursday",
+      label: Language.dayThursdayLabel,
+    },
+    {
+      value: form.values.friday,
+      name: "friday",
+      label: Language.dayFridayLabel,
+    },
+    {
+      value: form.values.saturday,
+      name: "saturday",
+      label: Language.daySaturdayLabel,
+    },
   ]
 
   const handleToggleAutoStart = async (e: ChangeEvent) => {
     form.handleChange(e)
     if (form.values.autoStartEnabled) {
       // disable autostart, clear values
-      await form.setValues({ ...form.values, autoStartEnabled: false, ...emptySchedule })
+      await form.setValues({
+        ...form.values,
+        autoStartEnabled: false,
+        ...emptySchedule,
+      })
     } else {
       // enable autostart, fill with defaults
-      await form.setValues({ ...form.values, autoStartEnabled: true, ...defaultSchedule() })
+      await form.setValues({
+        ...form.values,
+        autoStartEnabled: true,
+        ...defaultSchedule(),
+      })
     }
   }
 
@@ -219,7 +271,11 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
       await form.setValues({ ...form.values, autoStopEnabled: false, ttl: 0 })
     } else {
       // enable autostop, fill with default TTL
-      await form.setValues({ ...form.values, autoStopEnabled: true, ttl: defaultTTL })
+      await form.setValues({
+        ...form.values,
+        autoStopEnabled: true,
+        ttl: defaultTTL,
+      })
     }
   }
 
@@ -275,7 +331,10 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
               ))}
             </TextField>
 
-            <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
+            <FormControl
+              component="fieldset"
+              error={Boolean(form.errors.monday)}
+            >
               <FormLabel className={styles.daysOfWeekLabel} component="legend">
                 {Language.daysOfWeekLabel}
               </FormLabel>
@@ -300,7 +359,9 @@ export const WorkspaceScheduleForm: FC<React.PropsWithChildren<WorkspaceSchedule
                 ))}
               </FormGroup>
 
-              {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
+              {form.errors.monday && (
+                <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>
+              )}
             </FormControl>
           </Section>
 

@@ -3,7 +3,10 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
-import { PageHeader, PageHeaderTitle } from "../../components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderTitle,
+} from "../../components/PageHeader/PageHeader"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { userFilterQuery } from "../../util/filters"
@@ -29,7 +32,10 @@ export interface UsersPageViewProps {
   onListWorkspaces: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
-  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
+  onUpdateUserRoles: (
+    user: TypesGen.User,
+    roles: TypesGen.Role["name"][],
+  ) => void
   onFilter: (query: string) => void
 }
 
@@ -61,7 +67,10 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
       <PageHeader
         actions={
           canCreateUser ? (
-            <Button onClick={openUserCreationDialog} startIcon={<AddCircleOutline />}>
+            <Button
+              onClick={openUserCreationDialog}
+              startIcon={<AddCircleOutline />}
+            >
               {Language.createButton}
             </Button>
           ) : undefined

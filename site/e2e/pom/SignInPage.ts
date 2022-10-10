@@ -6,7 +6,10 @@ export class SignInPage extends BasePom {
     super(baseURL, "/login", page)
   }
 
-  async submitBuiltInAuthentication(email: string, password: string): Promise<void> {
+  async submitBuiltInAuthentication(
+    email: string,
+    password: string,
+  ): Promise<void> {
     await this.page.fill("text=Email", email)
     await this.page.fill("text=Password", password)
     await this.page.click("text=Sign In")

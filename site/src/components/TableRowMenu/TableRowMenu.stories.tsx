@@ -10,7 +10,9 @@ type DataType = {
   id: string
 }
 
-const Template: Story<TableRowMenuProps<DataType>> = (args) => <TableRowMenu {...args} />
+const Template: Story<TableRowMenuProps<DataType>> = (args) => (
+  <TableRowMenu {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

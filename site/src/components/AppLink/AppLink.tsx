@@ -10,7 +10,8 @@ import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../util/random"
 
 export const Language = {
-  appTitle: (appName: string, identifier: string): string => `${appName} - ${identifier}`,
+  appTitle: (appName: string, identifier: string): string =>
+    `${appName} - ${identifier}`,
 }
 
 export interface AppLinkProps {
@@ -40,7 +41,9 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `/@${username}/${workspaceName}.${agentName}/apps/${encodeURIComponent(appName)}/`
+  let href = `/@${username}/${workspaceName}.${agentName}/apps/${encodeURIComponent(
+    appName,
+  )}/`
   if (appCommand) {
     href = `/@${username}/${workspaceName}.${agentName}/terminal?command=${encodeURIComponent(
       appCommand,
@@ -52,7 +55,11 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   }
 
   let canClick = true
-  let icon = appIcon ? <img alt={`${appName} Icon`} src={appIcon} /> : <ComputerIcon />
+  let icon = appIcon ? (
+    <img alt={`${appName} Icon`} src={appIcon} />
+  ) : (
+    <ComputerIcon />
+  )
   let tooltip = ""
   if (health === "initializing") {
     canClick = false
@@ -71,7 +78,12 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   }
 
   const button = (
-    <Button size="small" startIcon={icon} className={styles.button} disabled={!canClick}>
+    <Button
+      size="small"
+      startIcon={icon}
+      className={styles.button}
+      disabled={!canClick}
+    >
       {appName}
     </Button>
   )
