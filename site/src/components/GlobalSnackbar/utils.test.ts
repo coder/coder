@@ -48,13 +48,17 @@ describe("Snackbar", () => {
 
   describe("displaySuccess", () => {
     const originalWindowDispatchEvent = window.dispatchEvent
-    type TDispatchEventMock = jest.MockedFunction<(msg: CustomEvent<NotificationMsg>) => boolean>
+    type TDispatchEventMock = jest.MockedFunction<
+      (msg: CustomEvent<NotificationMsg>) => boolean
+    >
     let dispatchEventMock: TDispatchEventMock
 
     // Helper function to extract the notification event
     // that was sent to `dispatchEvent`. This lets us validate
     // the contents of the notification event are what we expect.
-    const extractNotificationEvent = (dispatchEventMock: TDispatchEventMock): NotificationMsg => {
+    const extractNotificationEvent = (
+      dispatchEventMock: TDispatchEventMock,
+    ): NotificationMsg => {
       // calls[0] is the first call made to the mock (this is reset in `beforeEach`)
       // calls[0][0] is the first argument of the first call
       // calls[0][0].detail is the 'detail' argument passed to the `CustomEvent` -
@@ -64,7 +68,8 @@ describe("Snackbar", () => {
 
     beforeEach(() => {
       dispatchEventMock = jest.fn()
-      window.dispatchEvent = dispatchEventMock as unknown as typeof window.dispatchEvent
+      window.dispatchEvent =
+        dispatchEventMock as unknown as typeof window.dispatchEvent
     })
 
     afterEach(() => {
@@ -84,7 +89,9 @@ describe("Snackbar", () => {
 
       // Then
       expect(dispatchEventMock).toBeCalledTimes(1)
-      expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(expected)
+      expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(
+        expected,
+      )
     })
 
     it("can be called with a title and additional message", () => {
@@ -100,7 +107,9 @@ describe("Snackbar", () => {
 
       // Then
       expect(dispatchEventMock).toBeCalledTimes(1)
-      expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(expected)
+      expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(
+        expected,
+      )
     })
   })
 

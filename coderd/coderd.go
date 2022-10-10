@@ -82,6 +82,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
+	DeploymentFlags             *codersdk.DeploymentFlags
 }
 
 // New constructs a Coder API handler.
@@ -259,6 +260,10 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/flags", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/deployment", api.deploymentFlags)
+		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -401,7 +406,14 @@ func New(options *Options) *API {
 
 					r.Route("/keys", func(r chi.Router) {
 						r.Post("/", api.postAPIKey)
-						r.Get("/{keyid}", api.apiKey)
+						r.Route("/tokens", func(r chi.Router) {
+							r.Post("/", api.postToken)
+							r.Get("/", api.tokens)
+						})
+						r.Route("/{keyid}", func(r chi.Router) {
+							r.Get("/", api.apiKey)
+							r.Delete("/", api.deleteAPIKey)
+						})
 					})
 
 					r.Route("/organizations", func(r chi.Router) {
@@ -439,6 +451,7 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/pty", api.workspaceAgentPTY)
+				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 				// TODO: This can be removed in October. It allows for a friendly

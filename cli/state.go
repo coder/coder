@@ -17,6 +17,9 @@ func state() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(statePull(), statePush())
 	return cmd

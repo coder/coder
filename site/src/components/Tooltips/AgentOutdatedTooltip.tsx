@@ -10,7 +10,9 @@ interface TooltipProps {
   outdated: boolean
 }
 
-export const AgentOutdatedTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({ outdated }) => {
+export const AgentOutdatedTooltip: FC<
+  React.PropsWithChildren<TooltipProps>
+> = ({ outdated }) => {
   if (!outdated) {
     return null
   }

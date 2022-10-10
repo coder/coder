@@ -158,6 +158,8 @@ require (
 
 require github.com/jmoiron/sqlx v1.3.5
 
+require github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect

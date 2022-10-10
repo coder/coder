@@ -528,11 +528,11 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 // ConvertWorkspaceApp anonymizes a workspace app.
 func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 	return WorkspaceApp{
-		ID:           app.ID,
-		CreatedAt:    app.CreatedAt,
-		AgentID:      app.AgentID,
-		Icon:         app.Icon,
-		RelativePath: app.RelativePath,
+		ID:        app.ID,
+		CreatedAt: app.CreatedAt,
+		AgentID:   app.AgentID,
+		Icon:      app.Icon,
+		Subdomain: app.Subdomain,
 	}
 }
 
@@ -692,11 +692,11 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceApp struct {
-	ID           uuid.UUID `json:"id"`
-	CreatedAt    time.Time `json:"created_at"`
-	AgentID      uuid.UUID `json:"agent_id"`
-	Icon         string    `json:"icon"`
-	RelativePath bool      `json:"relative_path"`
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	AgentID   uuid.UUID `json:"agent_id"`
+	Icon      string    `json:"icon"`
+	Subdomain bool      `json:"subdomain"`
 }
 
 type WorkspaceBuild struct {

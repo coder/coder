@@ -21,6 +21,9 @@ func features() *cobra.Command {
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		featuresList(),

@@ -31,7 +31,10 @@ export interface TemplateContext {
   getTemplateError?: Error | unknown
 }
 
-type TemplateEvent = { type: "DELETE" } | { type: "CONFIRM_DELETE" } | { type: "CANCEL_DELETE" }
+type TemplateEvent =
+  | { type: "DELETE" }
+  | { type: "CONFIRM_DELETE" }
+  | { type: "CANCEL_DELETE" }
 
 const getPermissionsToCheck = (templateId: string) => ({
   canUpdateTemplate: {
@@ -258,7 +261,8 @@ export const templateMachine =
     },
     {
       services: {
-        getTemplate: (ctx) => getTemplateByName(ctx.organizationId, ctx.templateName),
+        getTemplate: (ctx) =>
+          getTemplateByName(ctx.organizationId, ctx.templateName),
         getActiveTemplateVersion: (ctx) => {
           if (!ctx.template) {
             throw new Error("Template not loaded")
@@ -329,7 +333,8 @@ export const templateMachine =
         clearDeleteTemplateError: assign({
           deleteTemplateError: (_) => undefined,
         }),
-        displayDeleteSuccess: () => displaySuccess(t("deleteSuccess", { ns: "templatePage" })),
+        displayDeleteSuccess: () =>
+          displaySuccess(t("deleteSuccess", { ns: "templatePage" })),
       },
     },
   )

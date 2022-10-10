@@ -22,7 +22,12 @@ interface ArrowProps {
 
 export const OpenDropdown: FC<ArrowProps> = ({ margin = true, color }) => {
   const styles = useStyles({ margin, color })
-  return <KeyboardArrowDown aria-label="open-dropdown" className={styles.arrowIcon} />
+  return (
+    <KeyboardArrowDown
+      aria-label="open-dropdown"
+      className={styles.arrowIcon}
+    />
+  )
 }
 
 export const CloseDropdown: FC<ArrowProps> = ({ margin = true, color }) => {

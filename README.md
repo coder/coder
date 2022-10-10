@@ -58,7 +58,7 @@ Once installed, you can start a production deployment<sup>1</sup> with a single 
 
 ```sh
 # Automatically sets up an external access URL on *.try.coder.app
-coder server --tunnel
+coder server
 
 # Requires a PostgreSQL instance and external access URL
 coder server --postgres-url <url> --access-url <url>

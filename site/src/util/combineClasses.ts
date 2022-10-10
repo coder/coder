@@ -1,4 +1,7 @@
-export const appendCSSString = (cssString: string, cssClass: string): string => {
+export const appendCSSString = (
+  cssString: string,
+  cssClass: string,
+): string => {
   if (cssString === "") {
     return cssClass
   }
@@ -19,7 +22,9 @@ export const appendCSSString = (cssString: string, cssClass: string): string => 
  * combineClasses([ "text", false, "" ])          // -> "text"
  */
 export const combineClasses = (
-  classes: Array<string | false | undefined> | Record<string, boolean | undefined> = {},
+  classes:
+    | Array<string | false | undefined>
+    | Record<string, boolean | undefined> = {},
 ): string | undefined => {
   let result = ""
 

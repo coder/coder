@@ -1,10 +1,15 @@
-import MuiDialog, { DialogProps as MuiDialogProps } from "@material-ui/core/Dialog"
+import MuiDialog, {
+  DialogProps as MuiDialogProps,
+} from "@material-ui/core/Dialog"
 import MuiDialogTitle from "@material-ui/core/DialogTitle"
 import { alpha, darken, lighten, makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
-import { LoadingButton, LoadingButtonProps } from "../LoadingButton/LoadingButton"
+import {
+  LoadingButton,
+  LoadingButtonProps,
+} from "../LoadingButton/LoadingButton"
 import { ConfirmDialogType } from "./types"
 
 export interface DialogTitleProps {
@@ -19,7 +24,11 @@ export interface DialogTitleProps {
 /**
  * Override of Material UI's DialogTitle that allows for a supertitle and background icon
  */
-export const DialogTitle: React.FC<DialogTitleProps> = ({ title, icon: Icon, superTitle }) => {
+export const DialogTitle: React.FC<DialogTitleProps> = ({
+  title,
+  icon: Icon,
+  superTitle,
+}) => {
   const styles = useTitleStyles()
   return (
     <MuiDialogTitle disableTypography>
@@ -164,7 +173,9 @@ const useButtonStyles = makeStyles((theme) => ({
   },
   confirmDialogCancelButton: (props: StyleProps) => {
     const color =
-      props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
+      props.type === "info"
+        ? theme.palette.primary.contrastText
+        : theme.palette.error.contrastText
     return {
       background: alpha(color, 0.15),
       color,
@@ -222,7 +233,10 @@ const useButtonStyles = makeStyles((theme) => ({
       color: theme.palette.error.main,
       borderColor: theme.palette.error.main,
       "&:hover": {
-        backgroundColor: alpha(theme.palette.error.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.error.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -239,7 +253,10 @@ const useButtonStyles = makeStyles((theme) => ({
     "&.MuiButton-text": {
       color: theme.palette.error.main,
       "&:hover": {
-        backgroundColor: alpha(theme.palette.error.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.error.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -272,7 +289,10 @@ const useButtonStyles = makeStyles((theme) => ({
       color: theme.palette.success.main,
       borderColor: theme.palette.success.main,
       "&:hover": {
-        backgroundColor: alpha(theme.palette.success.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.success.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -289,7 +309,10 @@ const useButtonStyles = makeStyles((theme) => ({
     "&.MuiButton-text": {
       color: theme.palette.success.main,
       "&:hover": {
-        backgroundColor: alpha(theme.palette.success.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.success.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },

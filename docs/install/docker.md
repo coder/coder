@@ -4,7 +4,7 @@ You can install and run Coder using the official Docker images published on [Git
 
 Docker is required. See the [official installation documentation](https://docs.docker.com/install/).
 
-## Run Coder with built-in database and tunnel (quick)
+## Run Coder with the built-in database (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with
 the following command:
@@ -14,7 +14,6 @@ export CODER_DATA=$HOME/.config/coderv2-docker
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 mkdir -p $CODER_DATA
 docker run --rm -it \
-  -e CODER_TUNNEL=true \
   -v $CODER_DATA:/home/coder/.config \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --group-add $DOCKER_GROUP \
@@ -68,7 +67,7 @@ an PostgreSQL container and volume.
    ```sh
    cd coder
 
-   CODER_TUNNEL=true docker-compose up
+   docker-compose up
    ```
 
    For production deployments, we recommend setting an [access URL](../admin/configure.md#access-url):
@@ -78,8 +77,6 @@ an PostgreSQL container and volume.
 
    CODER_ACCESS_URL=https://coder.example.com docker-compose up
    ```
-
-   > Without `CODER_ACCESS_URL` or `CODER_TUNNEL` set, Coder will bind to `localhost:7080`. This will only work for Docker-based templates.
 
 4. Visit the web ui via the configured url. You can add `/login` to the base url to create the first user via the ui.
 

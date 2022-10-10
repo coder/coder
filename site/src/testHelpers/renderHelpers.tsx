@@ -23,7 +23,9 @@ import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
 
-export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   return (
     <HelmetProvider>
       <HistoryRouter history={history}>
@@ -49,7 +51,11 @@ type RenderWithAuthResult = RenderResult & { user: typeof MockUser }
  */
 export function renderWithAuth(
   ui: JSX.Element,
-  { route = "/", path, routes }: { route?: string; path?: string; routes?: JSX.Element } = {},
+  {
+    route = "/",
+    path,
+    routes,
+  }: { route?: string; path?: string; routes?: JSX.Element } = {},
 ): RenderWithAuthResult {
   const renderResult = wrappedRender(
     <HelmetProvider>
@@ -58,7 +64,10 @@ export function renderWithAuth(
           <I18nextProvider i18n={i18n}>
             <ThemeProvider theme={dark}>
               <Routes>
-                <Route path={path ?? route} element={<RequireAuth>{ui}</RequireAuth>} />
+                <Route
+                  path={path ?? route}
+                  element={<RequireAuth>{ui}</RequireAuth>}
+                />
                 {routes}
               </Routes>
             </ThemeProvider>

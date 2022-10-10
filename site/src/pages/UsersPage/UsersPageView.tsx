@@ -1,5 +1,13 @@
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
+<<<<<<< HEAD
+=======
+import { Margins } from "../../components/Margins/Margins"
+import {
+  PageHeader,
+  PageHeaderTitle,
+} from "../../components/PageHeader/PageHeader"
+>>>>>>> main
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { userFilterQuery } from "../../util/filters"
@@ -21,7 +29,10 @@ export interface UsersPageViewProps {
   onListWorkspaces: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
-  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
+  onUpdateUserRoles: (
+    user: TypesGen.User,
+    roles: TypesGen.Role["name"][],
+  ) => void
   onFilter: (query: string) => void
 }
 

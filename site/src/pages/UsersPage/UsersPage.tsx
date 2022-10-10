@@ -82,7 +82,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         roles={roles}
         users={users}
         onListWorkspaces={(user) => {
-          navigate("/workspaces?filter=" + encodeURIComponent(`owner:${user.username}`))
+          navigate(
+            "/workspaces?filter=" +
+              encodeURIComponent(`owner:${user.username}`),
+          )
         }}
         onDeleteUser={(user) => {
           usersSend({ type: "DELETE_USER", userId: user.id })
@@ -144,7 +147,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.suspendDialogMessagePrefix} <strong>{userToBeSuspended?.username}</strong>?
+            {Language.suspendDialogMessagePrefix}{" "}
+            <strong>{userToBeSuspended?.username}</strong>?
           </>
         }
       />
@@ -164,7 +168,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.activateDialogMessagePrefix} <strong>{userToBeActivated?.username}</strong>?
+            {Language.activateDialogMessagePrefix}{" "}
+            <strong>{userToBeActivated?.username}</strong>?
           </>
         }
       />

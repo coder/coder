@@ -82,7 +82,8 @@ export const templatesMachine = createMachine(
       assignGetTemplatesError: assign({
         getTemplatesError: (_, event) => event.data,
       }),
-      clearGetTemplatesError: (context) => assign({ ...context, getTemplatesError: undefined }),
+      clearGetTemplatesError: (context) =>
+        assign({ ...context, getTemplatesError: undefined }),
     },
     services: {
       getOrganizations: API.getOrganizations,

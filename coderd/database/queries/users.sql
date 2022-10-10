@@ -9,7 +9,10 @@ LIMIT
 	1;
 
 -- name: GetUsersByIDs :many
-SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
+-- This shouldn't check for deleted, because it's frequently used
+-- to look up references to actions. eg. a user could build a workspace
+-- for another user, then be deleted... we still want them to appear!
+SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]);
 
 -- name: GetUserByEmailOrUsername :one
 SELECT

@@ -10,7 +10,9 @@ export default {
   },
 }
 
-const Template: Story<LoadingButtonProps> = (args) => <LoadingButton {...args} />
+const Template: Story<LoadingButtonProps> = (args) => (
+  <LoadingButton {...args} />
+)
 
 export const Loading = Template.bind({})
 Loading.args = {

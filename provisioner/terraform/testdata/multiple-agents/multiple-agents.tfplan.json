@@ -78,9 +78,7 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -96,7 +94,9 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "token": true
+        }
       }
     },
     {
@@ -106,9 +106,7 @@
       "name": "dev2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -124,7 +122,9 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "token": true
+        }
       }
     },
     {
@@ -134,9 +134,7 @@
       "name": "dev3",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "arch": "arm64",
@@ -152,7 +150,9 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "token": true
+        }
       }
     },
     {
@@ -162,9 +162,7 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "triggers": null
@@ -182,7 +180,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.4.11"
+        "version_constraint": "0.5.0"
       },
       "null": {
         "name": "null",

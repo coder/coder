@@ -44,9 +44,12 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
-    sendSearch("SEARCH", { query: event.target.value })
-  }, 1000)
+  const handleFilterChange = debounce(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      sendSearch("SEARCH", { query: event.target.value })
+    },
+    1000,
+  )
 
   return (
     <Autocomplete
@@ -66,7 +69,9 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
         onChange(newValue)
       }}
-      getOptionSelected={(option: User, value: User) => option.username === value.username}
+      getOptionSelected={(option: User, value: User) =>
+        option.username === value.username
+      }
       getOptionLabel={(option) => option.email}
       renderOption={(option: User) => (
         <AvatarData
@@ -98,10 +103,14 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           InputProps={{
             ...params.InputProps,
             onChange: handleFilterChange,
-            startAdornment: <>{showAvatar && value && <AutocompleteAvatar user={value} />}</>,
+            startAdornment: (
+              <>{showAvatar && value && <AutocompleteAvatar user={value} />}</>
+            ),
             endAdornment: (
               <>
-                {searchState.matches("searching") ? <CircularProgress size={16} /> : null}
+                {searchState.matches("searching") ? (
+                  <CircularProgress size={16} />
+                ) : null}
                 {params.InputProps.endAdornment}
               </>
             ),
@@ -145,7 +154,9 @@ export const useStyles = makeStyles<Theme, styleProps>((theme) => {
   }
 })
 
-export const UserAutocompleteInline: React.FC<UserAutocompleteProps> = (props) => {
+export const UserAutocompleteInline: React.FC<UserAutocompleteProps> = (
+  props,
+) => {
   const style = useInlineStyle()
 
   return <UserAutocomplete {...props} className={style.inline} />
