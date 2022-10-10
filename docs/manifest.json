@@ -1,9 +1,5 @@
 {
-  "versions": [
-    "main",
-    "v0.8.1",
-    "v0.7.12"
-  ],
+  "versions": ["main", "v0.8.1", "v0.7.12"],
   "routes": [
     {
       "title": "About",
@@ -179,6 +175,18 @@
           "description": "Learn about user roles available in Coder and how to create and manage users",
           "icon_path": "./images/icons/users.svg",
           "path": "./admin/users.md"
+        },
+        {
+          "title": "Groups",
+          "description": "Learn how to manage user groups",
+          "icon_path": "./images/icons/group.svg",
+          "path": "./admin/groups.md"
+        },
+        {
+          "title": "RBAC",
+          "description": "Learn how to use the role based access control",
+          "icon_path": "./images/icons/key.svg",
+          "path": "./admin/rbac.md"
         },
         {
           "title": "Authentication",
