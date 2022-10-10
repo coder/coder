@@ -55,7 +55,7 @@ export const TemplatePermissionsPage: FC<
                 </Link>
                 <Link
                   underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  href="https://coder.com/docs/coder-oss/latest/admin/rbac"
                   target="_blank"
                   rel="noreferrer"
                 >

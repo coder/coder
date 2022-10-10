@@ -60,7 +60,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
                 </Link>
                 <Link
                   underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  href="https://coder.com/docs/coder-oss/latest/admin/groups"
                   target="_blank"
                   rel="noreferrer"
                 >
