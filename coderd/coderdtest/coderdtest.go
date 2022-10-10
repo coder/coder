@@ -83,6 +83,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+	DeploymentFlags             *codersdk.DeploymentFlags
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -237,6 +238,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+		DeploymentFlags:             options.DeploymentFlags,
 	}
 }
 

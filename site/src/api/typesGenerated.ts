@@ -125,6 +125,18 @@ export interface AzureInstanceIdentityToken {
   readonly encoding: string
 }
 
+// From codersdk/flags.go
+export interface BoolFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly default: boolean
+  readonly value: boolean
+}
+
 // From codersdk/buildinfo.go
 export interface BuildInfoResponse {
   readonly external_url: string
@@ -239,6 +251,75 @@ export interface DERPRegion {
   readonly latency_ms: number
 }
 
+// From codersdk/flags.go
+export interface DeploymentFlags {
+  readonly access_url: StringFlag
+  readonly wildcard_access_url: StringFlag
+  readonly address: StringFlag
+  readonly autobuild_poll_interval: DurationFlag
+  readonly derp_server_enabled: BoolFlag
+  readonly derp_server_region_id: IntFlag
+  readonly derp_server_region_code: StringFlag
+  readonly derp_server_region_name: StringFlag
+  readonly derp_server_stun_address: StringArrayFlag
+  readonly derp_config_url: StringFlag
+  readonly derp_config_path: StringFlag
+  readonly prom_enabled: BoolFlag
+  readonly prom_address: StringFlag
+  readonly pprof_enabled: BoolFlag
+  readonly pprof_address: StringFlag
+  readonly cache_dir: StringFlag
+  readonly in_memory_database: BoolFlag
+  readonly provisioner_daemon_count: IntFlag
+  readonly postgres_url: StringFlag
+  readonly oauth2_github_client_id: StringFlag
+  readonly oauth2_github_client_secret: StringFlag
+  readonly oauth2_github_allowed_organizations: StringArrayFlag
+  readonly oauth2_github_allowed_teams: StringArrayFlag
+  readonly oauth2_github_allow_signups: BoolFlag
+  readonly oauth2_github_enterprise_base_url: StringFlag
+  readonly oidc_allow_signups: BoolFlag
+  readonly oidc_client_id: StringFlag
+  readonly oidc_cliet_secret: StringFlag
+  readonly oidc_email_domain: StringFlag
+  readonly oidc_issuer_url: StringFlag
+  readonly oidc_scopes: StringArrayFlag
+  readonly telemetry_enable: BoolFlag
+  readonly telemetry_trace_enable: BoolFlag
+  readonly telemetry_url: StringFlag
+  readonly tls_enable: BoolFlag
+  readonly tls_cert_files: StringArrayFlag
+  readonly tls_client_ca_file: StringFlag
+  readonly tls_client_auth: StringFlag
+  readonly tls_key_tiles: StringArrayFlag
+  readonly tls_min_version: StringFlag
+  readonly trace_enable: BoolFlag
+  readonly secure_auth_cookie: BoolFlag
+  readonly ssh_keygen_algorithm: StringFlag
+  readonly auto_import_templates: StringArrayFlag
+  readonly metrics_cache_refresh_interval: DurationFlag
+  readonly agent_stat_refresh_interval: DurationFlag
+  readonly verbose: BoolFlag
+  readonly audit_logging: BoolFlag
+  readonly browser_only: BoolFlag
+  readonly scim_auth_header: StringFlag
+  readonly user_workspace_quota: IntFlag
+}
+
+// From codersdk/flags.go
+export interface DurationFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  // This is likely an enum in an external package ("time.Duration")
+  readonly default: number
+  // This is likely an enum in an external package ("time.Duration")
+  readonly value: number
+}
+
 // From codersdk/features.go
 export interface Entitlements {
   readonly features: Record<string, Feature>
@@ -279,6 +360,18 @@ export interface Healthcheck {
   readonly url: string
   readonly interval: number
   readonly threshold: number
+}
+
+// From codersdk/flags.go
+export interface IntFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly default: number
+  readonly value: number
 }
 
 // From codersdk/licenses.go
@@ -423,6 +516,31 @@ export interface ServerSentEvent {
   readonly type: ServerSentEventType
   // eslint-disable-next-line
   readonly data: any
+}
+
+// From codersdk/flags.go
+export interface StringArrayFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly default: string[]
+  readonly value: string[]
+}
+
+// From codersdk/flags.go
+export interface StringFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly secret: boolean
+  readonly default: string
+  readonly value: string
 }
 
 // From codersdk/templates.go

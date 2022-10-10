@@ -133,6 +133,11 @@ var (
 	ResourceLicense = Object{
 		Type: "license",
 	}
+
+	// ResourceDeploymentFlags
+	ResourceDeploymentFlags = Object{
+		Type: "deployment_flags",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in
