@@ -20,42 +20,42 @@ to log in and manage templates.
 1. Create a PostgreSQL deployment. Coder does not manage a database server for
    you.
 
-   - If you're in a public cloud such as
-     [Google Cloud](https://cloud.google.com/sql/docs/postgres/),
-     [AWS](https://aws.amazon.com/rds/postgresql/),
-     [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or
-     [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql),
-     you can use the managed PostgreSQL offerings they provide. Make sure that
-     the PostgreSQL service is running and accessible from your cluster. It
-     should be in the same network, same project, etc.
+   If you're in a public cloud such as
+   [Google Cloud](https://cloud.google.com/sql/docs/postgres/),
+   [AWS](https://aws.amazon.com/rds/postgresql/),
+   [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or
+   [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql),
+   you can use the managed PostgreSQL offerings they provide. Make sure that
+   the PostgreSQL service is running and accessible from your cluster. It
+   should be in the same network, same project, etc.
 
-   - You can install Postgres manually on your cluster using the
-     [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme). There are some
-     [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes) on the
-     internet that explain sensible configurations for this chart. Example:
+   You can install Postgres manually on your cluster using the
+   [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme). There are some
+   [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes) on the
+   internet that explain sensible configurations for this chart. Example:
 
-     ```sh
-     # Install PostgreSQL
-     helm repo add bitnami https://charts.bitnami.com/bitnami
-     helm install coder-db bitnami/postgresql \
-         --namespace coder \
-         --set auth.username=coder \
-         --set auth.password=coder \
-         --set auth.database=coder \
-         --set persistence.size=10Gi
-     ```
+   ```sh
+   # Install PostgreSQL
+   helm repo add bitnami https://charts.bitnami.com/bitnami
+   helm install coder-db bitnami/postgresql \
+       --namespace coder \
+       --set auth.username=coder \
+       --set auth.password=coder \
+       --set auth.database=coder \
+       --set persistence.size=10Gi
+   ```
 
-     The cluster-internal DB URL for the above database is:
+   The cluster-internal DB URL for the above database is:
 
-     ```
-     postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
-     ```
+   ```
+   postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+   ```
 
-     > Ensure you set up periodic backups so you don't lose data.
+   > Ensure you set up periodic backups so you don't lose data.
 
-   - You can use
-     [Postgres operator](https://github.com/zalando/postgres-operator) to
-     manage PostgreSQL deployments on your Kubernetes cluster.
+   You can use
+   [Postgres operator](https://github.com/zalando/postgres-operator) to
+   manage PostgreSQL deployments on your Kubernetes cluster.
 
 1. Download the latest `coder_helm` package from
    [GitHub releases](https://github.com/coder/coder/releases).
