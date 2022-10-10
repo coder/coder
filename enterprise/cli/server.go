@@ -15,7 +15,7 @@ import (
 func server() *cobra.Command {
 	dflags := deployment.Flags()
 	cmd := agpl.Server(dflags, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
-		options.DeploymentFlags = &dflags
+		options.DeploymentFlags = dflags
 		o := &coderd.Options{
 			AuditLogging:       dflags.AuditLogging.Value,
 			BrowserOnly:        dflags.BrowserOnly.Value,
@@ -30,7 +30,7 @@ func server() *cobra.Command {
 		return api.AGPL, nil
 	})
 
-	deployment.AttachFlags(cmd.Flags(), &dflags, true)
+	deployment.AttachFlags(cmd.Flags(), dflags, true)
 
 	return cmd
 }

@@ -14,7 +14,7 @@ func TestFlags(t *testing.T) {
 
 	df := deployment.Flags()
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	deployment.AttachFlags(fs, &df, false)
+	deployment.AttachFlags(fs, df, false)
 
 	require.NotNil(t, fs.Lookup("access-url"))
 	require.False(t, fs.Lookup("access-url").Hidden)
@@ -24,7 +24,7 @@ func TestFlags(t *testing.T) {
 
 	df = deployment.Flags()
 	fs = pflag.NewFlagSet("test-enterprise", pflag.ContinueOnError)
-	deployment.AttachFlags(fs, &df, true)
+	deployment.AttachFlags(fs, df, true)
 
 	require.NotNil(t, fs.Lookup("access-url"))
 	require.NotNil(t, fs.Lookup("audit-logging"))

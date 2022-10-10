@@ -67,11 +67,12 @@ import (
 )
 
 // nolint:gocyclo
-func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
+func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println(dflags.TelemetryURL.Value)
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if dflags.Verbose.Value {
@@ -318,7 +319,7 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 				MetricsCacheRefreshInterval: dflags.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   dflags.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
-				DeploymentFlags:             &dflags,
+				DeploymentFlags:             dflags,
 			}
 
 			if dflags.OAuth2GithubClientSecret.Value != "" {
@@ -712,7 +713,7 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 		},
 	})
 
-	deployment.AttachFlags(root.Flags(), &dflags, false)
+	deployment.AttachFlags(root.Flags(), dflags, false)
 
 	return root
 }
