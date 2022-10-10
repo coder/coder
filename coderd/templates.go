@@ -306,13 +306,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("update template group acl: %w", err)
 		}
 
-		tpl, err := tx.GetTemplateByID(ctx, dbTemplate.ID)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("GROUP ACL: %+v\n", tpl.GroupACL())
-
 		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
 		if err != nil {
 			return xerrors.Errorf("get creator name: %w", err)

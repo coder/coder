@@ -157,6 +157,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		codersdk.FeatureBrowserOnly:    api.BrowserOnly,
 		codersdk.FeatureSCIM:           len(api.SCIMAPIKey) != 0,
 		codersdk.FeatureWorkspaceQuota: api.UserWorkspaceQuota != 0,
+		codersdk.FeatureRBAC:           api.RBACEnabled,
 	})
 	if err != nil {
 		return err

@@ -176,6 +176,7 @@ type Features struct {
 	BrowserOnly    int64 `json:"browser_only"`
 	SCIM           int64 `json:"scim"`
 	WorkspaceQuota int64 `json:"workspace_quota"`
+	RBAC           int64 `json:"rbac"`
 }
 
 type Claims struct {
