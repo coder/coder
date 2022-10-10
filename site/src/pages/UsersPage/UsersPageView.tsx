@@ -1,13 +1,5 @@
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-<<<<<<< HEAD
-=======
-import { Margins } from "../../components/Margins/Margins"
-import {
-  PageHeader,
-  PageHeaderTitle,
-} from "../../components/PageHeader/PageHeader"
->>>>>>> main
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { userFilterQuery } from "../../util/filters"
