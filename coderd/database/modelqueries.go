@@ -168,6 +168,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.NoACLConfig()))
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
+		arg.Status,
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,

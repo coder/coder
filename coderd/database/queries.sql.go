@@ -5466,47 +5466,56 @@ WHERE
 				WHEN $2 = 'starting' THEN
 					latest_build.started_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
+					latest_build.completed_at IS NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'start'::workspace_transition
+
 				WHEN $2 = 'running' THEN
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
 					latest_build.transition = 'start'::workspace_transition
+
 				WHEN $2 = 'stopping' THEN
 					latest_build.started_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
+					latest_build.completed_at IS NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'stop'::workspace_transition
+
 				WHEN $2 = 'stopped' THEN
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
 					latest_build.transition = 'stop'::workspace_transition
+
 				WHEN $2 = 'failed' THEN
 					(latest_build.canceled_at IS NOT NULL AND
 						latest_build.error IS NOT NULL) OR
 					(latest_build.completed_at IS NOT NULL AND
 						latest_build.error IS NOT NULL)
+
 				WHEN $2 = 'canceling' THEN
 					latest_build.canceled_at IS NOT NULL AND
 					latest_build.completed_at IS NULL
+
 				WHEN $2 = 'canceled' THEN
 					latest_build.canceled_at IS NOT NULL AND
 					latest_build.completed_at IS NOT NULL
+
 				WHEN $2 = 'deleted' THEN
 					latest_build.started_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'delete'::workspace_transition
+
 				WHEN $2 = 'deleting' THEN
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
-					latest_build.error = '' AND
+					latest_build.error IS NULL AND
 					latest_build.transition = 'delete'::workspace_transition
+
 				ELSE
 					true
 			END

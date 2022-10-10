@@ -553,7 +553,8 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaces, err
 }
 
-func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
+//nolint:gocyclo
+func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -562,18 +563,21 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.Ge
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
 			continue
 		}
+
 		if arg.OwnerUsername != "" {
-			owner, err := q.GetUserByID(context.Background(), workspace.OwnerID)
+			owner, err := q.GetUserByID(ctx, workspace.OwnerID)
 			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
 				continue
 			}
 		}
+
 		if arg.TemplateName != "" {
-			template, err := q.GetTemplateByID(context.Background(), workspace.TemplateID)
+			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
 			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
 				continue
 			}
 		}
+
 		if !arg.Deleted && workspace.Deleted {
 			continue
 		}
@@ -581,6 +585,96 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.Ge
 		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
 			continue
 		}
+
+		if arg.Status != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			switch arg.Status {
+			case "pending":
+				if !job.StartedAt.Valid {
+					continue
+				}
+
+			case "starting":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "running":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "stopping":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "stopped":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "failed":
+				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
+					(!job.CompletedAt.Valid && !job.Error.Valid) {
+					continue
+				}
+
+			case "canceling":
+				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
+					continue
+				}
+
+			case "canceled":
+				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
+					continue
+				}
+
+			case "deleted":
+				if !job.StartedAt.Valid &&
+					job.CanceledAt.Valid &&
+					!job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			case "deleting":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid &&
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			default:
+				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+			}
+		}
+
 		if len(arg.TemplateIds) > 0 {
 			match := false
 			for _, id := range arg.TemplateIds {
@@ -771,7 +865,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	var row database.WorkspaceBuild
 	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
+		if workspaceBuild.WorkspaceID == workspaceID && workspaceBuild.BuildNumber > buildNum {
 			row = workspaceBuild
 			buildNum = workspaceBuild.BuildNumber
 		}
@@ -816,7 +910,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
-			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > buildNumbers[id] {
+			if id == workspaceBuild.WorkspaceID && workspaceBuild.BuildNumber > buildNumbers[id] {
 				builds[id] = workspaceBuild
 				buildNumbers[id] = workspaceBuild.BuildNumber
 			}
