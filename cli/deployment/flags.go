@@ -175,7 +175,7 @@ func Flags() codersdk.DeploymentFlags {
 		OAuth2GithubAllowSignups: codersdk.BoolFlag{
 			Name:        "Oauth2 Github Allow Signups",
 			Flag:        "oauth2-github-allow-signups",
-			EnvVar:      "CODER_AUTOBUILD_POLL_INTERVAL",
+			EnvVar:      "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS",
 			Description: "Whether new users can sign up with GitHub.",
 		},
 		OAuth2GithubEnterpriseBaseURL: codersdk.StringFlag{
