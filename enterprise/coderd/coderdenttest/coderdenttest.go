@@ -62,6 +62,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
+		RBACEnabled:                true,
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
@@ -76,6 +77,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
 	}
+
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -96,6 +98,7 @@ type LicenseOptions struct {
 	BrowserOnly    bool
 	SCIM           bool
 	WorkspaceQuota bool
+	RBACEnabled    bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -132,6 +135,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		workspaceQuota = 1
 	}
 
+	rbac := int64(0)
+	if options.RBACEnabled {
+		rbac = 1
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -151,6 +159,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			BrowserOnly:    browserOnly,
 			SCIM:           scim,
 			WorkspaceQuota: workspaceQuota,
+			RBAC:           rbac,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

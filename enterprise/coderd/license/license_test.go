@@ -24,6 +24,7 @@ func TestEntitlements(t *testing.T) {
 		codersdk.FeatureBrowserOnly:    true,
 		codersdk.FeatureSCIM:           true,
 		codersdk.FeatureWorkspaceQuota: true,
+		codersdk.FeatureRBAC:           true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -64,6 +65,7 @@ func TestEntitlements(t *testing.T) {
 				BrowserOnly:    true,
 				SCIM:           true,
 				WorkspaceQuota: true,
+				RBACEnabled:    true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -85,6 +87,7 @@ func TestEntitlements(t *testing.T) {
 				BrowserOnly:    true,
 				SCIM:           true,
 				WorkspaceQuota: true,
+				RBACEnabled:    true,
 				GraceAt:        time.Now().Add(-time.Hour),
 				ExpiresAt:      time.Now().Add(time.Hour),
 			}),

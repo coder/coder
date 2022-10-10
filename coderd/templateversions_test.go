@@ -34,6 +34,22 @@ func TestTemplateVersion(t *testing.T) {
 		_, err := client.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
 	})
+
+	t.Run("MemberCanRead", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		_, err := client1.TemplateVersion(ctx, version.ID)
+		require.NoError(t, err)
+	})
 }
 
 func TestPostTemplateVersionsByOrganization(t *testing.T) {

@@ -14,15 +14,22 @@ import {
   MockAuditorRole,
   MockUser,
   MockUser2,
-  render,
+  renderWithAuth,
   SuspendedMockUser,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
-import { Language as UsersViewLanguage } from "./UsersPageView"
 
 const { t } = i18n
+
+const renderPage = () => {
+  return renderWithAuth(
+    <>
+      <UsersPage />
+      <GlobalSnackbar />
+    </>,
+  )
+}
 
 const suspendUser = async (setupActionSpies: () => void) => {
   const user = userEvent.setup()
@@ -186,52 +193,15 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
 
 describe("UsersPage", () => {
   it("shows users", async () => {
-    render(<UsersPage />)
+    renderPage()
     const users = await screen.findAllByText(/.*@coder.com/)
     expect(users.length).toEqual(3)
-  })
-
-  it("shows 'Create user' button to an authorized user", async () => {
-    render(<UsersPage />)
-    const createUserButton = await screen.findByText(
-      UsersViewLanguage.createButton,
-    )
-    // wait for users page to finish loading
-    await screen.findAllByLabelText("more")
-    expect(createUserButton).toBeDefined()
-  })
-
-  it("does not show 'Create user' button to unauthorized user", async () => {
-    server.use(
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-        const permissions = Object.keys(permissionsToCheck)
-        const response = permissions.reduce((obj, permission) => {
-          return {
-            ...obj,
-            [permission]: true,
-            createUser: false,
-          }
-        }, {})
-
-        return res(ctx.status(200), ctx.json(response))
-      }),
-    )
-    render(<UsersPage />)
-    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
-    // wait for users page to finish loading
-    await screen.findAllByLabelText("more")
-    expect(createUserButton).toBeNull()
   })
 
   describe("suspend user", () => {
     describe("when it is success", () => {
       it("shows a success message and refresh the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
@@ -253,12 +223,7 @@ describe("UsersPage", () => {
     })
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockRejectedValueOnce({})
@@ -277,12 +242,7 @@ describe("UsersPage", () => {
   describe("delete user", () => {
     describe("when it is success", () => {
       it("shows a success message and refresh the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
@@ -307,12 +267,7 @@ describe("UsersPage", () => {
     })
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockRejectedValueOnce({})
@@ -331,12 +286,7 @@ describe("UsersPage", () => {
   describe("activate user", () => {
     describe("when user is successfully activated", () => {
       it("shows a success message and refreshes the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await activateUser(() => {
           jest
@@ -359,12 +309,7 @@ describe("UsersPage", () => {
     })
     describe("when activation fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await activateUser(() => {
           jest.spyOn(API, "activateUser").mockRejectedValueOnce({})
@@ -383,12 +328,7 @@ describe("UsersPage", () => {
   describe("reset user password", () => {
     describe("when it is success", () => {
       it("shows a success message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await resetUserPassword(() => {
           jest.spyOn(API, "updateUserPassword").mockResolvedValueOnce(undefined)
@@ -407,12 +347,7 @@ describe("UsersPage", () => {
     })
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await resetUserPassword(() => {
           jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({})
@@ -434,12 +369,7 @@ describe("UsersPage", () => {
   describe("Update user role", () => {
     describe("when it is success", () => {
       it("updates the roles", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         const { rolesMenuTrigger } = await updateUserRole(() => {
           jest.spyOn(API, "updateUserRoles").mockResolvedValueOnce({
@@ -465,12 +395,7 @@ describe("UsersPage", () => {
 
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await updateUserRole(() => {
           jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({})
@@ -492,12 +417,7 @@ describe("UsersPage", () => {
         )
       })
       it("shows an error from the backend", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         server.use(
           rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {

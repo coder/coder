@@ -7,6 +7,7 @@ import { User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useEffect, useState } from "react"
+import { combineClasses } from "util/combineClasses"
 import { searchUserMachine } from "xServices/users/searchUserXService"
 import { AutocompleteAvatar } from "./AutocompleteAvatar"
 
@@ -16,12 +17,14 @@ export type UserAutocompleteProps = {
   label?: string
   inputMargin?: "none" | "dense" | "normal"
   inputStyles?: string
+  className?: string
   showAvatar?: boolean
 }
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   value,
   onChange,
+  className,
   label,
   inputMargin,
   inputStyles,
@@ -31,7 +34,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
-  const [selectedValue, setSelectedValue] = useState<User | null>(value || null)
 
   // seed list of options on the first page load if a user pases in a value
   // since some organizations have long lists of users, we do not load all options on page load.
@@ -51,7 +53,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      value={selectedValue}
+      value={value}
       id="user-autocomplete"
       open={isAutocompleteOpen}
       onOpen={() => {
@@ -65,7 +67,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           sendSearch("CLEAR_RESULTS")
         }
 
-        setSelectedValue(newValue)
         onChange(newValue)
       }}
       getOptionSelected={(option: User, value: User) =>
@@ -90,7 +91,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       )}
       options={searchResults}
       loading={searchState.matches("searching")}
-      className={styles.autocomplete}
+      className={combineClasses([styles.autocomplete, className])}
       renderInput={(params) => (
         <TextField
           {...params}
@@ -103,11 +104,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             ...params.InputProps,
             onChange: handleFilterChange,
             startAdornment: (
-              <>
-                {showAvatar && selectedValue && (
-                  <AutocompleteAvatar user={selectedValue} />
-                )}
-              </>
+              <>{showAvatar && value && <AutocompleteAvatar user={value} />}</>
             ),
             endAdornment: (
               <>
@@ -153,6 +150,31 @@ export const useStyles = makeStyles<Theme, styleProps>((theme) => {
       width: theme.spacing(4.5),
       height: theme.spacing(4.5),
       borderRadius: "100%",
+    },
+  }
+})
+
+export const UserAutocompleteInline: React.FC<UserAutocompleteProps> = (
+  props,
+) => {
+  const style = useInlineStyle()
+
+  return <UserAutocomplete {...props} className={style.inline} />
+}
+
+export const useInlineStyle = makeStyles(() => {
+  return {
+    inline: {
+      width: "300px",
+
+      "& .MuiFormControl-root": {
+        margin: 0,
+      },
+
+      "& .MuiInputBase-root": {
+        // Match button small height
+        height: 36,
+      },
     },
   }
 })

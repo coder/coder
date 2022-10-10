@@ -219,7 +219,19 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	case database.ParameterScopeWorkspace:
 		resource, err = api.Database.GetWorkspaceByID(ctx, scopeID)
 	case database.ParameterScopeImportJob:
-		resource, err = api.Database.GetTemplateVersionByJobID(ctx, scopeID)
+		// I hate myself.
+		var version database.TemplateVersion
+		version, err = api.Database.GetTemplateVersionByJobID(ctx, scopeID)
+		if err != nil {
+			break
+		}
+		var template database.Template
+		template, err = api.Database.GetTemplateByID(ctx, version.TemplateID.UUID)
+		if err != nil {
+			break
+		}
+		resource = version.RBACObject(template)
+
 	case database.ParameterScopeTemplate:
 		resource, err = api.Database.GetTemplateByID(ctx, scopeID)
 	default:
