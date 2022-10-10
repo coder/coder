@@ -465,7 +465,19 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		if err != nil {
 			return TypescriptType{}, xerrors.Errorf("pointer: %w", err)
 		}
-		resp.Optional = true
+		if named, ok := pt.Elem().(*types.Named); ok {
+			switch named.String() {
+			case "github.com/coder/coder/codersdk.StringFlag":
+			case "github.com/coder/coder/codersdk.StringArrayFlag":
+			case "github.com/coder/coder/codersdk.BoolFlag":
+			case "github.com/coder/coder/codersdk.IntFlag":
+			case "github.com/coder/coder/codersdk.DurationFlag":
+			default:
+				resp.Optional = true
+			}
+		} else {
+			resp.Optional = true
+		}
 		return resp, nil
 	case *types.Interface:
 		// only handle the empty interface for now
