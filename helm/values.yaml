@@ -92,7 +92,9 @@ coder:
 
   # coder.ingress -- The Ingress object to expose for Coder.
   ingress:
-    # coder.ingress.enable -- Whether to create the Ingress object.
+    # coder.ingress.enable -- Whether to create the Ingress object. If using an
+    # Ingress, we recommend not specifying coder.tls.secretNames as the Ingress
+    # will handle TLS termination.
     enable: false
     # coder.ingress.className -- The name of the Ingress class to use.
     className: ""
