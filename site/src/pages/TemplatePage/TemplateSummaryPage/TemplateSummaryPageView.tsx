@@ -5,7 +5,7 @@ import {
   TemplateVersion,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Markdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
@@ -30,7 +30,9 @@ export interface TemplateSummaryPageViewProps {
   deleteTemplateError: Error | unknown
 }
 
-export const TemplateSummaryPageView: FC<React.PropsWithChildren<TemplateSummaryPageViewProps>> = ({
+export const TemplateSummaryPageView: FC<
+  React.PropsWithChildren<TemplateSummaryPageViewProps>
+> = ({
   template,
   activeTemplateVersion,
   templateResources,
@@ -42,19 +44,26 @@ export const TemplateSummaryPageView: FC<React.PropsWithChildren<TemplateSummary
   const readme = frontMatter(activeTemplateVersion.readme)
 
   const deleteError = deleteTemplateError ? (
-    <ErrorSummary error={deleteTemplateError} dismissible />
+    <AlertBanner severity="error" error={deleteTemplateError} dismissible />
   ) : null
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
-    return resources.filter((resource) => resource.workspace_transition === "start")
+    return resources.filter(
+      (resource) => resource.workspace_transition === "start",
+    )
   }
 
   return (
     <Stack spacing={2.5}>
       {deleteError}
       {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
-      <TemplateStats template={template} activeVersion={activeTemplateVersion} />
-      <TemplateResourcesTable resources={getStartedResources(templateResources)} />
+      <TemplateStats
+        template={template}
+        activeVersion={activeTemplateVersion}
+      />
+      <TemplateResourcesTable
+        resources={getStartedResources(templateResources)}
+      />
       <WorkspaceSection
         title={Language.readmeTitle}
         contentsProps={{ className: styles.readmeContents }}
