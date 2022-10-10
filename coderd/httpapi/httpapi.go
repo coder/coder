@@ -92,6 +92,9 @@ func RouteNotFound(rw http.ResponseWriter) {
 // data a bit more since we have access to the actual interface{} we're
 // marshaling, such as the number of elements in an array, which could help us
 // spot routes that need to be paginated.
+//
+// If you're updating this type signature, ensure to update the ruleguard rules
+// in rules.go.
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()

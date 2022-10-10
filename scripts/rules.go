@@ -1,3 +1,6 @@
+//go:build ruleguard
+// +build ruleguard
+
 // Package gorules defines custom lint rules for ruleguard.
 //
 // golangci-lint runs these rules via go-critic, which includes support
@@ -93,6 +96,7 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 //
 //nolint:unused,deadcode,varnamelen
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
+	m.Import("context")
 	m.Import("github.com/stretchr/testify/require")
 	m.Import("github.com/stretchr/testify/assert")
 	m.Import("github.com/coder/coder/testutil")
@@ -265,4 +269,18 @@ func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
 	return !(types.Implements(p, writer) || types.Implements(ctx.Type, writer)) ||
 		!(types.Implements(p, flusher) || types.Implements(ctx.Type, flusher)) ||
 		!(types.Implements(p, hijacker) || types.Implements(ctx.Type, hijacker))
+}
+
+// NoArraysFromAPI ensures that arrays/slices are never directly returned from
+// the API. Arrays and slices should be wrapped in a struct. This is so we can
+// add fields in the future if necessary (such as pagination fields).
+//
+// Returning arrays directly from the API is also discouraged by OWASP security
+// practices as it may be used to run exploits in older browsers:
+// https://cheatsheetseries.owasp.org/cheatsheets/AJAX_Security_Cheat_Sheet.html#always-return-json-with-an-object-on-the-outside
+func NoArraysFromAPI(m dsl.Matcher) {
+	m.
+		Match(`httpapi.Write($*_, $*_, $*_, $a)`).
+		Where(m["a"].Type.Is("[]$T") || m["a"].Type.Is("[$len]$T")).
+		Report("Do not return slices or arrays directly from the API. Wrap in a struct.")
 }
