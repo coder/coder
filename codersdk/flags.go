@@ -71,6 +71,7 @@ type StringFlag struct {
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
 	Secret      bool   `json:"secret"`
+	Hidden      bool   `json:"hidden"`
 	Default     string `json:"default"`
 	Value       string `json:"value"`
 }
@@ -82,6 +83,7 @@ type BoolFlag struct {
 	Shorthand   string `json:"shorthand"`
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
 	Default     bool   `json:"default"`
 	Value       bool   `json:"value"`
 }
@@ -93,6 +95,7 @@ type IntFlag struct {
 	Shorthand   string `json:"shorthand"`
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
 	Default     int    `json:"default"`
 	Value       int    `json:"value"`
 }
@@ -104,6 +107,7 @@ type DurationFlag struct {
 	Shorthand   string        `json:"shorthand"`
 	Description string        `json:"description"`
 	Enterprise  bool          `json:"enterprise"`
+	Hidden      bool          `json:"hidden"`
 	Default     time.Duration `json:"default"`
 	Value       time.Duration `json:"value"`
 }
@@ -115,6 +119,7 @@ type StringArrayFlag struct {
 	Shorthand   string   `json:"shorthand"`
 	Description string   `json:"description"`
 	Enterprise  bool     `json:"enterprise"`
+	Hidden      bool     `json:"hidden"`
 	Default     []string `json:"default"`
 	Value       []string `json:"value"`
 }

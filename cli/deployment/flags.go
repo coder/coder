@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -45,6 +46,7 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "autobuild-poll-interval",
 			EnvVar:      "CODER_AUTOBUILD_POLL_INTERVAL",
 			Description: "Interval to poll for scheduled workspace builds.",
+			Hidden:      true,
 			Default:     time.Minute,
 		},
 		DerpServerEnable: codersdk.BoolFlag{
@@ -132,6 +134,7 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "in-memory",
 			EnvVar:      "CODER_INMEMORY",
 			Description: "Controls whether data will be stored in an in-memory database.",
+			Hidden:      true,
 		},
 		ProvisionerDaemonCount: codersdk.IntFlag{
 			Name:        "Provisioner Daemons",
@@ -243,6 +246,7 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "telemetry-url",
 			EnvVar:      "CODER_TELEMETRY_URL",
 			Description: "URL to send telemetry.",
+			Hidden:      true,
 			Default:     "https://telemetry.coder.com",
 		},
 		TLSEnable: codersdk.BoolFlag{
@@ -313,6 +317,7 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "auto-import-template",
 			EnvVar:      "CODER_TEMPLATE_AUTOIMPORT",
 			Description: "Templates to auto-import. Available auto-importable templates are: kubernetes",
+			Hidden:      true,
 			Default:     []string{},
 		},
 		MetricsCacheRefreshInterval: codersdk.DurationFlag{
@@ -320,6 +325,7 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "metrics-cache-refresh-interval",
 			EnvVar:      "CODER_METRICS_CACHE_REFRESH_INTERVAL",
 			Description: "How frequently metrics are refreshed",
+			Hidden:      true,
 			Default:     time.Hour,
 		},
 		AgentStatRefreshInterval: codersdk.DurationFlag{
@@ -327,6 +333,7 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "agent-stats-refresh-interval",
 			EnvVar:      "CODER_AGENT_STATS_REFRESH_INTERVAL",
 			Description: "How frequently agent stats are recorded",
+			Hidden:      true,
 			Default:     10 * time.Minute,
 		},
 		Verbose: codersdk.BoolFlag{
@@ -384,6 +391,40 @@ func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags
 	}
 
 	return df
+}
+
+//nolint:revive
+func AttachFlags(flagset *pflag.FlagSet, df *codersdk.DeploymentFlags, enterprise bool) {
+	v := reflect.ValueOf(df).Elem()
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		fv := v.Field(i)
+		e := fv.FieldByName("Enterprise").Bool()
+		if e != enterprise {
+			continue
+		}
+		if e {
+			d := fv.FieldByName("Description").String()
+			d += cliui.Styles.Keyword.Render(" This is an Enterprise feature. Contact sales@coder.com for licensing")
+			fv.FieldByName("Description").SetString(d)
+		}
+
+		switch v := fv.Interface().(type) {
+		case codersdk.StringFlag:
+			StringFlag(flagset, &v)
+		case codersdk.StringArrayFlag:
+			StringArrayFlag(flagset, &v)
+		case codersdk.IntFlag:
+			IntFlag(flagset, &v)
+		case codersdk.BoolFlag:
+			BoolFlag(flagset, &v)
+		case codersdk.DurationFlag:
+			DurationFlag(flagset, &v)
+		}
+		if fv.FieldByName("Hidden").Bool() {
+			_ = flagset.MarkHidden(fv.FieldByName("Flag").String())
+		}
+	}
 }
 
 func StringFlag(flagset *pflag.FlagSet, fl *codersdk.StringFlag) {

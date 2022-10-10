@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/enterprise/coderd"
 
@@ -31,17 +30,7 @@ func server() *cobra.Command {
 		return api.AGPL, nil
 	})
 
-	// append enterprise description to flags
-	enterpriseOnly := cliui.Styles.Keyword.Render(" This is an Enterprise feature. Contact sales@coder.com for licensing")
-	dflags.AuditLogging.Description += enterpriseOnly
-	dflags.BrowserOnly.Description += enterpriseOnly
-	dflags.SCIMAuthHeader.Description += enterpriseOnly
-	dflags.UserWorkspaceQuota.Description += enterpriseOnly
-
-	deployment.BoolFlag(cmd.Flags(), &dflags.AuditLogging)
-	deployment.BoolFlag(cmd.Flags(), &dflags.BrowserOnly)
-	deployment.StringFlag(cmd.Flags(), &dflags.SCIMAuthHeader)
-	deployment.IntFlag(cmd.Flags(), &dflags.UserWorkspaceQuota)
+	deployment.AttachFlags(cmd.Flags(), &dflags, true)
 
 	return cmd
 }
