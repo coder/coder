@@ -26,7 +26,7 @@ func TestFlags(t *testing.T) {
 	fs = pflag.NewFlagSet("test-enterprise", pflag.ContinueOnError)
 	deployment.AttachFlags(fs, df, true)
 
-	require.NotNil(t, fs.Lookup("access-url"))
+	require.Nil(t, fs.Lookup("access-url"))
 	require.NotNil(t, fs.Lookup("audit-logging"))
 	require.Contains(t, fs.Lookup("audit-logging").Usage, "This is an Enterprise feature")
 }

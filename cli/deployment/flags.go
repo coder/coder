@@ -384,10 +384,12 @@ func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		fv := v.Field(i)
-		if v, ok := fv.Interface().(codersdk.StringFlag); ok {
-			if v.Secret && v.Value != "" {
+		if vp, ok := fv.Interface().(*codersdk.StringFlag); ok {
+			if vp.Secret && vp.Value != "" {
+				// Make a copy and remove the value.
+				v := *vp
 				v.Value = secretValue
-				fv.Set(reflect.ValueOf(v))
+				fv.Set(reflect.ValueOf(&v))
 			}
 		}
 	}
@@ -396,14 +398,14 @@ func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags
 }
 
 //nolint:revive
-func AttachFlags(flagset *pflag.FlagSet, df *codersdk.DeploymentFlags, includeEnterprise bool) {
+func AttachFlags(flagset *pflag.FlagSet, df *codersdk.DeploymentFlags, enterprise bool) {
 	v := reflect.ValueOf(df).Elem()
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		fv := v.Field(i)
 		fve := fv.Elem()
 		e := fve.FieldByName("Enterprise").Bool()
-		if e && !includeEnterprise {
+		if e != enterprise {
 			continue
 		}
 		if e {
