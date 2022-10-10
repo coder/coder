@@ -479,17 +479,14 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	return users, nil
 }
 
-func (q *fakeQuerier) GetUsersByIDs(_ context.Context, params database.GetUsersByIDsParams) ([]database.User, error) {
+func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	users := make([]database.User, 0)
 	for _, user := range q.users {
-		for _, id := range params.IDs {
+		for _, id := range ids {
 			if user.ID.String() != id.String() {
-				continue
-			}
-			if user.Deleted != params.Deleted {
 				continue
 			}
 			users = append(users, user)

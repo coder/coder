@@ -492,11 +492,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{
-			workspace.OwnerID,
-			workspaceBuild.InitiatorID,
-		},
+	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{
+		workspace.OwnerID,
+		workspaceBuild.InitiatorID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -679,9 +677,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, workspace := range workspaces {
 		userIDs = append(userIDs, workspace.OwnerID)
 	}
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: userIDs,
-	})
+	users, err := api.Database.GetUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
 	}
