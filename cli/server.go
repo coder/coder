@@ -321,29 +321,29 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 				DeploymentFlags:             &dflags,
 			}
 
-			if dflags.Oauth2GithubClientSecret.Value != "" {
+			if dflags.OAuth2GithubClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
-					dflags.Oauth2GithubClientID.Value,
-					dflags.Oauth2GithubClientSecret.Value,
-					dflags.Oauth2GithubAllowSignups.Value,
-					dflags.Oauth2GithubAllowedOrganizations.Value,
-					dflags.Oauth2GithubAllowedTeams.Value,
-					dflags.Oauth2GithubEnterpriseBaseURL.Value,
+					dflags.OAuth2GithubClientID.Value,
+					dflags.OAuth2GithubClientSecret.Value,
+					dflags.OAuth2GithubAllowSignups.Value,
+					dflags.OAuth2GithubAllowedOrganizations.Value,
+					dflags.OAuth2GithubAllowedTeams.Value,
+					dflags.OAuth2GithubEnterpriseBaseURL.Value,
 				)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
 			}
 
-			if dflags.OidcClientSecret.Value != "" {
-				if dflags.OidcClientID.Value == "" {
+			if dflags.OIDCClientSecret.Value != "" {
+				if dflags.OIDCClientID.Value == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
-				if dflags.OidcIssuerURL.Value == "" {
+				if dflags.OIDCIssuerURL.Value == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				oidcProvider, err := oidc.NewProvider(ctx, dflags.OidcIssuerURL.Value)
+				oidcProvider, err := oidc.NewProvider(ctx, dflags.OIDCIssuerURL.Value)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
@@ -353,17 +353,17 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
-						ClientID:     dflags.OidcClientID.Value,
-						ClientSecret: dflags.OidcClientSecret.Value,
+						ClientID:     dflags.OIDCClientID.Value,
+						ClientSecret: dflags.OIDCClientSecret.Value,
 						RedirectURL:  redirectURL.String(),
 						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       dflags.OidcScopes.Value,
+						Scopes:       dflags.OIDCScopes.Value,
 					},
 					Verifier: oidcProvider.Verifier(&oidc.Config{
-						ClientID: dflags.OidcClientID.Value,
+						ClientID: dflags.OIDCClientID.Value,
 					}),
-					EmailDomain:  dflags.OidcEmailDomain.Value,
-					AllowSignups: dflags.OidcAllowSignups.Value,
+					EmailDomain:  dflags.OIDCEmailDomain.Value,
+					AllowSignups: dflags.OIDCAllowSignups.Value,
 				}
 			}
 
@@ -424,9 +424,9 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 					Database:        options.Database,
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
-					GitHubOAuth:     dflags.Oauth2GithubClientID.Value != "",
-					OIDCAuth:        dflags.OidcClientID.Value != "",
-					OIDCIssuerURL:   dflags.OidcIssuerURL.Value,
+					GitHubOAuth:     dflags.OAuth2GithubClientID.Value != "",
+					OIDCAuth:        dflags.OIDCClientID.Value != "",
+					OIDCIssuerURL:   dflags.OIDCIssuerURL.Value,
 					Prometheus:      dflags.PromEnabled.Value,
 					STUN:            len(dflags.DerpServerSTUNAddresses.Value) != 0,
 					Tunnel:          tunnel != nil,
@@ -732,20 +732,18 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 	_ = root.Flags().MarkHidden(dflags.InMemoryDatabase.Flag)
 	deployment.IntFlag(root.Flags(), &dflags.ProvisionerDaemonCount)
 	deployment.StringFlag(root.Flags(), &dflags.PostgresURL)
-	deployment.StringFlag(root.Flags(), &dflags.Oauth2GithubClientID)
-	deployment.StringFlag(root.Flags(), &dflags.Oauth2GithubClientSecret)
-	deployment.StringArrayFlag(root.Flags(), &dflags.Oauth2GithubAllowedOrganizations)
-	deployment.StringArrayFlag(root.Flags(), &dflags.Oauth2GithubAllowedTeams)
-	deployment.BoolFlag(root.Flags(), &dflags.Oauth2GithubAllowSignups)
-	deployment.StringFlag(root.Flags(), &dflags.Oauth2GithubEnterpriseBaseURL)
-	deployment.BoolFlag(root.Flags(), &dflags.OidcAllowSignups)
-	deployment.StringFlag(root.Flags(), &dflags.OidcClientID)
-	deployment.StringFlag(root.Flags(), &dflags.OidcClientSecret)
-	deployment.StringFlag(root.Flags(), &dflags.OidcEmailDomain)
-	deployment.StringFlag(root.Flags(), &dflags.OidcIssuerURL)
-	deployment.StringArrayFlag(root.Flags(), &dflags.OidcScopes)
-	deployment.BoolFlag(root.Flags(), &dflags.TailscaleEnable)
-	_ = root.Flags().MarkHidden(dflags.TailscaleEnable.Flag)
+	deployment.StringFlag(root.Flags(), &dflags.OAuth2GithubClientID)
+	deployment.StringFlag(root.Flags(), &dflags.OAuth2GithubClientSecret)
+	deployment.StringArrayFlag(root.Flags(), &dflags.OAuth2GithubAllowedOrganizations)
+	deployment.StringArrayFlag(root.Flags(), &dflags.OAuth2GithubAllowedTeams)
+	deployment.BoolFlag(root.Flags(), &dflags.OAuth2GithubAllowSignups)
+	deployment.StringFlag(root.Flags(), &dflags.OAuth2GithubEnterpriseBaseURL)
+	deployment.BoolFlag(root.Flags(), &dflags.OIDCAllowSignups)
+	deployment.StringFlag(root.Flags(), &dflags.OIDCClientID)
+	deployment.StringFlag(root.Flags(), &dflags.OIDCClientSecret)
+	deployment.StringFlag(root.Flags(), &dflags.OIDCEmailDomain)
+	deployment.StringFlag(root.Flags(), &dflags.OIDCIssuerURL)
+	deployment.StringArrayFlag(root.Flags(), &dflags.OIDCScopes)
 	deployment.BoolFlag(root.Flags(), &dflags.TelemetryEnable)
 	deployment.BoolFlag(root.Flags(), &dflags.TelemetryTraceEnable)
 	deployment.StringFlag(root.Flags(), &dflags.TelemetryURL)

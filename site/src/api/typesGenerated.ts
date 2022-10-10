@@ -284,7 +284,6 @@ export interface DeploymentFlags {
   readonly oidc_email_domain: StringFlag
   readonly oidc_issuer_url: StringFlag
   readonly oidc_scopes: StringArrayFlag
-  readonly tailscale_enable: BoolFlag
   readonly telemetry_enable: BoolFlag
   readonly telemetry_trace_enable: BoolFlag
   readonly telemetry_url: StringFlag
@@ -539,6 +538,7 @@ export interface StringFlag {
   readonly shorthand: string
   readonly description: string
   readonly enterprise: boolean
+  readonly secret: boolean
   readonly default: string
   readonly value: string
 }

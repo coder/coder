@@ -99,7 +99,7 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	df := deployment.NewFlags()
+	df := deployment.Flags()
 	all := append(Core(), Server(df, func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
 		o.DeploymentFlags = &df
 		return coderd.New(o), nil

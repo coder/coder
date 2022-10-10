@@ -18,7 +18,7 @@ const (
 	secretValue = "********"
 )
 
-func NewFlags() codersdk.DeploymentFlags {
+func Flags() codersdk.DeploymentFlags {
 	return codersdk.DeploymentFlags{
 		AccessURL: codersdk.StringFlag{
 			Name:        "Access URL",
@@ -72,8 +72,8 @@ func NewFlags() codersdk.DeploymentFlags {
 			Name:        "DERP Server Region Name",
 			Flag:        "derp-server-region-name",
 			EnvVar:      "CODER_DERP_SERVER_REGION_NAME",
-			Description: "Interval to poll for scheduled workspace builds.",
-			Default:     "time.Minute",
+			Description: "Region name that for the embedded DERP server.",
+			Default:     "Coder Embedded Relay",
 		},
 		DerpServerSTUNAddresses: codersdk.StringArrayFlag{
 			Name:        "DERP Server STUN Addresses",
@@ -147,88 +147,81 @@ func NewFlags() codersdk.DeploymentFlags {
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\"",
 			Secret:      true,
 		},
-		Oauth2GithubClientID: codersdk.StringFlag{
+		OAuth2GithubClientID: codersdk.StringFlag{
 			Name:        "Oauth2 Github Client ID",
 			Flag:        "oauth2-github-client-id",
 			EnvVar:      "CODER_OAUTH2_GITHUB_CLIENT_ID",
 			Description: "Client ID for Login with GitHub.",
 		},
-		Oauth2GithubClientSecret: codersdk.StringFlag{
+		OAuth2GithubClientSecret: codersdk.StringFlag{
 			Name:        "Oauth2 Github Client Secret",
 			Flag:        "oauth2-github-client-secret",
 			EnvVar:      "CODER_OAUTH2_GITHUB_CLIENT_SECRET",
 			Description: "Client secret for Login with GitHub.",
 			Secret:      true,
 		},
-		Oauth2GithubAllowedOrganizations: codersdk.StringArrayFlag{
+		OAuth2GithubAllowedOrganizations: codersdk.StringArrayFlag{
 			Name:        "Oauth2 Github Allowed Organizations",
 			Flag:        "oauth2-github-allowed-orgs",
 			EnvVar:      "CODER_OAUTH2_GITHUB_ALLOWED_ORGS",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
 		},
-		Oauth2GithubAllowedTeams: codersdk.StringArrayFlag{
+		OAuth2GithubAllowedTeams: codersdk.StringArrayFlag{
 			Name:        "Oauth2 Github Allowed Teams",
 			Flag:        "oauth2-github-allowed-teams",
 			EnvVar:      "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
 		},
-		Oauth2GithubAllowSignups: codersdk.BoolFlag{
+		OAuth2GithubAllowSignups: codersdk.BoolFlag{
 			Name:        "Oauth2 Github Allow Signups",
 			Flag:        "oauth2-github-allow-signups",
 			EnvVar:      "CODER_AUTOBUILD_POLL_INTERVAL",
 			Description: "Whether new users can sign up with GitHub.",
 		},
-		Oauth2GithubEnterpriseBaseURL: codersdk.StringFlag{
+		OAuth2GithubEnterpriseBaseURL: codersdk.StringFlag{
 			Name:        "Oauth2 Github Enterprise Base URL",
 			Flag:        "oauth2-github-enterprise-base-url",
 			EnvVar:      "CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL",
 			Description: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
 		},
-		OidcAllowSignups: codersdk.BoolFlag{
+		OIDCAllowSignups: codersdk.BoolFlag{
 			Name:        "OIDC Allow Signups",
 			Flag:        "oidc-allow-signups",
 			EnvVar:      "CODER_OIDC_ALLOW_SIGNUPS",
 			Description: "Whether new users can sign up with OIDC.",
 			Default:     true,
 		},
-		OidcClientID: codersdk.StringFlag{
+		OIDCClientID: codersdk.StringFlag{
 			Name:        "OIDC Client ID",
 			Flag:        "oidc-client-id",
 			EnvVar:      "CODER_OIDC_CLIENT_ID",
 			Description: "Client ID to use for Login with OIDC.",
 		},
-		OidcClientSecret: codersdk.StringFlag{
+		OIDCClientSecret: codersdk.StringFlag{
 			Name:        "OIDC Client Secret",
 			Flag:        "oidc-client-secret",
 			EnvVar:      "CODER_OIDC_CLIENT_SECRET",
 			Description: "Client secret to use for Login with OIDC.",
 			Secret:      true,
 		},
-		OidcEmailDomain: codersdk.StringFlag{
+		OIDCEmailDomain: codersdk.StringFlag{
 			Name:        "OIDC Email Domain",
 			Flag:        "oidc-email-domain",
 			EnvVar:      "CODER_OIDC_EMAIL_DOMAIN",
 			Description: "Email domain that clients logging in with OIDC must match.",
 		},
-		OidcIssuerURL: codersdk.StringFlag{
+		OIDCIssuerURL: codersdk.StringFlag{
 			Name:        "OIDC Issuer URL",
 			Flag:        "oidc-issuer-url",
 			EnvVar:      "CODER_OIDC_ISSUER_URL",
 			Description: "Issuer URL to use for Login with OIDC.",
 		},
-		OidcScopes: codersdk.StringArrayFlag{
+		OIDCScopes: codersdk.StringArrayFlag{
 			Name:        "OIDC Scopes",
 			Flag:        "oidc-scopes",
 			EnvVar:      "CODER_OIDC_SCOPES",
 			Description: "Scopes to grant when authenticating with OIDC.",
 			Default:     []string{oidc.ScopeOpenID, "profile", "email"},
-		},
-		TailscaleEnable: codersdk.BoolFlag{
-			Name:        "Tailscale Enabled",
-			Flag:        "tailscale",
-			EnvVar:      "CODER_TAILSCALE",
-			Description: "Specifies whether Tailscale networking is used for web applications and terminals.",
-			Default:     true,
 		},
 		TelemetryEnable: codersdk.BoolFlag{
 			Name:        "Telemetry Enabled",
@@ -249,7 +242,7 @@ func NewFlags() codersdk.DeploymentFlags {
 			Name:        "Telemetry URL",
 			Flag:        "telemetry-url",
 			EnvVar:      "CODER_TELEMETRY_URL",
-			Description: "Interval to poll for scheduled workspace builds.",
+			Description: "URL to send telemetry.",
 			Default:     "https://telemetry.coder.com",
 		},
 		TLSEnable: codersdk.BoolFlag{
@@ -259,7 +252,7 @@ func NewFlags() codersdk.DeploymentFlags {
 			Description: "Whether TLS will be enabled.",
 		},
 		TLSCertFiles: codersdk.StringArrayFlag{
-			Name:   "TLS Cert File",
+			Name:   "TLS Cert Files",
 			Flag:   "tls-cert-file",
 			EnvVar: "CODER_TLS_CERT_FILE",
 			Description: "Path to each certificate for TLS. It requires a PEM-encoded file. " +
@@ -349,19 +342,22 @@ func NewFlags() codersdk.DeploymentFlags {
 			EnvVar:      "CODER_AUDIT_LOGGING",
 			Description: "Specifies whether audit logging is enabled.",
 			Default:     true,
+			Enterprise:  true,
 		},
 		BrowserOnly: codersdk.BoolFlag{
 			Name:        "Browser Only",
 			Flag:        "browser-only",
 			EnvVar:      "CODER_BROWSER_ONLY",
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
+			Enterprise:  true,
 		},
-		ScimAuthHeader: codersdk.StringFlag{
+		SCIMAuthHeader: codersdk.StringFlag{
 			Name:        "SCIM Authentication Header",
 			Flag:        "scim-auth-header",
 			EnvVar:      "CODER_SCIM_API_KEY",
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Secret:      true,
+			Enterprise:  true,
 		},
 		UserWorkspaceQuota: codersdk.IntFlag{
 			Name:        "User Workspace Quota",
@@ -369,6 +365,7 @@ func NewFlags() codersdk.DeploymentFlags {
 			EnvVar:      "CODER_USER_WORKSPACE_QUOTA",
 			Description: "Enables and sets a limit on how many workspaces each user can create.",
 			Default:     0,
+			Enterprise:  true,
 		},
 	}
 }

@@ -14,13 +14,13 @@ import (
 )
 
 func server() *cobra.Command {
-	dflags := deployment.NewFlags()
+	dflags := deployment.Flags()
 	cmd := agpl.Server(dflags, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
 		options.DeploymentFlags = &dflags
 		o := &coderd.Options{
 			AuditLogging:       dflags.AuditLogging.Value,
 			BrowserOnly:        dflags.BrowserOnly.Value,
-			SCIMAPIKey:         []byte(dflags.ScimAuthHeader.Value),
+			SCIMAPIKey:         []byte(dflags.SCIMAuthHeader.Value),
 			UserWorkspaceQuota: dflags.UserWorkspaceQuota.Value,
 			Options:            options,
 		}
@@ -35,12 +35,12 @@ func server() *cobra.Command {
 	enterpriseOnly := cliui.Styles.Keyword.Render(" This is an Enterprise feature. Contact sales@coder.com for licensing")
 	dflags.AuditLogging.Description += enterpriseOnly
 	dflags.BrowserOnly.Description += enterpriseOnly
-	dflags.ScimAuthHeader.Description += enterpriseOnly
+	dflags.SCIMAuthHeader.Description += enterpriseOnly
 	dflags.UserWorkspaceQuota.Description += enterpriseOnly
 
 	deployment.BoolFlag(cmd.Flags(), &dflags.AuditLogging)
 	deployment.BoolFlag(cmd.Flags(), &dflags.BrowserOnly)
-	deployment.StringFlag(cmd.Flags(), &dflags.ScimAuthHeader)
+	deployment.StringFlag(cmd.Flags(), &dflags.SCIMAuthHeader)
 	deployment.IntFlag(cmd.Flags(), &dflags.UserWorkspaceQuota)
 
 	return cmd

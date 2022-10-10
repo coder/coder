@@ -29,19 +29,18 @@ type DeploymentFlags struct {
 	InMemoryDatabase                 BoolFlag        `json:"in_memory_database"`
 	ProvisionerDaemonCount           IntFlag         `json:"provisioner_daemon_count"`
 	PostgresURL                      StringFlag      `json:"postgres_url"`
-	Oauth2GithubClientID             StringFlag      `json:"oauth2_github_client_id"`
-	Oauth2GithubClientSecret         StringFlag      `json:"oauth2_github_client_secret"`
-	Oauth2GithubAllowedOrganizations StringArrayFlag `json:"oauth2_github_allowed_organizations"`
-	Oauth2GithubAllowedTeams         StringArrayFlag `json:"oauth2_github_allowed_teams"`
-	Oauth2GithubAllowSignups         BoolFlag        `json:"oauth2_github_allow_signups"`
-	Oauth2GithubEnterpriseBaseURL    StringFlag      `json:"oauth2_github_enterprise_base_url"`
-	OidcAllowSignups                 BoolFlag        `json:"oidc_allow_signups"`
-	OidcClientID                     StringFlag      `json:"oidc_client_id"`
-	OidcClientSecret                 StringFlag      `json:"oidc_cliet_secret"`
-	OidcEmailDomain                  StringFlag      `json:"oidc_email_domain"`
-	OidcIssuerURL                    StringFlag      `json:"oidc_issuer_url"`
-	OidcScopes                       StringArrayFlag `json:"oidc_scopes"`
-	TailscaleEnable                  BoolFlag        `json:"tailscale_enable"`
+	OAuth2GithubClientID             StringFlag      `json:"oauth2_github_client_id"`
+	OAuth2GithubClientSecret         StringFlag      `json:"oauth2_github_client_secret"`
+	OAuth2GithubAllowedOrganizations StringArrayFlag `json:"oauth2_github_allowed_organizations"`
+	OAuth2GithubAllowedTeams         StringArrayFlag `json:"oauth2_github_allowed_teams"`
+	OAuth2GithubAllowSignups         BoolFlag        `json:"oauth2_github_allow_signups"`
+	OAuth2GithubEnterpriseBaseURL    StringFlag      `json:"oauth2_github_enterprise_base_url"`
+	OIDCAllowSignups                 BoolFlag        `json:"oidc_allow_signups"`
+	OIDCClientID                     StringFlag      `json:"oidc_client_id"`
+	OIDCClientSecret                 StringFlag      `json:"oidc_cliet_secret"`
+	OIDCEmailDomain                  StringFlag      `json:"oidc_email_domain"`
+	OIDCIssuerURL                    StringFlag      `json:"oidc_issuer_url"`
+	OIDCScopes                       StringArrayFlag `json:"oidc_scopes"`
 	TelemetryEnable                  BoolFlag        `json:"telemetry_enable"`
 	TelemetryTraceEnable             BoolFlag        `json:"telemetry_trace_enable"`
 	TelemetryURL                     StringFlag      `json:"telemetry_url"`
@@ -60,7 +59,7 @@ type DeploymentFlags struct {
 	Verbose                          BoolFlag        `json:"verbose"`
 	AuditLogging                     BoolFlag        `json:"audit_logging"`
 	BrowserOnly                      BoolFlag        `json:"browser_only"`
-	ScimAuthHeader                   StringFlag      `json:"scim_auth_header"`
+	SCIMAuthHeader                   StringFlag      `json:"scim_auth_header"`
 	UserWorkspaceQuota               IntFlag         `json:"user_workspace_quota"`
 }
 
