@@ -157,3 +157,28 @@ Conditions:
   PIDPressure      False   Sat, 08 Oct 2022 22:08:53 -0700   Sat, 08 Oct 2022 21:53:32 -0700   KubeletHasSufficientPID      kubelet has sufficient PID available
   Ready            False   Sat, 08 Oct 2022 22:08:53 -0700   Sat, 08 Oct 2022 21:53:32 -0700   KubeletNotReady              container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized
 #+end_example
+* virtctl
+Seems best to install as as kubectl plugin:
+- https://krew.sigs.k8s.io/docs/user-guide/setup/install/
+- https://kubevirt.io/user-guide/operations/virtctl_client_tool/
+* host-shell
+Run this outside of our VMs, as it needs the socket to communicate to VMs.
+** install virtctl and get a shell
+#+begin_src tmate :window host
+host-shell
+export VERSION=v0.57.1
+wget -q -O /usr/local/bin/virtctl https://github.com/kubevirt/kubevirt/releases/download/${VERSION}/virtctl-${VERSION}-linux-amd64
+chmod +x /usr/local/bin/virtctl
+virtctl version
+#+end_src
+** virtctl
+#+begin_src tmate :window host
+virtctl guestosinfo kv4
+#+end_src
+
+#+RESULTS:
+#+begin_example
+
+virtctl guestosinfo kv4
+virtctl: command not found
+#+end_example
