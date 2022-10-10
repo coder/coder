@@ -260,8 +260,8 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/settings", func(r chi.Router) {
-			r.Get("/deployment", api.deploymentSettings)
+		r.Route("/flags", func(r chi.Router) {
+			r.Get("/deployment", api.deploymentFlags)
 		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(

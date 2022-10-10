@@ -13,6 +13,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const (
+	secretValue = "********"
+)
+
 func NewFlags() codersdk.DeploymentFlags {
 	return codersdk.DeploymentFlags{
 		AccessURL: codersdk.StringFlag{
@@ -404,4 +408,12 @@ func defaultCacheDir() string {
 	}
 
 	return filepath.Join(defaultCacheDir, "coder")
+}
+
+func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags {
+	df.Oauth2GithubClientSecret.Value = secretValue
+	df.OidcClientSecret.Value = secretValue
+	df.PostgresURL.Value = secretValue
+
+	return df
 }
