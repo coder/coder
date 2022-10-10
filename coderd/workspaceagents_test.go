@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"runtime"
 	"strconv"
@@ -367,50 +368,124 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
-	coderdPort, err := strconv.Atoi(client.URL.Port())
-	require.NoError(t, err)
 
-	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
+	setup := func(t *testing.T, apps []*proto.App) (*codersdk.Client, uint16, uuid.UUID) {
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		coderdPort, err := strconv.Atoi(client.URL.Port())
+		require.NoError(t, err)
+
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:           echo.ParseComplete,
+			ProvisionDryRun: echo.ProvisionComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+								Apps: apps,
+							}},
 						}},
-					}},
+					},
 				},
-			},
-		}},
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		agentClient := codersdk.New(client.URL)
+		agentClient.SessionToken = authToken
+		agentCloser := agent.New(agent.Options{
+			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		})
+		t.Cleanup(func() {
+			_ = agentCloser.Close()
+		})
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		return client, uint16(coderdPort), resources[0].Agents[0].ID
+	}
+
+	willFilterPort := func(port int) bool {
+		if port < codersdk.MinimumListeningPort || port > 65535 {
+			return true
+		}
+		if _, ok := codersdk.IgnoredListeningPorts[uint16(port)]; ok {
+			return true
+		}
+
+		return false
+	}
+
+	generateUnfilteredPort := func(t *testing.T) (net.Listener, uint16) {
+		var (
+			l    net.Listener
+			port uint16
+		)
+		require.Eventually(t, func() bool {
+			var err error
+			l, err = net.Listen("tcp", "localhost:0")
+			if err != nil {
+				return false
+			}
+			tcpAddr, _ := l.Addr().(*net.TCPAddr)
+			if willFilterPort(tcpAddr.Port) {
+				_ = l.Close()
+				return false
+			}
+			t.Cleanup(func() {
+				_ = l.Close()
+			})
+
+			port = uint16(tcpAddr.Port)
+			return true
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		return l, port
+	}
+
+	generateFilteredPort := func(t *testing.T) (net.Listener, uint16) {
+		var (
+			l    net.Listener
+			port uint16
+		)
+		require.Eventually(t, func() bool {
+			for ignoredPort := range codersdk.IgnoredListeningPorts {
+				if ignoredPort < 1024 || ignoredPort == 5432 {
+					continue
+				}
+
+				var err error
+				l, err = net.Listen("tcp", fmt.Sprintf("localhost:%d", ignoredPort))
+				if err != nil {
+					continue
+				}
+				t.Cleanup(func() {
+					_ = l.Close()
+				})
+
+				port = ignoredPort
+				return true
+			}
+
+			return false
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		return l, port
+	}
 
 	t.Run("LinuxAndWindows", func(t *testing.T) {
 		t.Parallel()
@@ -419,55 +494,98 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 
-		// Create a TCP listener on a random port that we expect to see in the
-		// response.
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(t, err)
-		defer l.Close()
-		tcpAddr, _ := l.Addr().(*net.TCPAddr)
+			client, coderdPort, agentID := setup(t, nil)
 
-		// List ports and ensure that the port we expect to see is there.
-		res, err := client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
-		require.NoError(t, err)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-		var (
-			expected = map[uint16]bool{
-				// expect the listener we made
-				uint16(tcpAddr.Port): false,
-				// expect the coderdtest server
-				uint16(coderdPort): false,
+			// Generate a random unfiltered port.
+			l, lPort := generateUnfilteredPort(t)
+
+			// List ports and ensure that the port we expect to see is there.
+			res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
+			require.NoError(t, err)
+
+			var (
+				expected = map[uint16]bool{
+					// expect the listener we made
+					lPort: false,
+					// expect the coderdtest server
+					coderdPort: false,
+				}
+			)
+			for _, port := range res.Ports {
+				if port.Network == codersdk.ListeningPortNetworkTCP {
+					if val, ok := expected[port.Port]; ok {
+						if val {
+							t.Fatalf("expected to find TCP port %d only once in response", port.Port)
+						}
+					}
+					expected[port.Port] = true
+				}
 			}
-		)
-		for _, port := range res.Ports {
-			if port.Network == codersdk.ListeningPortNetworkTCP {
-				if val, ok := expected[port.Port]; ok {
-					if val {
-						t.Fatalf("expected to find TCP port %d only once in response", port.Port)
+			for port, found := range expected {
+				if !found {
+					t.Fatalf("expected to find TCP port %d in response", port)
+				}
+			}
+
+			// Close the listener and check that the port is no longer in the response.
+			require.NoError(t, l.Close())
+			time.Sleep(2 * time.Second) // avoid cache
+			res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+			require.NoError(t, err)
+
+			for _, port := range res.Ports {
+				if port.Network == codersdk.ListeningPortNetworkTCP && port.Port == lPort {
+					t.Fatalf("expected to not find TCP port %d in response", lPort)
+				}
+			}
+		})
+
+		t.Run("Filter", func(t *testing.T) {
+			t.Parallel()
+
+			// Generate an unfiltered port that we will create an app for and
+			// should not exist in the response.
+			_, appLPort := generateUnfilteredPort(t)
+			app := &proto.App{
+				Name: "test-app",
+				Url:  fmt.Sprintf("http://localhost:%d", appLPort),
+			}
+
+			// Generate a filtered port that should not exist in the response.
+			_, filteredLPort := generateFilteredPort(t)
+
+			client, coderdPort, agentID := setup(t, []*proto.App{app})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
+			require.NoError(t, err)
+
+			sawCoderdPort := false
+			for _, port := range res.Ports {
+				if port.Network == codersdk.ListeningPortNetworkTCP {
+					if port.Port == appLPort {
+						t.Fatalf("expected to not find TCP port (app port) %d in response", appLPort)
+					}
+					if port.Port == filteredLPort {
+						t.Fatalf("expected to not find TCP port (filtered port) %d in response", filteredLPort)
+					}
+					if port.Port == coderdPort {
+						sawCoderdPort = true
 					}
 				}
-				expected[port.Port] = true
 			}
-		}
-		for port, found := range expected {
-			if !found {
-				t.Fatalf("expected to find TCP port %d in response", port)
+			if !sawCoderdPort {
+				t.Fatalf("expected to find TCP port (coderd port) %d in response", coderdPort)
 			}
-		}
-
-		// Close the listener and check that the port is no longer in the response.
-		require.NoError(t, l.Close())
-		time.Sleep(2 * time.Second) // avoid cache
-		res, err = client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
-		require.NoError(t, err)
-
-		for _, port := range res.Ports {
-			if port.Network == codersdk.ListeningPortNetworkTCP && port.Port == uint16(tcpAddr.Port) {
-				t.Fatalf("expected to not find TCP port %d in response", tcpAddr.Port)
-			}
-		}
+		})
 	})
 
 	t.Run("Darwin", func(t *testing.T) {
@@ -476,6 +594,8 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			t.Skip("only runs on darwin")
 			return
 		}
+
+		client, _, agentID := setup(t, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -486,7 +606,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		defer l.Close()
 
 		// List ports and ensure that the list is empty because we're on darwin.
-		res, err := client.WorkspaceAgentListeningPorts(ctx, resources[0].Agents[0].ID)
+		res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
 		require.NoError(t, err)
 		require.Len(t, res.Ports, 0)
 	})
