@@ -32,8 +32,6 @@ import (
 const (
 	// This needs to be a super unique query parameter because we don't want to
 	// conflict with query parameters that users may use.
-	// TODO: this will make dogfooding harder so come up with a more unique
-	// solution
 	//nolint:gosec
 	subdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
 	redirectURIQueryParam     = "redirect_uri"
