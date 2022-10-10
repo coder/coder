@@ -105,7 +105,10 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockSiteRoles))
   }),
   rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-    const permissions = [...Object.keys(permissionsToCheck), "canUpdateTemplate"]
+    const permissions = [
+      ...Object.keys(permissionsToCheck),
+      "canUpdateTemplate",
+    ]
     const response = permissions.reduce((obj, permission) => {
       return {
         ...obj,
@@ -222,9 +225,12 @@ export const handlers = [
     return res(ctx.status(200), ctx.json([MockGroup]))
   }),
 
-  rest.post("/api/v2/organizations/:organizationId/groups", async (req, res, ctx) => {
-    return res(ctx.status(201), ctx.json(M.MockGroup))
-  }),
+  rest.post(
+    "/api/v2/organizations/:organizationId/groups",
+    async (req, res, ctx) => {
+      return res(ctx.status(201), ctx.json(M.MockGroup))
+    },
+  ),
 
   rest.get("/api/v2/groups/:groupId", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(MockGroup))

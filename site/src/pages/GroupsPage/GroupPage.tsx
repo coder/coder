@@ -18,7 +18,11 @@ import { EmptyState } from "components/EmptyState/EmptyState"
 import { Loader } from "components/Loader/Loader"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Margins } from "components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
 import { UserAutocompleteInline } from "components/UserAutocomplete/UserAutocomplete"
@@ -122,7 +126,9 @@ export const GroupPage: React.FC = () => {
               }
             >
               <PageHeaderTitle>{group?.name}</PageHeaderTitle>
-              <PageHeaderSubtitle>{group?.members.length} members</PageHeaderSubtitle>
+              <PageHeaderSubtitle>
+                {group?.members.length} members
+              </PageHeaderSubtitle>
             </PageHeader>
 
             <Stack spacing={2.5}>
@@ -130,7 +136,11 @@ export const GroupPage: React.FC = () => {
                 <AddGroupMember
                   isLoading={state.matches("addingMember")}
                   onSubmit={(user, reset) => {
-                    send({ type: "ADD_MEMBER", userId: user.id, callback: reset })
+                    send({
+                      type: "ADD_MEMBER",
+                      userId: user.id,
+                      callback: reset,
+                    })
                   }}
                 />
               </Maybe>
@@ -174,7 +184,10 @@ export const GroupPage: React.FC = () => {
                                     {
                                       label: "Remove",
                                       onClick: () => {
-                                        send({ type: "REMOVE_MEMBER", userId: member.id })
+                                        send({
+                                          type: "REMOVE_MEMBER",
+                                          userId: member.id,
+                                        })
                                       },
                                     },
                                   ]}

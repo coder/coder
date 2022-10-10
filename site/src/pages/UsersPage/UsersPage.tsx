@@ -53,7 +53,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   // - users are loading or
   // - the user can edit the users but the roles are loading
   const isLoading =
-    usersState.matches("gettingUsers") || (canEditUsers && rolesState.matches("gettingRoles"))
+    usersState.matches("gettingUsers") ||
+    (canEditUsers && rolesState.matches("gettingRoles"))
 
   // Fetch users on component mount
   useEffect(() => {

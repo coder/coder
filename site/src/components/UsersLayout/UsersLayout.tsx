@@ -14,7 +14,8 @@ import { Stack } from "../../components/Stack/Stack"
 
 export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
-  const { createUser: canCreateUser, createGroup: canCreateGroup } = usePermissions()
+  const { createUser: canCreateUser, createGroup: canCreateGroup } =
+    usePermissions()
   const navigate = useNavigate()
   const { rbac: isRBACEnabled } = useFeatureVisibility()
 
@@ -35,7 +36,11 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
                 </Button>
               )}
               {canCreateGroup && isRBACEnabled && (
-                <Link underline="none" component={RouterLink} to="/groups/create">
+                <Link
+                  underline="none"
+                  component={RouterLink}
+                  to="/groups/create"
+                >
                   <Button startIcon={<GroupAdd />}>Create group</Button>
                 </Link>
               )}
@@ -53,7 +58,10 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
               end
               to="/users"
               className={({ isActive }) =>
-                combineClasses([styles.tabItem, isActive ? styles.tabItemActive : undefined])
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
               }
             >
               Users
@@ -61,7 +69,10 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
             <NavLink
               to="/groups"
               className={({ isActive }) =>
-                combineClasses([styles.tabItem, isActive ? styles.tabItemActive : undefined])
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
               }
             >
               Groups

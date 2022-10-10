@@ -22,12 +22,9 @@ export type UserOrGroupAutocompleteProps = {
   exclude: UserOrGroupAutocompleteValue[]
 }
 
-export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = ({
-  value,
-  onChange,
-  organizationId,
-  exclude,
-}) => {
+export const UserOrGroupAutocomplete: React.FC<
+  UserOrGroupAutocompleteProps
+> = ({ value, onChange, organizationId, exclude }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUsersAndGroupsMachine, {
@@ -43,9 +40,12 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
     return !excludeIds.includes(result.id)
   })
 
-  const handleFilterChange = debounce((event: ChangeEvent<HTMLInputElement>) => {
-    sendSearch("SEARCH", { query: event.target.value })
-  }, 500)
+  const handleFilterChange = debounce(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      sendSearch("SEARCH", { query: event.target.value })
+    },
+    500,
+  )
 
   return (
     <Autocomplete
@@ -66,14 +66,18 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
         onChange(newValue)
       }}
       getOptionSelected={(option, value) => option.id === value.id}
-      getOptionLabel={(option) => (isGroup(option) ? option.name : option.email)}
+      getOptionLabel={(option) =>
+        isGroup(option) ? option.name : option.email
+      }
       renderOption={(option) => {
         const isOptionGroup = isGroup(option)
 
         return (
           <AvatarData
             title={isOptionGroup ? option.name : option.username}
-            subtitle={isOptionGroup ? `${option.members.length} members` : option.email}
+            subtitle={
+              isOptionGroup ? `${option.members.length} members` : option.email
+            }
             highlightTitle
             avatar={
               !isOptionGroup && option.avatar_url ? (
@@ -101,7 +105,9 @@ export const UserOrGroupAutocomplete: React.FC<UserOrGroupAutocompleteProps> = (
             onChange: handleFilterChange,
             endAdornment: (
               <>
-                {searchState.matches("searching") ? <CircularProgress size={16} /> : null}
+                {searchState.matches("searching") ? (
+                  <CircularProgress size={16} />
+                ) : null}
                 {params.InputProps.endAdornment}
               </>
             ),

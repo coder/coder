@@ -181,14 +181,22 @@ export const groupMachine = createMachine(
           throw new Error("Group not defined.")
         }
 
-        return patchGroup(group.id, { name: "", add_users: [userId], remove_users: [] })
+        return patchGroup(group.id, {
+          name: "",
+          add_users: [userId],
+          remove_users: [],
+        })
       },
       removeMember: ({ group }, { userId }) => {
         if (!group) {
           throw new Error("Group not defined.")
         }
 
-        return patchGroup(group.id, { name: "", add_users: [], remove_users: [userId] })
+        return patchGroup(group.id, {
+          name: "",
+          add_users: [],
+          remove_users: [userId],
+        })
       },
       deleteGroup: ({ group }) => {
         if (!group) {
@@ -210,7 +218,10 @@ export const groupMachine = createMachine(
         displayError(message)
       },
       displayAddMemberError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to add member to the group.")
+        const message = getErrorMessage(
+          data,
+          "Failed to add member to the group.",
+        )
         displayError(message)
       },
       callAddMemberCallback: ({ addMemberCallback }) => {
@@ -227,12 +238,17 @@ export const groupMachine = createMachine(
 
           return {
             ...group,
-            members: group.members.filter((currentMember) => currentMember.id !== userId),
+            members: group.members.filter(
+              (currentMember) => currentMember.id !== userId,
+            ),
           }
         },
       }),
       displayRemoveMemberError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to remove member from the group.")
+        const message = getErrorMessage(
+          data,
+          "Failed to remove member from the group.",
+        )
         displayError(message)
       },
       displayRemoveMemberSuccess: () => {

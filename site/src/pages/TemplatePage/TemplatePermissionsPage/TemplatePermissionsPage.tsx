@@ -14,15 +14,21 @@ import { pageTitle } from "util/page"
 import { templateACLMachine } from "xServices/template/templateACLXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
-export const TemplatePermissionsPage: FC<React.PropsWithChildren<unknown>> = () => {
+export const TemplatePermissionsPage: FC<
+  React.PropsWithChildren<unknown>
+> = () => {
   const organizationId = useOrganizationId()
   const { context } = useTemplateLayoutContext()
   const { template, permissions } = context
   if (!template || !permissions) {
-    throw new Error("This page should not be displayed until template or permissions being loaded.")
+    throw new Error(
+      "This page should not be displayed until template or permissions being loaded.",
+    )
   }
   const { rbac: isRBACEnabled } = useFeatureVisibility()
-  const [state, send] = useMachine(templateACLMachine, { context: { templateId: template.id } })
+  const [state, send] = useMachine(templateACLMachine, {
+    context: { templateId: template.id },
+  })
   const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
 
   return (

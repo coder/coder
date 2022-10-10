@@ -8,7 +8,13 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import PersonAdd from "@material-ui/icons/PersonAdd"
-import { Group, TemplateACL, TemplateGroup, TemplateRole, TemplateUser } from "api/typesGenerated"
+import {
+  Group,
+  TemplateACL,
+  TemplateGroup,
+  TemplateRole,
+  TemplateUser,
+} from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
@@ -41,9 +47,12 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   templateACL,
 }) => {
   const styles = useStyles()
-  const [selectedOption, setSelectedOption] = useState<UserOrGroupAutocompleteValue>(null)
+  const [selectedOption, setSelectedOption] =
+    useState<UserOrGroupAutocompleteValue>(null)
   const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
-  const excludeFromAutocomplete = templateACL ? [...templateACL.group, ...templateACL.users] : []
+  const excludeFromAutocomplete = templateACL
+    ? [...templateACL.group, ...templateACL.users]
+    : []
 
   const resetValues = () => {
     setSelectedOption(null)
@@ -119,7 +128,11 @@ export interface TemplatePermissionsPageViewProps {
   updatingUser: TemplateUser | undefined
   onRemoveUser: (user: TemplateUser) => void
   // Group
-  onAddGroup: (group: TemplateGroup, role: TemplateRole, reset: () => void) => void
+  onAddGroup: (
+    group: TemplateGroup,
+    role: TemplateRole,
+    reset: () => void,
+  ) => void
   isAddingGroup: boolean
   onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void
   updatingGroup: TemplateGroup | undefined
@@ -147,7 +160,9 @@ export const TemplatePermissionsPageView: FC<
 }) => {
   const styles = useStyles()
   const isEmpty = Boolean(
-    templateACL && templateACL.users.length === 0 && templateACL.group.length === 0,
+    templateACL &&
+      templateACL.users.length === 0 &&
+      templateACL.group.length === 0,
   )
 
   return (
@@ -205,9 +220,14 @@ export const TemplatePermissionsPageView: FC<
                             value={group.role}
                             variant="outlined"
                             className={styles.updateSelect}
-                            disabled={updatingGroup && updatingGroup.id === group.id}
+                            disabled={
+                              updatingGroup && updatingGroup.id === group.id
+                            }
                             onChange={(event) => {
-                              onUpdateGroup(group, event.target.value as TemplateRole)
+                              onUpdateGroup(
+                                group,
+                                event.target.value as TemplateRole,
+                              )
                             }}
                           >
                             <MenuItem key="view" value="view">
@@ -265,9 +285,14 @@ export const TemplatePermissionsPageView: FC<
                             value={user.role}
                             variant="outlined"
                             className={styles.updateSelect}
-                            disabled={updatingUser && updatingUser.id === user.id}
+                            disabled={
+                              updatingUser && updatingUser.id === user.id
+                            }
                             onChange={(event) => {
-                              onUpdateUser(user, event.target.value as TemplateRole)
+                              onUpdateUser(
+                                user,
+                                event.target.value as TemplateRole,
+                              )
                             }}
                           >
                             <MenuItem key="view" value="view">

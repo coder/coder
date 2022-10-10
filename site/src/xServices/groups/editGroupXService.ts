@@ -78,7 +78,8 @@ export const editGroupMachine = createMachine(
   },
   {
     guards: {
-      hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
+      hasFieldErrors: (_, event) =>
+        isApiError(event.data) && hasApiFieldErrors(event.data),
     },
     services: {
       loadGroup: ({ groupId }) => getGroup(groupId),
@@ -88,7 +89,11 @@ export const editGroupMachine = createMachine(
           throw new Error("Group not defined.")
         }
 
-        return patchGroup(group.id, { ...data, add_users: [], remove_users: [] })
+        return patchGroup(group.id, {
+          ...data,
+          add_users: [],
+          remove_users: [],
+        })
       },
     },
     actions: {

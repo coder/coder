@@ -10,15 +10,27 @@ import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
 import { Loader } from "components/Loader/Loader"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "components/PageHeader/PageHeader"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, PropsWithChildren, useContext } from "react"
-import { Link as RouterLink, Navigate, NavLink, useParams } from "react-router-dom"
+import {
+  Link as RouterLink,
+  Navigate,
+  NavLink,
+  useParams,
+} from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "util/firstLetter"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { XServiceContext } from "xServices/StateContext"
-import { TemplateContext, templateMachine } from "xServices/template/templateXService"
+import {
+  TemplateContext,
+  templateMachine,
+} from "xServices/template/templateXService"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Permissions } from "xServices/auth/authXService"
@@ -39,14 +51,21 @@ const useTemplateName = () => {
   return template
 }
 
-type TemplateLayoutContextValue = { context: TemplateContext; permissions: Permissions }
+type TemplateLayoutContextValue = {
+  context: TemplateContext
+  permissions: Permissions
+}
 
-const TemplateLayoutContext = createContext<TemplateLayoutContextValue | undefined>(undefined)
+const TemplateLayoutContext = createContext<
+  TemplateLayoutContextValue | undefined
+>(undefined)
 
 export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
   const context = useContext(TemplateLayoutContext)
   if (!context) {
-    throw new Error("useTemplateLayoutContext only can be used inside of TemplateLayout")
+    throw new Error(
+      "useTemplateLayoutContext only can be used inside of TemplateLayout",
+    )
   }
   return context
 }
@@ -89,7 +108,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
   const hasIcon = template.icon && template.icon !== ""
 
   const createWorkspaceButton = (className?: string) => (
-    <Link underline="none" component={RouterLink} to={`/templates/${template.name}/workspace`}>
+    <Link
+      underline="none"
+      component={RouterLink}
+      to={`/templates/${template.name}/workspace`}
+    >
       <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
         {Language.createButton}
       </Button>
@@ -122,7 +145,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
                   secondaryActions={[
                     {
                       action: "delete",
-                      button: <DeleteButton handleAction={handleDeleteTemplate} />,
+                      button: (
+                        <DeleteButton handleAction={handleDeleteTemplate} />
+                      ),
                     },
                   ]}
                   canCancel={false}
@@ -140,13 +165,17 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
                   <img src={template.icon} alt="" />
                 </div>
               ) : (
-                <Avatar className={styles.avatar}>{firstLetter(template.name)}</Avatar>
+                <Avatar className={styles.avatar}>
+                  {firstLetter(template.name)}
+                </Avatar>
               )}
             </div>
             <div>
               <PageHeaderTitle>{template.name}</PageHeaderTitle>
               <PageHeaderSubtitle condensed>
-                {template.description === "" ? Language.noDescription : template.description}
+                {template.description === ""
+                  ? Language.noDescription
+                  : template.description}
               </PageHeaderSubtitle>
             </div>
           </Stack>
@@ -160,7 +189,10 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
               end
               to={`/templates/${template.name}`}
               className={({ isActive }) =>
-                combineClasses([styles.tabItem, isActive ? styles.tabItemActive : undefined])
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
               }
             >
               Summary
@@ -168,7 +200,10 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
             <NavLink
               to={`/templates/${template.name}/permissions`}
               className={({ isActive }) =>
-                combineClasses([styles.tabItem, isActive ? styles.tabItemActive : undefined])
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
               }
             >
               Permissions
@@ -178,7 +213,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
       </div>
 
       <Margins>
-        <TemplateLayoutContext.Provider value={{ permissions, context: templateState.context }}>
+        <TemplateLayoutContext.Provider
+          value={{ permissions, context: templateState.context }}
+        >
           {children}
         </TemplateLayoutContext.Provider>
       </Margins>

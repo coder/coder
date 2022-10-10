@@ -21,7 +21,11 @@ export const Paywall: FC<React.PropsWithChildren<PaywallProps>> = (props) => {
           {message}
         </Typography>
         {description && (
-          <Typography variant="body2" color="textSecondary" className={styles.description}>
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            className={styles.description}
+          >
             {description}
           </Typography>
         )}

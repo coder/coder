@@ -1,5 +1,9 @@
 import { Story } from "@storybook/react"
-import { MockOrganization, MockTemplateACL, MockTemplateACLEmpty } from "testHelpers/entities"
+import {
+  MockOrganization,
+  MockTemplateACL,
+  MockTemplateACLEmpty,
+} from "testHelpers/entities"
 import {
   TemplatePermissionsPageView,
   TemplatePermissionsPageViewProps,

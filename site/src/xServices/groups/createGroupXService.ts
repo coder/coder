@@ -62,10 +62,12 @@ export const createGroupMachine = createMachine(
   },
   {
     guards: {
-      hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
+      hasFieldErrors: (_, event) =>
+        isApiError(event.data) && hasApiFieldErrors(event.data),
     },
     services: {
-      createGroup: ({ organizationId }, { data }) => createGroup(organizationId, data),
+      createGroup: ({ organizationId }, { data }) =>
+        createGroup(organizationId, data),
     },
     actions: {
       displayCreateGroupError: (_, { data }) => {

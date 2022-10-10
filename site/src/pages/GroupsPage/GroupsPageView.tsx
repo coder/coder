@@ -97,8 +97,14 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
                           }
                           cta={
                             canCreateGroup && (
-                              <Link underline="none" component={RouterLink} to="/groups/create">
-                                <Button startIcon={<AddCircleOutline />}>Create group</Button>
+                              <Link
+                                underline="none"
+                                component={RouterLink}
+                                to="/groups/create"
+                              >
+                                <Button startIcon={<AddCircleOutline />}>
+                                  Create group
+                                </Button>
                               </Link>
                             )
                           }
@@ -150,7 +156,9 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 
                           <TableCell>
                             <div className={styles.arrowCell}>
-                              <KeyboardArrowRight className={styles.arrowRight} />
+                              <KeyboardArrowRight
+                                className={styles.arrowRight}
+                              />
                             </div>
                           </TableCell>
                         </TableRow>

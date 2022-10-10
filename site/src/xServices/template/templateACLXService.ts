@@ -1,5 +1,10 @@
 import { getTemplateACL, updateTemplateACL } from "api/api"
-import { TemplateACL, TemplateGroup, TemplateRole, TemplateUser } from "api/typesGenerated"
+import {
+  TemplateACL,
+  TemplateGroup,
+  TemplateRole,
+  TemplateUser,
+} from "api/typesGenerated"
 import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 
@@ -87,12 +92,27 @@ export const templateACLMachine = createMachine(
         on: {
           // User
           ADD_USER: { target: "addingUser", actions: ["assignUserToBeAdded"] },
-          UPDATE_USER_ROLE: { target: "updatingUser", actions: ["assignUserToBeUpdated"] },
-          REMOVE_USER: { target: "removingUser", actions: ["removeUserFromTemplateACL"] },
+          UPDATE_USER_ROLE: {
+            target: "updatingUser",
+            actions: ["assignUserToBeUpdated"],
+          },
+          REMOVE_USER: {
+            target: "removingUser",
+            actions: ["removeUserFromTemplateACL"],
+          },
           // Group
-          ADD_GROUP: { target: "addingGroup", actions: ["assignGroupToBeAdded"] },
-          UPDATE_GROUP_ROLE: { target: "updatingGroup", actions: ["assignGroupToBeUpdated"] },
-          REMOVE_GROUP: { target: "removingGroup", actions: ["removeGroupFromTemplateACL"] },
+          ADD_GROUP: {
+            target: "addingGroup",
+            actions: ["assignGroupToBeAdded"],
+          },
+          UPDATE_GROUP_ROLE: {
+            target: "updatingGroup",
+            actions: ["assignGroupToBeUpdated"],
+          },
+          REMOVE_GROUP: {
+            target: "removingGroup",
+            actions: ["removeGroupFromTemplateACL"],
+          },
         },
       },
       // User
@@ -245,7 +265,9 @@ export const templateACLMachine = createMachine(
           return {
             ...templateACL,
             users: templateACL.users.map((oldTemplateUser) => {
-              return oldTemplateUser.id === userToBeUpdated.id ? userToBeUpdated : oldTemplateUser
+              return oldTemplateUser.id === userToBeUpdated.id
+                ? userToBeUpdated
+                : oldTemplateUser
             }),
           }
         },
