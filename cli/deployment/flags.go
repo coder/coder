@@ -168,12 +168,14 @@ func Flags() codersdk.DeploymentFlags {
 			Flag:        "oauth2-github-allowed-orgs",
 			EnvVar:      "CODER_OAUTH2_GITHUB_ALLOWED_ORGS",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
+			Default:     []string{},
 		},
 		OAuth2GithubAllowedTeams: codersdk.StringArrayFlag{
 			Name:        "Oauth2 Github Allowed Teams",
 			Flag:        "oauth2-github-allowed-teams",
 			EnvVar:      "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Default:     []string{},
 		},
 		OAuth2GithubAllowSignups: codersdk.BoolFlag{
 			Name:        "Oauth2 Github Allow Signups",
@@ -394,13 +396,13 @@ func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags
 }
 
 //nolint:revive
-func AttachFlags(flagset *pflag.FlagSet, df *codersdk.DeploymentFlags, enterprise bool) {
+func AttachFlags(flagset *pflag.FlagSet, df *codersdk.DeploymentFlags, includeEnterprise bool) {
 	v := reflect.ValueOf(df).Elem()
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		fv := v.Field(i)
 		e := fv.FieldByName("Enterprise").Bool()
-		if e != enterprise {
+		if e && !includeEnterprise {
 			continue
 		}
 		if e {
