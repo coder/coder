@@ -71,6 +71,11 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		AppName: chi.URLParam(r, "workspaceapp"),
 		Port:    0,
 		Path:    chiPath,
+		StripTokens: []func(r *http.Request){
+			httpmw.DefaultTokenSource.Strip,
+			httpmw.TokenSourceCookie(codersdk.OAuth2StateKey).Strip,
+			httpmw.TokenSourceCookie(codersdk.OAuth2RedirectKey).Strip,
+		},
 	}, rw, r)
 }
 
@@ -168,6 +173,9 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 					AppName:   app.AppName,
 					Port:      app.Port,
 					Path:      r.URL.Path,
+					StripTokens: []func(r *http.Request){
+						httpmw.SubdomainAppTokenSource.Strip,
+					},
 				}, rw, r)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -268,7 +276,7 @@ func (api *API) verifyWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.R
 		// Set the app cookie for all subdomains of api.AppHostname. This cookie
 		// is handled properly by the ExtractAPIKey middleware.
 		http.SetCookie(rw, &http.Cookie{
-			Name:     httpmw.DevURLSessionTokenCookie,
+			Name:     httpmw.AppSessionTokenCookie,
 			Value:    apiKey,
 			Domain:   "." + api.AppHostname,
 			Path:     "/",
@@ -426,6 +434,9 @@ type proxyApplication struct {
 	Port    uint16
 	// Path must either be empty or have a leading slash.
 	Path string
+	// StripTokens denotes functions which strip tokens from the request before
+	// proxying upstream.
+	StripTokens []func(r *http.Request)
 }
 
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
@@ -553,14 +564,12 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 	defer release()
-
-	// This strips the session token from a workspace app request.
-	cookieHeaders := r.Header.Values("Cookie")[:]
-	r.Header.Del("Cookie")
-	for _, cookieHeader := range cookieHeaders {
-		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))
-	}
 	proxy.Transport = conn.HTTPTransport()
+
+	// Strip the session token from the request prior to proxying it.
+	for _, fn := range proxyApp.StripTokens {
+		fn(r)
+	}
 
 	// end span so we don't get long lived trace data
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))

@@ -22,8 +22,8 @@ const (
 	SessionTokenKey = "coder_session_token"
 	// SessionCustomHeader is the custom header to use for authentication.
 	SessionCustomHeader = "Coder-Session-Token"
-	OAuth2StateKey      = "oauth_state"
-	OAuth2RedirectKey   = "oauth_redirect"
+	OAuth2StateKey      = "coder_oauth_state"
+	OAuth2RedirectKey   = "coder_oauth_redirect"
 )
 
 // New creates a Coder client for the provided URL.
@@ -52,6 +52,18 @@ func WithQueryParam(key, value string) RequestOption {
 		q := r.URL.Query()
 		q.Add(key, value)
 		r.URL.RawQuery = q.Encode()
+	}
+}
+
+func WithCookie(name, value string) RequestOption {
+	return func(r *http.Request) {
+		r.AddCookie(&http.Cookie{Name: name, Value: value})
+	}
+}
+
+func WithHeader(key, value string) RequestOption {
+	return func(r *http.Request) {
+		r.Header.Set(key, value)
 	}
 }
 

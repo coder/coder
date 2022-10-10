@@ -195,6 +195,8 @@ func New(options *Options) *API {
 				// authenticated automatically.
 				RedirectToLogin: false,
 				Optional:        true,
+				// Use custom token sources for subdomain apps.
+				TokenSource: httpmw.SubdomainAppTokenSource,
 			}),
 			httpmw.ExtractUserParam(api.Database),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),

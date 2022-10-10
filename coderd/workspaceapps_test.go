@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -72,15 +73,17 @@ func TestGetAppHost(t *testing.T) {
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
 // codersdk client, the first user, the workspace, and the port number the test
 // listener is running on.
-func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
+func setupProxyTest(t *testing.T, assertRequest func(t *testing.T, r *http.Request), workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	server := http.Server{
 		ReadHeaderTimeout: time.Minute,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := r.Cookie(codersdk.SessionTokenKey)
-			assert.ErrorIs(t, err, http.ErrNoCookie)
+			if assertRequest != nil {
+				assertRequest(t, r)
+			}
+
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(proxyTestAppBody))
 		}),
@@ -168,7 +171,13 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 
 func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Parallel()
-	client, firstUser, workspace, _ := setupProxyTest(t)
+	client, firstUser, workspace, _ := setupProxyTest(t, func(t *testing.T, r *http.Request) {
+		token := httpmw.DefaultTokenSource.Get(r)
+		assert.Empty(t, token, "token was not stripped from request")
+		q := r.URL.Query()
+		assert.Empty(t, q.Get(codersdk.OAuth2StateKey))
+		assert.Empty(t, q.Get(codersdk.OAuth2RedirectKey))
+	})
 
 	t.Run("LoginWithoutAuth", func(t *testing.T) {
 		t.Parallel()
@@ -240,7 +249,16 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?"+proxyTestAppQuery, nil)
+		// Add every valid session token source to the request to ensure it's
+		// stripped.
+		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/example/?"+proxyTestAppQuery, nil,
+			codersdk.WithCookie(codersdk.SessionTokenKey, client.SessionToken),
+			codersdk.WithQueryParam(codersdk.SessionTokenKey, client.SessionToken),
+			codersdk.WithHeader(codersdk.SessionCustomHeader, client.SessionToken),
+			// oauth stuff should also be stripped
+			codersdk.WithCookie(codersdk.OAuth2StateKey, "hi"),
+			codersdk.WithCookie(codersdk.OAuth2RedirectKey, "hi"),
+		)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -269,7 +287,15 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 	t.Run("End-to-End", func(t *testing.T) {
 		t.Parallel()
 
-		client, firstUser, workspace, _ := setupProxyTest(t)
+		client, firstUser, workspace, _ := setupProxyTest(t, func(t *testing.T, r *http.Request) {
+			token := httpmw.SubdomainAppTokenSource.Get(r)
+			assert.Empty(t, token, "token was not stripped from request")
+
+			// We want to verify that running Coder in Coder will work, so
+			// ensure
+			token = httpmw.TokenSourceCookie(codersdk.SessionTokenKey).Get(r)
+			assert.NotEmpty(t, token, "the regular session token cookie was stripped from the request")
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -385,7 +411,13 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Log("navigating to: ", gotLocation.String())
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
-		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
+
+		// Set the cookie read by the app handler.
+		req.AddCookie(&http.Cookie{Name: httpmw.AppSessionTokenCookie, Value: apiKey})
+		// Set the regular Coder session token cookie to ensure that running
+		// Coder in Coder works.
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenKey, Value: "hi"})
+
 		resp, err = client.HTTPClient.Do(req)
 		require.NoError(t, err)
 		resp.Body.Close()
@@ -395,7 +427,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 	t.Run("VerifyRedirectURI", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, _, _ := setupProxyTest(t)
+		client, _, _, _ := setupProxyTest(t, nil)
 
 		cases := []struct {
 			name            string
@@ -552,7 +584,10 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 
 func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Parallel()
-	client, firstUser, workspace, port := setupProxyTest(t)
+	client, firstUser, workspace, port := setupProxyTest(t, func(t *testing.T, r *http.Request) {
+		token := httpmw.SubdomainAppTokenSource.Get(r)
+		assert.Empty(t, token, "token was not stripped from request")
+	})
 
 	// proxyURL generates a URL for the proxy subdomain. The default path is a
 	// slash.
@@ -598,6 +633,14 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		}).String()
 	}
 
+	withAppCookie := func(r *http.Request) {
+		token := r.Header.Get(codersdk.SessionCustomHeader)
+		if token != "" {
+			r.Header.Del(codersdk.SessionCustomHeader)
+			codersdk.WithCookie(httpmw.AppSessionTokenCookie, token)(r)
+		}
+	}
+
 	t.Run("NoAccessShould401", func(t *testing.T) {
 		t.Parallel()
 
@@ -608,7 +651,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := userClient.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppName), nil)
+		resp, err := userClient.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppName), nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -621,7 +664,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		slashlessURL := proxyURL(t, proxyTestAppName, "")
-		resp, err := client.Request(ctx, http.MethodGet, slashlessURL, nil)
+		resp, err := client.Request(ctx, http.MethodGet, slashlessURL, nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -638,7 +681,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		querylessURL := proxyURL(t, proxyTestAppName, "/", "")
-		resp, err := client.Request(ctx, http.MethodGet, querylessURL, nil)
+		resp, err := client.Request(ctx, http.MethodGet, querylessURL, nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -654,7 +697,8 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppName, "/", proxyTestAppQuery), nil)
+		// The app cookie is included and will be stripped.
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppName, "/", proxyTestAppQuery), nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -669,7 +713,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -684,7 +728,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, proxyTestFakeAppName, "/", ""), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, proxyTestFakeAppName, "/", ""), nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -697,7 +741,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		port := uint16(codersdk.MinimumListeningPort - 1)
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil, withAppCookie)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 

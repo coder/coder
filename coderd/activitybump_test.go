@@ -23,7 +23,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	setupActivityTest := func(t *testing.T) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		var ttlMillis int64 = 60 * 1000
 
-		client, _, workspace, _ = setupProxyTest(t, func(cwr *codersdk.CreateWorkspaceRequest) {
+		client, _, workspace, _ = setupProxyTest(t, nil, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
 

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strings"
 	"time"
@@ -24,11 +25,9 @@ import (
 )
 
 // The special cookie name used for subdomain-based application proxying.
-// TODO: this will make dogfooding harder so come up with a more unique
-// solution
 //
 //nolint:gosec
-const DevURLSessionTokenCookie = "coder_devurl_session_token"
+const AppSessionTokenCookie = "coder_app_session_token"
 
 type apiKeyContextKey struct{}
 
@@ -86,6 +85,133 @@ const (
 	internalErrorMessage  string = "An internal error occurred. Please try again or contact the system administrator."
 )
 
+type TokenSource interface {
+	Get(r *http.Request) string
+	// strip removes the token from the request if it was set at that source.
+	// This is used to prevent the token from being passed to a workspace app.
+	Strip(r *http.Request)
+}
+
+type tokenSource struct {
+	get   func(r *http.Request) string
+	strip func(r *http.Request)
+}
+
+// Get implements TokenSource.
+func (t tokenSource) Get(r *http.Request) string {
+	return t.get(r)
+}
+
+// Strip implements TokenSource.
+func (t tokenSource) Strip(r *http.Request) {
+	t.strip(r)
+}
+
+var _ TokenSource = tokenSource{}
+
+func TokenSourceHeader(header string) TokenSource {
+	return tokenSource{
+		get: func(r *http.Request) string {
+			return r.Header.Get(header)
+		},
+		strip: func(r *http.Request) {
+			r.Header.Del(header)
+		},
+	}
+}
+
+func TokenSourceQueryParameter(param string) TokenSource {
+	return tokenSource{
+		get: func(r *http.Request) string {
+			return r.URL.Query().Get(param)
+		},
+		strip: func(r *http.Request) {
+			q := r.URL.Query()
+			q.Del(param)
+			r.URL.RawQuery = q.Encode()
+		},
+	}
+}
+
+func TokenSourceCookie(cookie string) TokenSource {
+	cookie = textproto.TrimString(cookie)
+
+	return tokenSource{
+		get: func(r *http.Request) string {
+			c, err := r.Cookie(cookie)
+			if err != nil {
+				return ""
+			}
+			return c.Value
+		},
+		strip: func(r *http.Request) {
+			for i, v := range r.Header["Cookie"] {
+				var (
+					cookies = []string{}
+					header  = textproto.TrimString(v)
+					part    string
+				)
+				for len(header) > 0 { // continue since we have rest
+					part, header, _ = strings.Cut(header, ";")
+					part = textproto.TrimString(part)
+					if part == "" {
+						continue
+					}
+					name, _, _ := strings.Cut(part, "=")
+					if textproto.TrimString(name) == cookie {
+						continue
+					}
+
+					cookies = append(cookies, part)
+				}
+
+				r.Header["Cookie"][i] = strings.Join(cookies, "; ")
+			}
+		},
+	}
+}
+
+// MultiTokenSource returns a TokenSource that returns the first non-empty token
+// on Get. It strips all tokens on Strip.
+func MultiTokenSource(sources ...TokenSource) TokenSource {
+	return tokenSource{
+		get: func(r *http.Request) string {
+			for _, src := range sources {
+				if token := src.Get(r); token != "" {
+					return token
+				}
+			}
+			return ""
+		},
+		strip: func(r *http.Request) {
+			for _, src := range sources {
+				src.Strip(r)
+			}
+		},
+	}
+}
+
+// DefaultTokenSource is the token source used by the API.
+var DefaultTokenSource = MultiTokenSource(
+	TokenSourceCookie(codersdk.SessionTokenKey),
+	TokenSourceQueryParameter(codersdk.SessionTokenKey),
+	TokenSourceHeader(codersdk.SessionCustomHeader),
+)
+
+// SubdomainAppTokenSource is the token source used by the subdomain application
+// proxying middleware.
+var SubdomainAppTokenSource = MultiTokenSource(
+	// We don't include the default session token cookie here as it prevents
+	// accessing Coder running inside of Coder over app proxying.
+	TokenSourceCookie(AppSessionTokenCookie),
+	// We don't include the query parameter because this will break websockets
+	// if trying to run Coder inside of Coder, and because it's not used on app
+	// requests anyways.
+	//
+	// We don't include the custom header here because it's not used on app
+	// requests anyways.
+)
+
 type ExtractAPIKeyConfig struct {
 	DB              database.Store
 	OAuth2Configs   *OAuth2Configs
@@ -103,6 +229,10 @@ type ExtractAPIKeyConfig struct {
 	// will be deleted and the request will continue. If the request is not a
 	// cookie-based request, the request will be rejected with a 401.
 	Optional bool
+
+	// TokenSource provides the token from the request. Defaults to
+	// DefaultTokenSource.
+	TokenSource TokenSource
 }
 
 // ExtractAPIKey requires authentication using a valid API key. It handles
@@ -110,6 +240,10 @@ type ExtractAPIKeyConfig struct {
 // in the database.
 // nolint:revive
 func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
+	if cfg.TokenSource == nil {
+		cfg.TokenSource = DefaultTokenSource
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -153,11 +287,11 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				write(code, response)
 			}
 
-			token := apiTokenFromRequest(r)
+			token := cfg.TokenSource.Get(r)
 			if token == "" {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: signedOutErrorMessage,
-					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
+					Detail:  "Authentication is required.",
 				})
 				return
 			}
@@ -365,37 +499,6 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
-}
-
-// apiTokenFromRequest returns the api token from the request.
-// Find the session token from:
-// 1: The cookie
-// 1: The devurl cookie
-// 3: The old cookie
-// 4. The coder_session_token query parameter
-// 5. The custom auth header
-func apiTokenFromRequest(r *http.Request) string {
-	cookie, err := r.Cookie(codersdk.SessionTokenKey)
-	if err == nil && cookie.Value != "" {
-		return cookie.Value
-	}
-
-	urlValue := r.URL.Query().Get(codersdk.SessionTokenKey)
-	if urlValue != "" {
-		return urlValue
-	}
-
-	headerValue := r.Header.Get(codersdk.SessionCustomHeader)
-	if headerValue != "" {
-		return headerValue
-	}
-
-	cookie, err = r.Cookie(DevURLSessionTokenCookie)
-	if err == nil && cookie.Value != "" {
-		return cookie.Value
-	}
-
-	return ""
 }
 
 // SplitAPIToken verifies the format of an API key and returns the split ID and

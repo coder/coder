@@ -964,11 +964,11 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// Deployments should not host app tokens on the same domain as the
 	// primary deployment. But in the case they are, we should also delete this
 	// token.
-	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+	if appCookie, _ := r.Cookie(httpmw.AppSessionTokenCookie); appCookie != nil {
 		appCookieRemove := &http.Cookie{
 			// MaxAge < 0 means to delete the cookie now.
 			MaxAge: -1,
-			Name:   httpmw.DevURLSessionTokenCookie,
+			Name:   httpmw.AppSessionTokenCookie,
 			Path:   "/",
 			Domain: "." + api.AccessURL.Hostname(),
 		}

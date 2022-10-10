@@ -30,6 +30,260 @@ func randomAPIKeyParts() (id string, secret string) {
 	return id, secret
 }
 
+type watchedTokenSource struct {
+	httpmw.TokenSource
+	getCount int64
+}
+
+var _ httpmw.TokenSource = &watchedTokenSource{}
+
+func (w *watchedTokenSource) Get(req *http.Request) string {
+	atomic.AddInt64(&w.getCount, 1)
+	return w.TokenSource.Get(req)
+}
+
+func TestTokenSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Header", func(t *testing.T) {
+		t.Parallel()
+		const (
+			header = "X-Test-Api-Key"
+			value  = "test"
+		)
+
+		t.Run("Get", func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(header, value)
+
+			got := httpmw.TokenSourceHeader(header).Get(req)
+			require.Equal(t, value, got)
+
+			got = httpmw.TokenSourceHeader("Gibberish").Get(req)
+			require.Equal(t, "", got)
+		})
+
+		t.Run("Strip", func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(header, value)
+
+			require.Equal(t, value, req.Header.Get(header))
+			httpmw.TokenSourceHeader(header).Strip(req)
+			require.Equal(t, "", req.Header.Get(header))
+
+			httpmw.TokenSourceHeader(header).Get(req)
+			require.Equal(t, "", req.Header.Get(header))
+		})
+	})
+
+	t.Run("QueryParameter", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			param = "test"
+			value = "test"
+		)
+
+		t.Run("Get", func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/?"+param+"="+value, nil)
+
+			got := httpmw.TokenSourceQueryParameter(param).Get(req)
+			require.Equal(t, value, got)
+
+			got = httpmw.TokenSourceQueryParameter("gibberish").Get(req)
+			require.Equal(t, "", got)
+		})
+
+		t.Run("Strip", func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/?"+param+"="+value, nil)
+
+			require.Equal(t, value, req.URL.Query().Get(param))
+			httpmw.TokenSourceQueryParameter(param).Strip(req)
+			require.Equal(t, "", req.URL.Query().Get(param))
+
+			httpmw.TokenSourceQueryParameter(param).Get(req)
+			require.Equal(t, "", req.URL.Query().Get(param))
+		})
+	})
+
+	t.Run("Cookie", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			cookie = "test_cookie"
+			value  = "value"
+		)
+
+		t.Run("Get", func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.AddCookie(&http.Cookie{Name: cookie, Value: value})
+
+			got := httpmw.TokenSourceCookie(cookie).Get(req)
+			require.Equal(t, value, got)
+
+			got = httpmw.TokenSourceCookie("gibberish").Get(req)
+			require.Equal(t, "", got)
+		})
+
+		t.Run("Strip", func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.AddCookie(&http.Cookie{Name: cookie, Value: value})
+
+			require.Equal(t, fmt.Sprintf("%s=%s", cookie, value), req.Header.Get("Cookie"))
+			httpmw.TokenSourceCookie(cookie).Strip(req)
+			require.Equal(t, "", req.Header.Get("Cookie"))
+
+			httpmw.TokenSourceCookie(cookie).Get(req)
+			require.Equal(t, "", req.Header.Get("Cookie"))
+		})
+
+		t.Run("StripCases", func(t *testing.T) {
+			t.Parallel()
+
+			for _, tc := range []struct {
+				input  string
+				output string
+			}{{
+				"testing=hello; wow=test",
+				"testing=hello; wow=test",
+			}, {
+				"test_cookie=moo; wow=test",
+				"wow=test",
+			}, {
+				"another_token=wow; test_cookie=ok",
+				"another_token=wow",
+			}, {
+				"test_cookie=hi",
+				"",
+			}} {
+				tc := tc
+				t.Run(tc.input, func(t *testing.T) {
+					t.Parallel()
+
+					const cookie = "test_cookie"
+
+					req := httptest.NewRequest(http.MethodGet, "/", nil)
+					req.Header.Set("Cookie", tc.input)
+
+					httpmw.TokenSourceCookie(cookie).Strip(req)
+					require.Equal(t, tc.output, req.Header.Get("Cookie"))
+				})
+			}
+		})
+	})
+
+	t.Run("Multi", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			header = "X-Test-Api-Key"
+			cookie = "api_key"
+			query  = "api_key"
+		)
+
+		t.Run("GetFirst", func(t *testing.T) {
+			t.Parallel()
+
+			sources := []*watchedTokenSource{
+				{TokenSource: httpmw.TokenSourceHeader(header)},
+				{TokenSource: httpmw.TokenSourceCookie(cookie)},
+				{TokenSource: httpmw.TokenSourceQueryParameter(query)},
+			}
+			expected := "header_value"
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(header, expected)
+			req.AddCookie(&http.Cookie{Name: cookie, Value: "cookie_value"})
+			q := req.URL.Query()
+			q.Set(query, "query_value")
+			req.URL.RawQuery = q.Encode()
+
+			got := httpmw.MultiTokenSource(sources[0], sources[1], sources[2]).Get(req)
+			require.Equal(t, expected, got)
+
+			require.Equal(t, int64(1), sources[0].getCount)
+			require.Equal(t, int64(0), sources[1].getCount)
+			require.Equal(t, int64(0), sources[2].getCount)
+		})
+
+		t.Run("GetLast", func(t *testing.T) {
+			t.Parallel()
+
+			sources := []*watchedTokenSource{
+				{TokenSource: httpmw.TokenSourceHeader(header)},
+				{TokenSource: httpmw.TokenSourceCookie(cookie)},
+				{TokenSource: httpmw.TokenSourceQueryParameter(query)},
+			}
+			expected := "query_value"
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			q := req.URL.Query()
+			q.Set(query, expected)
+			req.URL.RawQuery = q.Encode()
+
+			got := httpmw.MultiTokenSource(sources[0], sources[1], sources[2]).Get(req)
+			require.Equal(t, expected, got)
+
+			require.Equal(t, int64(1), sources[0].getCount)
+			require.Equal(t, int64(1), sources[1].getCount)
+			require.Equal(t, int64(1), sources[2].getCount)
+		})
+
+		t.Run("GetNone", func(t *testing.T) {
+			t.Parallel()
+
+			sources := []*watchedTokenSource{
+				{TokenSource: httpmw.TokenSourceHeader(header)},
+				{TokenSource: httpmw.TokenSourceCookie(cookie)},
+				{TokenSource: httpmw.TokenSourceQueryParameter(query)},
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+			got := httpmw.MultiTokenSource(sources[0], sources[1], sources[2]).Get(req)
+			require.Equal(t, "", got)
+
+			require.Equal(t, int64(1), sources[0].getCount)
+			require.Equal(t, int64(1), sources[1].getCount)
+			require.Equal(t, int64(1), sources[2].getCount)
+		})
+
+		t.Run("Strip", func(t *testing.T) {
+			t.Parallel()
+
+			sources := []httpmw.TokenSource{
+				httpmw.TokenSourceHeader(header),
+				httpmw.TokenSourceCookie(cookie),
+				httpmw.TokenSourceQueryParameter(query),
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set(header, "header_value")
+			req.AddCookie(&http.Cookie{Name: cookie, Value: "cookie_value"})
+			q := req.URL.Query()
+			q.Set(query, "query_value")
+			req.URL.RawQuery = q.Encode()
+
+			httpmw.MultiTokenSource(sources...).Strip(req)
+			require.Equal(t, "", req.Header.Get(header))
+			require.Equal(t, "", req.Header.Get("Cookie"))
+			require.Equal(t, "", req.URL.Query().Get(query))
+		})
+	})
+}
+
 func TestAPIKey(t *testing.T) {
 	t.Parallel()
 

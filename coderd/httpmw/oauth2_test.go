@@ -88,7 +88,7 @@ func TestOAuth2(t *testing.T) {
 			Value: "something",
 		})
 		req.AddCookie(&http.Cookie{
-			Name:  "oauth_redirect",
+			Name:  codersdk.OAuth2RedirectKey,
 			Value: "/dashboard",
 		})
 		res := httptest.NewRecorder()
