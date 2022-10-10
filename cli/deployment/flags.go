@@ -269,7 +269,7 @@ func Flags() codersdk.DeploymentFlags {
 		TLSClientAuth: codersdk.StringFlag{
 			Name:   "TLS Client Auth",
 			Flag:   "tls-client-auth",
-			EnvVar: "CODER_TLS_KEY_FILE",
+			EnvVar: "CODER_TLS_CLIENT_AUTH",
 			Description: `Policy the server will follow for TLS Client Authentication. ` +
 				`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`,
 			Default: "request",
