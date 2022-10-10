@@ -339,7 +339,43 @@ func NewFlags() codersdk.DeploymentFlags {
 			Shorthand:   "v",
 			Description: "Enables verbose logging.",
 		},
+		AuditLogging: codersdk.BoolFlag{
+			Name:        "Audit Logging",
+			Flag:        "audit-logging",
+			EnvVar:      "CODER_AUDIT_LOGGING",
+			Description: "Specifies whether audit logging is enabled.",
+			Default:     true,
+		},
+		BrowserOnly: codersdk.BoolFlag{
+			Name:        "Browser Only",
+			Flag:        "browser-only",
+			EnvVar:      "CODER_BROWSER_ONLY",
+			Description: "Whether Coder only allows connections to workspaces via the browser.",
+		},
+		ScimAuthHeader: codersdk.StringFlag{
+			Name:        "SCIM Authentication Header",
+			Flag:        "scim-auth-header",
+			EnvVar:      "CODER_SCIM_API_KEY",
+			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
+			Default:     "ed25519",
+		},
+		UserWorkspaceQuota: codersdk.IntFlag{
+			Name:        "User Workspace Quota",
+			Flag:        "user-workspace-quota",
+			EnvVar:      "CODER_USER_WORKSPACE_QUOTA",
+			Description: "Enables and sets a limit on how many workspaces each user can create.",
+			Default:     0,
+		},
 	}
+}
+
+func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags {
+	df.Oauth2GithubClientSecret.Value = secretValue
+	df.OidcClientSecret.Value = secretValue
+	df.PostgresURL.Value = secretValue
+	df.ScimAuthHeader.Value = secretValue
+
+	return df
 }
 
 func StringFlag(flagset *pflag.FlagSet, fl *codersdk.StringFlag) {
@@ -408,12 +444,4 @@ func defaultCacheDir() string {
 	}
 
 	return filepath.Join(defaultCacheDir, "coder")
-}
-
-func RemoveSensitiveValues(df codersdk.DeploymentFlags) codersdk.DeploymentFlags {
-	df.Oauth2GithubClientSecret.Value = secretValue
-	df.OidcClientSecret.Value = secretValue
-	df.PostgresURL.Value = secretValue
-
-	return df
 }

@@ -67,11 +67,7 @@ import (
 )
 
 // nolint:gocyclo
-func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
-	var (
-		dflags = deployment.NewFlags()
-	)
-
+func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",

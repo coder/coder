@@ -17,7 +17,8 @@ func TestDeploymentFlagSecrets(t *testing.T) {
 
 	df := deployment.NewFlags()
 	scrubbed := deployment.RemoveSensitiveValues(df)
-	require.Contains(t, scrubbed.Oauth2GithubClientSecret.Value, secretValue)
-	require.Contains(t, scrubbed.OidcClientSecret.Value, secretValue)
-	require.Contains(t, scrubbed.PostgresURL.Value, secretValue)
+	require.EqualValues(t, secretValue, scrubbed.Oauth2GithubClientSecret.Value)
+	require.EqualValues(t, secretValue, scrubbed.OidcClientSecret.Value)
+	require.EqualValues(t, secretValue, scrubbed.PostgresURL.Value)
+	require.EqualValues(t, secretValue, scrubbed.ScimAuthHeader.Value)
 }

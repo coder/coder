@@ -51,6 +51,10 @@ type DeploymentFlags struct {
 	MetricsCacheRefreshInterval      DurationFlag    `json:"metrics_cache_refresh_interval"`
 	AgentStatRefreshInterval         DurationFlag    `json:"agent_stat_refresh_interval"`
 	Verbose                          BoolFlag        `json:"verbose"`
+	AuditLogging                     BoolFlag        `json:"audit_logging"`
+	BrowserOnly                      BoolFlag        `json:"browser_only"`
+	ScimAuthHeader                   StringFlag      `json:"scim_auth_header"`
+	UserWorkspaceQuota               IntFlag         `json:"user_workspace_quota"`
 }
 
 type StringFlag struct {
