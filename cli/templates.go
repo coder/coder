@@ -30,6 +30,9 @@ func templates() *cobra.Command {
 				Command:     "coder templates push my-template",
 			},
 		),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		templateCreate(),

@@ -148,7 +148,7 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
@@ -258,8 +258,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		resp, err := client.Request(ctx, http.MethodGet, "/@me/"+workspace.Name+"/apps/fake/", nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// this is 200 OK because it returns a dashboard page
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 	})
 }
 
@@ -300,10 +299,9 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
 
 		// Load the application auth-redirect endpoint.
-		qp := codersdk.WithQueryParams(map[string]string{
-			"redirect_uri": u.String(),
-		})
-		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, qp)
+		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
+			"redirect_uri", u.String(),
+		))
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -435,15 +433,13 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			c := c
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
-				qp := map[string]string{}
-				if c.redirectURI != "" {
-					qp["redirect_uri"] = c.redirectURI
-				}
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParams(qp))
+				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil,
+					codersdk.WithQueryParam("redirect_uri", c.redirectURI),
+				)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -529,10 +525,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 
 		// Should have an error response.
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		var resBody codersdk.Response
-		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Contains(t, resBody.Message, "does not accept application requests on this hostname")
+		require.Contains(t, string(body), "does not accept application requests on this hostname")
 	})
 
 	t.Run("InvalidSubdomain", func(t *testing.T) {
@@ -547,12 +542,11 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		// Should have an error response.
+		// Should have a HTML error response.
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		var resBody codersdk.Response
-		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Contains(t, resBody.Message, "Could not parse subdomain application URL")
+		require.Contains(t, string(body), "Could not parse subdomain application URL")
 	})
 }
 
@@ -694,5 +688,24 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	})
+
+	t.Run("ProxyPortMinimumError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		port := uint16(codersdk.MinimumListeningPort - 1)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Should have an error response.
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var resBody codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&resBody)
+		require.NoError(t, err)
+		require.Contains(t, resBody.Message, "Coder reserves ports less than")
 	})
 }

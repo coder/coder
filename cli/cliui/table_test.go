@@ -131,10 +131,10 @@ func Test_DisplayTable(t *testing.T) {
 		t.Parallel()
 
 		expected := `
-NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME             TIME PTR
-foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  Aug  2 15:49:10  Aug  2 15:49:10
-bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  Aug  2 15:49:10  <nil>
-baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  Aug  2 15:49:10  <nil>
+NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR
+foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z
+bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>
+baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>
 		`
 
 		// Test with non-pointer values.
@@ -158,10 +158,10 @@ baz    30  []       baz1               31  <nil>       <nil>      baz3          
 		t.Parallel()
 
 		expected := `
-NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME             TIME PTR
-bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  Aug  2 15:49:10  <nil>
-baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  Aug  2 15:49:10  <nil>
-foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  Aug  2 15:49:10  Aug  2 15:49:10
+NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR
+bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>
+baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>
+foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z
 		`
 
 		out, err := cliui.DisplayTable(in, "name", nil)
@@ -175,9 +175,9 @@ foo    10  [a b c]  foo1               11  foo2        12         foo3          
 
 		expected := `
 NAME  SUB 1 NAME  SUB 3 INNER NAME  TIME
-foo   foo1        foo3              Aug  2 15:49:10
-bar   bar1        bar3              Aug  2 15:49:10
-baz   baz1        baz3              Aug  2 15:49:10
+foo   foo1        foo3              2022-08-02T15:49:10Z
+bar   bar1        bar3              2022-08-02T15:49:10Z
+baz   baz1        baz3              2022-08-02T15:49:10Z
 		`
 
 		out, err := cliui.DisplayTable(in, "", []string{"name", "sub_1_name", "sub_3 inner name", "time"})

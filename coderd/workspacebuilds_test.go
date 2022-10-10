@@ -163,6 +163,19 @@ func TestWorkspaceBuilds(t *testing.T) {
 		require.Equal(t, int32(1), builds[0].BuildNumber)
 		require.Equal(t, user.Username, builds[0].InitiatorUsername)
 		require.NoError(t, err)
+
+		// Test since
+		builds, err = client.WorkspaceBuilds(ctx,
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(time.Minute)},
+		)
+		require.NoError(t, err)
+		require.Len(t, builds, 0)
+
+		builds, err = client.WorkspaceBuilds(ctx,
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(-time.Hour)},
+		)
+		require.NoError(t, err)
+		require.Len(t, builds, 1)
 	})
 
 	t.Run("PaginateNonExistentRow", func(t *testing.T) {
@@ -393,13 +406,13 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.NotNil(t, resources)
-		require.Len(t, resources, 2)
-		require.Equal(t, "some", resources[1].Name)
-		require.Equal(t, "example", resources[1].Type)
-		require.Len(t, resources[1].Agents, 1)
+		require.NotNil(t, workspace.LatestBuild.Resources)
+		require.Len(t, workspace.LatestBuild.Resources, 2)
+		require.Equal(t, "some", workspace.LatestBuild.Resources[0].Name)
+		require.Equal(t, "example", workspace.LatestBuild.Resources[1].Type)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
 	})
 }
 
@@ -484,4 +497,51 @@ func TestWorkspaceBuildState(t *testing.T) {
 	gotState, err := client.WorkspaceBuildState(ctx, workspace.LatestBuild.ID)
 	require.NoError(t, err)
 	require.Equal(t, wantState, gotState)
+}
+
+func TestWorkspaceBuildStatus(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	closeDaemon.Close()
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	// initial returned state is "pending"
+	require.EqualValues(t, codersdk.WorkspaceStatusPending, workspace.LatestBuild.Status)
+
+	closeDaemon = coderdtest.NewProvisionerDaemon(t, api)
+	// after successful build is "running"
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	workspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+
+	// after successful stop is "stopped"
+	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusStopped, workspace.LatestBuild.Status)
+
+	_ = closeDaemon.Close()
+	// after successful cancel is "canceled"
+	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusCanceled, workspace.LatestBuild.Status)
+
+	_ = coderdtest.NewProvisionerDaemon(t, api)
+	// after successful delete is "deleted"
+	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionDelete)
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
 }

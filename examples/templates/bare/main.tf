@@ -49,7 +49,7 @@ resource "coder_app" "fake-app" {
   url      = "http://localhost:8080"
 
   healthcheck {
-    url       = "http://localhost:1337/healthz"
+    url       = "http://localhost:8080/healthz"
     interval  = 3
     threshold = 10
   }

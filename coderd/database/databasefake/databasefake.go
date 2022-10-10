@@ -279,6 +279,19 @@ func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginType) ([]database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apiKeys := make([]database.APIKey, 0)
+	for _, key := range q.apiKeys {
+		if key.LoginType == t {
+			apiKeys = append(apiKeys, key)
+		}
+	}
+	return apiKeys, nil
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -520,7 +533,13 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+	// A nil auth filter means no auth filter.
+	workspaces, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
+	return workspaces, err
+}
+
+func (q *fakeQuerier) GetAuthorizedWorkspaces(_ context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -559,6 +578,11 @@ func (q *fakeQuerier) GetWorkspaces(_ context.Context, arg database.GetWorkspace
 			if !match {
 				continue
 			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+			continue
 		}
 		workspaces = append(workspaces, workspace)
 	}
@@ -698,6 +722,22 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceCountByUserID(_ context.Context, id uuid.UUID) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var count int64
+	for _, workspace := range q.workspaces {
+		if workspace.OwnerID.String() == id.String() {
+			if workspace.Deleted {
+				continue
+			}
+
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -781,14 +821,17 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
-	params database.GetWorkspaceBuildByWorkspaceIDParams,
+func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
+	params database.GetWorkspaceBuildsByWorkspaceIDParams,
 ) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	history := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.CreatedAt.Before(params.Since) {
+			continue
+		}
 		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
 			history = append(history, workspaceBuild)
 		}
@@ -2042,7 +2085,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
-		RelativePath:         arg.RelativePath,
+		Subdomain:            arg.Subdomain,
 		HealthcheckUrl:       arg.HealthcheckUrl,
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
@@ -2222,6 +2265,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 			continue
 		}
 		job.CanceledAt = arg.CanceledAt
+		job.CompletedAt = arg.CompletedAt
 		q.provisionerJobs[index] = job
 		return nil
 	}

@@ -26,6 +26,61 @@ import (
 	"github.com/coder/retry"
 )
 
+type WorkspaceAgentStatus string
+
+const (
+	WorkspaceAgentConnecting   WorkspaceAgentStatus = "connecting"
+	WorkspaceAgentConnected    WorkspaceAgentStatus = "connected"
+	WorkspaceAgentDisconnected WorkspaceAgentStatus = "disconnected"
+)
+
+type WorkspaceAgent struct {
+	ID                   uuid.UUID            `json:"id"`
+	CreatedAt            time.Time            `json:"created_at"`
+	UpdatedAt            time.Time            `json:"updated_at"`
+	FirstConnectedAt     *time.Time           `json:"first_connected_at,omitempty"`
+	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty"`
+	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty"`
+	Status               WorkspaceAgentStatus `json:"status"`
+	Name                 string               `json:"name"`
+	ResourceID           uuid.UUID            `json:"resource_id"`
+	InstanceID           string               `json:"instance_id,omitempty"`
+	Architecture         string               `json:"architecture"`
+	EnvironmentVariables map[string]string    `json:"environment_variables"`
+	OperatingSystem      string               `json:"operating_system"`
+	StartupScript        string               `json:"startup_script,omitempty"`
+	Directory            string               `json:"directory,omitempty"`
+	Version              string               `json:"version"`
+	Apps                 []WorkspaceApp       `json:"apps"`
+	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
+	DERPLatency map[string]DERPRegion `json:"latency,omitempty"`
+}
+
+type WorkspaceAgentResourceMetadata struct {
+	MemoryTotal uint64  `json:"memory_total"`
+	DiskTotal   uint64  `json:"disk_total"`
+	CPUCores    uint64  `json:"cpu_cores"`
+	CPUModel    string  `json:"cpu_model"`
+	CPUMhz      float64 `json:"cpu_mhz"`
+}
+
+type DERPRegion struct {
+	Preferred           bool    `json:"preferred"`
+	LatencyMilliseconds float64 `json:"latency_ms"`
+}
+
+type WorkspaceAgentInstanceMetadata struct {
+	JailOrchestrator   string `json:"jail_orchestrator"`
+	OperatingSystem    string `json:"operating_system"`
+	Platform           string `json:"platform"`
+	PlatformFamily     string `json:"platform_family"`
+	KernelVersion      string `json:"kernel_version"`
+	KernelArchitecture string `json:"kernel_architecture"`
+	Cloud              string `json:"cloud"`
+	Jail               string `json:"jail"`
+	VNC                bool   `json:"vnc"`
+}
+
 // @typescript-ignore GoogleInstanceIdentityToken
 type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
@@ -331,11 +386,8 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
 			})
-			if errors.Is(err, context.Canceled) {
-				return
-			}
 			if isFirst {
-				if res.StatusCode == http.StatusConflict {
+				if res != nil && res.StatusCode == http.StatusConflict {
 					first <- readBodyAsError(res)
 					return
 				}
@@ -343,12 +395,11 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				close(first)
 			}
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
 				logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
-			}
-			if isFirst {
-				isFirst = false
-				close(first)
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
 				return conn.UpdateNodes(node)
@@ -467,6 +518,21 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, readBodyAsError(res)
 	}
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
+// WorkspaceAgentListeningPorts returns a list of ports that are currently being
+// listened on inside the workspace agent's network namespace.
+func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (ListeningPortsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/listening-ports", agentID), nil)
+	if err != nil {
+		return ListeningPortsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListeningPortsResponse{}, readBodyAsError(res)
+	}
+	var listeningPorts ListeningPortsResponse
+	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
 // Stats records the Agent's network connection statistics for use in

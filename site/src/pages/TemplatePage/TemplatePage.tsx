@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine, useSelector } from "@xstate/react"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Margins } from "components/Margins/Margins"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
@@ -57,7 +57,7 @@ export const TemplatePage: FC<React.PropsWithChildren<unknown>> = () => {
     return (
       <Margins>
         <div className={styles.errorBox}>
-          <ErrorSummary error={getTemplateError} />
+          <AlertBanner severity="error" error={getTemplateError} />
         </div>
       </Margins>
     )

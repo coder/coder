@@ -15,6 +15,14 @@ spec:
       port: {{ include "coder.servicePort" . }}
       targetPort: {{ include "coder.portName" . | quote }}
       protocol: TCP
+  {{- if eq "LoadBalancer" .Values.coder.service.type }}
+  {{- with .Values.coder.service.loadBalancerIP }}
+  loadBalancerIP: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.coder.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . | quote }}
+  {{- end }}
+  {{- end }}
   selector:
     {{- include "coder.selectorLabels" . | nindent 4 }}
 {{- end }}

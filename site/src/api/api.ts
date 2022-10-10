@@ -29,6 +29,8 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
     features: features,
     has_license: false,
     warnings: [],
+    experimental: false,
+    trial: false,
   }
 }
 
@@ -264,15 +266,6 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
-export const getWorkspaceResources = async (
-  workspaceBuildID: string,
-): Promise<TypesGen.WorkspaceResource[]> => {
-  const response = await axios.get<TypesGen.WorkspaceResource[]>(
-    `/api/v2/workspacebuilds/${workspaceBuildID}/resources`,
-  )
-  return response.data
-}
-
 const postWorkspaceBuild =
   (transition: WorkspaceBuildTransition) =>
   async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {
@@ -413,9 +406,10 @@ export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitS
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
+  since: Date,
 ): Promise<TypesGen.WorkspaceBuild[]> => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds`,
+    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
   )
   return response.data
 }
@@ -498,5 +492,10 @@ export const getTemplateDAUs = async (
 
 export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse> => {
   const response = await axios.get(`/api/v2/applications/host`)
+  return response.data
+}
+
+export const getWorkspaceQuota = async (userID: string): Promise<TypesGen.WorkspaceQuota> => {
+  const response = await axios.get(`/api/v2/workspace-quota/${userID}`)
   return response.data
 }

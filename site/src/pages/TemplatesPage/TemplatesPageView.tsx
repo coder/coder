@@ -8,9 +8,9 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import useTheme from "@material-ui/styles/useTheme"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -128,15 +128,17 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
 
       <ChooseOne>
         <Cond condition={Boolean(props.getOrganizationsError)}>
-          <ErrorSummary
+          <AlertBanner
+            severity="error"
             error={props.getOrganizationsError}
-            defaultMessage={t("errors.getOrganizationsError")}
+            text={t("errors.getOrganizationsError")}
           />
         </Cond>
         <Cond condition={Boolean(props.getTemplatesError)}>
-          <ErrorSummary
+          <AlertBanner
+            severity="error"
             error={props.getTemplatesError}
-            defaultMessage={t("errors.getTemplatesError")}
+            text={t("errors.getTemplatesError")}
           />
         </Cond>
         <Cond>

@@ -69,21 +69,6 @@ describe("TerminalPage", () => {
     await expectTerminalText(container, Language.workspaceErrorMessagePrefix)
   })
 
-  it("shows an error if fetching workspace agent fails", async () => {
-    // Given
-    server.use(
-      rest.get("/api/v2/workspacebuilds/:workspaceId/resources", (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: "nope" }))
-      }),
-    )
-
-    // When
-    const { container } = renderTerminal()
-
-    // Then
-    await expectTerminalText(container, Language.workspaceAgentErrorMessagePrefix)
-  })
-
   it("shows an error if the websocket fails", async () => {
     // Given
     server.use(

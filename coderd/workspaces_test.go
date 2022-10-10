@@ -1265,3 +1265,189 @@ func mustLocation(t *testing.T, location string) *time.Location {
 
 	return loc
 }
+
+func TestWorkspaceResource(t *testing.T) {
+	t.Parallel()
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "beta",
+							Type: "example",
+							Icon: "/icon/server.svg",
+							Agents: []*proto.Agent{{
+								Id:   "something",
+								Name: "b",
+								Auth: &proto.Agent_Token{},
+							}, {
+								Id:   "another",
+								Name: "a",
+								Auth: &proto.Agent_Token{},
+							}},
+						}, {
+							Name: "alpha",
+							Type: "example",
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 2)
+		// Ensure Icon is present
+		require.Equal(t, "/icon/server.svg", workspace.LatestBuild.Resources[0].Icon)
+	})
+
+	t.Run("Apps", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		apps := []*proto.App{
+			{
+				Name:    "code-server",
+				Command: "some-command",
+				Url:     "http://localhost:3000",
+				Icon:    "/code.svg",
+			},
+			{
+				Name:    "code-server-2",
+				Command: "some-command",
+				Url:     "http://localhost:3000",
+				Icon:    "/code.svg",
+				Healthcheck: &proto.Healthcheck{
+					Url:       "http://localhost:3000",
+					Interval:  5,
+					Threshold: 6,
+				},
+			},
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "some",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id:   "something",
+								Auth: &proto.Agent_Token{},
+								Apps: apps,
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 1)
+		agent := workspace.LatestBuild.Resources[0].Agents[0]
+		require.Len(t, agent.Apps, 2)
+		got := agent.Apps[0]
+		app := apps[0]
+		require.EqualValues(t, app.Command, got.Command)
+		require.EqualValues(t, app.Icon, got.Icon)
+		require.EqualValues(t, app.Name, got.Name)
+		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
+		require.EqualValues(t, "", got.Healthcheck.URL)
+		require.EqualValues(t, 0, got.Healthcheck.Interval)
+		require.EqualValues(t, 0, got.Healthcheck.Threshold)
+		got = agent.Apps[1]
+		app = apps[1]
+		require.EqualValues(t, app.Command, got.Command)
+		require.EqualValues(t, app.Icon, got.Icon)
+		require.EqualValues(t, app.Name, got.Name)
+		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
+		require.EqualValues(t, app.Healthcheck.Url, got.Healthcheck.URL)
+		require.EqualValues(t, app.Healthcheck.Interval, got.Healthcheck.Interval)
+		require.EqualValues(t, app.Healthcheck.Threshold, got.Healthcheck.Threshold)
+	})
+
+	t.Run("Metadata", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "some",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id:   "something",
+								Auth: &proto.Agent_Token{},
+							}},
+							Metadata: []*proto.Resource_Metadata{{
+								Key:   "foo",
+								Value: "bar",
+							}, {
+								Key:    "null",
+								IsNull: true,
+							}, {
+								Key: "empty",
+							}, {
+								Key:       "secret",
+								Value:     "squirrel",
+								Sensitive: true,
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		metadata := workspace.LatestBuild.Resources[0].Metadata
+		require.Equal(t, []codersdk.WorkspaceResourceMetadata{{
+			Key: "empty",
+		}, {
+			Key:   "foo",
+			Value: "bar",
+		}, {
+			Key:       "secret",
+			Value:     "squirrel",
+			Sensitive: true,
+		}, {
+			Key:   "type",
+			Value: "example",
+		}}, metadata)
+	})
+}

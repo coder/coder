@@ -85,11 +85,10 @@ export const useStyles = makeStyles((theme) => ({
 
   menuItem: {
     height: navHeight,
-    padding: `${theme.spacing(1.5)}px 0px ${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
+    padding: theme.spacing(1.5, 0),
 
     "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-      transition: "background-color 0.3s ease",
+      backgroundColor: "transparent",
     },
   },
 }))

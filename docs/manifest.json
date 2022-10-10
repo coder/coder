@@ -68,6 +68,18 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
+        },
+        {
+          "title": "AWS",
+          "description": "Setup Coder with AWS",
+          "icon_path": "./images/aws.svg",
+          "path": "./quickstart/aws.md"
+        },
+        {
+          "title": "Azure",
+          "description": "Setup Coder with Azure",
+          "icon_path": "./images/azure.svg",
+          "path": "./quickstart/azure.md"
         }
       ]
     },
@@ -176,7 +188,7 @@
         },
         {
           "title": "Configuration",
-          "description": "Learn how to configure Coder",
+          "description": "Learn how to configure Coder.",
           "path": "./admin/configure.md",
           "icon_path": "./images/icons/toggle_on.svg"
         },
@@ -190,13 +202,27 @@
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment.",
           "icon_path": "./images/icons/radar.svg",
-          "path": "./admin/audit-logs.md"
+          "path": "./admin/audit-logs.md",
+          "state": "enterprise"
+        },
+        {
+          "title": "Quotas",
+          "description": "Learn how to use Workspace Quotas in Coder.",
+          "icon_path": "./images/icons/dollar.svg",
+          "path": "./admin/quotas.md",
+          "state": "enterprise"
         },
         {
           "title": "Enterprise",
           "description": "Learn how to enable Enterprise features.",
           "icon_path": "./images/icons/group.svg",
           "path": "./admin/enterprise.md"
+        },
+        {
+          "title": "Telemetry",
+          "description": "Learn what usage telemetry Coder collects.",
+          "icon_path": "./images/icons/science.svg",
+          "path": "./admin/telemetry.md"
         }
       ]
     },

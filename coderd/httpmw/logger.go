@@ -25,7 +25,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			next.ServeHTTP(sw, r)
 
 			// Don't log successful health check requests.
-			if r.URL.Path == "/api/v2" && sw.Status == 200 {
+			if r.URL.Path == "/api/v2" && sw.Status == http.StatusOK {
 				return
 			}
 
@@ -37,7 +37,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 
 			// For status codes 400 and higher we
 			// want to log the response body.
-			if sw.Status >= 400 {
+			if sw.Status >= http.StatusInternalServerError {
 				httplog = httplog.With(
 					slog.F("response_body", string(sw.ResponseBody())),
 				)
@@ -47,7 +47,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			// includes proxy errors etc. It also causes slogtest to fail
 			// instantly without an error message by default.
 			logLevelFn := httplog.Debug
-			if sw.Status >= 400 {
+			if sw.Status >= http.StatusInternalServerError {
 				logLevelFn = httplog.Warn
 			}
 
