@@ -10,7 +10,7 @@ Coder offers these user roles in the community edition:
 | ------------------------------------------ | ---------- | -------------- | ----- |
 | Add and remove Users                       | ✅         |                | ✅    |
 | Change User roles                          |            |                | ✅    |
-| Manage Templates                           |            | ✅             | ✅    |
+| Manage **ALL** Templates                   |            | ✅             | ✅    |
 | View, update and delete **ALL** Workspaces |            | ✅             | ✅    |
 | Execute and use **ALL** Workspaces         |            |                | ✅    |
 
