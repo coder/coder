@@ -204,7 +204,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// Tracks if the API key has properties updated
 				changed = false
 			)
-			if key.LoginType != database.LoginTypePassword {
+			if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 				link, err = cfg.DB.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,
