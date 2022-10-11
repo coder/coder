@@ -4,7 +4,7 @@ Use RBAC to define which users and [groups](./groups.md) can use specific templa
 
 ![rbac](../images/template-rbac.png)
 
-The "Everyone" group makes a template accessable to all users. This can be removed to make a template private.
+The "Everyone" group makes a template accessible to all users. This can be removed to make a template private.
 
 ## Permissions
 
