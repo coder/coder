@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import AddIcon from "@material-ui/icons/Add"
 import RemoveIcon from "@material-ui/icons/Remove"
@@ -69,7 +69,7 @@ export const WorkspaceScheduleButton: React.FC<
   const [isOpen, setIsOpen] = useState(false)
   const [editMode, setEditMode] = useState<EditMode>("off")
   const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles(editMode)
+  const styles = useStyles({ editMode })
 
   const onClose = () => {
     setIsOpen(false)
@@ -93,7 +93,7 @@ export const WorkspaceScheduleButton: React.FC<
           <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
             <span className={styles.actions}>
               <IconButton
-                className={styles.iconButton}
+                className={styles.subtractButton}
                 size="small"
                 disabled={!deadlineMinusEnabled()}
                 onClick={() => {
@@ -105,7 +105,7 @@ export const WorkspaceScheduleButton: React.FC<
                 </Tooltip>
               </IconButton>
               <IconButton
-                className={styles.iconButton}
+                className={styles.addButton}
                 size="small"
                 disabled={!deadlinePlusEnabled()}
                 onClick={() => {
@@ -161,7 +161,11 @@ export const WorkspaceScheduleButton: React.FC<
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+interface StyleProps {
+  editMode: EditMode
+}
+
+const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   wrapper: {
     display: "inline-flex",
     alignItems: "center",
@@ -212,8 +216,13 @@ const useStyles = makeStyles((theme) => ({
       },
     },
   },
-  iconButton: {
+  addButton: {
     borderRadius: theme.shape.borderRadius,
+    backgroundColor: ({ editMode }) => editMode === "add" ? theme.palette.primary.main : "inherit"
+  },
+  subtractButton: {
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: ({ editMode }) => editMode === "subtract" ? theme.palette.primary.main : "inherit"
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
