@@ -631,3 +631,12 @@ export const getWorkspaceQuota = async (
   const response = await axios.get(`/api/v2/workspace-quota/${userID}`)
   return response.data
 }
+
+export const getAgentListeningPorts = async (
+  agentID: string,
+): Promise<TypesGen.ListeningPortsResponse> => {
+  const response = await axios.get(
+    `/api/v2/workspaceagents/${agentID}/listening-ports`,
+  )
+  return response.data
+}

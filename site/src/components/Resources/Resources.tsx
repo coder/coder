@@ -179,6 +179,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                     <PortForwardButton
                                       host={applicationsHost}
                                       workspaceName={workspace.name}
+                                      agentId={agent.id}
                                       agentName={agent.name}
                                       username={workspace.owner_name}
                                     />
