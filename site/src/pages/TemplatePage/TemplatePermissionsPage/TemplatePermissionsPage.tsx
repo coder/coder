@@ -25,7 +25,7 @@ export const TemplatePermissionsPage: FC<
       "This page should not be displayed until template or permissions being loaded.",
     )
   }
-  const { rbac: isRBACEnabled } = useFeatureVisibility()
+  const { template_rbac: isRBACEnabled } = useFeatureVisibility()
   const [state, send] = useMachine(templateACLMachine, {
     context: { templateId: template.id },
   })

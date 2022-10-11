@@ -17,7 +17,7 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
   const { createUser: canCreateUser, createGroup: canCreateGroup } =
     usePermissions()
   const navigate = useNavigate()
-  const { rbac: isRBACEnabled } = useFeatureVisibility()
+  const { template_rbac: isRBACEnabled } = useFeatureVisibility()
 
   return (
     <>

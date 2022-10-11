@@ -17,7 +17,7 @@ export const GroupsPage: React.FC = () => {
   })
   const { groups } = state.context
   const { createGroup: canCreateGroup } = usePermissions()
-  const { rbac: isRBACEnabled } = useFeatureVisibility()
+  const { template_rbac: isRBACEnabled } = useFeatureVisibility()
 
   return (
     <>
