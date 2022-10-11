@@ -9,8 +9,9 @@ export const Language = {
   title: "SSH keys",
   description: (
     <p>
-      The following public key is used to authenticate Git in workspaces. You may add it to Git
-      services (such as GitHub) that you need to access from your workspace. <br />
+      The following public key is used to authenticate Git in workspaces. You
+      may add it to Git services (such as GitHub) that you need to access from
+      your workspace. <br />
       <br />
       Coder configures authentication via <code>$GIT_SSH_COMMAND</code>.
     </p>
@@ -55,7 +56,9 @@ export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
         type="delete"
         hideCancel={false}
         open={authState.matches("signedIn.ssh.loaded.confirmSSHKeyRegenerate")}
-        confirmLoading={authState.matches("signedIn.ssh.loaded.regeneratingSSHKey")}
+        confirmLoading={authState.matches(
+          "signedIn.ssh.loaded.regeneratingSSHKey",
+        )}
         title={Language.regenerateDialogTitle}
         confirmText={Language.confirmLabel}
         onConfirm={() => {

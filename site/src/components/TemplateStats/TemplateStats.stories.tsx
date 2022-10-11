@@ -1,13 +1,18 @@
 import { Story } from "@storybook/react"
 import * as Mocks from "../../testHelpers/renderHelpers"
-import { TemplateStats, TemplateStatsProps } from "../TemplateStats/TemplateStats"
+import {
+  TemplateStats,
+  TemplateStatsProps,
+} from "../TemplateStats/TemplateStats"
 
 export default {
   title: "components/TemplateStats",
   component: TemplateStats,
 }
 
-const Template: Story<TemplateStatsProps> = (args) => <TemplateStats {...args} />
+const Template: Story<TemplateStatsProps> = (args) => (
+  <TemplateStats {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

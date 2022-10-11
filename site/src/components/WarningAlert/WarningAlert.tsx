@@ -32,13 +32,21 @@ export const WarningAlert: FC<WarningAlertProps> = ({
         justifyContent="space-between"
       >
         <Stack direction="row" spacing={1}>
-          <ReportProblemOutlinedIcon fontSize="small" className={classes.alertIcon} />
+          <ReportProblemOutlinedIcon
+            fontSize="small"
+            className={classes.alertIcon}
+          />
           {text}
         </Stack>
         <Stack direction="row">
-          {actions.length > 0 && actions.map((action) => <div key={String(action)}>{action}</div>)}
+          {actions.length > 0 &&
+            actions.map((action) => <div key={String(action)}>{action}</div>)}
           {dismissible && (
-            <Button size="small" onClick={() => setOpen(false)} variant="outlined">
+            <Button
+              size="small"
+              onClick={() => setOpen(false)}
+              variant="outlined"
+            >
               {t("ctas.dismissCta")}
             </Button>
           )}

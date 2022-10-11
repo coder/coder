@@ -3,7 +3,10 @@ import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
-import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
+import {
+  CloseDropdown,
+  OpenDropdown,
+} from "components/DropdownArrows/DropdownArrows"
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
@@ -13,7 +16,9 @@ import userAgentParser from "ua-parser-js"
 import { createDayString } from "util/createDayString"
 import { AuditLogDiff } from "./AuditLogDiff"
 
-const pillTypeByHttpStatus = (httpStatus: number): ComponentProps<typeof Pill>["type"] => {
+const pillTypeByHttpStatus = (
+  httpStatus: number,
+): ComponentProps<typeof Pill>["type"] => {
   if (httpStatus >= 300 && httpStatus < 500) {
     return "warning"
   }
@@ -47,7 +52,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   const shouldDisplayDiff = diffs.length > 0
   const { os, browser } = userAgentParser(auditLog.user_agent)
   const notAvailableLabel = "Not available"
-  const displayBrowserInfo = browser.name ? `${browser.name} ${browser.version}` : notAvailableLabel
+  const displayBrowserInfo = browser.name
+    ? `${browser.name} ${browser.version}`
+    : notAvailableLabel
 
   const toggle = () => {
     if (shouldDisplayDiff) {
@@ -85,9 +92,13 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               <div>
                 <span
                   className={styles.auditLogResume}
-                  dangerouslySetInnerHTML={{ __html: readableActionMessage(auditLog) }}
+                  dangerouslySetInnerHTML={{
+                    __html: readableActionMessage(auditLog),
+                  }}
                 />
-                <span className={styles.auditLogTime}>{createDayString(auditLog.time)}</span>
+                <span className={styles.auditLogTime}>
+                  {createDayString(auditLog.time)}
+                </span>
               </div>
             </Stack>
 
@@ -101,7 +112,11 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 type={pillTypeByHttpStatus(auditLog.status_code)}
                 text={auditLog.status_code.toString()}
               />
-              <Stack direction="row" alignItems="center" className={styles.auditLogExtraInfo}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                className={styles.auditLogExtraInfo}
+              >
                 <div>
                   <strong>IP</strong> {auditLog.ip ?? notAvailableLabel}
                 </div>
@@ -115,7 +130,11 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
             </Stack>
           </Stack>
 
-          <div className={shouldDisplayDiff ? undefined : styles.disabledDropdownIcon}>
+          <div
+            className={
+              shouldDisplayDiff ? undefined : styles.disabledDropdownIcon
+            }
+          >
             {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}
           </div>
         </Stack>

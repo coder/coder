@@ -2,8 +2,8 @@ package authz
 import future.keywords
 # A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
-# opa eval --format=pretty 'data.authz.role_allow data.authz.scope_allow' -d policy.rego  -i input.json
-# opa eval --partial --format=pretty 'data.authz.role_allow = true data.authz.scope_allow = true' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner -i input.json
+# opa eval --format=pretty 'data.authz.allow' -d policy.rego  -i input.json
+# opa eval --partial --format=pretty 'data.authz.allow' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
 
 #
 # This policy is specifically constructed to compress to a set of queries if the
@@ -119,9 +119,13 @@ org_mem := true {
 	input.object.org_owner in org_members
 }
 
+org_ok {
+	org_mem
+}
+
 # If the object has no organization, then the user is also considered part of
 # the non-existent org.
-org_mem := true {
+org_ok {
 	input.object.org_owner == ""
 }
 
@@ -156,7 +160,6 @@ user_allow(roles) := num {
 # Allow query:
 #	 data.authz.role_allow = true data.authz.scope_allow = true
 
-default role_allow = false
 role_allow {
 	site = 1
 }
@@ -171,12 +174,10 @@ role_allow {
 	not org = -1
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
-	org_mem
+	org_ok
 	user = 1
 }
 
-
-default scope_allow = false
 scope_allow {
 	scope_site = 1
 }
@@ -191,6 +192,48 @@ scope_allow {
 	not scope_org = -1
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
-	org_mem
+	org_ok
 	scope_user = 1
+}
+
+# ACL for users
+acl_allow {
+	# Should you have to be a member of the org too?
+	perms := input.object.acl_user_list[input.subject.id]
+	# Either the input action or wildcard
+	[input.action, "*"][_] in perms
+}
+
+# ACL for groups
+acl_allow {
+	# If there is no organization owner, the object cannot be owned by an
+	# org_scoped team.
+	org_mem
+	group := input.subject.groups[_]
+	perms := input.object.acl_group_list[group]
+	# Either the input action or wildcard
+	[input.action, "*"][_] in perms
+}
+
+# ACL for 'all_users' special group
+acl_allow {
+	org_mem
+	perms := input.object.acl_group_list[input.object.org_owner]
+	[input.action, "*"][_] in perms
+}
+
+###############
+# Final Allow
+# The role or the ACL must allow the action. Scopes can be used to limit,
+# so scope_allow must always be true.
+
+allow {
+	role_allow
+	scope_allow
+}
+
+# ACL list must also have the scope_allow to pass
+allow {
+	acl_allow
+	scope_allow
 }

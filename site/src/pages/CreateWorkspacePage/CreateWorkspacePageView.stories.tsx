@@ -7,7 +7,9 @@ import {
   CreateWorkspacePageViewProps,
 } from "./CreateWorkspacePageView"
 
-const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
+const createParameterSchema = (
+  partial: Partial<ParameterSchema>,
+): ParameterSchema => {
   return {
     id: "000000",
     job_id: "000000",
@@ -56,7 +58,12 @@ Parameters.args = {
       name: "region",
       default_source_value: "🏈 US Central",
       description: "Where would you like your workspace to live?",
-      validation_contains: ["🏈 US Central", "⚽ Brazil East", "💶 EU West", "🦘 Australia South"],
+      validation_contains: [
+        "🏈 US Central",
+        "⚽ Brazil East",
+        "💶 EU West",
+        "🦘 Australia South",
+      ],
     }),
     createParameterSchema({
       name: "instance_size",
@@ -109,7 +116,8 @@ CreateWorkspaceError.args = {
   ...Parameters.args,
   createWorkspaceErrors: {
     [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: makeMockApiError({
-      message: 'Workspace "test" already exists in the "docker-amd64" template.',
+      message:
+        'Workspace "test" already exists in the "docker-amd64" template.',
       validations: [
         {
           field: "name",

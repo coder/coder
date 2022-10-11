@@ -54,6 +54,7 @@ type Authorization struct {
 	ID       uuid.UUID
 	Username string
 	Roles    []string
+	Groups   []string
 	Scope    database.APIKeyScope
 }
 
@@ -360,6 +361,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				Username: roles.Username,
 				Roles:    roles.Roles,
 				Scope:    key.Scope,
+				Groups:   roles.Groups,
 			})
 
 			next.ServeHTTP(rw, r.WithContext(ctx))

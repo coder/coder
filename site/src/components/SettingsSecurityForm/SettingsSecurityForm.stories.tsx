@@ -9,7 +9,9 @@ export default {
   },
 }
 
-const Template: Story<SecurityFormProps> = (args: SecurityFormProps) => <SecurityForm {...args} />
+const Template: Story<SecurityFormProps> = (args: SecurityFormProps) => (
+  <SecurityForm {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

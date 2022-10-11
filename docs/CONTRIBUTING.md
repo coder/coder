@@ -75,6 +75,10 @@ Use the following `make` commands and scripts in development:
 
 ## Styling
 
+### Documentation
+
+Our style guide for authoring documentation can be found [./contributing/documentation.md](here).
+
 ### Backend
 
 #### Use Go style

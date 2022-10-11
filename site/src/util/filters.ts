@@ -1,7 +1,9 @@
 import { useSearchParams } from "react-router-dom"
 import * as TypesGen from "../api/typesGenerated"
 
-export const queryToFilter = (query?: string): TypesGen.WorkspaceFilter | TypesGen.UsersRequest => {
+export const queryToFilter = (
+  query?: string,
+): TypesGen.WorkspaceFilter | TypesGen.UsersRequest => {
   const preparedQuery = query?.trim().replace(/  +/g, " ")
   return {
     q: preparedQuery,

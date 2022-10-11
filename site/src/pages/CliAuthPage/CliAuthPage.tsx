@@ -6,7 +6,9 @@ import { pageTitle } from "../../util/page"
 import { XServiceContext } from "../../xServices/StateContext"
 import { CliAuthPageView } from "./CliAuthPageView"
 
-export const CliAuthenticationPage: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const CliAuthenticationPage: React.FC<
+  React.PropsWithChildren<unknown>
+> = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context

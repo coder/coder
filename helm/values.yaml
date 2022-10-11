@@ -59,7 +59,8 @@ coder:
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
-  resources: {}
+  resources:
+    {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
@@ -88,3 +89,29 @@ coder:
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
+
+  # coder.ingress -- The Ingress object to expose for Coder.
+  ingress:
+    # coder.ingress.enable -- Whether to create the Ingress object. If using an
+    # Ingress, we recommend not specifying coder.tls.secretNames as the Ingress
+    # will handle TLS termination.
+    enable: false
+    # coder.ingress.className -- The name of the Ingress class to use.
+    className: ""
+    # coder.ingress.host -- The hostname to match on.
+    host: ""
+    # coder.ingress.wildcardHost -- The wildcard hostname to match on. Should be
+    # in the form "*.example.com". Optional if not using applications over
+    # subdomains.
+    wildcardHost: ""
+    # coder.ingress.annotations -- The ingress annotations.
+    annotations: {}
+    # coder.ingress.tls -- The TLS configuration to use for the Ingress.
+    tls:
+      # coder.ingress.tls.enable -- Whether to enable TLS on the Ingress.
+      enable: false
+      # coder.ingress.tls.secretName -- The name of the TLS secret to use.
+      secretName: ""
+      # coder.ingress.tls.wildcardSecretName -- The name of the TLS secret to
+      # use for the wildcard host.
+      wildcardSecretName: ""

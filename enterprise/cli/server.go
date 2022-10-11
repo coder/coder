@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/enterprise/coderd"
 
 	agpl "github.com/coder/coder/cli"
@@ -14,35 +14,35 @@ import (
 )
 
 func server() *cobra.Command {
-	var (
-		auditLogging       bool
-		browserOnly        bool
-		scimAuthHeader     string
-		userWorkspaceQuota int
-	)
-	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
-		api, err := coderd.New(ctx, &coderd.Options{
-			AuditLogging:       auditLogging,
-			BrowserOnly:        browserOnly,
-			SCIMAPIKey:         []byte(scimAuthHeader),
-			UserWorkspaceQuota: userWorkspaceQuota,
+	dflags := deployment.Flags()
+	cmd := agpl.Server(dflags, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
+		options.DeploymentFlags = &dflags
+		o := &coderd.Options{
+			AuditLogging:       dflags.AuditLogging.Value,
+			BrowserOnly:        dflags.BrowserOnly.Value,
+			SCIMAPIKey:         []byte(dflags.SCIMAuthHeader.Value),
+			UserWorkspaceQuota: dflags.UserWorkspaceQuota.Value,
+			RBACEnabled:        true,
 			Options:            options,
-		})
+		}
+		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, err
 		}
 		return api.AGPL, nil
 	})
-	enterpriseOnly := cliui.Styles.Keyword.Render("This is an Enterprise feature. Contact sales@coder.com for licensing")
 
-	cliflag.BoolVarP(cmd.Flags(), &auditLogging, "audit-logging", "", "CODER_AUDIT_LOGGING", true,
-		"Specifies whether audit logging is enabled. "+enterpriseOnly)
-	cliflag.BoolVarP(cmd.Flags(), &browserOnly, "browser-only", "", "CODER_BROWSER_ONLY", false,
-		"Whether Coder only allows connections to workspaces via the browser. "+enterpriseOnly)
-	cliflag.StringVarP(cmd.Flags(), &scimAuthHeader, "scim-auth-header", "", "CODER_SCIM_API_KEY", "",
-		"Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication. "+enterpriseOnly)
-	cliflag.IntVarP(cmd.Flags(), &userWorkspaceQuota, "user-workspace-quota", "", "CODER_USER_WORKSPACE_QUOTA", 0,
-		"A positive number applies a limit on how many workspaces each user can create. "+enterpriseOnly)
+	// append enterprise description to flags
+	enterpriseOnly := cliui.Styles.Keyword.Render(" This is an Enterprise feature. Contact sales@coder.com for licensing")
+	dflags.AuditLogging.Description += enterpriseOnly
+	dflags.BrowserOnly.Description += enterpriseOnly
+	dflags.SCIMAuthHeader.Description += enterpriseOnly
+	dflags.UserWorkspaceQuota.Description += enterpriseOnly
+
+	deployment.BoolFlag(cmd.Flags(), &dflags.AuditLogging)
+	deployment.BoolFlag(cmd.Flags(), &dflags.BrowserOnly)
+	deployment.StringFlag(cmd.Flags(), &dflags.SCIMAuthHeader)
+	deployment.IntFlag(cmd.Flags(), &dflags.UserWorkspaceQuota)
 
 	return cmd
 }

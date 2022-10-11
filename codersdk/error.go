@@ -51,3 +51,8 @@ func IsConnectionErr(err error) bool {
 
 	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
 }
+
+func AsError(err error) (*Error, bool) {
+	var e *Error
+	return e, xerrors.As(err, &e)
+}

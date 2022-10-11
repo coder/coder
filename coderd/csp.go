@@ -34,7 +34,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	for k, v := range v.Report {
 		fields = append(fields, slog.F(k, v))
 	}
-	api.Logger.Warn(ctx, "csp violation", fields...)
+	api.Logger.Debug(ctx, "csp violation", fields...)
 
 	httpapi.Write(ctx, rw, http.StatusOK, "ok")
 }

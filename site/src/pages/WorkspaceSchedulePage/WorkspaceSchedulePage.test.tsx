@@ -2,7 +2,10 @@ import {
   formValuesToAutoStartRequest,
   formValuesToTTLRequest,
 } from "pages/WorkspaceSchedulePage/formToRequest"
-import { AutoStart, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import {
+  AutoStart,
+  scheduleToAutoStart,
+} from "pages/WorkspaceSchedulePage/schedule"
 import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
@@ -24,7 +27,9 @@ const validValues: WorkspaceScheduleFormValues = {
 
 describe("WorkspaceSchedulePage", () => {
   describe("formValuesToAutoStartRequest", () => {
-    it.each<[WorkspaceScheduleFormValues, TypesGen.UpdateWorkspaceAutostartRequest]>([
+    it.each<
+      [WorkspaceScheduleFormValues, TypesGen.UpdateWorkspaceAutostartRequest]
+    >([
       [
         // Empty case
         {

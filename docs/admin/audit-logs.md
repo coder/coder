@@ -32,4 +32,4 @@ The supported filters are:
 
 ## Enabling this feature
 
-This feature is autoenabled for all enterprise deployments. Admins may contact us to purchase a license [here](https://coder.com/contact?note=I%20want%20to%20upgrade%20my%20license).
+This feature is auto enabled for all enterprise deployments. Admins may contact us to purchase a license [here](https://coder.com/contact?note=I%20want%20to%20upgrade%20my%20license).

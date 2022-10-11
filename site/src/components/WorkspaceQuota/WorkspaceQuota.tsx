@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import LinearProgress from "@material-ui/core/LinearProgress"
 import { makeStyles } from "@material-ui/core/styles"
 import Skeleton from "@material-ui/lab/Skeleton"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -28,7 +28,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
       <Box>
         <Stack spacing={1} className={styles.stack}>
           <span className={styles.title}>Workspace Quota</span>
-          <ErrorSummary error={error} />
+          <AlertBanner severity="error" error={error} />
         </Stack>
       </Box>
     )
@@ -54,7 +54,9 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
     return null
   }
 
-  let value = Math.round((quota.user_workspace_count / quota.user_workspace_limit) * 100)
+  let value = Math.round(
+    (quota.user_workspace_count / quota.user_workspace_limit) * 100,
+  )
   // we don't want to round down to zero if the count is > 0
   if (quota.user_workspace_count > 0 && value === 0) {
     value = 1
@@ -74,8 +76,11 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
           variant="determinate"
         />
         <div className={styles.label}>
-          {quota.user_workspace_count} {Language.of} {quota.user_workspace_limit}{" "}
-          {quota.user_workspace_limit === 1 ? Language.workspace : Language.workspaces}
+          {quota.user_workspace_count} {Language.of}{" "}
+          {quota.user_workspace_limit}{" "}
+          {quota.user_workspace_limit === 1
+            ? Language.workspace
+            : Language.workspaces}
           {" used"}
         </div>
       </Stack>

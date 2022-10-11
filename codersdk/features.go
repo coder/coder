@@ -20,6 +20,7 @@ const (
 	FeatureBrowserOnly    = "browser_only"
 	FeatureSCIM           = "scim"
 	FeatureWorkspaceQuota = "workspace_quota"
+	FeatureRBAC           = "rbac"
 )
 
 var FeatureNames = []string{
@@ -28,6 +29,7 @@ var FeatureNames = []string{
 	FeatureBrowserOnly,
 	FeatureSCIM,
 	FeatureWorkspaceQuota,
+	FeatureRBAC,
 }
 
 type Feature struct {
@@ -42,6 +44,7 @@ type Entitlements struct {
 	Warnings     []string           `json:"warnings"`
 	HasLicense   bool               `json:"has_license"`
 	Experimental bool               `json:"experimental"`
+	Trial        bool               `json:"trial"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {

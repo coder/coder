@@ -72,11 +72,13 @@
         {
           "title": "AWS",
           "description": "Setup Coder with AWS",
+          "icon_path": "./images/aws.svg",
           "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
           "description": "Setup Coder with Azure",
+          "icon_path": "./images/azure.svg",
           "path": "./quickstart/azure.md"
         }
       ]
@@ -200,13 +202,15 @@
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment.",
           "icon_path": "./images/icons/radar.svg",
-          "path": "./admin/audit-logs.md"
+          "path": "./admin/audit-logs.md",
+          "state": "enterprise"
         },
         {
           "title": "Quotas",
           "description": "Learn how to use Workspace Quotas in Coder.",
           "icon_path": "./images/icons/dollar.svg",
-          "path": "./admin/quotas.md"
+          "path": "./admin/quotas.md",
+          "state": "enterprise"
         },
         {
           "title": "Enterprise",
@@ -232,6 +236,11 @@
           "title": "Code of Conduct",
           "description": "See the code of conduct for contributing to Coder",
           "path": "./contributing/CODE_OF_CONDUCT.md"
+        },
+        {
+          "title": "Documentation",
+          "description": "Our style guide for use when authoring documentation",
+          "path": "./contributing/documentation.md"
         },
         {
           "title": "Security",

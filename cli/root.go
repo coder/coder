@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
@@ -93,11 +94,14 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
+		tokens(),
 	}
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+	df := deployment.Flags()
+	all := append(Core(), Server(df, func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+		o.DeploymentFlags = &df
 		return coderd.New(o), nil
 	}))
 	return all

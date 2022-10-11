@@ -163,6 +163,50 @@ func TestWorkspaceBuilds(t *testing.T) {
 		require.Equal(t, int32(1), builds[0].BuildNumber)
 		require.Equal(t, user.Username, builds[0].InitiatorUsername)
 		require.NoError(t, err)
+
+		// Test since
+		builds, err = client.WorkspaceBuilds(ctx,
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(time.Minute)},
+		)
+		require.NoError(t, err)
+		require.Len(t, builds, 0)
+
+		builds, err = client.WorkspaceBuilds(ctx,
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(-time.Hour)},
+		)
+		require.NoError(t, err)
+		require.Len(t, builds, 1)
+	})
+
+	t.Run("DeletedInitiator", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, client)
+		second := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		secondUser, err := second.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace, err := second.CreateWorkspace(ctx, first.OrganizationID, first.UserID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "example",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		err = client.DeleteUser(ctx, secondUser.ID)
+		require.NoError(t, err)
+
+		builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})
+		require.Len(t, builds, 1)
+		require.Equal(t, int32(1), builds[0].BuildNumber)
+		require.Equal(t, secondUser.Username, builds[0].InitiatorUsername)
+		require.NoError(t, err)
 	})
 
 	t.Run("PaginateNonExistentRow", func(t *testing.T) {

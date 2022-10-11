@@ -35,22 +35,37 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isUpdating,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const { canCancel, canAcceptJobs, actions } = statusToAbilities[workspaceStatus]
+  const { canCancel, canAcceptJobs, actions } =
+    statusToAbilities[workspaceStatus]
   const canBeUpdated = isOutdated && canAcceptJobs
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
     [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
-    [ButtonTypesEnum.updating]: <ActionLoadingButton label={t("actionButton.updating")} />,
+    [ButtonTypesEnum.updating]: (
+      <ActionLoadingButton label={t("actionButton.updating")} />
+    ),
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
-    [ButtonTypesEnum.starting]: <ActionLoadingButton label={t("actionButton.starting")} />,
+    [ButtonTypesEnum.starting]: (
+      <ActionLoadingButton label={t("actionButton.starting")} />
+    ),
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
-    [ButtonTypesEnum.stopping]: <ActionLoadingButton label={t("actionButton.stopping")} />,
+    [ButtonTypesEnum.stopping]: (
+      <ActionLoadingButton label={t("actionButton.stopping")} />
+    ),
     [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
-    [ButtonTypesEnum.deleting]: <ActionLoadingButton label={t("actionButton.deleting")} />,
-    [ButtonTypesEnum.canceling]: <DisabledButton label={t("disabledButton.canceling")} />,
-    [ButtonTypesEnum.deleted]: <DisabledButton label={t("disabledButton.deleted")} />,
-    [ButtonTypesEnum.pending]: <DisabledButton label={t("disabledButton.pending")} />,
+    [ButtonTypesEnum.deleting]: (
+      <ActionLoadingButton label={t("actionButton.deleting")} />
+    ),
+    [ButtonTypesEnum.canceling]: (
+      <DisabledButton label={t("disabledButton.canceling")} />
+    ),
+    [ButtonTypesEnum.deleted]: (
+      <DisabledButton label={t("disabledButton.deleted")} />
+    ),
+    [ButtonTypesEnum.pending]: (
+      <DisabledButton label={t("disabledButton.pending")} />
+    ),
   }
 
   // memoize so this isn't recalculated every time we fetch the workspace
