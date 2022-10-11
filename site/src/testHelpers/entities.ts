@@ -1,4 +1,5 @@
 import { FieldError } from "api/errors"
+import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -918,7 +919,10 @@ export const MockGroup: TypesGen.Group = {
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
-  group: [{ ...MockGroup, role: "admin" }],
+  group: [
+    { ...everyOneGroup(MockOrganization.id), role: "view" },
+    { ...MockGroup, role: "admin" },
+  ],
   users: [{ ...MockUser, role: "view" }],
 }
 

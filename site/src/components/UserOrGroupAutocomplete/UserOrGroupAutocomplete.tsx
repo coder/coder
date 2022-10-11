@@ -7,6 +7,7 @@ import { Group, User } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, useState } from "react"
+import { getGroupSubtitle } from "util/groups"
 import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService"
 
 export type UserOrGroupAutocompleteValue = User | Group | null
@@ -75,9 +76,7 @@ export const UserOrGroupAutocomplete: React.FC<
         return (
           <AvatarData
             title={isOptionGroup ? option.name : option.username}
-            subtitle={
-              isOptionGroup ? `${option.members.length} members` : option.email
-            }
+            subtitle={isOptionGroup ? getGroupSubtitle(option) : option.email}
             highlightTitle
             avatar={
               !isOptionGroup && option.avatar_url ? (
