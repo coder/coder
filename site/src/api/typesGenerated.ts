@@ -133,6 +133,7 @@ export interface BoolFlag {
   readonly shorthand: string
   readonly description: string
   readonly enterprise: boolean
+  readonly hidden: boolean
   readonly default: boolean
   readonly value: boolean
 }
@@ -196,8 +197,8 @@ export interface CreateTemplateRequest {
 
 // From codersdk/templateversions.go
 export interface CreateTemplateVersionDryRunRequest {
-  readonly WorkspaceName: string
-  readonly ParameterValues: CreateParameterRequest[]
+  readonly workspace_name: string
+  readonly parameter_values: CreateParameterRequest[]
 }
 
 // From codersdk/organizations.go
@@ -319,6 +320,7 @@ export interface DurationFlag {
   readonly shorthand: string
   readonly description: string
   readonly enterprise: boolean
+  readonly hidden: boolean
   // This is likely an enum in an external package ("time.Duration")
   readonly default: number
   // This is likely an enum in an external package ("time.Duration")
@@ -383,6 +385,7 @@ export interface IntFlag {
   readonly shorthand: string
   readonly description: string
   readonly enterprise: boolean
+  readonly hidden: boolean
   readonly default: number
   readonly value: number
 }
@@ -546,6 +549,7 @@ export interface StringArrayFlag {
   readonly shorthand: string
   readonly description: string
   readonly enterprise: boolean
+  readonly hidden: boolean
   readonly default: string[]
   readonly value: string[]
 }
@@ -559,6 +563,7 @@ export interface StringFlag {
   readonly description: string
   readonly enterprise: boolean
   readonly secret: boolean
+  readonly hidden: boolean
   readonly default: string
   readonly value: string
 }

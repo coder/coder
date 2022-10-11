@@ -67,7 +67,7 @@ import (
 )
 
 // nolint:gocyclo
-func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
+func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
@@ -318,7 +318,7 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 				MetricsCacheRefreshInterval: dflags.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   dflags.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
-				DeploymentFlags:             &dflags,
+				DeploymentFlags:             dflags,
 			}
 
 			if dflags.OAuth2GithubClientSecret.Value != "" {
@@ -712,58 +712,7 @@ func Server(dflags codersdk.DeploymentFlags, newAPI func(context.Context, *coder
 		},
 	})
 
-	deployment.StringFlag(root.Flags(), &dflags.AccessURL)
-	deployment.StringFlag(root.Flags(), &dflags.WildcardAccessURL)
-	deployment.StringFlag(root.Flags(), &dflags.Address)
-	deployment.DurationFlag(root.Flags(), &dflags.AutobuildPollInterval)
-	_ = root.Flags().MarkHidden(dflags.AutobuildPollInterval.Flag)
-	deployment.BoolFlag(root.Flags(), &dflags.DerpServerEnable)
-	deployment.IntFlag(root.Flags(), &dflags.DerpServerRegionID)
-	deployment.StringFlag(root.Flags(), &dflags.DerpServerRegionCode)
-	deployment.StringFlag(root.Flags(), &dflags.DerpServerRegionName)
-	deployment.StringArrayFlag(root.Flags(), &dflags.DerpServerSTUNAddresses)
-	deployment.StringFlag(root.Flags(), &dflags.DerpConfigURL)
-	deployment.StringFlag(root.Flags(), &dflags.DerpConfigPath)
-	deployment.BoolFlag(root.Flags(), &dflags.PromEnabled)
-	deployment.StringFlag(root.Flags(), &dflags.PromAddress)
-	deployment.BoolFlag(root.Flags(), &dflags.PprofEnabled)
-	deployment.StringFlag(root.Flags(), &dflags.CacheDir)
-	deployment.BoolFlag(root.Flags(), &dflags.InMemoryDatabase)
-	_ = root.Flags().MarkHidden(dflags.InMemoryDatabase.Flag)
-	deployment.IntFlag(root.Flags(), &dflags.ProvisionerDaemonCount)
-	deployment.StringFlag(root.Flags(), &dflags.PostgresURL)
-	deployment.StringFlag(root.Flags(), &dflags.OAuth2GithubClientID)
-	deployment.StringFlag(root.Flags(), &dflags.OAuth2GithubClientSecret)
-	deployment.StringArrayFlag(root.Flags(), &dflags.OAuth2GithubAllowedOrganizations)
-	deployment.StringArrayFlag(root.Flags(), &dflags.OAuth2GithubAllowedTeams)
-	deployment.BoolFlag(root.Flags(), &dflags.OAuth2GithubAllowSignups)
-	deployment.StringFlag(root.Flags(), &dflags.OAuth2GithubEnterpriseBaseURL)
-	deployment.BoolFlag(root.Flags(), &dflags.OIDCAllowSignups)
-	deployment.StringFlag(root.Flags(), &dflags.OIDCClientID)
-	deployment.StringFlag(root.Flags(), &dflags.OIDCClientSecret)
-	deployment.StringFlag(root.Flags(), &dflags.OIDCEmailDomain)
-	deployment.StringFlag(root.Flags(), &dflags.OIDCIssuerURL)
-	deployment.StringArrayFlag(root.Flags(), &dflags.OIDCScopes)
-	deployment.BoolFlag(root.Flags(), &dflags.TelemetryEnable)
-	deployment.BoolFlag(root.Flags(), &dflags.TelemetryTraceEnable)
-	deployment.StringFlag(root.Flags(), &dflags.TelemetryURL)
-	_ = root.Flags().MarkHidden(dflags.TelemetryURL.Flag)
-	deployment.BoolFlag(root.Flags(), &dflags.TLSEnable)
-	deployment.StringArrayFlag(root.Flags(), &dflags.TLSCertFiles)
-	deployment.StringFlag(root.Flags(), &dflags.TLSClientCAFile)
-	deployment.StringFlag(root.Flags(), &dflags.TLSClientAuth)
-	deployment.StringArrayFlag(root.Flags(), &dflags.TLSKeyFiles)
-	deployment.StringFlag(root.Flags(), &dflags.TLSMinVersion)
-	deployment.BoolFlag(root.Flags(), &dflags.TraceEnable)
-	deployment.BoolFlag(root.Flags(), &dflags.SecureAuthCookie)
-	deployment.StringFlag(root.Flags(), &dflags.SSHKeygenAlgorithm)
-	deployment.StringArrayFlag(root.Flags(), &dflags.AutoImportTemplates)
-	_ = root.Flags().MarkHidden(dflags.AutoImportTemplates.Flag)
-	deployment.DurationFlag(root.Flags(), &dflags.MetricsCacheRefreshInterval)
-	_ = root.Flags().MarkHidden(dflags.MetricsCacheRefreshInterval.Flag)
-	deployment.DurationFlag(root.Flags(), &dflags.AgentStatRefreshInterval)
-	_ = root.Flags().MarkHidden(dflags.AgentStatRefreshInterval.Flag)
-	deployment.BoolFlag(root.Flags(), &dflags.Verbose)
+	deployment.AttachFlags(root.Flags(), dflags, false)
 
 	return root
 }

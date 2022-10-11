@@ -10,57 +10,57 @@ import (
 )
 
 type DeploymentFlags struct {
-	AccessURL                        StringFlag      `json:"access_url"`
-	WildcardAccessURL                StringFlag      `json:"wildcard_access_url"`
-	Address                          StringFlag      `json:"address"`
-	AutobuildPollInterval            DurationFlag    `json:"autobuild_poll_interval"`
-	DerpServerEnable                 BoolFlag        `json:"derp_server_enabled"`
-	DerpServerRegionID               IntFlag         `json:"derp_server_region_id"`
-	DerpServerRegionCode             StringFlag      `json:"derp_server_region_code"`
-	DerpServerRegionName             StringFlag      `json:"derp_server_region_name"`
-	DerpServerSTUNAddresses          StringArrayFlag `json:"derp_server_stun_address"`
-	DerpConfigURL                    StringFlag      `json:"derp_config_url"`
-	DerpConfigPath                   StringFlag      `json:"derp_config_path"`
-	PromEnabled                      BoolFlag        `json:"prom_enabled"`
-	PromAddress                      StringFlag      `json:"prom_address"`
-	PprofEnabled                     BoolFlag        `json:"pprof_enabled"`
-	PprofAddress                     StringFlag      `json:"pprof_address"`
-	CacheDir                         StringFlag      `json:"cache_dir"`
-	InMemoryDatabase                 BoolFlag        `json:"in_memory_database"`
-	ProvisionerDaemonCount           IntFlag         `json:"provisioner_daemon_count"`
-	PostgresURL                      StringFlag      `json:"postgres_url"`
-	OAuth2GithubClientID             StringFlag      `json:"oauth2_github_client_id"`
-	OAuth2GithubClientSecret         StringFlag      `json:"oauth2_github_client_secret"`
-	OAuth2GithubAllowedOrganizations StringArrayFlag `json:"oauth2_github_allowed_organizations"`
-	OAuth2GithubAllowedTeams         StringArrayFlag `json:"oauth2_github_allowed_teams"`
-	OAuth2GithubAllowSignups         BoolFlag        `json:"oauth2_github_allow_signups"`
-	OAuth2GithubEnterpriseBaseURL    StringFlag      `json:"oauth2_github_enterprise_base_url"`
-	OIDCAllowSignups                 BoolFlag        `json:"oidc_allow_signups"`
-	OIDCClientID                     StringFlag      `json:"oidc_client_id"`
-	OIDCClientSecret                 StringFlag      `json:"oidc_cliet_secret"`
-	OIDCEmailDomain                  StringFlag      `json:"oidc_email_domain"`
-	OIDCIssuerURL                    StringFlag      `json:"oidc_issuer_url"`
-	OIDCScopes                       StringArrayFlag `json:"oidc_scopes"`
-	TelemetryEnable                  BoolFlag        `json:"telemetry_enable"`
-	TelemetryTraceEnable             BoolFlag        `json:"telemetry_trace_enable"`
-	TelemetryURL                     StringFlag      `json:"telemetry_url"`
-	TLSEnable                        BoolFlag        `json:"tls_enable"`
-	TLSCertFiles                     StringArrayFlag `json:"tls_cert_files"`
-	TLSClientCAFile                  StringFlag      `json:"tls_client_ca_file"`
-	TLSClientAuth                    StringFlag      `json:"tls_client_auth"`
-	TLSKeyFiles                      StringArrayFlag `json:"tls_key_tiles"`
-	TLSMinVersion                    StringFlag      `json:"tls_min_version"`
-	TraceEnable                      BoolFlag        `json:"trace_enable"`
-	SecureAuthCookie                 BoolFlag        `json:"secure_auth_cookie"`
-	SSHKeygenAlgorithm               StringFlag      `json:"ssh_keygen_algorithm"`
-	AutoImportTemplates              StringArrayFlag `json:"auto_import_templates"`
-	MetricsCacheRefreshInterval      DurationFlag    `json:"metrics_cache_refresh_interval"`
-	AgentStatRefreshInterval         DurationFlag    `json:"agent_stat_refresh_interval"`
-	Verbose                          BoolFlag        `json:"verbose"`
-	AuditLogging                     BoolFlag        `json:"audit_logging"`
-	BrowserOnly                      BoolFlag        `json:"browser_only"`
-	SCIMAuthHeader                   StringFlag      `json:"scim_auth_header"`
-	UserWorkspaceQuota               IntFlag         `json:"user_workspace_quota"`
+	AccessURL                        *StringFlag      `json:"access_url" typescript:",notnull"`
+	WildcardAccessURL                *StringFlag      `json:"wildcard_access_url" typescript:",notnull"`
+	Address                          *StringFlag      `json:"address" typescript:",notnull"`
+	AutobuildPollInterval            *DurationFlag    `json:"autobuild_poll_interval" typescript:",notnull"`
+	DerpServerEnable                 *BoolFlag        `json:"derp_server_enabled" typescript:",notnull"`
+	DerpServerRegionID               *IntFlag         `json:"derp_server_region_id" typescript:",notnull"`
+	DerpServerRegionCode             *StringFlag      `json:"derp_server_region_code" typescript:",notnull"`
+	DerpServerRegionName             *StringFlag      `json:"derp_server_region_name" typescript:",notnull"`
+	DerpServerSTUNAddresses          *StringArrayFlag `json:"derp_server_stun_address" typescript:",notnull"`
+	DerpConfigURL                    *StringFlag      `json:"derp_config_url" typescript:",notnull"`
+	DerpConfigPath                   *StringFlag      `json:"derp_config_path" typescript:",notnull"`
+	PromEnabled                      *BoolFlag        `json:"prom_enabled" typescript:",notnull"`
+	PromAddress                      *StringFlag      `json:"prom_address" typescript:",notnull"`
+	PprofEnabled                     *BoolFlag        `json:"pprof_enabled" typescript:",notnull"`
+	PprofAddress                     *StringFlag      `json:"pprof_address" typescript:",notnull"`
+	CacheDir                         *StringFlag      `json:"cache_dir" typescript:",notnull"`
+	InMemoryDatabase                 *BoolFlag        `json:"in_memory_database" typescript:",notnull"`
+	ProvisionerDaemonCount           *IntFlag         `json:"provisioner_daemon_count" typescript:",notnull"`
+	PostgresURL                      *StringFlag      `json:"postgres_url" typescript:",notnull"`
+	OAuth2GithubClientID             *StringFlag      `json:"oauth2_github_client_id" typescript:",notnull"`
+	OAuth2GithubClientSecret         *StringFlag      `json:"oauth2_github_client_secret" typescript:",notnull"`
+	OAuth2GithubAllowedOrganizations *StringArrayFlag `json:"oauth2_github_allowed_organizations" typescript:",notnull"`
+	OAuth2GithubAllowedTeams         *StringArrayFlag `json:"oauth2_github_allowed_teams" typescript:",notnull"`
+	OAuth2GithubAllowSignups         *BoolFlag        `json:"oauth2_github_allow_signups" typescript:",notnull"`
+	OAuth2GithubEnterpriseBaseURL    *StringFlag      `json:"oauth2_github_enterprise_base_url" typescript:",notnull"`
+	OIDCAllowSignups                 *BoolFlag        `json:"oidc_allow_signups" typescript:",notnull"`
+	OIDCClientID                     *StringFlag      `json:"oidc_client_id" typescript:",notnull"`
+	OIDCClientSecret                 *StringFlag      `json:"oidc_cliet_secret" typescript:",notnull"`
+	OIDCEmailDomain                  *StringFlag      `json:"oidc_email_domain" typescript:",notnull"`
+	OIDCIssuerURL                    *StringFlag      `json:"oidc_issuer_url" typescript:",notnull"`
+	OIDCScopes                       *StringArrayFlag `json:"oidc_scopes" typescript:",notnull"`
+	TelemetryEnable                  *BoolFlag        `json:"telemetry_enable" typescript:",notnull"`
+	TelemetryTraceEnable             *BoolFlag        `json:"telemetry_trace_enable" typescript:",notnull"`
+	TelemetryURL                     *StringFlag      `json:"telemetry_url" typescript:",notnull"`
+	TLSEnable                        *BoolFlag        `json:"tls_enable" typescript:",notnull"`
+	TLSCertFiles                     *StringArrayFlag `json:"tls_cert_files" typescript:",notnull"`
+	TLSClientCAFile                  *StringFlag      `json:"tls_client_ca_file" typescript:",notnull"`
+	TLSClientAuth                    *StringFlag      `json:"tls_client_auth" typescript:",notnull"`
+	TLSKeyFiles                      *StringArrayFlag `json:"tls_key_tiles" typescript:",notnull"`
+	TLSMinVersion                    *StringFlag      `json:"tls_min_version" typescript:",notnull"`
+	TraceEnable                      *BoolFlag        `json:"trace_enable" typescript:",notnull"`
+	SecureAuthCookie                 *BoolFlag        `json:"secure_auth_cookie" typescript:",notnull"`
+	SSHKeygenAlgorithm               *StringFlag      `json:"ssh_keygen_algorithm" typescript:",notnull"`
+	AutoImportTemplates              *StringArrayFlag `json:"auto_import_templates" typescript:",notnull"`
+	MetricsCacheRefreshInterval      *DurationFlag    `json:"metrics_cache_refresh_interval" typescript:",notnull"`
+	AgentStatRefreshInterval         *DurationFlag    `json:"agent_stat_refresh_interval" typescript:",notnull"`
+	Verbose                          *BoolFlag        `json:"verbose" typescript:",notnull"`
+	AuditLogging                     *BoolFlag        `json:"audit_logging" typescript:",notnull"`
+	BrowserOnly                      *BoolFlag        `json:"browser_only" typescript:",notnull"`
+	SCIMAuthHeader                   *StringFlag      `json:"scim_auth_header" typescript:",notnull"`
+	UserWorkspaceQuota               *IntFlag         `json:"user_workspace_quota" typescript:",notnull"`
 }
 
 type StringFlag struct {
@@ -71,6 +71,7 @@ type StringFlag struct {
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
 	Secret      bool   `json:"secret"`
+	Hidden      bool   `json:"hidden"`
 	Default     string `json:"default"`
 	Value       string `json:"value"`
 }
@@ -82,6 +83,7 @@ type BoolFlag struct {
 	Shorthand   string `json:"shorthand"`
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
 	Default     bool   `json:"default"`
 	Value       bool   `json:"value"`
 }
@@ -93,6 +95,7 @@ type IntFlag struct {
 	Shorthand   string `json:"shorthand"`
 	Description string `json:"description"`
 	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
 	Default     int    `json:"default"`
 	Value       int    `json:"value"`
 }
@@ -104,6 +107,7 @@ type DurationFlag struct {
 	Shorthand   string        `json:"shorthand"`
 	Description string        `json:"description"`
 	Enterprise  bool          `json:"enterprise"`
+	Hidden      bool          `json:"hidden"`
 	Default     time.Duration `json:"default"`
 	Value       time.Duration `json:"value"`
 }
@@ -115,6 +119,7 @@ type StringArrayFlag struct {
 	Shorthand   string   `json:"shorthand"`
 	Description string   `json:"description"`
 	Enterprise  bool     `json:"enterprise"`
+	Hidden      bool     `json:"hidden"`
 	Default     []string `json:"default"`
 	Value       []string `json:"value"`
 }
