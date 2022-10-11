@@ -420,7 +420,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		httpapi.Forbidden(rw)
 		return database.ProvisionerJob{}, false
 	}
-	// Do a workspace resource check since it's basically a workspace dry-run .
+	// Do a workspace resource check since it's basically a workspace dry-run.
 	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
 		httpapi.Forbidden(rw)
