@@ -1,5 +1,9 @@
 {
-  "versions": ["main", "v0.8.1", "v0.7.12"],
+  "versions": [
+    "main",
+    "v0.8.1",
+    "v0.7.12"
+  ],
   "routes": [
     {
       "title": "About",
@@ -171,6 +175,12 @@
       "path": "./admin/index.md",
       "children": [
         {
+          "title": "Authentication",
+          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "icon_path": "./images/icons/key.svg",
+          "path": "./admin/auth.md"
+        },
+        {
           "title": "Users",
           "description": "Learn about user roles available in Coder and how to create and manage users",
           "icon_path": "./images/icons/users.svg",
@@ -180,19 +190,15 @@
           "title": "Groups",
           "description": "Learn how to manage user groups",
           "icon_path": "./images/icons/group.svg",
-          "path": "./admin/groups.md"
+          "path": "./admin/groups.md",
+          "state": "enterprise"
         },
         {
           "title": "RBAC",
           "description": "Learn how to use the role based access control",
-          "icon_path": "./images/icons/key.svg",
-          "path": "./admin/rbac.md"
-        },
-        {
-          "title": "Authentication",
-          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
-          "icon_path": "./images/icons/key.svg",
-          "path": "./admin/auth.md"
+          "icon_path": "./images/icons/rbac.svg",
+          "path": "./admin/rbac.md",
+          "state": "enterprise"
         },
         {
           "title": "Configuration",

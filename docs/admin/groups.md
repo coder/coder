@@ -1,7 +1,10 @@
-# User Groups
+# Groups
 
-Groups are helpful for defining a set of common permissions for a group of users. It can be used with [RBAC](../rbac.md) to have a better access control.
+Groups can be used with [template RBAC](./rbac.md) to give groups of users access to specific templates.
+
+![Groups](../images/groups.png)
 
 ## Enabling this feature
 
-This feature is auto enabled for all enterprise deployments. Admins may contact us to purchase a license [here](https://coder.com/contact?note=I%20want%20to%20upgrade%20my%20license).
+This feature is only available with an enterprise license. [Learn more](./enterprise.md)
+

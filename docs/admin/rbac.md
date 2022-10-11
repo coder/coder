@@ -1,17 +1,18 @@
 # Role Based Access Control (RBAC)
 
-RBAC helps admins to control what their users and [groups](./groups.md) can access.
+Use RBAC to define which users and [groups](./groups.md) can use specific templates in Coder.
 
-> **Note**:
-> Right now, the only resource type where an admin can use RBAC is [Template](../templates.md) but we are planning to extend this capability to other resource types as well.
+![rbac](../images/template-rbac.png)
+
+The "Everyone" group makes a template accessable to all users. This can be removed to make a template private.
 
 ## Permissions
 
 You can set the following permissions:
 
-- **Admin**. Can edit and remove the resource including the permissions.
-- **View**. Can only read and access the resource.
+- **Admin**: Read, access, edit, push, and delete
+- **View**: Read, access
 
 ## Enabling this feature
 
-This feature is auto-enabled for all enterprise deployments. Admins may contact us to purchase a license [here](https://coder.com/contact?note=I%20want%20to%20upgrade%20my%20license).
+This feature is only available with an enterprise license. [Learn more](./enterprise.md)
