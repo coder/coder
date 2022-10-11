@@ -40,7 +40,7 @@ type TemplateRole string
 
 const (
 	TemplateRoleAdmin   TemplateRole = "admin"
-	TemplateRoleView    TemplateRole = "view"
+	TemplateRoleUse     TemplateRole = "use"
 	TemplateRoleDeleted TemplateRole = ""
 )
 
