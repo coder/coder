@@ -70,7 +70,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
-				api.rbacEnabledMW,
+				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(api.Database),
 			)
@@ -80,7 +80,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 		r.Route("/groups/{group}", func(r chi.Router) {
 			r.Use(
-				api.rbacEnabledMW,
+				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractGroupParam(api.Database),
 			)
@@ -157,7 +157,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		codersdk.FeatureBrowserOnly:    api.BrowserOnly,
 		codersdk.FeatureSCIM:           len(api.SCIMAPIKey) != 0,
 		codersdk.FeatureWorkspaceQuota: api.UserWorkspaceQuota != 0,
-		codersdk.FeatureRBAC:           api.RBACEnabled,
+		codersdk.FeatureTemplateRBAC:   api.RBACEnabled,
 	})
 	if err != nil {
 		return err

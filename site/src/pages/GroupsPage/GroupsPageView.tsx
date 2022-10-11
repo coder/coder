@@ -26,13 +26,13 @@ import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
 export type GroupsPageViewProps = {
   groups: Group[] | undefined
   canCreateGroup: boolean
-  isRBACEnabled: boolean
+  isTemplateRBACEnabled: boolean
 }
 
 export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
   groups,
   canCreateGroup,
-  isRBACEnabled,
+  isTemplateRBACEnabled,
 }) => {
   const isLoading = Boolean(groups === undefined)
   const isEmpty = Boolean(groups && groups.length === 0)
@@ -42,7 +42,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
   return (
     <>
       <ChooseOne>
-        <Cond condition={!isRBACEnabled}>
+        <Cond condition={!isTemplateRBACEnabled}>
           <Paywall
             message="User groups"
             description="Organize the users into groups and manage their permissions. To use this feature, you have to upgrade your account."

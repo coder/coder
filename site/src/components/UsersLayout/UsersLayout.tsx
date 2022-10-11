@@ -17,7 +17,7 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
   const { createUser: canCreateUser, createGroup: canCreateGroup } =
     usePermissions()
   const navigate = useNavigate()
-  const { rbac: isRBACEnabled } = useFeatureVisibility()
+  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
 
   return (
     <>
@@ -35,7 +35,7 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
                   Create user
                 </Button>
               )}
-              {canCreateGroup && isRBACEnabled && (
+              {canCreateGroup && isTemplateRBACEnabled && (
                 <Link
                   underline="none"
                   component={RouterLink}

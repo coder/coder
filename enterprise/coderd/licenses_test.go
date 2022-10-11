@@ -78,21 +78,21 @@ func TestGetLicense(t *testing.T) {
 		defer cancel()
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountID:   "testing",
-			AuditLog:    true,
-			SCIM:        true,
-			BrowserOnly: true,
-			RBACEnabled: true,
+			AccountID:           "testing",
+			AuditLog:            true,
+			SCIM:                true,
+			BrowserOnly:         true,
+			TemplateRBACEnabled: true,
 		})
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountID:   "testing2",
-			AuditLog:    true,
-			SCIM:        true,
-			BrowserOnly: true,
-			Trial:       true,
-			UserLimit:   200,
-			RBACEnabled: false,
+			AccountID:           "testing2",
+			AuditLog:            true,
+			SCIM:                true,
+			BrowserOnly:         true,
+			Trial:               true,
+			UserLimit:           200,
+			TemplateRBACEnabled: false,
 		})
 
 		licenses, err := client.Licenses(ctx)
@@ -106,7 +106,7 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureSCIM:           json.Number("1"),
 			codersdk.FeatureBrowserOnly:    json.Number("1"),
 			codersdk.FeatureWorkspaceQuota: json.Number("0"),
-			codersdk.FeatureRBAC:           json.Number("1"),
+			codersdk.FeatureTemplateRBAC:   json.Number("1"),
 		}, licenses[0].Claims["features"])
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
@@ -117,7 +117,7 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureSCIM:           json.Number("1"),
 			codersdk.FeatureBrowserOnly:    json.Number("1"),
 			codersdk.FeatureWorkspaceQuota: json.Number("0"),
-			codersdk.FeatureRBAC:           json.Number("0"),
+			codersdk.FeatureTemplateRBAC:   json.Number("0"),
 		}, licenses[1].Claims["features"])
 	})
 }

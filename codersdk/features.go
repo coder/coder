@@ -20,7 +20,7 @@ const (
 	FeatureBrowserOnly    = "browser_only"
 	FeatureSCIM           = "scim"
 	FeatureWorkspaceQuota = "workspace_quota"
-	FeatureRBAC           = "rbac"
+	FeatureTemplateRBAC   = "template_rbac"
 )
 
 var FeatureNames = []string{
@@ -29,7 +29,7 @@ var FeatureNames = []string{
 	FeatureBrowserOnly,
 	FeatureSCIM,
 	FeatureWorkspaceQuota,
-	FeatureRBAC,
+	FeatureTemplateRBAC,
 }
 
 type Feature struct {

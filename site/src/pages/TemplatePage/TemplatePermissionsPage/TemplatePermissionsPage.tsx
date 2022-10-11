@@ -25,7 +25,7 @@ export const TemplatePermissionsPage: FC<
       "This page should not be displayed until template or permissions being loaded.",
     )
   }
-  const { rbac: isRBACEnabled } = useFeatureVisibility()
+  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
   const [state, send] = useMachine(templateACLMachine, {
     context: { templateId: template.id },
   })
@@ -37,7 +37,7 @@ export const TemplatePermissionsPage: FC<
         <title>{pageTitle(`${template.name} · Permissions`)}</title>
       </Helmet>
       <ChooseOne>
-        <Cond condition={!isRBACEnabled}>
+        <Cond condition={!isTemplateRBACEnabled}>
           <Paywall
             message="Template permissions"
             description="Manage your template permissions to allow users or groups to view or admin the template. To use this feature, you have to upgrade your account."

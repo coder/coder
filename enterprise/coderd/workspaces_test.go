@@ -26,7 +26,7 @@ func TestCreateWorkspace(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBACEnabled: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

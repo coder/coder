@@ -246,10 +246,10 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) []rbac.Action {
 }
 
 // TODO reduce the duplication across all of these.
-func (api *API) rbacEnabledMW(next http.Handler) http.Handler {
+func (api *API) templateRBACEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
-		rbac := api.entitlements.Features[codersdk.FeatureRBAC].Enabled
+		rbac := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
 		api.entitlementsMu.RUnlock()
 
 		if !rbac {
