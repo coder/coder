@@ -21,6 +21,7 @@ import React from "react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { Paywall } from "components/Paywall/Paywall"
 import { Group } from "api/typesGenerated"
+import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
 
 export type GroupsPageViewProps = {
   groups: Group[] | undefined
@@ -135,6 +136,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
                         >
                           <TableCell>
                             <AvatarData
+                              avatar={<GroupAvatar name={group.name} />}
                               title={group.name}
                               subtitle={`${group.members.length} members`}
                               highlightTitle

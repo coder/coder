@@ -73,7 +73,7 @@ export const MockUser: TypesGen.User = {
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
   roles: [MockOwnerRole],
-  avatar_url: "https://github.com/coder.png",
+  avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
 }
 
