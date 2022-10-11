@@ -369,6 +369,15 @@ func TestRolePermissions(t *testing.T) {
 				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
 			},
 		},
+		{
+			Name:     "Groups",
+			Actions:  []rbac.Action{rbac.ActionRead},
+			Resource: rbac.ResourceGroup.InOrg(orgID),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, userAdmin, orgMemberMe},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
+			},
+		},
 	}
 
 	for _, c := range testCases {
