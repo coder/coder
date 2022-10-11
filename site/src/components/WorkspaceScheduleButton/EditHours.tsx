@@ -1,4 +1,5 @@
 import Button from "@material-ui/core/Button"
+import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -10,9 +11,12 @@ interface EditHoursProps {
 export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
   const { t } = useTranslation("workspacePage")
   const [hours, setHours] = useState(0)
+  const styles = useStyles()
+
   return (
     <form onSubmit={() => handleSubmit(hours)}>
       <TextField
+        className={styles.inputField}
         inputProps={{ min: 0, step: 1 }}
         label={t("workspaceScheduleButton.hours")}
         value={hours}
@@ -25,3 +29,9 @@ export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
     </form>
   )
 }
+
+const useStyles = makeStyles(() => ({
+  inputField: {
+    width: '70px'
+  }
+}))
