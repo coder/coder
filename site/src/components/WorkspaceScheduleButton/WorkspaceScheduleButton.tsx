@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { EditHours } from "./EditHours"
 import { WorkspaceScheduleLabel } from "./WorkspaceScheduleLabel"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -28,12 +29,12 @@ dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
-export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
+export const canEditDeadline = (workspace: Workspace): boolean => {
   return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline)
 }
 
 export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
-  if (shouldDisplayPlusMinus(workspace)) {
+  if (canEditDeadline(workspace)) {
     return true
   }
   if (isWorkspaceOn(workspace)) {
@@ -44,12 +45,14 @@ export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
 
 export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
-  onDeadlinePlus: () => void
-  onDeadlineMinus: () => void
+  onDeadlinePlus: (hours: number) => void
+  onDeadlineMinus: (hours: number) => void
   deadlineMinusEnabled: () => boolean
   deadlinePlusEnabled: () => boolean
   canUpdateWorkspace: boolean
 }
+
+export type EditMode = "add" | "subtract" | "off"
 
 export const WorkspaceScheduleButton: React.FC<
   WorkspaceScheduleButtonProps
@@ -64,11 +67,22 @@ export const WorkspaceScheduleButton: React.FC<
   const { t } = useTranslation("workspacePage")
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [editMode, setEditMode] = useState<EditMode>("off")
   const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles()
+  const styles = useStyles(editMode)
 
   const onClose = () => {
     setIsOpen(false)
+  }
+
+  const handleSubmitHours = (hours: number) => {
+    if (editMode === "add") {
+      onDeadlinePlus(hours)
+    }
+    if (editMode === "subtract") {
+      onDeadlineMinus(hours)
+    }
+    setEditMode("off")
   }
 
   return (
@@ -76,13 +90,15 @@ export const WorkspaceScheduleButton: React.FC<
       <Maybe condition={shouldDisplayScheduleLabel(workspace)}>
         <span className={styles.label}>
           <WorkspaceScheduleLabel workspace={workspace} />
-          <Maybe condition={canUpdateWorkspace && shouldDisplayPlusMinus(workspace)}>
+          <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
             <span className={styles.actions}>
               <IconButton
                 className={styles.iconButton}
                 size="small"
                 disabled={!deadlineMinusEnabled()}
-                onClick={onDeadlineMinus}
+                onClick={() => {
+                  setEditMode("subtract")
+                }}
               >
                 <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
                   <RemoveIcon />
@@ -92,13 +108,18 @@ export const WorkspaceScheduleButton: React.FC<
                 className={styles.iconButton}
                 size="small"
                 disabled={!deadlinePlusEnabled()}
-                onClick={onDeadlinePlus}
+                onClick={() => {
+                  setEditMode("add")
+                }}
               >
                 <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
                   <AddIcon />
                 </Tooltip>
               </IconButton>
             </span>
+            <Maybe condition={editMode !== "off"}>
+              <EditHours handleSubmit={handleSubmitHours} />
+            </Maybe>
           </Maybe>
         </span>
       </Maybe>

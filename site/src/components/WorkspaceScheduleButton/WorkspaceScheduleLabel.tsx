@@ -1,36 +1,11 @@
 import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import { autoStartDisplay, autoStopDisplay, isShuttingDown } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
-
-const AutoStopDisplay = ({ workspace }: { workspace: Workspace }): JSX.Element => {
-  const { t } = useTranslation("common")
-  const autoStopTime = autoStopDisplay(workspace)
-  return (
-    <ChooseOne>
-      <Cond condition={isEditing}>
-        <>
-          <TextField
-            value={autoStopTime}
-            onChange={}
-          />
-          <LoadingButton disabled={}>
-            {t("schedule.submitUpdate")}
-          </LoadingButton>
-        </>
-      </Cond>
-      <Cond>
-        {autoStopTime}
-      </Cond>
-    </ChooseOne>
-   )
-}
 
 export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
   const styles = useStyles()
@@ -44,7 +19,7 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ wor
         </Maybe>
         {" "}
         <span className={styles.value}>
-          <AutoStopDisplay workspace={workspace} />
+          {autoStopDisplay(workspace)}
         </span>
       </span>
     </Cond>

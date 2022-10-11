@@ -81,16 +81,16 @@ export const WorkspaceReadyPage = ({
           },
         }}
         scheduleProps={{
-          onDeadlineMinus: () => {
+          onDeadlineMinus: (hours: number) => {
             bannerSend({
               type: "DECREASE_DEADLINE",
-              hours: 1,
+              hours,
             })
           },
-          onDeadlinePlus: () => {
+          onDeadlinePlus: (hours: number) => {
             bannerSend({
               type: "INCREASE_DEADLINE",
-              hours: 1,
+              hours,
             })
           },
           deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),

@@ -34,8 +34,8 @@ export interface WorkspaceProps {
     onExtend: () => void
   }
   scheduleProps: {
-    onDeadlinePlus: () => void
-    onDeadlineMinus: () => void
+    onDeadlinePlus: (hours: number) => void
+    onDeadlineMinus: (hours: number) => void
     deadlinePlusEnabled: () => boolean
     deadlineMinusEnabled: () => boolean
   }

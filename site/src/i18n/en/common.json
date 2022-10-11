@@ -21,8 +21,7 @@
   },
   "schedule": {
     "autoStartLabel": "Starts at",
-    "autoStopLabel": "Stops at",
-    "submitUpdate": "Update"
+    "autoStopLabel": "Stops at"
   },
   "ctas": {
     "dismissCta": "Dismiss",
