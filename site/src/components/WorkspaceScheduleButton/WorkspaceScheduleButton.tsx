@@ -218,11 +218,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   addButton: {
     borderRadius: theme.shape.borderRadius,
-    backgroundColor: ({ editMode }) => editMode === "add" ? theme.palette.primary.main : "inherit"
+    backgroundColor: ({ editMode }) =>
+      editMode === "add" ? theme.palette.primary.main : "inherit",
   },
   subtractButton: {
     borderRadius: theme.shape.borderRadius,
-    backgroundColor: ({ editMode }) => editMode === "subtract" ? theme.palette.primary.main : "inherit"
+    backgroundColor: ({ editMode }) =>
+      editMode === "subtract" ? theme.palette.primary.main : "inherit",
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(

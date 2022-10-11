@@ -4,33 +4,43 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
-import { autoStartDisplay, autoStopDisplay, isShuttingDown } from "../../util/schedule"
+import {
+  autoStartDisplay,
+  autoStopDisplay,
+  isShuttingDown,
+} from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 
-export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({ workspace }) => {
+export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({
+  workspace,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("common")
 
-  return <ChooseOne>
-    <Cond condition={isWorkspaceOn(workspace)}>
-      <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-        <Maybe condition={!isShuttingDown(workspace)}>
-          <strong>{t("schedule.autoStopLabel")}</strong>
-        </Maybe>
-        {" "}
-        <span className={styles.value}>
-          {autoStopDisplay(workspace)}
+  return (
+    <ChooseOne>
+      <Cond condition={isWorkspaceOn(workspace)}>
+        <span
+          className={combineClasses([styles.labelText, "chromatic-ignore"])}
+        >
+          <Maybe condition={!isShuttingDown(workspace)}>
+            <strong>{t("schedule.autoStopLabel")}</strong>
+          </Maybe>{" "}
+          <span className={styles.value}>{autoStopDisplay(workspace)}</span>
         </span>
-      </span>
-    </Cond>
-    <Cond>
-      <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-        <strong>{t("schedule.autoStartLabel")}</strong>
-        {" "}
-        <span className={styles.value}>{autoStartDisplay(workspace.autostart_schedule)}</span>
-      </span>
-    </Cond>
-  </ChooseOne>
+      </Cond>
+      <Cond>
+        <span
+          className={combineClasses([styles.labelText, "chromatic-ignore"])}
+        >
+          <strong>{t("schedule.autoStartLabel")}</strong>{" "}
+          <span className={styles.value}>
+            {autoStartDisplay(workspace.autostart_schedule)}
+          </span>
+        </span>
+      </Cond>
+    </ChooseOne>
+  )
 }
 
 const useStyles = makeStyles((theme) => ({
