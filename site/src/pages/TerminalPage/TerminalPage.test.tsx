@@ -5,7 +5,12 @@ import { rest } from "msw"
 import { Route, Routes } from "react-router-dom"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import { history, MockWorkspace, MockWorkspaceAgent, render } from "../../testHelpers/renderHelpers"
+import {
+  history,
+  MockWorkspace,
+  MockWorkspaceAgent,
+  render,
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
 
@@ -30,7 +35,10 @@ Object.defineProperty(window, "TextEncoder", {
 const renderTerminal = () => {
   return render(
     <Routes>
-      <Route path="/:username/:workspace/terminal" element={<TerminalPage renderer="dom" />} />
+      <Route
+        path="/:username/:workspace/terminal"
+        element={<TerminalPage renderer="dom" />}
+      />
     </Routes>,
   )
 }
@@ -57,9 +65,12 @@ describe("TerminalPage", () => {
   it("shows an error if fetching workspace fails", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/users/:userId/workspace/:workspaceName", (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ id: "workspace-id" }))
-      }),
+      rest.get(
+        "/api/v2/users/:userId/workspace/:workspaceName",
+        (req, res, ctx) => {
+          return res(ctx.status(500), ctx.json({ id: "workspace-id" }))
+        },
+      ),
     )
 
     // When
@@ -86,7 +97,9 @@ describe("TerminalPage", () => {
 
   it("renders data from the backend", async () => {
     // Given
-    const server = new WS("ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty")
+    const server = new WS(
+      "ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty",
+    )
     const text = "something to render"
 
     // When
@@ -101,7 +114,9 @@ describe("TerminalPage", () => {
 
   it("resizes on connect", async () => {
     // Given
-    const server = new WS("ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty")
+    const server = new WS(
+      "ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty",
+    )
 
     // When
     renderTerminal()
@@ -109,7 +124,9 @@ describe("TerminalPage", () => {
     // Then
     await server.connected
     const msg = await server.nextMessage
-    const req: ReconnectingPTYRequest = JSON.parse(new TextDecoder().decode(msg as Uint8Array))
+    const req: ReconnectingPTYRequest = JSON.parse(
+      new TextDecoder().decode(msg as Uint8Array),
+    )
 
     expect(req.height).toBeGreaterThan(0)
     expect(req.width).toBeGreaterThan(0)
@@ -118,11 +135,15 @@ describe("TerminalPage", () => {
 
   it("supports workspace.agent syntax", async () => {
     // Given
-    const server = new WS("ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty")
+    const server = new WS(
+      "ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty",
+    )
     const text = "something to render"
 
     // When
-    history.push(`/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`)
+    history.push(
+      `/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
+    )
     const { container } = renderTerminal()
 
     // Then

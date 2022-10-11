@@ -6,7 +6,9 @@ export default {
   component: Markdown,
 } as ComponentMeta<typeof Markdown>
 
-const Template: Story<MarkdownProps> = ({ children }) => <Markdown>{children}</Markdown>
+const Template: Story<MarkdownProps> = ({ children }) => (
+  <Markdown>{children}</Markdown>
+)
 
 export const WithCode = Template.bind({})
 WithCode.args = {

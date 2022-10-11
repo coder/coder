@@ -1,14 +1,17 @@
 import { Story } from "@storybook/react"
-import { EnterpriseSnackbar, EnterpriseSnackbarProps } from "./EnterpriseSnackbar"
+import {
+  EnterpriseSnackbar,
+  EnterpriseSnackbarProps,
+} from "./EnterpriseSnackbar"
 
 export default {
   title: "components/EnterpriseSnackbar",
   component: EnterpriseSnackbar,
 }
 
-const Template: Story<EnterpriseSnackbarProps> = (args: EnterpriseSnackbarProps) => (
-  <EnterpriseSnackbar {...args} />
-)
+const Template: Story<EnterpriseSnackbarProps> = (
+  args: EnterpriseSnackbarProps,
+) => <EnterpriseSnackbar {...args} />
 
 export const Error = Template.bind({})
 Error.args = {

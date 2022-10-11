@@ -16,6 +16,7 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
+  createGroup: "createGroup",
 } as const
 
 export const permissionsToCheck = {
@@ -55,9 +56,15 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
+  [checks.createGroup]: {
+    object: {
+      resource_type: "group",
+    },
+    action: "create",
+  },
 } as const
 
-type Permissions = Record<keyof typeof permissionsToCheck, boolean>
+export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
   getUserError?: Error | unknown
@@ -314,7 +321,10 @@ export const authMachine =
                         src: "regenerateSSHKey",
                         onDone: [
                           {
-                            actions: ["assignSSHKey", "notifySuccessSSHKeyRegenerated"],
+                            actions: [
+                              "assignSSHKey",
+                              "notifySuccessSSHKeyRegenerated",
+                            ],
                             target: "idle",
                           },
                         ],

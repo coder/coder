@@ -16,7 +16,10 @@ export const Pill: FC<PillProps> = (props) => {
   const { className, icon, text = false } = props
   const styles = useStyles(props)
   return (
-    <div className={combineClasses([styles.wrapper, styles.pillColor, className])} role="status">
+    <div
+      className={combineClasses([styles.wrapper, styles.pillColor, className])}
+      role="status"
+    >
       {icon && <div className={styles.iconWrapper}>{icon}</div>}
       {text}
     </div>
@@ -35,13 +38,15 @@ const useStyles = makeStyles<Theme, PillProps>((theme) => ({
     fontWeight: 500,
     color: "#FFF",
     height: theme.spacing(3),
-    paddingLeft: ({ icon }) => (icon ? theme.spacing(0.75) : theme.spacing(1.5)),
+    paddingLeft: ({ icon }) =>
+      icon ? theme.spacing(0.75) : theme.spacing(1.5),
     paddingRight: theme.spacing(1.5),
     whiteSpace: "nowrap",
   },
 
   pillColor: {
-    backgroundColor: ({ type }) => (type ? theme.palette[type].dark : theme.palette.text.secondary),
+    backgroundColor: ({ type }) =>
+      type ? theme.palette[type].dark : theme.palette.text.secondary,
     borderColor: ({ type, lightBorder }) =>
       type
         ? lightBorder

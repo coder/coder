@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "*"
 
   pull_request:
 
@@ -36,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@master
+        uses: crate-ci/typos@v1.12.8
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -630,7 +628,7 @@ jobs:
         with:
           name: failed-test-videos
           path: ./site/test-results/**/*.webm
-          retention:days: 7
+          retention-days: 7
 
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.

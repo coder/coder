@@ -24,7 +24,11 @@ export const TemplateSettingsPage: FC = () => {
       },
     },
   })
-  const { templateSettings: template, saveTemplateSettingsError, getTemplateError } = state.context
+  const {
+    templateSettings: template,
+    saveTemplateSettingsError,
+    getTemplateError,
+  } = state.context
 
   return (
     <>

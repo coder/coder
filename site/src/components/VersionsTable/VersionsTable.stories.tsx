@@ -7,7 +7,9 @@ export default {
   component: VersionsTable,
 } as ComponentMeta<typeof VersionsTable>
 
-const Template: Story<VersionsTableProps> = (args) => <VersionsTable {...args} />
+const Template: Story<VersionsTableProps> = (args) => (
+  <VersionsTable {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

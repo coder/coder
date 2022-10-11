@@ -16,7 +16,10 @@ describe("combineClasses", () => {
 
     // Truthy
     [{ [staticStyles.text]: true }, "MuiText"],
-    [{ [staticStyles.text]: true, [staticStyles.warning]: true }, "MuiText  MuiText-Red"],
+    [
+      { [staticStyles.text]: true, [staticStyles.warning]: true },
+      "MuiText  MuiText-Red",
+    ],
     [[staticStyles.text], "MuiText"],
 
     // Mixed

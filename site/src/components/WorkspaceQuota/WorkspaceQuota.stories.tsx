@@ -6,7 +6,9 @@ export default {
   component: WorkspaceQuota,
 }
 
-const Template: Story<WorkspaceQuotaProps> = (args) => <WorkspaceQuota {...args} />
+const Template: Story<WorkspaceQuotaProps> = (args) => (
+  <WorkspaceQuota {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

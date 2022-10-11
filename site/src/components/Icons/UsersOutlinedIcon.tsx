@@ -2,7 +2,13 @@ import SvgIcon, { SvgIconProps } from "@material-ui/core/SvgIcon"
 
 export const UsersOutlinedIcon: typeof SvgIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 20 20">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
       <path
         d="M18.75 18.75H17.5V15.625V15.625C17.498 13.8999 16.1001 12.502 14.375 12.5V11.25C16.7901 11.2527 18.7473 13.2099 18.75 15.625L18.75 18.75Z"
         fill="#677693"

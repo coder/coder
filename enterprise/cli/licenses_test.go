@@ -346,8 +346,9 @@ func (*fakeLicenseAPI) entitlements(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Entitlements{
-		Features:   features,
-		Warnings:   []string{testWarning},
-		HasLicense: true,
+		Features:     features,
+		Warnings:     []string{testWarning},
+		HasLicense:   true,
+		Experimental: true,
 	})
 }

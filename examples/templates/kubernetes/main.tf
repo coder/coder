@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.15"
+      version = "0.5.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -71,14 +71,14 @@ resource "coder_agent" "main" {
 
 # code-server
 resource "coder_app" "code-server" {
-  agent_id      = coder_agent.main.id
-  name          = "code-server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:13337?folder=/home/coder"
-  relative_path = true
+  agent_id  = coder_agent.main.id
+  name      = "code-server"
+  icon      = "/icon/code.svg"
+  url       = "http://localhost:13337?folder=/home/coder"
+  subdomain = false
 
   healthcheck {
-    url       = "http://localhost:1337/healthz"
+    url       = "http://localhost:13337/healthz"
     interval  = 3
     threshold = 10
   }
@@ -86,9 +86,10 @@ resource "coder_app" "code-server" {
 
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
+    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-home"
     namespace = var.namespace
   }
+  wait_until_bound = false
   spec {
     access_modes = ["ReadWriteOnce"]
     resources {
@@ -102,7 +103,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
   }
   spec {

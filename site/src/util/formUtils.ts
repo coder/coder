@@ -1,6 +1,15 @@
-import { hasApiFieldErrors, isApiError, mapApiErrorToFieldErrors } from "api/errors"
+import {
+  hasApiFieldErrors,
+  isApiError,
+  mapApiErrorToFieldErrors,
+} from "api/errors"
 import { FormikContextType, FormikErrors, getIn } from "formik"
-import { ChangeEvent, ChangeEventHandler, FocusEventHandler, ReactNode } from "react"
+import {
+  ChangeEvent,
+  ChangeEventHandler,
+  FocusEventHandler,
+  ReactNode,
+} from "react"
 import * as Yup from "yup"
 
 export const Language = {
@@ -28,13 +37,19 @@ interface FormHelpers {
 // backendErrorName can be used if the backend names a field differently than the frontend does
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
-  (name: keyof T, HelperText: ReactNode = "", backendErrorName?: string): FormHelpers => {
+  (
+    name: keyof T,
+    HelperText: ReactNode = "",
+    backendErrorName?: string,
+  ): FormHelpers => {
     const apiValidationErrors =
       isApiError(error) && hasApiFieldErrors(error)
         ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
         : error
     if (typeof name !== "string") {
-      throw new Error(`name must be type of string, instead received '${typeof name}'`)
+      throw new Error(
+        `name must be type of string, instead received '${typeof name}'`,
+      )
     }
     const apiErrorName = backendErrorName ?? name
 

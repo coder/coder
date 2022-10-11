@@ -15,7 +15,10 @@ import {
 } from "util/schedule"
 import { ActorRefFrom, assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import {
+  displayError,
+  displaySuccess,
+} from "../../components/GlobalSnackbar/utils"
 
 dayjs.extend(minMax)
 
@@ -44,7 +47,9 @@ export type WorkspaceScheduleBannerEvent =
       workspace: Workspace
     }
 
-export type WorkspaceScheduleBannerMachineRef = ActorRefFrom<typeof workspaceScheduleBannerMachine>
+export type WorkspaceScheduleBannerMachineRef = ActorRefFrom<
+  typeof workspaceScheduleBannerMachine
+>
 
 export const workspaceScheduleBannerMachine = createMachine(
   {
@@ -133,7 +138,11 @@ export const workspaceScheduleBannerMachine = createMachine(
     guards: {
       isAtMaxDeadline: (context) =>
         context.deadline
-          ? !canExtendDeadline(context.deadline, context.workspace, context.template)
+          ? !canExtendDeadline(
+              context.deadline,
+              context.workspace,
+              context.template,
+            )
           : false,
       isAtMinDeadline: (context) =>
         context.deadline ? !canReduceDeadline(context.deadline) : false,

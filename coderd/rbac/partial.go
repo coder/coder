@@ -29,7 +29,7 @@ type PartialAuthorizer struct {
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
 func (pa *PartialAuthorizer) Compile() (AuthorizeFilter, error) {
-	filter, err := Compile(pa.partialQueries)
+	filter, err := Compile(pa)
 	if err != nil {
 		return nil, xerrors.Errorf("compile: %w", err)
 	}
@@ -99,7 +99,7 @@ EachQueryLoop:
 		// inspect this any further. But just in case, we will verify each expression
 		// did resolve to 'true'. This is purely defensive programming.
 		for _, exp := range results[0].Expressions {
-			if exp.String() != "true" {
+			if v, ok := exp.Value.(bool); !ok || !v {
 				continue EachQueryLoop
 			}
 		}
@@ -110,15 +110,16 @@ EachQueryLoop:
 	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, action Action, objectType string) (*PartialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:    subjectID,
-			Roles: roles,
-			Scope: scope,
+			ID:     subjectID,
+			Roles:  roles,
+			Scope:  scope,
+			Groups: groups,
 		},
 		"object": map[string]string{
 			"type": objectType,
@@ -129,11 +130,13 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 	// Run the rego policy with a few unknown fields. This should simplify our
 	// policy to a set of queries.
 	partialQueries, err := rego.New(
-		rego.Query("data.authz.role_allow = true data.authz.scope_allow = true"),
+		rego.Query("data.authz.allow = true"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
 			"input.object.owner",
 			"input.object.org_owner",
+			"input.object.acl_user_list",
+			"input.object.acl_group_list",
 		}),
 		rego.Input(input),
 	).Partial(ctx)

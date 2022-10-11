@@ -5,20 +5,25 @@ import {
   MockDeletedWorkspace,
   MockDeletingWorkspace,
   MockFailedWorkspace,
-  MockQueuedWorkspace,
+  MockPendingWorkspace,
   MockStartingWorkspace,
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockWorkspace,
 } from "testHelpers/renderHelpers"
-import { WorkspaceStatusBadge, WorkspaceStatusBadgeProps } from "./WorkspaceStatusBadge"
+import {
+  WorkspaceStatusBadge,
+  WorkspaceStatusBadgeProps,
+} from "./WorkspaceStatusBadge"
 
 export default {
   title: "components/WorkspaceStatusBadge",
   component: WorkspaceStatusBadge,
 }
 
-const Template: Story<WorkspaceStatusBadgeProps> = (args) => <WorkspaceStatusBadge {...args} />
+const Template: Story<WorkspaceStatusBadgeProps> = (args) => (
+  <WorkspaceStatusBadge {...args} />
+)
 
 export const Running = Template.bind({})
 Running.args = {
@@ -65,7 +70,7 @@ Failed.args = {
   build: MockFailedWorkspace.latest_build,
 }
 
-export const Queued = Template.bind({})
-Queued.args = {
-  build: MockQueuedWorkspace.latest_build,
+export const Pending = Template.bind({})
+Pending.args = {
+  build: MockPendingWorkspace.latest_build,
 }

@@ -63,8 +63,8 @@ var (
 			return Role{
 				Name:        owner,
 				DisplayName: "Owner",
-				Site: permissions(map[Object][]Action{
-					ResourceWildcard: {WildcardSymbol},
+				Site: permissions(map[string][]Action{
+					ResourceWildcard.Type: {WildcardSymbol},
 				}),
 			}
 		},
@@ -74,15 +74,15 @@ var (
 			return Role{
 				Name:        member,
 				DisplayName: "",
-				Site: permissions(map[Object][]Action{
+				Site: permissions(map[string][]Action{
 					// All users can read all other users and know they exist.
-					ResourceUser:           {ActionRead},
-					ResourceRoleAssignment: {ActionRead},
+					ResourceUser.Type:           {ActionRead},
+					ResourceRoleAssignment.Type: {ActionRead},
 					// All users can see the provisioner daemons.
-					ResourceProvisionerDaemon: {ActionRead},
+					ResourceProvisionerDaemon.Type: {ActionRead},
 				}),
-				User: permissions(map[Object][]Action{
-					ResourceWildcard: {WildcardSymbol},
+				User: permissions(map[string][]Action{
+					ResourceWildcard.Type: {WildcardSymbol},
 				}),
 			}
 		},
@@ -94,11 +94,11 @@ var (
 			return Role{
 				Name:        auditor,
 				DisplayName: "Auditor",
-				Site: permissions(map[Object][]Action{
+				Site: permissions(map[string][]Action{
 					// Should be able to read all template details, even in orgs they
 					// are not in.
-					ResourceTemplate: {ActionRead},
-					ResourceAuditLog: {ActionRead},
+					ResourceTemplate.Type: {ActionRead},
+					ResourceAuditLog.Type: {ActionRead},
 				}),
 			}
 		},
@@ -107,13 +107,13 @@ var (
 			return Role{
 				Name:        templateAdmin,
 				DisplayName: "Template Admin",
-				Site: permissions(map[Object][]Action{
-					ResourceTemplate: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				Site: permissions(map[string][]Action{
+					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// CRUD all files, even those they did not upload.
-					ResourceFile:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceWorkspace: {ActionRead},
+					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceWorkspace.Type: {ActionRead},
 					// CRUD to provisioner daemons for now.
-					ResourceProvisionerDaemon: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
@@ -122,11 +122,11 @@ var (
 			return Role{
 				Name:        userAdmin,
 				DisplayName: "User Admin",
-				Site: permissions(map[Object][]Action{
-					ResourceRoleAssignment: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceUser:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				Site: permissions(map[string][]Action{
+					ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// Full perms to manage org members
-					ResourceOrganizationMember: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
@@ -168,13 +168,12 @@ var (
 							Action:       ActionRead,
 						},
 						{
-							// All org members can read templates in the org
-							ResourceType: ResourceTemplate.Type,
+							// Can read available roles.
+							ResourceType: ResourceOrgRoleAssignment.Type,
 							Action:       ActionRead,
 						},
 						{
-							// Can read available roles.
-							ResourceType: ResourceOrgRoleAssignment.Type,
+							ResourceType: ResourceGroup.Type,
 							Action:       ActionRead,
 						},
 					},
@@ -390,14 +389,14 @@ func roleSplit(role string) (name string, orgID string, err error) {
 
 // permissions is just a helper function to make building roles that list out resources
 // and actions a bit easier.
-func permissions(perms map[Object][]Action) []Permission {
+func permissions(perms map[string][]Action) []Permission {
 	list := make([]Permission, 0, len(perms))
 	for k, actions := range perms {
 		for _, act := range actions {
 			act := act
 			list = append(list, Permission{
 				Negate:       false,
-				ResourceType: k.Type,
+				ResourceType: k,
 				Action:       act,
 			})
 		}

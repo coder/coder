@@ -19,8 +19,9 @@ type subject struct {
 	// For the unit test we want to pass in the roles directly, instead of just
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
-	Roles []Role `json:"roles"`
-	Scope Role   `json:"scope"`
+	Roles  []Role   `json:"roles"`
+	Groups []string `json:"groups"`
+	Scope  Role     `json:"scope"`
 }
 
 type fakeObject struct {
@@ -41,7 +42,8 @@ func (w fakeObject) RBACObject() Object {
 func TestFilterError(t *testing.T) {
 	t.Parallel()
 	auth := NewAuthorizer()
-	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+
+	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -169,7 +171,7 @@ func TestFilter(t *testing.T) {
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, ActionRead, obj.RBACObject())
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, []string{}, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -178,7 +180,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, scope, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, scope, []string{}, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -193,14 +195,81 @@ func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
 	unuseID := uuid.New()
+	allUsersGroup := "Everyone"
 
 	user := subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
+		Groups: []string{allUsersGroup},
 		Roles: []Role{
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
 	}
+
+	testAuthorize(t, "UserACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: allActions(),
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {ActionRead, ActionUpdate},
+			}),
+			actions: []Action{ActionCreate, ActionDelete},
+			allow:   false,
+		},
+		{
+			// By default users cannot update templates
+			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
+				user.UserID: {ActionUpdate},
+			}),
+			actions: []Action{ActionUpdate},
+			allow:   true,
+		},
+	})
+
+	testAuthorize(t, "GroupACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: allActions(),
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: {ActionRead, ActionUpdate},
+			}),
+			actions: []Action{ActionCreate, ActionDelete},
+			allow:   false,
+		},
+		{
+			// By default users cannot update templates
+			resource: ResourceTemplate.InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: {ActionUpdate},
+			}),
+			actions: []Action{ActionUpdate},
+			allow:   true,
+		},
+	})
 
 	testAuthorize(t, "Member", user, []authTestCase{
 		// Org + me
@@ -743,9 +812,6 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 	for _, cases := range sets {
 		for i, c := range cases {
 			c := c
-			if c.resource.Type != "application_connect" {
-				continue
-			}
 			caseName := fmt.Sprintf("%s/%d", name, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
@@ -753,23 +819,21 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
 
-					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, subject.Scope, a, c.resource)
+					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, subject.Scope, subject.Groups, a, c.resource)
+
+					d, _ := json.Marshal(map[string]interface{}{
+						"subject": subject,
+						"object":  c.resource,
+						"action":  a,
+					})
 
 					// Logging only
+					t.Logf("input: %s", string(d))
 					if authError != nil {
 						var uerr *UnauthorizedError
 						xerrors.As(authError, &uerr)
-						d, _ := json.Marshal(uerr.Input())
-						t.Logf("input: %s", string(d))
 						t.Logf("internal error: %+v", uerr.Internal().Error())
 						t.Logf("output: %+v", uerr.Output())
-					} else {
-						d, _ := json.Marshal(map[string]interface{}{
-							"subject": subject,
-							"object":  c.resource,
-							"action":  a,
-						})
-						t.Log(string(d))
 					}
 
 					if c.allow {
@@ -778,19 +842,17 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, subject.Scope, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, subject.Scope, subject.Groups, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
 
 					// Ensure the partial can compile to a SQL clause.
 					// This does not guarantee that the clause is valid SQL.
-					_, err = Compile(partialAuthz.partialQueries)
+					_, err = Compile(partialAuthz)
 					require.NoError(t, err, "compile prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					d, _ := json.Marshal(partialAuthz.input)
-					t.Logf("input: %s", string(d))
 					for _, q := range partialAuthz.partialQueries.Queries {
 						t.Logf("query: %+v", q.String())
 					}

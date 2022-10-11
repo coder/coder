@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
 )
 
@@ -120,6 +121,7 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
+	LoginTypeToken    LoginType = "token"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -412,6 +414,17 @@ type GitSSHKey struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
+type Group struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GroupMember struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
 type License struct {
 	ID         int32     `db:"id" json:"id"`
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
@@ -523,6 +536,8 @@ type Template struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
+	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	groupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {
@@ -545,7 +560,7 @@ type User struct {
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
 	Status         UserStatus     `db:"status" json:"status"`
-	RBACRoles      []string       `db:"rbac_roles" json:"rbac_roles"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
 	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
@@ -605,11 +620,11 @@ type WorkspaceApp struct {
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
-	RelativePath         bool               `db:"relative_path" json:"relative_path"`
 	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
 	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 }
 
 type WorkspaceBuild struct {

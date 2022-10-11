@@ -173,7 +173,10 @@ export const workspaceSchedule = createMachine(
 
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+        return await API.getWorkspaceByOwnerAndName(
+          event.username,
+          event.workspaceName,
+        )
       },
       checkPermissions: async (context) => {
         if (context.workspace) {
@@ -181,7 +184,9 @@ export const workspaceSchedule = createMachine(
             checks: permissionsToCheck(context.workspace),
           })
         } else {
-          throw Error("Cannot check permissions without both workspace and user id")
+          throw Error(
+            "Cannot check permissions without both workspace and user id",
+          )
         }
       },
       submitSchedule: async (context, event) => {

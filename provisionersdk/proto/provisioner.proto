@@ -93,7 +93,7 @@ message App {
     string command = 2;
     string url = 3;
     string icon = 4;
-    bool relative_path = 5;
+    bool subdomain = 5;
     Healthcheck healthcheck = 6;
 }
 

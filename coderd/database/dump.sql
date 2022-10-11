@@ -33,7 +33,8 @@ CREATE TYPE log_source AS ENUM (
 CREATE TYPE login_type AS ENUM (
     'password',
     'github',
-    'oidc'
+    'oidc',
+    'token'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -159,6 +160,17 @@ CREATE TABLE gitsshkeys (
     updated_at timestamp with time zone NOT NULL,
     private_key text NOT NULL,
     public_key text NOT NULL
+);
+
+CREATE TABLE group_members (
+    user_id uuid NOT NULL,
+    group_id uuid NOT NULL
+);
+
+CREATE TABLE groups (
+    id uuid NOT NULL,
+    name text NOT NULL,
+    organization_id uuid NOT NULL
 );
 
 CREATE TABLE licenses (
@@ -294,7 +306,9 @@ CREATE TABLE templates (
     max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
     min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
     created_by uuid NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE user_links (
@@ -352,11 +366,11 @@ CREATE TABLE workspace_apps (
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
-    relative_path boolean DEFAULT false NOT NULL,
     healthcheck_url text DEFAULT ''::text NOT NULL,
     healthcheck_interval integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
-    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
+    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
+    subdomain boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_builds (
@@ -422,6 +436,15 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
+
+ALTER TABLE ONLY groups
+    ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
+
+ALTER TABLE ONLY groups
+    ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
@@ -543,6 +566,15 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY groups
+    ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

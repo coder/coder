@@ -130,6 +130,9 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
 		return nil, nil, readBodyAsError(res)
 	}
 	logs := make(chan ProvisionerJobLog)
