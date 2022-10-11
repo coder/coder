@@ -10,8 +10,8 @@ The "Everyone" group makes a template accessible to all users. This can be remov
 
 You can set the following permissions:
 
-- **Admin**: Read, access, edit, push, and delete
-- **View**: Read, access
+- **Admin**: Read, use, edit, push, and delete
+- **View**: Read, use
 
 ## Enabling this feature
 

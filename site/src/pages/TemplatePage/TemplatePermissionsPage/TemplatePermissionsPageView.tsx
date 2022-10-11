@@ -131,14 +131,14 @@ const RoleSelect: FC<SelectProps> = (props) => {
       <MenuItem key="view" value="view" className={styles.menuItem}>
         <div>
           <div>View</div>
-          <div className={styles.menuItemSecondary}>Read, access</div>
+          <div className={styles.menuItemSecondary}>Read, use</div>
         </div>
       </MenuItem>
       <MenuItem key="admin" value="admin" className={styles.menuItem}>
         <div>
           <div>Admin</div>
           <div className={styles.menuItemSecondary}>
-            Read, access, edit, push, and delete
+            Read, use, edit, push, and delete
           </div>
         </div>
       </MenuItem>
