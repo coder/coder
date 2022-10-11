@@ -28,6 +28,7 @@ import {
 } from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete"
 import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
+import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string
@@ -208,6 +209,7 @@ export const TemplatePermissionsPageView: FC<
                   <TableRow key={group.id}>
                     <TableCell>
                       <AvatarData
+                        avatar={<GroupAvatar name={group.name} />}
                         title={group.name}
                         subtitle={`${group.members.length} members`}
                         highlightTitle
