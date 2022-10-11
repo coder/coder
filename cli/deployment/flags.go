@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -425,6 +426,8 @@ func AttachFlags(flagset *pflag.FlagSet, df *codersdk.DeploymentFlags, enterpris
 			BoolFlag(flagset, v)
 		case *codersdk.DurationFlag:
 			DurationFlag(flagset, v)
+		default:
+			panic(fmt.Sprintf("unknown flag type: %T", v))
 		}
 		if fve.FieldByName("Hidden").Bool() {
 			_ = flagset.MarkHidden(fve.FieldByName("Flag").String())

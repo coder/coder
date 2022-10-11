@@ -72,7 +72,6 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(dflags.TelemetryURL.Value)
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if dflags.Verbose.Value {
