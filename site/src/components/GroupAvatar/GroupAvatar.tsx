@@ -2,7 +2,7 @@ import Avatar from "@material-ui/core/Avatar"
 import Badge from "@material-ui/core/Badge"
 import { withStyles } from "@material-ui/core/styles"
 import Group from "@material-ui/icons/Group"
-import React from "react"
+import { FC } from "react"
 import { firstLetter } from "util/firstLetter"
 
 const StyledBadge = withStyles((theme) => ({
@@ -27,7 +27,7 @@ export type GroupAvatarProps = {
   name: string
 }
 
-export const GroupAvatar: React.FC<GroupAvatarProps> = ({ name }) => {
+export const GroupAvatar: FC<GroupAvatarProps> = ({ name }) => {
   return (
     <StyledBadge
       overlap="circular"
