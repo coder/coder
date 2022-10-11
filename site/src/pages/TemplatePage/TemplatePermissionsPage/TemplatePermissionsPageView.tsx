@@ -141,7 +141,7 @@ const RoleSelect: FC<SelectProps> = (props) => {
         <div>
           <div>Admin</div>
           <div className={styles.menuItemSecondary}>
-            Can modify all aspects of the template including permissions,
+            Can modify all aspects of this template including permissions,
             metadata, and template versions.
           </div>
         </div>
