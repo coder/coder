@@ -589,6 +589,45 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.EqualValues(t, 1, atomic.LoadInt64(&count))
 	})
+
+	t.Run("Tokens", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db         = databasefake.New()
+			id, secret = randomAPIKeyParts()
+			hashed     = sha256.Sum256([]byte(secret))
+			r          = httptest.NewRequest("GET", "/", nil)
+			rw         = httptest.NewRecorder()
+			user       = createUser(r.Context(), t, db)
+		)
+		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+
+		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+			ID:           id,
+			HashedSecret: hashed[:],
+			LoginType:    database.LoginTypeToken,
+			LastUsed:     database.Now(),
+			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+			UserID:       user.ID,
+			Scope:        database.APIKeyScopeAll,
+		})
+		require.NoError(t, err)
+
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+		require.Equal(t, sentAPIKey.LoginType, gotAPIKey.LoginType)
+	})
 }
 
 func createUser(ctx context.Context, t *testing.T, db database.Store) database.User {
