@@ -1117,6 +1117,7 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersd
 		OwnerUsername: parser.String(searchParams, "", "owner"),
 		TemplateName:  parser.String(searchParams, "", "template"),
 		Name:          parser.String(searchParams, "", "name"),
+		Status:        parser.String(searchParams, "", "status"),
 	}
 
 	return filter, parser.Errors

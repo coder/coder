@@ -500,6 +500,7 @@ export interface ProvisionerJob {
   readonly created_at: string
   readonly started_at?: string
   readonly completed_at?: string
+  readonly canceled_at?: string
   readonly error?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string

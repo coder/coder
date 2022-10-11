@@ -13,6 +13,7 @@ export const queryToFilter = (
 export const workspaceFilterQuery = {
   me: "owner:me",
   all: "",
+  running: "status:running",
 }
 
 export const userFilterQuery = {
