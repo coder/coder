@@ -29,6 +29,7 @@ import {
 import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
+import { getGroupSubtitle } from "util/groups"
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string
@@ -211,7 +212,7 @@ export const TemplatePermissionsPageView: FC<
                       <AvatarData
                         avatar={<GroupAvatar name={group.name} />}
                         title={group.name}
-                        subtitle={`${group.members.length} members`}
+                        subtitle={getGroupSubtitle(group)}
                         highlightTitle
                       />
                     </TableCell>
