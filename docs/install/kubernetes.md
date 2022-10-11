@@ -102,7 +102,8 @@ to log in and manage templates.
          value: "kubernetes"
 
      #tls:
-     #  secretName: my-tls-secret-name
+     #  secretNames: 
+     #    - my-tls-secret-name
    ```
 
    > You can view our
