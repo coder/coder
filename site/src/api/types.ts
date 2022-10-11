@@ -22,5 +22,5 @@ export enum FeatureNames {
   BrowserOnly = "browser_only",
   SCIM = "scim",
   WorkspaceQuota = "workspace_quota",
-  RBAC = "rbac",
+  TemplateRBAC = "template_rbac",
 }
