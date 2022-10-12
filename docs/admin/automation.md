@@ -1,6 +1,6 @@
 # Automation
 
-We recommend automating Coder deployments through the CLI.
+We recommend automating Coder deployments through the CLI. Examples include [updating templates via CI/CD pipelines](../templates/change-management.md).
 
 ## Tokens
 
