@@ -34,13 +34,14 @@ const (
 	proxyTestAppBody     = "hello world"
 	proxyTestFakeAppName = "fake"
 
-	proxyTestSubdomain = "test.coder.com"
+	proxyTestSubdomainRaw = "*.test.coder.com"
+	proxyTestSubdomain    = "test.coder.com"
 )
 
 func TestGetAppHost(t *testing.T) {
 	t.Parallel()
 
-	cases := []string{"", "test.coder.com"}
+	cases := []string{"", proxyTestSubdomainRaw}
 	for _, c := range cases {
 		c := c
 		name := c
@@ -94,7 +95,7 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	require.True(t, ok)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		AppHostname:                 proxyTestSubdomain,
+		AppHostname:                 proxyTestSubdomainRaw,
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
 		MetricsCacheRefreshInterval: time.Millisecond * 100,
@@ -510,28 +511,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 		return client
 	}
 
-	t.Run("NotMatchingHostname", func(t *testing.T) {
-		t.Parallel()
-		client := setup(t, "test."+proxyTestSubdomain)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		uri := fmt.Sprintf("http://app--agent--workspace--username.%s/api/v2/users/me", proxyTestSubdomain)
-		resp, err := client.Request(ctx, http.MethodGet, uri, nil)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Should have an error response.
-		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Contains(t, string(body), "does not accept application requests on this hostname")
-	})
-
 	t.Run("InvalidSubdomain", func(t *testing.T) {
 		t.Parallel()
-		client := setup(t, proxyTestSubdomain)
+		client := setup(t, proxyTestSubdomainRaw)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
