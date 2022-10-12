@@ -81,6 +81,12 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentFlags             *codersdk.DeploymentFlags
+
+	// Overriding the database is heavily discouraged.
+	// It should only be used in cases where multiple Coder
+	// test instances are running against the same database.
+	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -135,13 +141,14 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 			close(options.AutobuildStats)
 		})
 	}
-
-	db, pubsub := dbtestutil.NewDB(t)
+	if options.Database == nil {
+		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
 		ctx,
-		db,
+		options.Database,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -181,8 +188,8 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		AppHostname:                    options.AppHostname,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
-		Database:                       db,
-		Pubsub:                         pubsub,
+		Database:                       options.Database,
+		Pubsub:                         options.Pubsub,
 
 		Auditor:              options.Auditor,
 		AWSCertificates:      options.AWSCertificates,

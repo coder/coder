@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog"
 )
 
+// New constructs a new mesh for DERP servers.
 func New(logger slog.Logger, server *derp.Server) *Mesh {
 	return &Mesh{
 		logger: logger,

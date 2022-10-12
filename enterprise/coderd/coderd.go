@@ -11,6 +11,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
@@ -24,6 +25,8 @@ import (
 	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/highavailability"
+	"github.com/coder/coder/enterprise/highavailability/derpmesh"
+	"github.com/coder/coder/enterprise/highavailability/replica"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -43,6 +46,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Options:                options,
 		cancelEntitlementsLoop: cancelFunc,
 	}
+
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -113,7 +117,27 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 	}
 
-	err := api.updateEntitlements(ctx)
+	// If high availability is disabled and multiple replicas appear, show an error.
+	// If high availability is enabled and the built-in DERP is but the DERP relay isn't set, show an error.
+	// We need to block meshing if high availability is disabled, because the meshing code would just work.
+	// SetAddresses([]string{})
+
+	api.AGPL.RootHandler.Route("/replicas", func(r chi.Router) {
+
+	})
+
+	var err error
+	api.replica, err = replica.New(ctx, options.Logger, options.Database, options.Pubsub, replica.Options{
+		ID:           options.ReplicaID,
+		RelayAddress: options.DERPServerRelayAddress,
+		RegionID:     int32(options.DERPServerRegionID),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("initialize replica: %w", err)
+	}
+	api.derpMesh = derpmesh.New(options.Logger, api.DERPServer)
+
+	err = api.updateEntitlements(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
 	}
@@ -125,12 +149,18 @@ func New(ctx context.Context, options *Options) (*API, error) {
 type Options struct {
 	*coderd.Options
 
-	RBACEnabled  bool
+	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly        bool
 	SCIMAPIKey         []byte
 	UserWorkspaceQuota int
+	HighAvailability   bool
+
+	// Used for high availability.
+	DERPServerRelayAddress string
+	DERPServerRegionID     int
+	ReplicaID              uuid.UUID
 
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -140,6 +170,11 @@ type API struct {
 	AGPL *coderd.API
 	*Options
 
+	// Detects multiple Coder replicas running at the same time.
+	replica *replica.Server
+	// Meshes DERP connections from multiple replicas.
+	derpMesh *derpmesh.Mesh
+
 	cancelEntitlementsLoop func()
 	entitlementsMu         sync.RWMutex
 	entitlements           codersdk.Entitlements
@@ -147,6 +182,8 @@ type API struct {
 
 func (api *API) Close() error {
 	api.cancelEntitlementsLoop()
+	_ = api.replica.Close()
+	_ = api.derpMesh.Close()
 	return api.AGPL.Close()
 }
 
@@ -155,11 +192,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	defer api.entitlementsMu.Unlock()
 
 	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, api.Keys, map[string]bool{
-		codersdk.FeatureAuditLog:       api.AuditLogging,
-		codersdk.FeatureBrowserOnly:    api.BrowserOnly,
-		codersdk.FeatureSCIM:           len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureWorkspaceQuota: api.UserWorkspaceQuota != 0,
-		codersdk.FeatureTemplateRBAC:   api.RBACEnabled,
+		codersdk.FeatureAuditLog:         api.AuditLogging,
+		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
+		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
+		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
+		codersdk.FeatureHighAvailability: api.HighAvailability,
+		codersdk.FeatureTemplateRBAC:     api.RBAC,
 	})
 	if err != nil {
 		return err
@@ -210,13 +248,23 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if enabled {
 			haCoordinator, err := highavailability.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {
-				api.Logger.Error(ctx, "unable to setup HA tailnet coordinator", slog.Error(err))
+				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing
 				// is actually changing.
 				changed = false
 			} else {
 				coordinator = haCoordinator
 			}
+
+			api.replica.SetCallback(func() {
+				addresses := make([]string, 0)
+				for _, replica := range api.replica.Regional() {
+					addresses = append(addresses, replica.RelayAddress)
+				}
+				api.derpMesh.SetAddresses(addresses)
+			})
+		} else {
+			api.derpMesh.SetAddresses([]string{})
 		}
 
 		// Recheck changed in case the HA coordinator failed to set up.

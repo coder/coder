@@ -28,11 +28,8 @@ type Options struct {
 	ID             uuid.UUID
 	UpdateInterval time.Duration
 	PeerTimeout    time.Duration
-	// Mesh will dial active replicas with the same region ID to ensure
-	// they are reachable. If not, an error will be updated on the replica.
-	Mesh         bool
-	RelayAddress string
-	RegionID     int32
+	RelayAddress   string
+	RegionID       int32
 }
 
 // New registers the replica with the database and periodically updates to ensure

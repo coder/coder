@@ -67,7 +67,7 @@ import (
 )
 
 // nolint:gocyclo
-func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
+func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, config.Root, *coderd.Options) (*coderd.API, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
@@ -463,7 +463,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				), dflags.PromAddress.Value, "prometheus")()
 			}
 
-			coderAPI, err := newAPI(ctx, options)
+			coderAPI, err := newAPI(ctx, config, options)
 			if err != nil {
 				return err
 			}

@@ -77,6 +77,7 @@ type Options struct {
 	AutoImportTemplates  []AutoImportTemplate
 
 	TailnetCoordinator tailnet.Coordinator
+	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 
 	MetricsCacheRefreshInterval time.Duration
@@ -121,6 +122,9 @@ func New(options *Options) *API {
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
+	if options.DERPServer == nil {
+		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
+	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
@@ -160,7 +164,6 @@ func New(options *Options) *API {
 	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -228,7 +231,7 @@ func New(options *Options) *API {
 	r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
 	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derphttp.Handler(api.derpServer).ServeHTTP)
+		r.Get("/", derphttp.Handler(api.DERPServer).ServeHTTP)
 		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
 		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -540,7 +543,6 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	derpServer          *derp.Server
 	metricsCache        *metricscache.Cache
 	siteHandler         http.Handler
 	websocketWaitMutex  sync.Mutex
