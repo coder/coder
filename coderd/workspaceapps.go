@@ -405,8 +405,8 @@ func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 // to access the given application. If the user does not have a app session key,
 // they will be redirected to the route below. If the user does have a session
 // key but insufficient permissions a static error page will be rendered.
-func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, AppSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, AppSharingLevel)
+func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, appSharingLevel)
 	if !ok {
 		return false
 	}
