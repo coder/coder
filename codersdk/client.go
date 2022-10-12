@@ -133,6 +133,9 @@ func readBodyAsError(res *http.Response) error {
 		if len(resp) > 1024 {
 			resp = append(resp[:1024], []byte("...")...)
 		}
+		if len(resp) == 0 {
+			resp = []byte("no response body")
+		}
 		return &Error{
 			statusCode: res.StatusCode,
 			Response: Response{
