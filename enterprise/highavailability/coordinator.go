@@ -1,4 +1,4 @@
-package tailnet
+package highavailability
 
 import (
 	"bytes"
@@ -18,7 +18,9 @@ import (
 	agpl "github.com/coder/coder/tailnet"
 )
 
-func NewHACoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinator, error) {
+// NewCoordinator creates a new high availability coordinator
+// that uses PostgreSQL pubsub to exchange handshakes.
+func NewCoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinator, error) {
 	coord := &haCoordinator{
 		id:                       uuid.New(),
 		log:                      logger,

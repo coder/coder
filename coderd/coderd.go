@@ -119,7 +119,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewMemoryCoordinator()
+		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()

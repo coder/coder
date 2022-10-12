@@ -94,11 +94,11 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 	}, errChan
 }
 
-// NewMemoryCoordinator constructs a new in-memory connection coordinator. This
+// NewCoordinator constructs a new in-memory connection coordinator. This
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
-func NewMemoryCoordinator() Coordinator {
-	return &memoryCoordinator{
+func NewCoordinator() Coordinator {
+	return &coordinator{
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
 		agentSockets:             map[uuid.UUID]net.Conn{},
@@ -106,13 +106,14 @@ func NewMemoryCoordinator() Coordinator {
 	}
 }
 
-// MemoryCoordinator exchanges nodes with agents to establish connections.
+// coordinator exchanges nodes with agents to establish connections entirely in-memory.
+// The Enterprise implementation provides this for high-availability.
 // ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
 // │tailnet.Coordinate├──►│tailnet.AcceptClient│◄─►│tailnet.AcceptAgent│◄──┤tailnet.Coordinate│
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // This coordinator is incompatible with multiple Coder
 // replicas as all node data is in-memory.
-type memoryCoordinator struct {
+type coordinator struct {
 	mutex  sync.Mutex
 	closed bool
 
@@ -126,7 +127,7 @@ type memoryCoordinator struct {
 }
 
 // Node returns an in-memory node by ID.
-func (c *memoryCoordinator) Node(id uuid.UUID) *Node {
+func (c *coordinator) Node(id uuid.UUID) *Node {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	node := c.nodes[id]
@@ -135,7 +136,7 @@ func (c *memoryCoordinator) Node(id uuid.UUID) *Node {
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
-func (c *memoryCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	c.mutex.Lock()
 
 	if c.closed {
@@ -194,7 +195,7 @@ func (c *memoryCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.
 	}
 }
 
-func (c *memoryCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
+func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
@@ -234,7 +235,7 @@ func (c *memoryCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder
 
 // ServeAgent accepts a WebSocket connection to an agent that
 // listens to incoming connections and publishes node updates.
-func (c *memoryCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
+func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	c.mutex.Lock()
 
 	if c.closed {
@@ -293,7 +294,7 @@ func (c *memoryCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	}
 }
 
-func (c *memoryCoordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder) error {
+func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder) error {
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
@@ -334,7 +335,7 @@ func (c *memoryCoordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.D
 
 // Close closes all of the open connections in the coordinator and stops the
 // coordinator from accepting new connections.
-func (c *memoryCoordinator) Close() error {
+func (c *coordinator) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 

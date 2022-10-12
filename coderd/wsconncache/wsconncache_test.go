@@ -143,7 +143,7 @@ func TestCache(t *testing.T) {
 func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeout time.Duration) *codersdk.AgentConn {
 	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
-	coordinator := tailnet.NewMemoryCoordinator()
+	coordinator := tailnet.NewCoordinator()
 	agentID := uuid.New()
 	closer := agent.New(agent.Options{
 		FetchMetadata: func(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error) {

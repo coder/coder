@@ -23,8 +23,8 @@ import (
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/enterprise/tailnet"
-	agpltailnet "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/enterprise/highavailability"
+	"github.com/coder/coder/tailnet"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -206,9 +206,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		coordinator := agpltailnet.NewMemoryCoordinator()
+		coordinator := tailnet.NewCoordinator()
 		if enabled {
-			haCoordinator, err := tailnet.NewHACoordinator(api.Logger, api.Pubsub)
+			haCoordinator, err := highavailability.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to setup HA tailnet coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing
