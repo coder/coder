@@ -269,6 +269,48 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
           ]
           "generateType" = "controlplane"
         }
+        "init" = {
+          "configPatches" = [
+            {
+              "op"   = "replace"
+              "path" = "/machine/install"
+              "value" = {
+                "bootloader"      = true
+                "disk"            = "/dev/vda"
+                "image"           = "ghcr.io/siderolabs/installer:v1.2.4"
+                "wipe"            = false
+                "extraKernelArgs" = ["console=ttyS0"]
+              }
+            },
+            {
+              "op"   = "add"
+              "path" = "/machine/kubelet/extraArgs"
+              "value" = {
+                "cloud-provider" = "external"
+              }
+            },
+            {
+              "op"   = "add"
+              "path" = "/cluster/apiServer/extraArgs"
+              "value" = {
+                "cloud-provider" = "external"
+              }
+            },
+            {
+              "op"   = "add"
+              "path" = "/cluster/controllerManager/extraArgs"
+              "value" = {
+                "cloud-provider" = "external"
+              }
+            },
+            {
+              "op"    = "add"
+              "path"  = "/cluster/allowSchedulingOnMasters"
+              "value" = true
+            },
+          ]
+          "generateType" = "init"
+        }
       }
       "infrastructureTemplate" = {
         "apiVersion" = "infrastructure.cluster.x-k8s.io/v1alpha1"
