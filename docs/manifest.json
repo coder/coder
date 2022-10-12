@@ -96,6 +96,12 @@
           "icon_path": "./images/icons/key.svg"
         },
         {
+          "title": "Change Management",
+          "description": "Learn how to source-control templates with git and CI",
+          "path": "./templates/change-management.md",
+          "icon_path": "./images/icons/git.svg"
+        },
+        {
           "title": "Resource Metadata",
           "description": "Learn how to expose resource data to users",
           "path": "./templates/resource-metadata.md",
@@ -211,6 +217,12 @@
           "description": "Learn how to upgrade Coder.",
           "icon_path": "./images/icons/upgrade.svg",
           "path": "./admin/upgrade.md"
+        },
+        {
+          "title": "Automation",
+          "description": "Learn how to automate Coder with the CLI and API",
+          "icon_path": "./images/icons/plug.svg",
+          "path": "./admin/automation.md"
         },
         {
           "title": "Audit Logs",

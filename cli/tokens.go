@@ -67,7 +67,7 @@ func createToken() *cobra.Command {
 			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(res.Key)))
 			cmd.Println()
 			cmd.Println(cliui.Styles.Wrap.Render(
-				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenKey),
+				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionCustomHeader),
 			))
 
 			return nil
