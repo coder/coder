@@ -1,0 +1,94 @@
+# Requires:
+# clusterctl init --infrastructure kubevirt
+# clusterctl init --bootstrap talos --control-plane talos
+# Some are at Cluster Level, some are at the coder namespace level
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coder-clusterapi-perms
+rules:
+  - apiGroups:
+      - "apiextensions.k8s.io"
+    resources:
+      - "customresourcedefinitions"
+    verbs:
+      - "list"
+      - "get"
+  - apiGroups:
+      - ""
+      - "cluster.x-k8s.io"
+      - "bootstrap.cluster.x-k8s.io"
+      - "controlplane.cluster.x-k8s.io"
+      - "infrastructure.cluster.x-k8s.io"
+      - "addons.cluster.x-k8s.io"
+    resources:
+      - "namespaces"
+      - "configmaps"
+      - "clusters"
+      - "machinedeployments"
+      - "talosconfigtemplates"
+      - "taloscontrolplanes"
+      - "kubevirtclusters"
+      - "kubevirtmachinetemplates"
+      - "clusterresourcesets"
+    verbs:
+      - "list"
+      - "get"
+      - "patch"
+      - "create"
+      - "delete"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: coder-clusterapi
+  namespace: coder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: coder-clusterapi-perms
+subjects:
+  - kind: ServiceAccount
+    name: coder
+    namespace: coder
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: Role
+# metadata:
+#   name: coder-clusterapi-perms
+#   namespace: coder
+# rules:
+#   - apiGroups:
+#       - ""
+#     resources:
+#       - "configmaps"
+#     verbs:
+#       - "list"
+#       - "get"
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: coder-clusterapi
+#   namespace: coder
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: Role
+#   name: coder-clusterapi-perms
+# subjects:
+#   - kind: ServiceAccount
+#     name: coder
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coder-clusterapi-cluster
+  namespace: coder
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: coder-clusterapi-perms
+subjects:
+  - kind: ServiceAccount
+    name: coder
+    namespace: coder

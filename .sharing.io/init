@@ -61,6 +61,11 @@ clusterctl init --infrastructure kubevirt
 clusterctl init --infrastructure=packet
 clusterctl init --bootstrap talos --control-plane talos
 
+# we'll need these extra rolebindings for the coder service account for our template to work
+# must be applied after coder helm chart is run and clusterctl init -- talos
+kubectl apply -f ./examples/templates/kubevirt-talos/role+rolebinding.yaml
+
 kubectl create ns coder-workspaces
+
 
 #TODO : upload / update the kubernetes template
