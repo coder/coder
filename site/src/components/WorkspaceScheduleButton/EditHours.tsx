@@ -11,7 +11,7 @@ interface EditHoursProps {
 
 export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
   const { t } = useTranslation("workspacePage")
-  const [hours, setHours] = useState(0)
+  const [hours, setHours] = useState(1)
   const styles = useStyles()
 
   return (
