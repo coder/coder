@@ -129,8 +129,8 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	defer cancel()
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	agent, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+	agnt, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
 	require.NoError(t, err)
 
-	return workspace, agent
+	return workspace, agnt
 }

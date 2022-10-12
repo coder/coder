@@ -427,5 +427,4 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
 	}
 
 	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
-	return
 }

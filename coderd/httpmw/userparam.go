@@ -35,6 +35,8 @@ func UserParam(r *http.Request) database.User {
 
 // ExtractUserParam extracts a user from an ID/username in the {user} URL
 // parameter.
+//
+//nolint:revive
 func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

@@ -58,11 +58,11 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	AppSharingLevel := database.AppSharingLevelOwner
+	appSharingLevel := database.AppSharingLevelOwner
 	if app.SharingLevel != "" {
-		AppSharingLevel = app.SharingLevel
+		appSharingLevel = app.SharingLevel
 	}
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, AppSharingLevel)
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, appSharingLevel)
 	if !ok {
 		return
 	}
@@ -191,11 +191,11 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 
 				// Verify application auth. This function will redirect or
 				// return an error page if the user doesn't have permission.
-				SharingLevel := database.AppSharingLevelOwner
+				sharingLevel := database.AppSharingLevelOwner
 				if workspaceAppPtr != nil && workspaceAppPtr.SharingLevel != "" {
-					SharingLevel = workspaceAppPtr.SharingLevel
+					sharingLevel = workspaceAppPtr.SharingLevel
 				}
-				if !api.verifyWorkspaceApplicationSubdomainAuth(rw, r, host, workspace, SharingLevel) {
+				if !api.verifyWorkspaceApplicationSubdomainAuth(rw, r, host, workspace, sharingLevel) {
 					return
 				}
 
@@ -598,11 +598,11 @@ type proxyApplication struct {
 func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	SharingLevel := database.AppSharingLevelOwner
+	sharingLevel := database.AppSharingLevelOwner
 	if proxyApp.App != nil && proxyApp.App.SharingLevel != "" {
-		SharingLevel = proxyApp.App.SharingLevel
+		sharingLevel = proxyApp.App.SharingLevel
 	}
-	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.Workspace, SharingLevel) {
+	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.Workspace, sharingLevel) {
 		return
 	}
 
