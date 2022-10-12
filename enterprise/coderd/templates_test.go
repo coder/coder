@@ -286,7 +286,7 @@ func TestTemplateACL(t *testing.T) {
 		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "testme",
 			TemplateID:    template.ID,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
@@ -302,7 +302,7 @@ func TestTemplateACL(t *testing.T) {
 		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "testme",
 			TemplateID:    template.ID,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})

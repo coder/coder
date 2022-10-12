@@ -430,7 +430,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {
