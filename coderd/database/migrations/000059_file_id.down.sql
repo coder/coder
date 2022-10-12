@@ -31,10 +31,10 @@ AND
 
 -- Drop the primary key on files.id.
 ALTER TABLE files DROP CONSTRAINT files_pkey; 
--- Drdop the id column.
+-- Drop the id column.
 ALTER TABLE files DROP COLUMN id;
 -- Drop the unique constraint on hash + owner.
-ALTER TABLE files DROP CONSTRAINT files_hash_owner_id_key;
+ALTER TABLE files DROP CONSTRAINT files_hash_created_by_key;
 -- Set the primary key back to hash.
 ALTER TABLE files ADD PRIMARY KEY (hash);
 
