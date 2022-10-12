@@ -33,8 +33,8 @@ helm install coder ./helm/ \
 	--namespace coder \
 	--values .sharing.io/values.yaml
 # # Wait for coder to deploy
-# kubectl rollout status deployment coder -n coder
-# kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
+# kubectl rollout status deployment coder -n coder... so we can create the inital user
+kubectl wait -n coder --for=condition=ready pod -l app.kubernetes.io/name=coder
 
 # create the initial user
 # populate ii or pair as an admin user without logging in
