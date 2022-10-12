@@ -250,7 +250,7 @@ resources associated with the workspace.
 > [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
 > and
 > [ignore-changes](https://www.terraform.io/language/meta-arguments/lifecycle#ignore_changes)
-> meta-arguments can be used to accidental data loss.
+> meta-arguments can be used to prevent accidental data loss.
 
 ### Coder apps
 
