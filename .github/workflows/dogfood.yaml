@@ -65,7 +65,7 @@ jobs:
           coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION
         env:
           # Consumed by Coder CLI
-          CODER_URL: ${{ secrets.CODER_URL }}
+          CODER_URL: https://dev.coder.com
           CODER_SESSION_TOKEN: ${{ secrets.CODER_TOKEN }}
           # Template source & details
           CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
