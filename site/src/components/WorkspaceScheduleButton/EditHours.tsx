@@ -25,7 +25,7 @@ export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
         onChange={(e) => setHours(parseInt(e.target.value))}
         type="number"
       />
-      <Button className={styles.button} type="submit">
+      <Button className={styles.button} type="submit" color="primary">
         {t("workspaceScheduleButton.submitDeadline")}
       </Button>
 </Stack>
