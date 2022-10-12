@@ -9,7 +9,7 @@ coder:
   # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
   # they are already set by the Helm chart and will cause conflicts.
   image:
-    tag: "v0.9.0"
+    tag: "v0.9.8"
   env:
     - name: CODER_ACCESS_URL
       value: "https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"
@@ -30,5 +30,12 @@ coder:
       value: "false"
     - name: CODER_WILDCARD_ACCESS_URL
       value: "*.coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"
-  tls:
-    secretName: null
+  ingress:
+    enable: true
+    className: $SHARINGIO_PAIR_INSTANCE_INGRESS_CLASS_NAME
+    host: "coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"
+    wildcardHost: "*.${SHARINGIO_PAIR_BASE_DNS_NAME}"
+    tls:
+      enable: true
+      secretName: letsencrypt-prod
+      wildcardSecretName: "letsencrypt-prod"
