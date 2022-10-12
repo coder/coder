@@ -5,7 +5,6 @@ import { useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { getMaxDeadline, getMaxDeadlineChange, getMinDeadline } from "util/schedule"
-//import { getMaxDeadlineDecrease, getMaxDeadlineIncrease } from "util/schedule"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
@@ -33,6 +32,7 @@ export const WorkspaceReadyPage = ({
   const [bannerState, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
   )
+  const deadline = bannerState.context.workspace.deadline
   const xServices = useContext(XServiceContext)
   const featureVisibility = useSelector(
     xServices.entitlementsXService,
@@ -41,6 +41,7 @@ export const WorkspaceReadyPage = ({
   const [buildInfoState] = useActor(xServices.buildInfoXService)
   const {
     workspace,
+    template,
     refreshWorkspaceWarning,
     builds,
     getBuildsError,
@@ -97,8 +98,8 @@ export const WorkspaceReadyPage = ({
           },
           deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),
           deadlinePlusEnabled: () => !bannerState.matches("atMaxDeadline"),
-          maxDeadlineDecrease: getMaxDeadlineChange(bannerState.context.workspace.deadline, getMinDeadline()),
-          maxDeadlineIncrease: getMaxDeadlineChange(bannerState.context.workspace.deadline, getMaxDeadline(workspace, bannerState.context.template))
+          maxDeadlineDecrease: deadline ? getMaxDeadlineChange(deadline, getMinDeadline()) : 0,
+          maxDeadlineIncrease: (deadline && template) ? getMaxDeadlineChange(getMaxDeadline(workspace, template), deadline) : 0
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}
