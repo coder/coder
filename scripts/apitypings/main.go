@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/xerrors"
 
@@ -282,32 +283,50 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		}
 		field := st.Field(i)
 		tag := reflect.StructTag(st.Tag(i))
+		tags, err := structtag.Parse(string(tag))
+		if err != nil {
+			panic("invalid struct tags on type " + obj.String())
+		}
 
 		// Use the json name if present
-		jsonName := tag.Get("json")
-		arr := strings.Split(jsonName, ",")
-		jsonName = arr[0]
+		jsonTag, err := tags.Get("json")
+		var (
+			jsonName     string
+			jsonOptional bool
+		)
+		if err == nil {
+			jsonName = jsonTag.Name
+			if len(jsonTag.Options) > 0 && jsonTag.Options[0] == "omitempty" {
+				jsonOptional = true
+			}
+		}
 		if jsonName == "" {
 			jsonName = field.Name()
 		}
-		jsonOptional := false
-		if len(arr) > 1 && arr[1] == "omitempty" {
-			jsonOptional = true
+
+		// Infer the type.
+		tsType, err := g.typescriptType(field.Type())
+		if err != nil {
+			return "", xerrors.Errorf("typescript type: %w", err)
 		}
 
-		var tsType TypescriptType
-		// If a `typescript:"string"` exists, we take this, and do not try to infer.
-		typescriptTag := tag.Get("typescript")
-		if typescriptTag == "-" {
-			// Ignore this field
-			continue
-		} else if typescriptTag != "" {
-			tsType.ValueType = typescriptTag
-		} else {
-			var err error
-			tsType, err = g.typescriptType(field.Type())
-			if err != nil {
-				return "", xerrors.Errorf("typescript type: %w", err)
+		// If a `typescript:"string"` exists, we take this, and ignore what we
+		// inferred.
+		typescriptTag, err := tags.Get("typescript")
+		if err == nil {
+			if err == nil && typescriptTag.Name == "-" {
+				// Completely ignore this field.
+				continue
+			} else if typescriptTag.Name != "" {
+				tsType = TypescriptType{
+					ValueType: typescriptTag.Name,
+				}
+			}
+
+			// If you specify `typescript:",notnull"` then mark the type as not
+			// optional.
+			if len(typescriptTag.Options) > 0 && typescriptTag.Options[0] == "notnull" {
+				tsType.Optional = false
 			}
 		}
 

@@ -206,7 +206,11 @@ export const createWorkspaceMachine = createMachine(
           throw new Error("No create workspace request")
         }
 
-        return createWorkspace(organizationId, owner?.id ?? "me", createWorkspaceRequest)
+        return createWorkspace(
+          organizationId,
+          owner?.id ?? "me",
+          createWorkspaceRequest,
+        )
       },
       getWorkspaceQuota: (context) => {
         if (!context.workspaceQuotaEnabled) {
@@ -229,14 +233,17 @@ export const createWorkspaceMachine = createMachine(
       }),
       assignSelectedTemplate: assign({
         selectedTemplate: (ctx, event) => {
-          const templates = event.data.filter((template) => template.name === ctx.templateName)
+          const templates = event.data.filter(
+            (template) => template.name === ctx.templateName,
+          )
           return templates.length > 0 ? templates[0] : undefined
         },
       }),
       assignTemplateSchema: assign({
         // Only show parameters that are allowed to be overridden.
         // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
-        templateSchema: (_, event) => event.data.filter((param) => param.allow_override_source),
+        templateSchema: (_, event) =>
+          event.data.filter((param) => param.allow_override_source),
       }),
       assignPermissions: assign({
         permissions: (_, event) => event.data as Record<string, boolean>,

@@ -36,7 +36,10 @@ const NavItems: React.FC<
     <List className={combineClasses([styles.navItems, className])}>
       <ListItem button className={styles.item}>
         <NavLink
-          className={combineClasses([styles.link, location.pathname.startsWith("/@") && "active"])}
+          className={combineClasses([
+            styles.link,
+            location.pathname.startsWith("/@") && "active",
+          ])}
           to="/workspaces"
         >
           {Language.workspaces}
@@ -86,7 +89,11 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           <MenuIcon />
         </IconButton>
 
-        <Drawer anchor="left" open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
+        <Drawer
+          anchor="left"
+          open={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+        >
           <div className={styles.drawer}>
             <div className={styles.drawerHeader}>
               <Logo fill="white" opacity={1} width={125} />
@@ -99,7 +106,10 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           <Logo fill="white" opacity={1} width={125} />
         </NavLink>
 
-        <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
+        <NavItems
+          className={styles.desktopNavItems}
+          canViewAuditLog={canViewAuditLog}
+        />
 
         <div className={styles.profileButton}>
           {user && <UserDropdown user={user} onSignOut={onSignOut} />}

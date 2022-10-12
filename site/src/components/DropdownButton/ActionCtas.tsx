@@ -1,3 +1,4 @@
+import Tooltip from "@material-ui/core/Tooltip"
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import BlockIcon from "@material-ui/icons/Block"
@@ -15,18 +16,26 @@ interface WorkspaceAction {
   handleAction: () => void
 }
 
-export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
+export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
   return (
-    <Button className={styles.actionButton} startIcon={<CloudQueueIcon />} onClick={handleAction}>
+    <Button
+      className={styles.actionButton}
+      startIcon={<CloudQueueIcon />}
+      onClick={handleAction}
+    >
       {t("actionButton.update")}
     </Button>
   )
 }
 
-export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
+export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -40,7 +49,9 @@ export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ hand
   )
 }
 
-export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
+export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -54,7 +65,9 @@ export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handl
   )
 }
 
-export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
+export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -68,17 +81,26 @@ export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ han
   )
 }
 
-export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({ handleAction }) => {
+export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
 
   // this is an icon button, so it's important to include an aria label
   return (
-    <WorkspaceActionButton
-      icon={<BlockIcon />}
-      onClick={handleAction}
-      className={styles.cancelButton}
-      ariaLabel="cancel action"
-    />
+    <div>
+      <Tooltip title="Cancel action">
+        {/* We had to wrap the button to make it work with the tooltip. */}
+        <div>
+          <WorkspaceActionButton
+            icon={<BlockIcon />}
+            onClick={handleAction}
+            className={styles.cancelButton}
+            ariaLabel="cancel action"
+          />
+        </div>
+      </Tooltip>
+    </div>
   )
 }
 
@@ -86,7 +108,9 @@ interface DisabledProps {
   label: string
 }
 
-export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({ label }) => {
+export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({
+  label,
+}) => {
   const styles = useStyles()
 
   return (
@@ -100,7 +124,9 @@ interface LoadingProps {
   label: string
 }
 
-export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({ label }) => {
+export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({
+  label,
+}) => {
   const styles = useStyles()
   return (
     <LoadingButton

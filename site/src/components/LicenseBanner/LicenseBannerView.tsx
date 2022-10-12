@@ -1,4 +1,3 @@
-import Collapse from "@material-ui/core/Collapse"
 import { makeStyles } from "@material-ui/core/styles"
 import { Expander } from "components/Expander/Expander"
 import { Pill } from "components/Pill/Pill"
@@ -17,7 +16,9 @@ export interface LicenseBannerViewProps {
   warnings: string[]
 }
 
-export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }) => {
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
+  warnings,
+}) => {
   const styles = useStyles()
   const [showDetails, setShowDetails] = useState(false)
   if (warnings.length === 1) {
@@ -36,24 +37,27 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({ warnings }
       <div className={styles.container}>
         <div className={styles.flex}>
           <div className={styles.leftContent}>
-            <Pill text={Language.licenseIssues(warnings.length)} type="warning" lightBorder />
+            <Pill
+              text={Language.licenseIssues(warnings.length)}
+              type="warning"
+              lightBorder
+            />
             <span className={styles.text}>{Language.exceeded}</span>
             &nbsp;
             <a href="mailto:sales@coder.com" className={styles.link}>
               {Language.upgrade}
             </a>
           </div>
-          <Expander expanded={showDetails} setExpanded={setShowDetails} />
+          <Expander expanded={showDetails} setExpanded={setShowDetails}>
+            <ul className={styles.list}>
+              {warnings.map((warning) => (
+                <li className={styles.listItem} key={`${warning}`}>
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          </Expander>
         </div>
-        <Collapse in={showDetails}>
-          <ul className={styles.list}>
-            {warnings.map((warning) => (
-              <li className={styles.listItem} key={`${warning}`}>
-                {warning}
-              </li>
-            ))}
-          </ul>
-        </Collapse>
       </div>
     )
   }

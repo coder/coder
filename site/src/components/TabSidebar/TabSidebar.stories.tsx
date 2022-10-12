@@ -6,7 +6,9 @@ export default {
   component: TabSidebar,
 }
 
-const Template: Story<TabSidebarProps> = (args: TabSidebarProps) => <TabSidebar {...args} />
+const Template: Story<TabSidebarProps> = (args: TabSidebarProps) => (
+  <TabSidebar {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

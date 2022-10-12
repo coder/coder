@@ -6,7 +6,10 @@ import "./i18n"
 
 // if this is a development build and the developer wants to inspect
 // helpful to see realtime changes on the services
-if (process.env.NODE_ENV === "development" && process.env.INSPECT_XSTATE === "true") {
+if (
+  process.env.NODE_ENV === "development" &&
+  process.env.INSPECT_XSTATE === "true"
+) {
   // configure the XState inspector to open in a new tab
   inspect({
     url: "https://stately.ai/viz?inspect",

@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -21,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,8 +47,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
@@ -83,6 +80,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+	DeploymentFlags             *codersdk.DeploymentFlags
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -138,26 +136,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		})
 	}
 
-	// This can be hotswapped for a live database instance.
-	db := databasefake.New()
-	pubsub := database.NewPubsubInMemory()
-	if os.Getenv("DB") != "" {
-		connectionURL, closePg, err := postgres.Open()
-		require.NoError(t, err)
-		t.Cleanup(closePg)
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		db = database.New(sqlDB)
-
-		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = pubsub.Close()
-		})
-	}
+	db, pubsub := dbtestutil.NewDB(t)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
@@ -237,6 +216,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+		DeploymentFlags:             options.DeploymentFlags,
 	}
 }
 
@@ -397,6 +377,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
 func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.TemplateVersion {
+	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)

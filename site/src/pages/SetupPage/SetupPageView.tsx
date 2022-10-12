@@ -27,7 +27,10 @@ export const Language = {
 }
 
 const validationSchema = Yup.object({
-  email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
+  email: Yup.string()
+    .trim()
+    .email(Language.emailInvalid)
+    .required(Language.emailRequired),
   password: Yup.string().required(Language.passwordRequired),
   organization: Yup.string().required(Language.organizationRequired),
   username: nameValidator(Language.usernameLabel),
@@ -57,7 +60,10 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
       validationSchema,
       onSubmit,
     })
-  const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(form, formErrors)
+  const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(
+    form,
+    formErrors,
+  )
 
   return (
     <SignInLayout>
@@ -97,8 +103,15 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             type="password"
             variant="outlined"
           />
-          {genericError && <FormHelperText error>{genericError}</FormHelperText>}
-          <LoadingButton fullWidth variant="contained" loading={isLoading} type="submit">
+          {genericError && (
+            <FormHelperText error>{genericError}</FormHelperText>
+          )}
+          <LoadingButton
+            fullWidth
+            variant="contained"
+            loading={isLoading}
+            type="submit"
+          >
             {Language.create}
           </LoadingButton>
         </Stack>

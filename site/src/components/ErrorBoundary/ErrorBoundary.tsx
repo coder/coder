@@ -11,7 +11,10 @@ interface ErrorBoundaryState {
  * Our app's Error Boundary
  * Read more about React Error Boundaries: https://reactjs.org/docs/error-boundaries.html
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { error: null }

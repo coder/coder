@@ -15,7 +15,9 @@ export interface WorkspaceBuildStatsProps {
   build: WorkspaceBuild
 }
 
-export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => {
+export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({
+  build,
+}) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayWorkspaceBuildStatus(theme, build)
@@ -37,12 +39,16 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
 
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Duration</span>
-        <span className={styles.statsValue}>{displayWorkspaceBuildDuration(build)}</span>
+        <span className={styles.statsValue}>
+          {displayWorkspaceBuildDuration(build)}
+        </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Started at</span>
-        <span className={styles.statsValue}>{new Date(build.created_at).toLocaleString()}</span>
+        <span className={styles.statsValue}>
+          {new Date(build.created_at).toLocaleString()}
+        </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
@@ -54,7 +60,9 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({ build }) => 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Action</span>
-        <span className={combineClasses([styles.statsValue, styles.capitalize])}>
+        <span
+          className={combineClasses([styles.statsValue, styles.capitalize])}
+        >
           {build.transition}
         </span>
       </div>

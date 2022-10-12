@@ -22,7 +22,8 @@ export default {
       defaultValue: "MyFoo",
     },
     info: {
-      defaultValue: "Here's some info about the foo so you know you're deleting the right one.",
+      defaultValue:
+        "Here's some info about the foo so you know you're deleting the right one.",
     },
   },
 } as ComponentMeta<typeof DeleteDialog>

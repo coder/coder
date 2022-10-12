@@ -30,7 +30,9 @@ describe("AccountForm", () => {
       // Then
       const el = await screen.findByLabelText("Username")
       expect(el).toBeEnabled()
-      const btn = await screen.findByRole("button", { name: /Update settings/i })
+      const btn = await screen.findByRole("button", {
+        name: /Update settings/i,
+      })
       expect(btn).toBeEnabled()
     })
   })
@@ -58,7 +60,9 @@ describe("AccountForm", () => {
       // Then
       const el = await screen.findByLabelText("Username")
       expect(el).toBeDisabled()
-      const btn = await screen.findByRole("button", { name: /Update settings/i })
+      const btn = await screen.findByRole("button", {
+        name: /Update settings/i,
+      })
       expect(btn).toBeDisabled()
     })
   })

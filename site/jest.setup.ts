@@ -45,7 +45,10 @@ const CONSOLE_FAIL_TYPES = ["error" /* 'warn' */] as const
 CONSOLE_FAIL_TYPES.forEach((logType: typeof CONSOLE_FAIL_TYPES[number]) => {
   global.console[logType] = <Type>(format: string, ...args: Type[]): void => {
     throw new Error(
-      `Failing due to console.${logType} while running test!\n\n${util.format(format, ...args)}`,
+      `Failing due to console.${logType} while running test!\n\n${util.format(
+        format,
+        ...args,
+      )}`,
     )
   }
 })

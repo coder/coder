@@ -10,7 +10,11 @@ export const AutocompleteAvatar: FC<{ user: User }> = ({ user }) => {
   return (
     <div className={styles.avatarContainer}>
       {user.avatar_url ? (
-        <img className={styles.avatar} alt={`${user.username}'s Avatar`} src={user.avatar_url} />
+        <img
+          className={styles.avatar}
+          alt={`${user.username}'s Avatar`}
+          src={user.avatar_url}
+        />
       ) : (
         <Avatar>{firstLetter(user.username)}</Avatar>
       )}

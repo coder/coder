@@ -312,7 +312,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.App
 	// Regardless of share level or whether it's enabled or not, the owner of
 	// the workspace can always access applications (as long as their key's
 	// scope allows it).
-	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, workspace.ApplicationConnectRBAC())
+	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
 	if err == nil {
 		return true, nil
 	}
@@ -327,7 +327,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.App
 			return false, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
 		}
 
-		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionRead, template.RBACObject())
+		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionRead, template.RBACObject())
 		if err == nil {
 			return true, nil
 		}
@@ -337,7 +337,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.App
 		// workspaces. This ensures that the key's scope has permission to
 		// connect to workspace apps.
 		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.ID.String())
-		err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, object)
+		err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, object)
 		if err == nil {
 			return true, nil
 		}

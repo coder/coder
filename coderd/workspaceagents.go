@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -262,6 +263,59 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Get a list of ports that are in-use by applications.
+	apps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		apps = []database.WorkspaceApp{}
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace apps.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	appPorts := make(map[uint16]struct{}, len(apps))
+	for _, app := range apps {
+		if !app.Url.Valid || app.Url.String == "" {
+			continue
+		}
+		u, err := url.Parse(app.Url.String)
+		if err != nil {
+			continue
+		}
+		port := u.Port()
+		if port == "" {
+			continue
+		}
+		portNum, err := strconv.Atoi(port)
+		if err != nil {
+			continue
+		}
+		if portNum < 1 || portNum > 65535 {
+			continue
+		}
+		appPorts[uint16(portNum)] = struct{}{}
+	}
+
+	// Filter out ports that are globally blocked, in-use by applications, or
+	// common non-HTTP ports such as databases, FTP, SSH, etc.
+	filteredPorts := make([]codersdk.ListeningPort, 0, len(portsResponse.Ports))
+	for _, port := range portsResponse.Ports {
+		if port.Port < uint16(codersdk.MinimumListeningPort) {
+			continue
+		}
+		if _, ok := appPorts[port.Port]; ok {
+			continue
+		}
+		if _, ok := codersdk.IgnoredListeningPorts[port.Port]; ok {
+			continue
+		}
+		filteredPorts = append(filteredPorts, port)
+	}
+
+	portsResponse.Ports = filteredPorts
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
@@ -311,7 +365,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   derpMap,
-		Logger:    api.Logger.Named("tailnet").Leveled(slog.LevelDebug),
+		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
@@ -453,7 +507,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	// Ignore all trace spans after this.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	api.Logger.Info(ctx, "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
+	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 

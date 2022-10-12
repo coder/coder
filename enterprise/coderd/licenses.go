@@ -23,18 +23,12 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd/license"
 )
 
 const (
-	CurrentVersion        = 3
-	HeaderKeyID           = "kid"
-	AccountTypeSalesforce = "salesforce"
-	VersionClaim          = "version"
-
 	PubsubEventLicenses = "licenses"
 )
-
-var ValidMethods = []string{"EdDSA"}
 
 // key20220812 is the Coder license public key with id 2022-08-12 used to validate licenses signed
 // by our signing infrastructure
@@ -43,34 +37,6 @@ var ValidMethods = []string{"EdDSA"}
 var key20220812 []byte
 
 var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220812)}
-
-type Features struct {
-	UserLimit      int64 `json:"user_limit"`
-	AuditLog       int64 `json:"audit_log"`
-	BrowserOnly    int64 `json:"browser_only"`
-	SCIM           int64 `json:"scim"`
-	WorkspaceQuota int64 `json:"workspace_quota"`
-}
-
-type Claims struct {
-	jwt.RegisteredClaims
-	// LicenseExpires is the end of the legit license term, and the start of the grace period, if
-	// there is one.  The standard JWT claim "exp" (ExpiresAt in jwt.RegisteredClaims, above) is
-	// the end of the grace period (identical to LicenseExpires if there is no grace period).
-	// The reason we use the standard claim for the end of the grace period is that we want JWT
-	// processing libraries to consider the token "valid" until then.
-	LicenseExpires *jwt.NumericDate `json:"license_expires,omitempty"`
-	AccountType    string           `json:"account_type,omitempty"`
-	AccountID      string           `json:"account_id,omitempty"`
-	Version        uint64           `json:"version"`
-	Features       Features         `json:"features"`
-}
-
-var (
-	ErrInvalidVersion        = xerrors.New("license must be version 3")
-	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
-	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
-)
 
 // postLicense adds a new Enterprise license to the cluster.  We allow multiple different licenses
 // in the cluster at one time for several reasons:
@@ -93,7 +59,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := parseLicense(addLicense.License, api.Keys)
+	claims, err := license.Parse(addLicense.License, api.Keys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
@@ -260,66 +226,4 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	d.UseNumber()
 	err = d.Decode(&c)
 	return c, err
-}
-
-// parseLicense parses the license and returns the claims. If the license's signature is invalid or
-// is not parsable, an error is returned.
-func parseLicense(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error) {
-	tok, err := jwt.Parse(
-		l,
-		keyFunc(keys),
-		jwt.WithValidMethods(ValidMethods),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if claims, ok := tok.Claims.(jwt.MapClaims); ok && tok.Valid {
-		version, ok := claims[VersionClaim].(float64)
-		if !ok {
-			return nil, ErrInvalidVersion
-		}
-		if int64(version) != CurrentVersion {
-			return nil, ErrInvalidVersion
-		}
-		return claims, nil
-	}
-	return nil, xerrors.New("unable to parse Claims")
-}
-
-// validateDBLicense validates a database.License record, and if valid, returns the claims.  If
-// unparsable or invalid, it returns an error
-func validateDBLicense(l database.License, keys map[string]ed25519.PublicKey) (*Claims, error) {
-	tok, err := jwt.ParseWithClaims(
-		l.JWT,
-		&Claims{},
-		keyFunc(keys),
-		jwt.WithValidMethods(ValidMethods),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if claims, ok := tok.Claims.(*Claims); ok && tok.Valid {
-		if claims.Version != uint64(CurrentVersion) {
-			return nil, ErrInvalidVersion
-		}
-		if claims.LicenseExpires == nil {
-			return nil, ErrMissingLicenseExpires
-		}
-		return claims, nil
-	}
-	return nil, xerrors.New("unable to parse Claims")
-}
-
-func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, error) {
-	return func(j *jwt.Token) (interface{}, error) {
-		keyID, ok := j.Header[HeaderKeyID].(string)
-		if !ok {
-			return nil, ErrMissingKeyID
-		}
-		k, ok := keys[keyID]
-		if !ok {
-			return nil, xerrors.Errorf("no key with ID %s", keyID)
-		}
-		return k, nil
-	}
 }

@@ -10,7 +10,8 @@ export const TemplatesPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const [templatesState] = useMachine(templatesMachine)
-  const { templates, getOrganizationsError, getTemplatesError } = templatesState.context
+  const { templates, getOrganizationsError, getTemplatesError } =
+    templatesState.context
 
   return (
     <>
