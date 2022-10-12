@@ -1985,7 +1985,7 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-	id, created_at, updated_at, name, provisioners
+	id, created_at, updated_at, name, provisioners, replica_id
 FROM
 	provisioner_daemons
 WHERE
@@ -2001,13 +2001,14 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.UpdatedAt,
 		&i.Name,
 		pq.Array(&i.Provisioners),
+		&i.ReplicaID,
 	)
 	return i, err
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners
+	id, created_at, updated_at, name, provisioners, replica_id
 FROM
 	provisioner_daemons
 `
@@ -2027,6 +2028,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.UpdatedAt,
 			&i.Name,
 			pq.Array(&i.Provisioners),
+			&i.ReplicaID,
 		); err != nil {
 			return nil, err
 		}
@@ -2050,7 +2052,7 @@ INSERT INTO
 		provisioners
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners
+	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners, replica_id
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -2074,6 +2076,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.UpdatedAt,
 		&i.Name,
 		pq.Array(&i.Provisioners),
+		&i.ReplicaID,
 	)
 	return i, err
 }
@@ -2529,6 +2532,180 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.Error,
 	)
 	return err
+}
+
+const deleteReplicasUpdatedBefore = `-- name: DeleteReplicasUpdatedBefore :exec
+DELETE FROM replicas WHERE updated_at < $1
+`
+
+func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteReplicasUpdatedBefore, updatedAt)
+	return err
+}
+
+const getReplicaByID = `-- name: GetReplicaByID :one
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error FROM replicas WHERE id = $1
+`
+
+func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, getReplicaByID, id)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.Version,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+`
+
+func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
+	rows, err := q.db.QueryContext(ctx, getReplicasUpdatedAfter, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Replica
+	for rows.Next() {
+		var i Replica
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.StoppedAt,
+			&i.UpdatedAt,
+			&i.Hostname,
+			&i.RegionID,
+			&i.RelayAddress,
+			&i.Version,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertReplica = `-- name: InsertReplica :one
+INSERT INTO replicas (
+    id,
+    created_at,
+    started_at,
+    updated_at,
+    hostname,
+    region_id,
+    relay_address,
+    version
+
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error
+`
+
+type InsertReplicaParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	StartedAt    time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
+	Hostname     string    `db:"hostname" json:"hostname"`
+	RegionID     int32     `db:"region_id" json:"region_id"`
+	RelayAddress string    `db:"relay_address" json:"relay_address"`
+	Version      string    `db:"version" json:"version"`
+}
+
+func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, insertReplica,
+		arg.ID,
+		arg.CreatedAt,
+		arg.StartedAt,
+		arg.UpdatedAt,
+		arg.Hostname,
+		arg.RegionID,
+		arg.RelayAddress,
+		arg.Version,
+	)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.Version,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateReplica = `-- name: UpdateReplica :one
+UPDATE replicas SET
+    updated_at = $2,
+    started_at = $3,
+    stopped_at = $4,
+    relay_address = $5,
+    region_id = $6,
+    hostname = $7,
+    version = $8,
+    error = $9
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error
+`
+
+type UpdateReplicaParams struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
+	StartedAt    time.Time      `db:"started_at" json:"started_at"`
+	StoppedAt    sql.NullTime   `db:"stopped_at" json:"stopped_at"`
+	RelayAddress string         `db:"relay_address" json:"relay_address"`
+	RegionID     int32          `db:"region_id" json:"region_id"`
+	Hostname     string         `db:"hostname" json:"hostname"`
+	Version      string         `db:"version" json:"version"`
+	Error        sql.NullString `db:"error" json:"error"`
+}
+
+func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, updateReplica,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.StartedAt,
+		arg.StoppedAt,
+		arg.RelayAddress,
+		arg.RegionID,
+		arg.Hostname,
+		arg.Version,
+		arg.Error,
+	)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.Version,
+		&i.Error,
+	)
+	return i, err
 }
 
 const getDeploymentID = `-- name: GetDeploymentID :one
