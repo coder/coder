@@ -19,25 +19,25 @@ export const Language = {
   ariaLabel: "tooltip",
 }
 
-const HelpTooltipContext = createContext<{ open: boolean; onClose: () => void } | undefined>(
-  undefined,
-)
+const HelpTooltipContext = createContext<
+  { open: boolean; onClose: () => void } | undefined
+>(undefined)
 
 const useHelpTooltip = () => {
   const helpTooltipContext = useContext(HelpTooltipContext)
 
   if (!helpTooltipContext) {
-    throw new Error("This hook should be used in side of the HelpTooltipContext.")
+    throw new Error(
+      "This hook should be used in side of the HelpTooltipContext.",
+    )
   }
 
   return helpTooltipContext
 }
 
-export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = ({
-  children,
-  open,
-  size = "medium",
-}) => {
+export const HelpTooltip: React.FC<
+  React.PropsWithChildren<HelpTooltipProps>
+> = ({ children, open, size = "medium" }) => {
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(Boolean(open))
@@ -96,22 +96,25 @@ export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = 
   )
 }
 
-export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles({})
 
   return <h4 className={styles.title}>{children}</h4>
 }
 
-export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles({})
 
   return <p className={styles.text}>{children}</p>
 }
 
-export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>> = ({
-  children,
-  href,
-}) => {
+export const HelpTooltipLink: React.FC<
+  React.PropsWithChildren<{ href: string }>
+> = ({ children, href }) => {
   const styles = useStyles({})
 
   return (
@@ -148,7 +151,9 @@ export const HelpTooltipAction: React.FC<
   )
 }
 
-export const HelpTooltipLinksGroup: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const HelpTooltipLinksGroup: React.FC<
+  React.PropsWithChildren<unknown>
+> = ({ children }) => {
   const styles = useStyles({})
 
   return (
@@ -183,8 +188,10 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: ({ size }: { size?: Size }) => theme.spacing(getButtonSpacingFromSize(size)),
-    height: ({ size }: { size?: Size }) => theme.spacing(getButtonSpacingFromSize(size)),
+    width: ({ size }: { size?: Size }) =>
+      theme.spacing(getButtonSpacingFromSize(size)),
+    height: ({ size }: { size?: Size }) =>
+      theme.spacing(getButtonSpacingFromSize(size)),
     padding: 0,
     border: 0,
     background: "transparent",
@@ -198,8 +205,10 @@ const useStyles = makeStyles((theme) => ({
   },
 
   icon: {
-    width: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
-    height: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
+    width: ({ size }: { size?: Size }) =>
+      theme.spacing(getIconSpacingFromSize(size)),
+    height: ({ size }: { size?: Size }) =>
+      theme.spacing(getIconSpacingFromSize(size)),
   },
 
   popover: {

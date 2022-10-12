@@ -68,6 +68,7 @@ type ProvisionerJob struct {
 	CreatedAt     time.Time            `json:"created_at"`
 	StartedAt     *time.Time           `json:"started_at,omitempty"`
 	CompletedAt   *time.Time           `json:"completed_at,omitempty"`
+	CanceledAt    *time.Time           `json:"canceled_at,omitempty"`
 	Error         string               `json:"error,omitempty"`
 	Status        ProvisionerJobStatus `json:"status"`
 	WorkerID      *uuid.UUID           `json:"worker_id,omitempty"`
@@ -130,6 +131,9 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
 		return nil, nil, readBodyAsError(res)
 	}
 	logs := make(chan ProvisionerJobLog)

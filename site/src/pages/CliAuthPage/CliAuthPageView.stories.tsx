@@ -9,7 +9,9 @@ export default {
   },
 }
 
-const Template: Story<CliAuthPageViewProps> = (args) => <CliAuthPageView {...args} />
+const Template: Story<CliAuthPageViewProps> = (args) => (
+  <CliAuthPageView {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {}

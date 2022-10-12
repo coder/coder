@@ -3,7 +3,9 @@ import { User } from "api/typesGenerated"
 import { queryToFilter } from "util/filters"
 import { assign, createMachine } from "xstate"
 
-export type AutocompleteEvent = { type: "SEARCH"; query: string } | { type: "CLEAR_RESULTS" }
+export type AutocompleteEvent =
+  | { type: "SEARCH"; query: string }
+  | { type: "CLEAR_RESULTS" }
 
 export const searchUserMachine = createMachine(
   {

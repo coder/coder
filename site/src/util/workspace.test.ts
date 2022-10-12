@@ -10,7 +10,9 @@ import {
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
-    it.each<[TypesGen.WorkspaceTransition, TypesGen.ProvisionerJobStatus, boolean]>([
+    it.each<
+      [TypesGen.WorkspaceTransition, TypesGen.ProvisionerJobStatus, boolean]
+    >([
       ["delete", "canceled", false],
       ["delete", "canceling", false],
       ["delete", "failed", false],
@@ -31,20 +33,23 @@ describe("util > workspace", () => {
       ["start", "pending", false],
       ["start", "running", false],
       ["start", "succeeded", true],
-    ])(`transition=%p, status=%p, isWorkspaceOn=%p`, (transition, status, isOn) => {
-      const workspace: TypesGen.Workspace = {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          job: {
-            ...Mocks.MockProvisionerJob,
-            status,
+    ])(
+      `transition=%p, status=%p, isWorkspaceOn=%p`,
+      (transition, status, isOn) => {
+        const workspace: TypesGen.Workspace = {
+          ...Mocks.MockWorkspace,
+          latest_build: {
+            ...Mocks.MockWorkspaceBuild,
+            job: {
+              ...Mocks.MockProvisionerJob,
+              status,
+            },
+            transition,
           },
-          transition,
-        },
-      }
-      expect(isWorkspaceOn(workspace)).toBe(isOn)
-    })
+        }
+        expect(isWorkspaceOn(workspace)).toBe(isOn)
+      },
+    )
   })
 
   describe("defaultWorkspaceExtension", () => {
@@ -86,9 +91,12 @@ describe("util > workspace", () => {
         },
         "system/autostop",
       ],
-    ])(`getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`, (build, initiatedBy) => {
-      expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
-    })
+    ])(
+      `getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`,
+      (build, initiatedBy) => {
+        expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
+      },
+    )
   })
 
   describe("getDisplayVersionStatus", () => {
@@ -103,7 +111,10 @@ describe("util > workspace", () => {
     ])(
       `getDisplayVersionStatus(theme, %p, %p) returns (%p, %p)`,
       (agentVersion, serverVersion, expectedVersion, expectedOutdated) => {
-        const { displayVersion, outdated } = getDisplayVersionStatus(agentVersion, serverVersion)
+        const { displayVersion, outdated } = getDisplayVersionStatus(
+          agentVersion,
+          serverVersion,
+        )
         expect(displayVersion).toEqual(expectedVersion)
         expect(expectedOutdated).toEqual(outdated)
       },

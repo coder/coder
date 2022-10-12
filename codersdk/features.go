@@ -20,6 +20,7 @@ const (
 	FeatureBrowserOnly      = "browser_only"
 	FeatureSCIM             = "scim"
 	FeatureWorkspaceQuota   = "workspace_quota"
+	FeatureTemplateRBAC     = "template_rbac"
 	FeatureHighAvailability = "high_availability"
 )
 
@@ -29,6 +30,7 @@ var FeatureNames = []string{
 	FeatureBrowserOnly,
 	FeatureSCIM,
 	FeatureWorkspaceQuota,
+	FeatureTemplateRBAC,
 	FeatureHighAvailability,
 }
 

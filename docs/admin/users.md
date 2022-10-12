@@ -7,12 +7,13 @@ This article walks you through the user roles available in Coder and creating an
 Coder offers these user roles in the community edition:
 
 |                                            | User Admin | Template Admin | Owner |
-| ------------------------------------------ | ---------- | -------------- |-------|
-| Add and remove Users                       | ✅         |                | ✅     |
-| Change User roles                          |            |                | ✅     |
-| Manage Templates                           |            | ✅             | ✅     |
-| View, update and delete **ALL** Workspaces |            | ✅             | ✅     |
-| Execute and use **ALL** Workspaces         |            |                | ✅     |
+| ------------------------------------------ | ---------- | -------------- | ----- |
+| Add and remove Users                       | ✅         |                | ✅    |
+| Manage groups (enterprise)                 |            |                |       |
+| Change User roles                          |            |                | ✅    |
+| Manage **ALL** Templates                   |            | ✅             | ✅    |
+| View, update and delete **ALL** Workspaces |            | ✅             | ✅    |
+| Execute and use **ALL** Workspaces         |            |                | ✅    |
 
 A user may have one or more roles. All users have an implicit Member role
 that may use personal workspaces.

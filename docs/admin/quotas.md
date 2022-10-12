@@ -1,9 +1,5 @@
 # Quotas
 
-<blockquote class="info">
-Workspace Quotas are only available in the Enterprise Edition.
-</blockquote>
-
 Coder Enterprise admins may define deployment-level quotas to protect against
 Denial-of-Service, control costs, and ensure equitable access to cloud resources.
 
@@ -18,6 +14,10 @@ coder server --user-workspace-quota=5
 Then, when users create workspaces they would see:
 
 <img src="../images/admin/quotas.png"/>
+
+## Enabling this feature
+
+This feature is only available with an enterprise license. [Learn more](./enterprise.md)
 
 ## Up next
 

@@ -328,6 +328,9 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	if provisionerJob.CompletedAt.Valid {
 		job.CompletedAt = &provisionerJob.CompletedAt.Time
 	}
+	if provisionerJob.CanceledAt.Valid {
+		job.CanceledAt = &provisionerJob.CanceledAt.Time
+	}
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}

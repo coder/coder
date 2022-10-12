@@ -84,20 +84,30 @@ describe("minDeadline", () => {
 describe("canExtendDeadline", () => {
   it("should be falsy if the deadline is more than 24 hours in the future", () => {
     expect(
-      canExtendDeadline(dayjs().add(25, "hours"), Mocks.MockWorkspace, Mocks.MockTemplate),
+      canExtendDeadline(
+        dayjs().add(25, "hours"),
+        Mocks.MockWorkspace,
+        Mocks.MockTemplate,
+      ),
     ).toBeFalsy()
   })
 
   it("should be falsy if the deadline is more than the template max_ttl", () => {
-    const tooFarAhead = dayjs().add(dayjs.duration(Mocks.MockTemplate.max_ttl_ms, "milliseconds"))
-    expect(canExtendDeadline(tooFarAhead, Mocks.MockWorkspace, Mocks.MockTemplate)).toBeFalsy()
+    const tooFarAhead = dayjs().add(
+      dayjs.duration(Mocks.MockTemplate.max_ttl_ms, "milliseconds"),
+    )
+    expect(
+      canExtendDeadline(tooFarAhead, Mocks.MockWorkspace, Mocks.MockTemplate),
+    ).toBeFalsy()
   })
 
   it("should be truth if the deadline is within the template max_ttl", () => {
     const okDeadline = dayjs().add(
       dayjs.duration(Mocks.MockTemplate.max_ttl_ms / 2, "milliseconds"),
     )
-    expect(canExtendDeadline(okDeadline, Mocks.MockWorkspace, Mocks.MockTemplate)).toBeFalsy()
+    expect(
+      canExtendDeadline(okDeadline, Mocks.MockWorkspace, Mocks.MockTemplate),
+    ).toBeFalsy()
   })
 })
 

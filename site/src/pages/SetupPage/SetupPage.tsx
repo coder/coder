@@ -17,11 +17,16 @@ export const SetupPage: FC = () => {
         if (!firstUser) {
           throw new Error("First user was not defined.")
         }
-        authSend({ type: "SIGN_IN", email: firstUser.email, password: firstUser.password })
+        authSend({
+          type: "SIGN_IN",
+          email: firstUser.email,
+          password: firstUser.password,
+        })
       },
     },
   })
-  const { createFirstUserFormErrors, createFirstUserErrorMessage } = setupState.context
+  const { createFirstUserFormErrors, createFirstUserErrorMessage } =
+    setupState.context
 
   useEffect(() => {
     if (authState.matches("signedIn")) {

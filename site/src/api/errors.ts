@@ -19,7 +19,9 @@ export interface ApiErrorResponse {
   validations?: FieldError[]
 }
 
-export type ApiError = AxiosError<ApiErrorResponse> & { response: AxiosResponse<ApiErrorResponse> }
+export type ApiError = AxiosError<ApiErrorResponse> & {
+  response: AxiosResponse<ApiErrorResponse>
+}
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
 export const isApiError = (err: any): err is ApiError => {
@@ -47,12 +49,15 @@ export const isApiError = (err: any): err is ApiError => {
 export const hasApiFieldErrors = (error: ApiError): boolean =>
   Array.isArray(error.response.data.validations)
 
-export const mapApiErrorToFieldErrors = (apiErrorResponse: ApiErrorResponse): FieldErrors => {
+export const mapApiErrorToFieldErrors = (
+  apiErrorResponse: ApiErrorResponse,
+): FieldErrors => {
   const result: FieldErrors = {}
 
   if (apiErrorResponse.validations) {
     for (const error of apiErrorResponse.validations) {
-      result[error.field] = error.detail || Language.errorsByCode.defaultErrorCode
+      result[error.field] =
+        error.detail || Language.errorsByCode.defaultErrorCode
     }
   }
 
@@ -81,11 +86,21 @@ export const getErrorMessage = (
  * @returns a combined validation error message if the error is an ApiError
  * and contains validation messages for different form fields.
  */
-export const getValidationErrorMessage = (error: Error | ApiError | unknown): string => {
+export const getValidationErrorMessage = (
+  error: Error | ApiError | unknown,
+): string => {
   const validationErrors =
-    isApiError(error) && error.response.data.validations ? error.response.data.validations : []
+    isApiError(error) && error.response.data.validations
+      ? error.response.data.validations
+      : []
   return validationErrors.map((error) => error.detail).join("\n")
 }
 
-export const getErrorDetail = (error: Error | ApiError | unknown): string | undefined | null =>
-  isApiError(error) ? error.response.data.detail : error instanceof Error ? error.stack : null
+export const getErrorDetail = (
+  error: Error | ApiError | unknown,
+): string | undefined | null =>
+  isApiError(error)
+    ? error.response.data.detail
+    : error instanceof Error
+    ? error.stack
+    : null

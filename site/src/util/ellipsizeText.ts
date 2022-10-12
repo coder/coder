@@ -1,7 +1,10 @@
 import { Nullable } from "./nullable"
 
 /** Truncates and ellipsizes text if it's longer than maxLength */
-export const ellipsizeText = (text: Nullable<string>, maxLength = 80): string | undefined => {
+export const ellipsizeText = (
+  text: Nullable<string>,
+  maxLength = 80,
+): string | undefined => {
   if (typeof text !== "string") {
     return
   }

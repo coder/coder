@@ -18,6 +18,7 @@ export const Language = {
   pageTitle: "Workspaces",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
+  runningWorkspacesButton: "Running workspaces",
   createANewWorkspace: `Create a new workspace from a `,
   template: "Template",
 }
@@ -29,15 +30,16 @@ export interface WorkspacesPageViewProps {
   onFilter: (query: string) => void
 }
 
-export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewProps>> = ({
-  isLoading,
-  workspaceRefs,
-  filter,
-  onFilter,
-}) => {
+export const WorkspacesPageView: FC<
+  React.PropsWithChildren<WorkspacesPageViewProps>
+> = ({ isLoading, workspaceRefs, filter, onFilter }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
+    {
+      query: workspaceFilterQuery.running,
+      name: Language.runningWorkspacesButton,
+    },
   ]
 
   return (
@@ -59,9 +61,17 @@ export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewPr
         </PageHeaderSubtitle>
       </PageHeader>
 
-      <SearchBarWithFilter filter={filter} onFilter={onFilter} presetFilters={presetFilters} />
+      <SearchBarWithFilter
+        filter={filter}
+        onFilter={onFilter}
+        presetFilters={presetFilters}
+      />
 
-      <WorkspacesTable isLoading={isLoading} workspaceRefs={workspaceRefs} filter={filter} />
+      <WorkspacesTable
+        isLoading={isLoading}
+        workspaceRefs={workspaceRefs}
+        filter={filter}
+      />
     </Margins>
   )
 }

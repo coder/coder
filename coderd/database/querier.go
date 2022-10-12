@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type querier interface {
+type sqlcQuerier interface {
 	// Acquires the lock for a single job that isn't started, completed,
 	// canceled, and that matches an array of provisioner types.
 	//
@@ -21,6 +21,8 @@ type querier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
+	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
+	DeleteGroupMember(ctx context.Context, userID uuid.UUID) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOldAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
@@ -28,6 +30,7 @@ type querier interface {
 	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
+	GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]User, error)
 	GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
@@ -38,6 +41,10 @@ type querier interface {
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetFileByHash(ctx context.Context, hash string) (File, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
+	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
+	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
+	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (AgentStat, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
@@ -73,10 +80,14 @@ type querier interface {
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
+	GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
-	GetUsersByIDs(ctx context.Context, arg GetUsersByIDsParams) ([]User, error)
+	// This shouldn't check for deleted, because it's frequently used
+	// to look up references to actions. eg. a user could build a workspace
+	// for another user, then be deleted... we still want them to appear!
+	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
@@ -88,8 +99,8 @@ type querier interface {
 	GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error)
 	GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error)
 	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error)
-	GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
+	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
@@ -105,10 +116,16 @@ type querier interface {
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error)
+	// We use the organization_id as the id
+	// for simplicity since all users is
+	// every member of the org.
+	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
+	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
+	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
@@ -131,6 +148,7 @@ type querier interface {
 	ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error
+	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
 	UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error
@@ -160,4 +178,4 @@ type querier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 }
 
-var _ querier = (*sqlQuerier)(nil)
+var _ sqlcQuerier = (*sqlQuerier)(nil)

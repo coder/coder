@@ -25,6 +25,7 @@ func TestEntitlements(t *testing.T) {
 		codersdk.FeatureSCIM:             true,
 		codersdk.FeatureWorkspaceQuota:   true,
 		codersdk.FeatureHighAvailability: true,
+		codersdk.FeatureTemplateRBAC:     true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -66,6 +67,7 @@ func TestEntitlements(t *testing.T) {
 				SCIM:             true,
 				WorkspaceQuota:   true,
 				HighAvailability: true,
+				TemplateRBAC:     true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -88,6 +90,7 @@ func TestEntitlements(t *testing.T) {
 				SCIM:             true,
 				WorkspaceQuota:   true,
 				HighAvailability: true,
+				TemplateRBAC:     true,
 				GraceAt:          time.Now().Add(-time.Hour),
 				ExpiresAt:        time.Now().Add(time.Hour),
 			}),

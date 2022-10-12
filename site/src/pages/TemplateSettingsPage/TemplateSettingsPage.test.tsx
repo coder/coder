@@ -5,7 +5,10 @@ import { UpdateTemplateMeta } from "api/typesGenerated"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
 import { MockTemplate } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
-import { Language as FormLanguage, validationSchema } from "./TemplateSettingsForm"
+import {
+  Language as FormLanguage,
+  validationSchema,
+} from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
 import { Language as ViewLanguage } from "./TemplateSettingsPageView"
 
@@ -36,7 +39,9 @@ const fillAndSubmitForm = async ({
   await userEvent.clear(nameField)
   await userEvent.type(nameField, name)
 
-  const descriptionField = await screen.findByLabelText(FormLanguage.descriptionLabel)
+  const descriptionField = await screen.findByLabelText(
+    FormLanguage.descriptionLabel,
+  )
   await userEvent.clear(descriptionField)
   await userEvent.type(descriptionField, description)
 
@@ -48,7 +53,9 @@ const fillAndSubmitForm = async ({
   await userEvent.clear(maxTtlField)
   await userEvent.type(maxTtlField, max_ttl_ms.toString())
 
-  const submitButton = await screen.findByText(FooterFormLanguage.defaultSubmitLabel)
+  const submitButton = await screen.findByText(
+    FooterFormLanguage.defaultSubmitLabel,
+  )
   await userEvent.click(submitButton)
 }
 

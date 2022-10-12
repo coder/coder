@@ -108,6 +108,12 @@ func Entitlements(
 				Enabled:     enablements[codersdk.FeatureHighAvailability],
 			}
 		}
+		if claims.Features.TemplateRBAC > 0 {
+			entitlements.Features[codersdk.FeatureTemplateRBAC] = codersdk.Feature{
+				Entitlement: entitlement,
+				Enabled:     enablements[codersdk.FeatureTemplateRBAC],
+			}
+		}
 		if claims.AllFeatures {
 			allFeatures = true
 		}
@@ -182,6 +188,7 @@ type Features struct {
 	BrowserOnly      int64 `json:"browser_only"`
 	SCIM             int64 `json:"scim"`
 	WorkspaceQuota   int64 `json:"workspace_quota"`
+	TemplateRBAC     int64 `json:"template_rbac"`
 	HighAvailability int64 `json:"high_availability"`
 }
 

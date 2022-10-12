@@ -463,9 +463,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{user.ID, workspaceBuild.InitiatorID},
-	})
+	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{user.ID, workspaceBuild.InitiatorID})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -1119,6 +1117,7 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersd
 		OwnerUsername: parser.String(searchParams, "", "owner"),
 		TemplateName:  parser.String(searchParams, "", "template"),
 		Name:          parser.String(searchParams, "", "name"),
+		Status:        parser.String(searchParams, "", "status"),
 	}
 
 	return filter, parser.Errors

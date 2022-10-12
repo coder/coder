@@ -8,9 +8,9 @@ export interface FormCloseButtonProps {
   onClose: () => void
 }
 
-export const FormCloseButton: React.FC<React.PropsWithChildren<FormCloseButtonProps>> = ({
-  onClose,
-}) => {
+export const FormCloseButton: React.FC<
+  React.PropsWithChildren<FormCloseButtonProps>
+> = ({ onClose }) => {
   const styles = useStyles()
 
   useEffect(() => {

@@ -19,7 +19,10 @@ export interface TemplateStatsProps {
   activeVersion: TemplateVersion
 }
 
-export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion }) => {
+export const TemplateStats: FC<TemplateStatsProps> = ({
+  template,
+  activeVersion,
+}) => {
   const styles = useStyles()
 
   return (
@@ -29,7 +32,9 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
 
         <span className={styles.statsValue}>
           {formatTemplateActiveDevelopers(template.active_user_count)}{" "}
-          {template.active_user_count === 1 ? Language.developerSingular : Language.developerPlural}
+          {template.active_user_count === 1
+            ? Language.developerSingular
+            : Language.developerPlural}
         </span>
       </div>
       <div className={styles.statsDivider} />

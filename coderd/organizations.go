@@ -60,8 +60,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var organization database.Organization
-	err = api.Database.InTx(func(store database.Store) error {
-		organization, err = store.InsertOrganization(ctx, database.InsertOrganizationParams{
+	err = api.Database.InTx(func(tx database.Store) error {
+		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      req.Name,
 			CreatedAt: database.Now(),
@@ -70,7 +70,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
 		}
-		_, err = store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,
 			CreatedAt:      database.Now(),
@@ -81,6 +81,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization admin: %w", err)
+		}
+
+		_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
+		if err != nil {
+			return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
 		}
 		return nil
 	})
