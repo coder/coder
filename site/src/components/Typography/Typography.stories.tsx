@@ -9,7 +9,9 @@ export default {
 const Template: Story<TypographyProps> = (args: TypographyProps) => (
   <>
     <Typography {...args}>Colorless green ideas sleep furiously</Typography>
-    <Typography {...args}>More people have been to France than I have</Typography>
+    <Typography {...args}>
+      More people have been to France than I have
+    </Typography>
   </>
 )
 

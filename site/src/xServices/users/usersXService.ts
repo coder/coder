@@ -2,7 +2,10 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import {
+  displayError,
+  displaySuccess,
+} from "../../components/GlobalSnackbar/utils"
 import { queryToFilter } from "../../util/filters"
 import { generateRandomString } from "../../util/random"
 
@@ -62,7 +65,11 @@ export type UsersEvent =
   | { type: "CONFIRM_USER_PASSWORD_RESET" }
   | { type: "CANCEL_USER_PASSWORD_RESET" }
   // Update roles events
-  | { type: "UPDATE_USER_ROLES"; userId: TypesGen.User["id"]; roles: TypesGen.Role["name"][] }
+  | {
+      type: "UPDATE_USER_ROLES"
+      userId: TypesGen.User["id"]
+      roles: TypesGen.Role["name"][]
+    }
 
 export const usersMachine = createMachine(
   {
@@ -111,7 +118,11 @@ export const usersMachine = createMachine(
           ],
           onError: [
             {
-              actions: ["clearUsers", "assignGetUsersError", "displayGetUsersErrorMessage"],
+              actions: [
+                "clearUsers",
+                "assignGetUsersError",
+                "displayGetUsersErrorMessage",
+              ],
               target: "#usersState.error",
             },
           ],
@@ -207,7 +218,10 @@ export const usersMachine = createMachine(
           },
           onError: {
             target: "idle",
-            actions: ["assignActivateUserError", "displayActivatedErrorMessage"],
+            actions: [
+              "assignActivateUserError",
+              "displayActivatedErrorMessage",
+            ],
           },
         },
       },
@@ -228,7 +242,10 @@ export const usersMachine = createMachine(
           },
           onError: {
             target: "idle",
-            actions: ["assignResetUserPasswordError", "displayResetPasswordErrorMessage"],
+            actions: [
+              "assignResetUserPasswordError",
+              "displayResetPasswordErrorMessage",
+            ],
           },
         },
       },
@@ -243,7 +260,10 @@ export const usersMachine = createMachine(
           },
           onError: {
             target: "idle",
-            actions: ["assignUpdateRolesError", "displayUpdateRolesErrorMessage"],
+            actions: [
+              "assignUpdateRolesError",
+              "displayUpdateRolesErrorMessage",
+            ],
           },
         },
       },
@@ -370,28 +390,40 @@ export const usersMachine = createMachine(
         updateUserRolesError: (_) => undefined,
       }),
       displayGetUsersErrorMessage: (context) => {
-        const message = getErrorMessage(context.getUsersError, Language.getUsersError)
+        const message = getErrorMessage(
+          context.getUsersError,
+          Language.getUsersError,
+        )
         displayError(message)
       },
       displaySuspendSuccess: () => {
         displaySuccess(Language.suspendUserSuccess)
       },
       displaySuspendedErrorMessage: (context) => {
-        const message = getErrorMessage(context.suspendUserError, Language.suspendUserError)
+        const message = getErrorMessage(
+          context.suspendUserError,
+          Language.suspendUserError,
+        )
         displayError(message)
       },
       displayDeleteSuccess: () => {
         displaySuccess(Language.deleteUserSuccess)
       },
       displayDeleteErrorMessage: (context) => {
-        const message = getErrorMessage(context.deleteUserError, Language.deleteUserError)
+        const message = getErrorMessage(
+          context.deleteUserError,
+          Language.deleteUserError,
+        )
         displayError(message)
       },
       displayActivateSuccess: () => {
         displaySuccess(Language.activateUserSuccess)
       },
       displayActivatedErrorMessage: (context) => {
-        const message = getErrorMessage(context.activateUserError, Language.activateUserError)
+        const message = getErrorMessage(
+          context.activateUserError,
+          Language.activateUserError,
+        )
         displayError(message)
       },
       displayResetPasswordSuccess: () => {
@@ -405,7 +437,10 @@ export const usersMachine = createMachine(
         displayError(message)
       },
       displayUpdateRolesErrorMessage: (context) => {
-        const message = getErrorMessage(context.updateUserRolesError, Language.updateUserRolesError)
+        const message = getErrorMessage(
+          context.updateUserRolesError,
+          Language.updateUserRolesError,
+        )
         displayError(message)
       },
       generateRandomPassword: assign({

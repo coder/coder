@@ -8,7 +8,9 @@ export default {
   component: WorkspaceActions,
 }
 
-const Template: Story<WorkspaceActionsProps> = (args) => <WorkspaceActions {...args} />
+const Template: Story<WorkspaceActionsProps> = (args) => (
+  <WorkspaceActions {...args} />
+)
 
 const defaultArgs = {
   handleStart: action("start"),

@@ -18,15 +18,9 @@ export interface DeleteDialogProps {
   confirmLoading?: boolean
 }
 
-export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> = ({
-  isOpen,
-  onCancel,
-  onConfirm,
-  entity,
-  info,
-  name,
-  confirmLoading,
-}) => {
+export const DeleteDialog: React.FC<
+  React.PropsWithChildren<DeleteDialogProps>
+> = ({ isOpen, onCancel, onConfirm, entity, info, name, confirmLoading }) => {
   const styles = useStyles()
   const { t } = useTranslation("common")
   const [nameValue, setNameValue] = useState("")
@@ -52,7 +46,9 @@ export const DeleteDialog: React.FC<React.PropsWithChildren<DeleteDialogProps>> 
           label={t("deleteDialog.confirmLabel", { entity })}
         />
         <Maybe condition={nameValue.length > 0 && !confirmed}>
-          <FormHelperText error>{t("deleteDialog.incorrectName", { entity })}</FormHelperText>
+          <FormHelperText error>
+            {t("deleteDialog.incorrectName", { entity })}
+          </FormHelperText>
         </Maybe>
       </Stack>
     </>

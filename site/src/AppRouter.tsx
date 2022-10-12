@@ -2,8 +2,11 @@ import { useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
+import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
+import { UsersLayout } from "components/UsersLayout/UsersLayout"
 import IndexPage from "pages"
 import AuditPage from "pages/AuditPage/AuditPage"
+import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
@@ -23,25 +26,55 @@ import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
-const CliAuthenticationPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"))
+const CliAuthenticationPage = lazy(
+  () => import("./pages/CliAuthPage/CliAuthPage"),
+)
 const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
-const AccountPage = lazy(() => import("./pages/UserSettingsPage/AccountPage/AccountPage"))
-const SecurityPage = lazy(() => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"))
-const SSHKeysPage = lazy(() => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"))
-const CreateUserPage = lazy(() => import("./pages/UsersPage/CreateUserPage/CreateUserPage"))
-const WorkspaceBuildPage = lazy(() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"))
+const AccountPage = lazy(
+  () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
+)
+const SecurityPage = lazy(
+  () => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"),
+)
+const SSHKeysPage = lazy(
+  () => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"),
+)
+const CreateUserPage = lazy(
+  () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
+)
+const WorkspaceBuildPage = lazy(
+  () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
+)
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
-const CreateWorkspacePage = lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
-const TemplatePage = lazy(() => import("./pages/TemplatePage/TemplatePage"))
+const TemplatePermissionsPage = lazy(
+  () =>
+    import(
+      "./pages/TemplatePage/TemplatePermissionsPage/TemplatePermissionsPage"
+    ),
+)
+const TemplateSummaryPage = lazy(
+  () => import("./pages/TemplatePage/TemplateSummaryPage/TemplateSummaryPage"),
+)
+const CreateWorkspacePage = lazy(
+  () => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
+)
+const CreateGroupPage = lazy(() => import("./pages/GroupsPage/CreateGroupPage"))
+const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"))
+const SettingsGroupPage = lazy(
+  () => import("./pages/GroupsPage/SettingsGroupPage"),
+)
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
-  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+  const featureVisibility = useSelector(
+    xServices.entitlementsXService,
+    selectFeatureVisibility,
+  )
 
   return (
     <Suspense fallback={<FullScreenLoader />}>
@@ -93,7 +126,19 @@ export const AppRouter: FC = () => {
               index
               element={
                 <AuthAndFrame>
-                  <TemplatePage />
+                  <TemplateLayout>
+                    <TemplateSummaryPage />
+                  </TemplateLayout>
+                </AuthAndFrame>
+              }
+            />
+            <Route
+              path="permissions"
+              element={
+                <AuthAndFrame>
+                  <TemplateLayout>
+                    <TemplatePermissionsPage />
+                  </TemplateLayout>
                 </AuthAndFrame>
               }
             />
@@ -121,7 +166,9 @@ export const AppRouter: FC = () => {
             index
             element={
               <AuthAndFrame>
-                <UsersPage />
+                <UsersLayout>
+                  <UsersPage />
+                </UsersLayout>
               </AuthAndFrame>
             }
           />
@@ -135,6 +182,43 @@ export const AppRouter: FC = () => {
           />
         </Route>
 
+        <Route path="/groups">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <UsersLayout>
+                  <GroupsPage />
+                </UsersLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="create"
+            element={
+              <RequireAuth>
+                <CreateGroupPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path=":groupId"
+            element={
+              <AuthAndFrame>
+                <GroupPage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path=":groupId/settings"
+            element={
+              <RequireAuth>
+                <SettingsGroupPage />
+              </RequireAuth>
+            }
+          />
+        </Route>
+
         <Route path="/audit">
           <Route
             index
@@ -142,7 +226,8 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={
-                    featureVisibility[FeatureNames.AuditLog] && Boolean(permissions?.viewAuditLog)
+                    featureVisibility[FeatureNames.AuditLog] &&
+                    Boolean(permissions?.viewAuditLog)
                   }
                 >
                   <AuditPage />

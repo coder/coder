@@ -265,6 +265,7 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Username:     parser.String(searchParams, "", "username"),
 		Email:        parser.String(searchParams, "", "email"),
 	}
+
 	return filter, parser.Errors
 }
 
@@ -296,6 +297,7 @@ func actionFromString(actionString string) string {
 		return actionString
 	case codersdk.AuditActionDelete:
 		return actionString
+	default:
 	}
 	return ""
 }

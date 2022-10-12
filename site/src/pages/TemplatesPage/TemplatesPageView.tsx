@@ -39,7 +39,9 @@ import {
 
 export const Language = {
   developerCount: (activeCount: number): string => {
-    return `${formatTemplateActiveDevelopers(activeCount)} developer${activeCount !== 1 ? "s" : ""}`
+    return `${formatTemplateActiveDevelopers(activeCount)} developer${
+      activeCount !== 1 ? "s" : ""
+    }`
   },
   nameLabel: "Name",
   usedByLabel: "Used by",
@@ -50,7 +52,10 @@ export const Language = {
   emptyDescription: (
     <>
       To create a workspace you need to have a template. You can{" "}
-      <Link target="_blank" href="https://coder.com/docs/coder-oss/latest/templates">
+      <Link
+        target="_blank"
+        href="https://coder.com/docs/coder-oss/latest/templates"
+      >
         create one from scratch
       </Link>{" "}
       or use a built-in template using the following Coder CLI command:
@@ -85,7 +90,9 @@ export interface TemplatesPageViewProps {
   getTemplatesError?: Error | unknown
 }
 
-export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProps>> = (props) => {
+export const TemplatesPageView: FC<
+  React.PropsWithChildren<TemplatesPageViewProps>
+> = (props) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const { t } = useTranslation("templatesPage")
@@ -105,7 +112,9 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        <Maybe condition={Boolean(props.templates && props.templates.length > 0)}>
+        <Maybe
+          condition={Boolean(props.templates && props.templates.length > 0)}
+        >
           <PageHeaderSubtitle>
             Choose a template to create a new workspace
             {props.canCreateTemplate ? (
@@ -209,26 +218,39 @@ export const TemplatesPageView: FC<React.PropsWithChildren<TemplatesPageViewProp
                           </TableCellLink>
 
                           <TableCellLink to={templatePageLink}>
-                            <span style={{ color: theme.palette.text.secondary }}>
-                              {Language.developerCount(template.active_user_count)}
+                            <span
+                              style={{ color: theme.palette.text.secondary }}
+                            >
+                              {Language.developerCount(
+                                template.active_user_count,
+                              )}
                             </span>
                           </TableCellLink>
 
-                          <TableCellLink data-chromatic="ignore" to={templatePageLink}>
-                            <span style={{ color: theme.palette.text.secondary }}>
+                          <TableCellLink
+                            data-chromatic="ignore"
+                            to={templatePageLink}
+                          >
+                            <span
+                              style={{ color: theme.palette.text.secondary }}
+                            >
                               {createDayString(template.updated_at)}
                             </span>
                           </TableCellLink>
 
                           <TableCellLink to={templatePageLink}>
-                            <span style={{ color: theme.palette.text.secondary }}>
+                            <span
+                              style={{ color: theme.palette.text.secondary }}
+                            >
                               {template.created_by_name}
                             </span>
                           </TableCellLink>
 
                           <TableCellLink to={templatePageLink}>
                             <div className={styles.arrowCell}>
-                              <KeyboardArrowRight className={styles.arrowRight} />
+                              <KeyboardArrowRight
+                                className={styles.arrowRight}
+                              />
                             </div>
                           </TableCellLink>
                         </TableRow>

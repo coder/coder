@@ -156,7 +156,9 @@ require (
 	tailscale.com v1.30.0
 )
 
-require github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5 // indirect
+require github.com/jmoiron/sqlx v1.3.5
+
+require github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect

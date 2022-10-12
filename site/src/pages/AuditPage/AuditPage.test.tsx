@@ -62,7 +62,11 @@ describe("AuditPage", () => {
       await userEvent.type(filterField, query)
 
       await waitFor(() =>
-        expect(getAuditLogsSpy).toBeCalledWith({ limit: 25, offset: 0, q: query }),
+        expect(getAuditLogsSpy).toBeCalledWith({
+          limit: 25,
+          offset: 0,
+          q: query,
+        }),
       )
     })
 

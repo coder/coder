@@ -8,7 +8,10 @@ import { pageTitle } from "util/page"
 import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "xServices/StateContext"
-import { CreateWorkspaceErrors, CreateWorkspacePageView } from "./CreateWorkspacePageView"
+import {
+  CreateWorkspaceErrors,
+  CreateWorkspacePageView,
+} from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -26,7 +29,12 @@ const CreateWorkspacePage: FC = () => {
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
-    context: { organizationId, templateName, workspaceQuotaEnabled, owner: me ?? null },
+    context: {
+      organizationId,
+      templateName,
+      workspaceQuotaEnabled,
+      owner: me ?? null,
+    },
     actions: {
       onCreateWorkspace: (_, event) => {
         navigate(`/@${event.data.owner_name}/${event.data.name}`)
@@ -54,7 +62,9 @@ const CreateWorkspacePage: FC = () => {
       </Helmet>
       <CreateWorkspacePageView
         loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
-        loadingTemplateSchema={createWorkspaceState.matches("gettingTemplateSchema")}
+        loadingTemplateSchema={createWorkspaceState.matches(
+          "gettingTemplateSchema",
+        )}
         creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
         hasTemplateErrors={createWorkspaceState.matches("error")}
         templateName={templateName}
@@ -64,9 +74,11 @@ const CreateWorkspacePage: FC = () => {
         workspaceQuota={workspaceQuota}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
-          [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]: getTemplateSchemaError,
+          [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]:
+            getTemplateSchemaError,
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
-          [CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]: getWorkspaceQuotaError,
+          [CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]:
+            getWorkspaceQuotaError,
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
         owner={owner}

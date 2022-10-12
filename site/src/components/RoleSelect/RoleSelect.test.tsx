@@ -21,7 +21,11 @@ describe("UserRoleSelect", () => {
           assignableRole(MockAuditorRole, true),
           assignableRole(MockUserAdminRole, true),
         ]}
-        selectedRoles={[MockUserAdminRole, MockTemplateAdminRole, MockMemberRole]}
+        selectedRoles={[
+          MockUserAdminRole,
+          MockTemplateAdminRole,
+          MockMemberRole,
+        ]}
         loading={false}
         onChange={jest.fn()}
         open
@@ -30,7 +34,9 @@ describe("UserRoleSelect", () => {
 
     // Then
     const owner = await screen.findByText(MockOwnerRole.display_name)
-    const templateAdmin = await screen.findByText(MockTemplateAdminRole.display_name)
+    const templateAdmin = await screen.findByText(
+      MockTemplateAdminRole.display_name,
+    )
     const auditor = await screen.findByText(MockAuditorRole.display_name)
     const userAdmin = await screen.findByText(MockUserAdminRole.display_name)
 

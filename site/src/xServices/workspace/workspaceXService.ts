@@ -5,7 +5,10 @@ import { assign, createMachine, send } from "xstate"
 import * as API from "../../api/api"
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import {
+  displayError,
+  displaySuccess,
+} from "../../components/GlobalSnackbar/utils"
 
 const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   // Cloning builds to not change the origin object with the sort()
@@ -38,7 +41,8 @@ const moreBuildsAvailable = (
 }
 
 const Language = {
-  getTemplateWarning: "Error updating workspace: latest template could not be fetched.",
+  getTemplateWarning:
+    "Error updating workspace: latest template could not be fetched.",
   buildError: "Workspace action failed.",
 }
 
@@ -78,7 +82,11 @@ export type WorkspaceEvent =
   | { type: "CANCEL_DELETE" }
   | { type: "UPDATE" }
   | { type: "CANCEL" }
-  | { type: "REFRESH_TIMELINE"; checkRefresh?: boolean; data?: TypesGen.ServerSentEvent["data"] }
+  | {
+      type: "REFRESH_TIMELINE"
+      checkRefresh?: boolean
+      data?: TypesGen.ServerSentEvent["data"]
+    }
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
   | { type: "INCREASE_DEADLINE"; hours: number }
   | { type: "DECREASE_DEADLINE"; hours: number }
@@ -195,7 +203,10 @@ export const workspaceMachine = createMachine(
           ],
           onError: [
             {
-              actions: ["assignGetTemplateWarning", "displayGetTemplateWarning"],
+              actions: [
+                "assignGetTemplateWarning",
+                "displayGetTemplateWarning",
+              ],
               target: "error",
             },
           ],
@@ -229,7 +240,10 @@ export const workspaceMachine = createMachine(
             initial: "gettingEvents",
             states: {
               gettingEvents: {
-                entry: ["clearRefreshWorkspaceWarning", "initializeEventSource"],
+                entry: [
+                  "clearRefreshWorkspaceWarning",
+                  "initializeEventSource",
+                ],
                 exit: "closeEventSource",
                 invoke: {
                   src: "listening",
@@ -374,7 +388,10 @@ export const workspaceMachine = createMachine(
                   id: "cancelWorkspace",
                   onDone: [
                     {
-                      actions: ["assignCancellationMessage", "displayCancellationMessage"],
+                      actions: [
+                        "assignCancellationMessage",
+                        "displayCancellationMessage",
+                      ],
                       target: "idle",
                     },
                   ],
@@ -486,7 +503,8 @@ export const workspaceMachine = createMachine(
       assignGetWorkspaceError: assign({
         getWorkspaceError: (_, event) => event.data,
       }),
-      clearGetWorkspaceError: (context) => assign({ ...context, getWorkspaceError: undefined }),
+      clearGetWorkspaceError: (context) =>
+        assign({ ...context, getWorkspaceError: undefined }),
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
@@ -530,9 +548,11 @@ export const workspaceMachine = createMachine(
       // SSE related actions
       // open a new EventSource so we can stream SSE
       initializeEventSource: assign({
-        eventSource: (context) => context.workspace && API.watchWorkspace(context.workspace.id),
+        eventSource: (context) =>
+          context.workspace && API.watchWorkspace(context.workspace.id),
       }),
-      closeEventSource: (context) => context.eventSource && context.eventSource.close(),
+      closeEventSource: (context) =>
+        context.eventSource && context.eventSource.close(),
       refreshWorkspace: assign({
         workspace: (_, event) => event.data,
       }),
@@ -566,7 +586,10 @@ export const workspaceMachine = createMachine(
         applicationsHost: (_, { data }) => data.host,
       }),
       displayApplicationsHostError: (_, { data }) => {
-        const message = getErrorMessage(data, "Error getting the applications host.")
+        const message = getErrorMessage(
+          data,
+          "Error getting the applications host.",
+        )
         displayError(message)
       },
       sendWorkspaceToSchedule: send(
@@ -582,9 +605,13 @@ export const workspaceMachine = createMachine(
     },
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName, {
-          include_deleted: true,
-        })
+        return await API.getWorkspaceByOwnerAndName(
+          event.username,
+          event.workspaceName,
+          {
+            include_deleted: true,
+          },
+        )
       },
       getTemplate: async (context) => {
         if (context.workspace) {
@@ -619,7 +646,9 @@ export const workspaceMachine = createMachine(
       },
       stopWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          const stopWorkspacePromise = await API.stopWorkspace(context.workspace.id)
+          const stopWorkspacePromise = await API.stopWorkspace(
+            context.workspace.id,
+          )
           send({ type: "REFRESH_TIMELINE" })
           return stopWorkspacePromise
         } else {
@@ -628,7 +657,9 @@ export const workspaceMachine = createMachine(
       },
       deleteWorkspace: async (context) => {
         if (context.workspace) {
-          const deleteWorkspacePromise = await API.deleteWorkspace(context.workspace.id)
+          const deleteWorkspacePromise = await API.deleteWorkspace(
+            context.workspace.id,
+          )
           send({ type: "REFRESH_TIMELINE" })
           return deleteWorkspacePromise
         } else {
@@ -656,7 +687,11 @@ export const workspaceMachine = createMachine(
           // refresh our workspace with each SSE
           send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) })
           // refresh our timeline
-          send({ type: "REFRESH_TIMELINE", checkRefresh: true, data: JSON.parse(event.data) })
+          send({
+            type: "REFRESH_TIMELINE",
+            checkRefresh: true,
+            data: JSON.parse(event.data),
+          })
         })
 
         // handle any error events returned by our sse

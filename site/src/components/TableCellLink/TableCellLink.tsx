@@ -20,7 +20,11 @@ export const TableCellLink: React.FC<
       <Link
         component={RouterLink}
         to={props.to}
-        className={combineClasses([styles.link, "MuiTableCell-root", "MuiTableCell-body"])}
+        className={combineClasses([
+          styles.link,
+          "MuiTableCell-root",
+          "MuiTableCell-body",
+        ])}
       >
         {props.children}
       </Link>

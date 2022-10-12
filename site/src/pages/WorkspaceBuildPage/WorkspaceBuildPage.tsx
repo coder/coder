@@ -17,7 +17,11 @@ export const WorkspaceBuildPage: FC = () => {
     <>
       <Helmet>
         <title>
-          {build ? pageTitle(`Build #${build.build_number} · ${build.workspace_name}`) : ""}
+          {build
+            ? pageTitle(
+                `Build #${build.build_number} · ${build.workspace_name}`,
+              )
+            : ""}
         </title>
       </Helmet>
 

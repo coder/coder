@@ -310,6 +310,10 @@ practices:
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
+## Template permissions (enterprise)
+
+Template permissions can be used to give users and groups access to specific templates. [Learn more about RBAC](./admin/rbac.md).
+
 ## Change Management
 
 We recommend source controlling your templates as you would other code.

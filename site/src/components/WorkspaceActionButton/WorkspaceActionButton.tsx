@@ -9,15 +9,16 @@ export interface WorkspaceActionButtonProps {
   ariaLabel?: string
 }
 
-export const WorkspaceActionButton: FC<React.PropsWithChildren<WorkspaceActionButtonProps>> = ({
-  label,
-  icon,
-  onClick,
-  className,
-  ariaLabel,
-}) => {
+export const WorkspaceActionButton: FC<
+  React.PropsWithChildren<WorkspaceActionButtonProps>
+> = ({ label, icon, onClick, className, ariaLabel }) => {
   return (
-    <Button className={className} startIcon={icon} onClick={onClick} aria-label={ariaLabel}>
+    <Button
+      className={className}
+      startIcon={icon}
+      onClick={onClick}
+      aria-label={ariaLabel}
+    >
       {Boolean(label) && label}
     </Button>
   )

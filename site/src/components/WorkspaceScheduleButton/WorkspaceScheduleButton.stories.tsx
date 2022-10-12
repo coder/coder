@@ -2,7 +2,10 @@ import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import * as Mocks from "../../testHelpers/entities"
-import { WorkspaceScheduleButton, WorkspaceScheduleButtonProps } from "./WorkspaceScheduleButton"
+import {
+  WorkspaceScheduleButton,
+  WorkspaceScheduleButtonProps,
+} from "./WorkspaceScheduleButton"
 
 dayjs.extend(utc)
 

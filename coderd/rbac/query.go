@@ -1,13 +1,13 @@
 package rbac
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
 	"golang.org/x/xerrors"
 )
 
@@ -16,6 +16,9 @@ type TermType string
 const (
 	VarTypeJsonbTextArray TermType = "jsonb-text-array"
 	VarTypeText           TermType = "text"
+	VarTypeBoolean        TermType = "boolean"
+	// VarTypeSkip means this variable does not exist to use.
+	VarTypeSkip TermType = "skip"
 )
 
 type SQLColumn struct {
@@ -79,19 +82,54 @@ func DefaultConfig() SQLConfig {
 	}
 }
 
+func NoACLConfig() SQLConfig {
+	return SQLConfig{
+		Variables: []SQLColumn{
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_group_list\.?(.*)$`),
+				ColumnSelect: "",
+				Type:         VarTypeSkip,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.acl_user_list\.?(.*)$`),
+				ColumnSelect: "",
+				Type:         VarTypeSkip,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.org_owner$`),
+				ColumnSelect: "organization_id :: text",
+				Type:         VarTypeText,
+			},
+			{
+				RegoMatch:    regexp.MustCompile(`^input\.object\.owner$`),
+				ColumnSelect: "owner_id :: text",
+				Type:         VarTypeText,
+			},
+		},
+	}
+}
+
 type AuthorizeFilter interface {
-	// RegoString is used in debugging to see the original rego expression.
-	RegoString() string
-	// SQLString returns the SQL expression that can be used in a WHERE clause.
-	SQLString(cfg SQLConfig) string
+	Expression
 	// Eval is required for the fake in memory database to work. The in memory
 	// database can use this function to filter the results.
 	Eval(object Object) bool
 }
 
+// expressionTop handles Eval(object Object) for in memory expressions
+type expressionTop struct {
+	Expression
+	Auth *PartialAuthorizer
+}
+
+func (e expressionTop) Eval(object Object) bool {
+	return e.Auth.Authorize(context.Background(), object) == nil
+}
+
 // Compile will convert a rego query AST into our custom types. The output is
 // an AST that can be used to generate SQL.
-func Compile(partialQueries *rego.PartialQueries) (Expression, error) {
+func Compile(pa *PartialAuthorizer) (AuthorizeFilter, error) {
+	partialQueries := pa.partialQueries
 	if len(partialQueries.Support) > 0 {
 		return nil, xerrors.Errorf("cannot convert support rules, expect 0 found %d", len(partialQueries.Support))
 	}
@@ -128,11 +166,15 @@ func Compile(partialQueries *rego.PartialQueries) (Expression, error) {
 		}
 		builder.WriteString(partialQueries.Queries[i].String())
 	}
-	return expOr{
+	exp := expOr{
 		base: base{
 			Rego: builder.String(),
 		},
 		Expressions: result,
+	}
+	return expressionTop{
+		Expression: &exp,
+		Auth:       pa,
 	}, nil
 }
 
@@ -218,21 +260,22 @@ func processTerms(expected int, terms []*ast.Term) ([]Term, error) {
 }
 
 func processTerm(term *ast.Term) (Term, error) {
-	base := base{Rego: term.String()}
+	termBase := base{Rego: term.String()}
 	switch v := term.Value.(type) {
 	case ast.Boolean:
 		return &termBoolean{
-			base:  base,
+			base:  termBase,
 			Value: bool(v),
 		}, nil
 	case ast.Ref:
 		obj := &termObject{
-			base:      base,
-			Variables: []termVariable{},
+			base: termBase,
+			Path: []Term{},
 		}
 		var idx int
 		// A ref is a set of terms. If the first term is a var, then the
 		// following terms are the path to the value.
+		isRef := true
 		var builder strings.Builder
 		for _, term := range v {
 			if idx == 0 {
@@ -241,15 +284,37 @@ func processTerm(term *ast.Term) (Term, error) {
 				}
 			}
 
-			if _, ok := term.Value.(ast.Ref); ok {
+			_, newRef := term.Value.(ast.Ref)
+			if newRef ||
+				// This is an unfortunate hack. To fix this, we need to rewrite
+				// our SQL config as a path ([]string{"input", "object", "acl_group"}).
+				// In the rego AST, there is no difference between selecting
+				// a field by a variable, and selecting a field by a literal (string).
+				// This was a misunderstanding.
+				// Example (these are equivalent by AST):
+				//	input.object.acl_group_list['4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75']
+				//	input.object.acl_group_list.organization_id
+				//
+				// This is not equivalent
+				//	input.object.acl_group_list[input.object.organization_id]
+				//
+				// If this becomes even more hairy, we should fix the sql config.
+				builder.String() == "input.object.acl_group_list" ||
+				builder.String() == "input.object.acl_user_list" {
+				if !newRef {
+					isRef = false
+				}
 				// New obj
-				obj.Variables = append(obj.Variables, termVariable{
-					base: base,
+				obj.Path = append(obj.Path, termVariable{
+					base: base{
+						Rego: builder.String(),
+					},
 					Name: builder.String(),
 				})
 				builder.Reset()
 				idx = 0
 			}
+
 			if builder.Len() != 0 {
 				builder.WriteString(".")
 			}
@@ -257,20 +322,31 @@ func processTerm(term *ast.Term) (Term, error) {
 			idx++
 		}
 
-		obj.Variables = append(obj.Variables, termVariable{
-			base: base,
-			Name: builder.String(),
-		})
+		if isRef {
+			obj.Path = append(obj.Path, termVariable{
+				base: base{
+					Rego: builder.String(),
+				},
+				Name: builder.String(),
+			})
+		} else {
+			obj.Path = append(obj.Path, termString{
+				base: base{
+					Rego: fmt.Sprintf("%q", builder.String()),
+				},
+				Value: builder.String(),
+			})
+		}
 		return obj, nil
 	case ast.Var:
 		return &termVariable{
 			Name: trimQuotes(v.String()),
-			base: base,
+			base: termBase,
 		}, nil
 	case ast.String:
 		return &termString{
 			Value: trimQuotes(v.String()),
-			base:  base,
+			base:  termBase,
 		}, nil
 	case ast.Set:
 		slice := v.Slice()
@@ -285,7 +361,7 @@ func processTerm(term *ast.Term) (Term, error) {
 
 		return &termSet{
 			Value: set,
-			base:  base,
+			base:  termBase,
 		}, nil
 	default:
 		return nil, xerrors.Errorf("invalid term: %T not supported, %q", v, term.String())
@@ -306,7 +382,10 @@ func (b base) RegoString() string {
 //
 // Eg: neq(input.object.org_owner, "") AND input.object.org_owner == "foo"
 type Expression interface {
-	AuthorizeFilter
+	// RegoString is used in debugging to see the original rego expression.
+	RegoString() string
+	// SQLString returns the SQL expression that can be used in a WHERE clause.
+	SQLString(cfg SQLConfig) string
 }
 
 type expAnd struct {
@@ -326,15 +405,6 @@ func (t expAnd) SQLString(cfg SQLConfig) string {
 	return "(" + strings.Join(exprs, " AND ") + ")"
 }
 
-func (t expAnd) Eval(object Object) bool {
-	for _, expr := range t.Expressions {
-		if !expr.Eval(object) {
-			return false
-		}
-	}
-	return true
-}
-
 type expOr struct {
 	base
 	Expressions []Expression
@@ -350,15 +420,6 @@ func (t expOr) SQLString(cfg SQLConfig) string {
 		exprs = append(exprs, expr.SQLString(cfg))
 	}
 	return "(" + strings.Join(exprs, " OR ") + ")"
-}
-
-func (t expOr) Eval(object Object) bool {
-	for _, expr := range t.Expressions {
-		if expr.Eval(object) {
-			return true
-		}
-	}
-	return false
 }
 
 // Operator joins terms together to form an expression.
@@ -384,34 +445,12 @@ func (t opEqual) SQLString(cfg SQLConfig) string {
 	return fmt.Sprintf("%s %s %s", t.Terms[0].SQLString(cfg), op, t.Terms[1].SQLString(cfg))
 }
 
-func (t opEqual) Eval(object Object) bool {
-	a, b := t.Terms[0].EvalTerm(object), t.Terms[1].EvalTerm(object)
-	if t.Not {
-		return a != b
-	}
-	return a == b
-}
-
 // opInternalMember2 is checking if the first term is a member of the second term.
 // The second term is a set or list.
 type opInternalMember2 struct {
 	base
 	Needle   Term
 	Haystack Term
-}
-
-func (t opInternalMember2) Eval(object Object) bool {
-	a, b := t.Needle.EvalTerm(object), t.Haystack.EvalTerm(object)
-	bset, ok := b.([]interface{})
-	if !ok {
-		return false
-	}
-	for _, elem := range bset {
-		if a == elem {
-			return true
-		}
-	}
-	return false
 }
 
 func (t opInternalMember2) SQLString(cfg SQLConfig) string {
@@ -425,8 +464,13 @@ func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 		// having to add more "if" branches here.
 		// But until we need more cases, our basic type system is ok, and
 		// this is the only case we need to handle.
-		if haystack.SQLType(cfg) == VarTypeJsonbTextArray {
+		sqlType := haystack.SQLType(cfg)
+		if sqlType == VarTypeJsonbTextArray {
 			return fmt.Sprintf("%s ? %s", haystack.SQLString(cfg), t.Needle.SQLString(cfg))
+		}
+
+		if sqlType == VarTypeSkip {
+			return "true"
 		}
 	}
 
@@ -440,18 +484,12 @@ func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 type Term interface {
 	RegoString() string
 	SQLString(cfg SQLConfig) string
-	// Eval will evaluate the term
-	// Terms can eval to any type. The operator/expression will type check.
-	EvalTerm(object Object) interface{}
+	SQLType(cfg SQLConfig) TermType
 }
 
 type termString struct {
 	base
 	Value string
-}
-
-func (t termString) EvalTerm(_ Object) interface{} {
-	return t.Value
 }
 
 func (t termString) SQLString(_ SQLConfig) string {
@@ -471,14 +509,7 @@ func (termString) SQLType(_ SQLConfig) TermType {
 // term type.
 type termObject struct {
 	base
-	Variables []termVariable
-}
-
-func (t termObject) EvalTerm(obj Object) interface{} {
-	if len(t.Variables) == 0 {
-		return t.Variables[0].EvalTerm(obj)
-	}
-	panic("no nested structures are supported yet")
+	Path []Term
 }
 
 func (t termObject) SQLType(cfg SQLConfig) TermType {
@@ -486,30 +517,30 @@ func (t termObject) SQLType(cfg SQLConfig) TermType {
 	// is the resulting type. This is correct for our use case.
 	// Solving this more generally requires a full type system, which is
 	// excessive for our mostly static policy.
-	return t.Variables[0].SQLType(cfg)
+	return t.Path[0].SQLType(cfg)
 }
 
 func (t termObject) SQLString(cfg SQLConfig) string {
-	if len(t.Variables) == 1 {
-		return t.Variables[0].SQLString(cfg)
+	if len(t.Path) == 1 {
+		return t.Path[0].SQLString(cfg)
 	}
 	// Combine the last 2 variables into 1 variable.
-	end := t.Variables[len(t.Variables)-1]
-	before := t.Variables[len(t.Variables)-2]
+	end := t.Path[len(t.Path)-1]
+	before := t.Path[len(t.Path)-2]
 
 	// Recursively solve the SQLString by removing the last nested reference.
 	// This continues until we have a single variable.
 	return termObject{
 		base: t.base,
-		Variables: append(
-			t.Variables[:len(t.Variables)-2],
+		Path: append(
+			t.Path[:len(t.Path)-2],
 			termVariable{
 				base: base{
-					Rego: before.base.Rego + "[" + end.base.Rego + "]",
+					Rego: before.RegoString() + "[" + end.RegoString() + "]",
 				},
 				// Convert the end to SQL string. We evaluate each term
 				// one at a time.
-				Name: before.Name + "." + end.SQLString(cfg),
+				Name: before.RegoString() + "." + end.SQLString(cfg),
 			},
 		),
 	}.SQLString(cfg)
@@ -518,19 +549,6 @@ func (t termObject) SQLString(cfg SQLConfig) string {
 type termVariable struct {
 	base
 	Name string
-}
-
-func (t termVariable) EvalTerm(obj Object) interface{} {
-	switch t.Name {
-	case "input.object.org_owner":
-		return obj.OrgID
-	case "input.object.owner":
-		return obj.Owner
-	case "input.object.type":
-		return obj.Type
-	default:
-		return fmt.Sprintf("'Unknown variable %s'", t.Name)
-	}
 }
 
 func (t termVariable) SQLType(cfg SQLConfig) TermType {
@@ -576,13 +594,15 @@ type termSet struct {
 	Value []Term
 }
 
-func (t termSet) EvalTerm(obj Object) interface{} {
-	set := make([]interface{}, 0, len(t.Value))
-	for _, term := range t.Value {
-		set = append(set, term.EvalTerm(obj))
+func (t termSet) SQLType(cfg SQLConfig) TermType {
+	if len(t.Value) == 0 {
+		return VarTypeText
 	}
-
-	return set
+	// Without a full type system, let's just assume the type of the first var
+	// is the resulting type. This is correct for our use case.
+	// Solving this more generally requires a full type system, which is
+	// excessive for our mostly static policy.
+	return t.Value[0].SQLType(cfg)
 }
 
 func (t termSet) SQLString(cfg SQLConfig) string {
@@ -599,11 +619,11 @@ type termBoolean struct {
 	Value bool
 }
 
-func (t termBoolean) Eval(_ Object) bool {
-	return t.Value
+func (termBoolean) SQLType(SQLConfig) TermType {
+	return VarTypeBoolean
 }
 
-func (t termBoolean) EvalTerm(_ Object) interface{} {
+func (t termBoolean) Eval(_ Object) bool {
 	return t.Value
 }
 

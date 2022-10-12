@@ -54,6 +54,7 @@ type Authorization struct {
 	ID       uuid.UUID
 	Username string
 	Roles    []string
+	Groups   []string
 	Scope    database.APIKeyScope
 }
 
@@ -203,7 +204,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// Tracks if the API key has properties updated
 				changed = false
 			)
-			if key.LoginType != database.LoginTypePassword {
+			if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 				link, err = cfg.DB.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,
@@ -360,6 +361,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				Username: roles.Username,
 				Roles:    roles.Roles,
 				Scope:    key.Scope,
+				Groups:   roles.Groups,
 			})
 
 			next.ServeHTTP(rw, r.WithContext(ctx))

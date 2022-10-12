@@ -49,7 +49,10 @@ export const Language = {
 }
 
 const validationSchema = Yup.object({
-  email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
+  email: Yup.string()
+    .trim()
+    .email(Language.emailInvalid)
+    .required(Language.emailRequired),
   password: Yup.string(),
 })
 
@@ -84,7 +87,13 @@ export interface SignInFormProps {
   redirectTo: string
   loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
-  onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
+  onSubmit: ({
+    email,
+    password,
+  }: {
+    email: string
+    password: string
+  }) => Promise<void>
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
@@ -99,21 +108,25 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 }) => {
   const styles = useStyles()
 
-  const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
-    initialValues: {
-      email: "",
-      password: "",
-    },
-    validationSchema,
-    // The email field has an autoFocus, but users may login with a button click.
-    // This is set to `false` in order to keep the autoFocus, validateOnChange
-    // and Formik experience friendly. Validation will kick in onChange (any
-    // field), or after a submission attempt.
-    validateOnBlur: false,
-    onSubmit,
-    initialTouched,
-  })
-  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form, loginErrors.authError)
+  const form: FormikContextType<BuiltInAuthFormValues> =
+    useFormik<BuiltInAuthFormValues>({
+      initialValues: {
+        email: "",
+        password: "",
+      },
+      validationSchema,
+      // The email field has an autoFocus, but users may login with a button click.
+      // This is set to `false` in order to keep the autoFocus, validateOnChange
+      // and Formik experience friendly. Validation will kick in onChange (any
+      // field), or after a submission attempt.
+      validateOnBlur: false,
+      onSubmit,
+      initialTouched,
+    })
+  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(
+    form,
+    loginErrors.authError,
+  )
 
   return (
     <>
@@ -151,7 +164,12 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
             variant="outlined"
           />
           <div>
-            <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
+            <LoadingButton
+              loading={isLoading}
+              fullWidth
+              type="submit"
+              variant="contained"
+            >
               {isLoading ? "" : Language.passwordSignIn}
             </LoadingButton>
           </div>
@@ -188,7 +206,9 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
             {authMethods.oidc && (
               <Link
                 underline="none"
-                href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(redirectTo)}`}
+                href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
+                  redirectTo,
+                )}`}
               >
                 <Button
                   startIcon={<KeyIcon className={styles.buttonIcon} />}

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
@@ -54,11 +55,12 @@ const (
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
 	envExperimental     = "CODER_EXPERIMENTAL"
+	envSessionToken     = "CODER_SESSION_TOKEN"
+	envURL              = "CODER_URL"
 )
 
 var (
 	errUnauthenticated = xerrors.New(notLoggedInMessage)
-	envSessionToken    = "CODER_SESSION_TOKEN"
 )
 
 func init() {
@@ -98,7 +100,7 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+	all := append(Core(), Server(deployment.Flags(), func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
 		return coderd.New(o), nil
 	}))
 	return all
@@ -172,7 +174,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 
 	cmd.SetUsageTemplate(usageTemplate())
 
-	cmd.PersistentFlags().String(varURL, "", "URL to a deployment.")
+	cliflag.String(cmd.PersistentFlags(), varURL, "", envURL, "", "URL to a deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoFeatureWarning, "", envNoFeatureWarning, false, "Suppress warnings about unlicensed features.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))

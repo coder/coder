@@ -9,7 +9,10 @@ export interface RequirePermissionProps {
 /**
  * Wraps routes that are available based on RBAC or licensing.
  */
-export const RequirePermission: FC<RequirePermissionProps> = ({ children, isFeatureVisible }) => {
+export const RequirePermission: FC<RequirePermissionProps> = ({
+  children,
+  isFeatureVisible,
+}) => {
   if (!isFeatureVisible) {
     return <Navigate to="/workspaces" />
   } else {

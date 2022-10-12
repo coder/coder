@@ -137,14 +137,17 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorTimezone)
   })
 
-  it.each<[string]>(zones.map((zone) => [zone]))(`validation passes for tz=%p`, (zone) => {
-    const values: WorkspaceScheduleFormValues = {
-      ...valid,
-      timezone: zone,
-    }
-    const validate = () => validationSchema.validateSync(values)
-    expect(validate).not.toThrow()
-  })
+  it.each<[string]>(zones.map((zone) => [zone]))(
+    `validation passes for tz=%p`,
+    (zone) => {
+      const values: WorkspaceScheduleFormValues = {
+        ...valid,
+        timezone: zone,
+      }
+      const validate = () => validationSchema.validateSync(values)
+      expect(validate).not.toThrow()
+    },
+  )
 
   it("allows a ttl of 7 days", () => {
     const values: WorkspaceScheduleFormValues = {
@@ -167,7 +170,11 @@ describe("validationSchema", () => {
 
 describe("ttlShutdownAt", () => {
   it.each<[string, number, string]>([
-    ["Manual shutdown --> manual helper text", 0, Language.ttlCausesNoShutdownHelperText],
+    [
+      "Manual shutdown --> manual helper text",
+      0,
+      Language.ttlCausesNoShutdownHelperText,
+    ],
     [
       "One hour --> helper text shows shutdown after an hour",
       1,

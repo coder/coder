@@ -23,8 +23,10 @@ export const Language = {
   iconLabel: "Icon",
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
-  ttlMaxError: "Please enter a limit that is less than or equal to 168 hours (7 days).",
-  descriptionMaxError: "Please enter a description that is less than or equal to 128 characters.",
+  ttlMaxError:
+    "Please enter a limit that is less than or equal to 168 hours (7 days).",
+  descriptionMaxError:
+    "Please enter a description that is less than or equal to 128 characters.",
   ttlHelperText: (ttl: number): string =>
     `Workspaces created from this template may not remain running longer than ${ttl} hours.`,
 }
@@ -35,7 +37,10 @@ const MS_HOUR_CONVERSION = 3600000
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
-  description: Yup.string().max(MAX_DESCRIPTION_CHAR_LIMIT, Language.descriptionMaxError),
+  description: Yup.string().max(
+    MAX_DESCRIPTION_CHAR_LIMIT,
+    Language.descriptionMaxError,
+  ),
   max_ttl_ms: Yup.number()
     .integer()
     .min(0)
@@ -61,24 +66,27 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   initialTouched,
 }) => {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
-  const form: FormikContextType<UpdateTemplateMeta> = useFormik<UpdateTemplateMeta>({
-    initialValues: {
-      name: template.name,
-      description: template.description,
-      // on display, convert from ms => hours
-      max_ttl_ms: template.max_ttl_ms / MS_HOUR_CONVERSION,
-      icon: template.icon,
-    },
-    validationSchema,
-    onSubmit: (formData) => {
-      // on submit, convert from hours => ms
-      onSubmit({
-        ...formData,
-        max_ttl_ms: formData.max_ttl_ms ? formData.max_ttl_ms * MS_HOUR_CONVERSION : undefined,
-      })
-    },
-    initialTouched,
-  })
+  const form: FormikContextType<UpdateTemplateMeta> =
+    useFormik<UpdateTemplateMeta>({
+      initialValues: {
+        name: template.name,
+        description: template.description,
+        // on display, convert from ms => hours
+        max_ttl_ms: template.max_ttl_ms / MS_HOUR_CONVERSION,
+        icon: template.icon,
+      },
+      validationSchema,
+      onSubmit: (formData) => {
+        // on submit, convert from hours => ms
+        onSubmit({
+          ...formData,
+          max_ttl_ms: formData.max_ttl_ms
+            ? formData.max_ttl_ms * MS_HOUR_CONVERSION
+            : undefined,
+        })
+      },
+      initialTouched,
+    })
   const getFieldHelpers = getFormHelpers<UpdateTemplateMeta>(form, error)
   const styles = useStyles()
   const hasIcon = form.values.icon && form.values.icon !== ""

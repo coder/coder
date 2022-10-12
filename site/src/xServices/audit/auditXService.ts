@@ -110,7 +110,10 @@ export const auditMachine = createMachine(
         filter: (_, { filter }) => filter,
       }),
       displayApiError: (_, event) => {
-        const message = getErrorMessage(event.data, "Error on loading audit logs.")
+        const message = getErrorMessage(
+          event.data,
+          "Error on loading audit logs.",
+        )
         displayError(message)
       },
     },

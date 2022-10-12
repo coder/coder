@@ -11,7 +11,9 @@ export interface CliAuthPageViewProps {
   sessionToken: string | null
 }
 
-export const CliAuthPageView: React.FC<CliAuthPageViewProps> = ({ sessionToken }) => {
+export const CliAuthPageView: React.FC<CliAuthPageViewProps> = ({
+  sessionToken,
+}) => {
   const styles = useStyles()
 
   if (!sessionToken) {
@@ -29,7 +31,13 @@ export const CliAuthPageView: React.FC<CliAuthPageViewProps> = ({ sessionToken }
       <CodeExample code={sessionToken} />
 
       <div className={styles.links}>
-        <Button component={RouterLink} size="large" to="/workspaces" fullWidth variant="outlined">
+        <Button
+          component={RouterLink}
+          size="large"
+          to="/workspaces"
+          fullWidth
+          variant="outlined"
+        >
           Go to workspaces
         </Button>
       </div>

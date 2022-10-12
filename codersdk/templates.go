@@ -36,6 +36,34 @@ type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
 }
 
+type TemplateRole string
+
+const (
+	TemplateRoleAdmin   TemplateRole = "admin"
+	TemplateRoleView    TemplateRole = "view"
+	TemplateRoleDeleted TemplateRole = ""
+)
+
+type TemplateACL struct {
+	Users  []TemplateUser  `json:"users"`
+	Groups []TemplateGroup `json:"group"`
+}
+
+type TemplateGroup struct {
+	Group
+	Role TemplateRole `json:"role"`
+}
+
+type TemplateUser struct {
+	User
+	Role TemplateRole `json:"role"`
+}
+
+type UpdateTemplateACL struct {
+	UserPerms  map[string]TemplateRole `json:"user_perms,omitempty"`
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty"`
+}
+
 type UpdateTemplateMeta struct {
 	Name                       string `json:"name,omitempty" validate:"omitempty,username"`
 	Description                string `json:"description,omitempty"`
@@ -84,6 +112,31 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	var updated Template
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
+}
+
+func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), nil)
+	if err != nil {
+		return TemplateACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateACL{}, readBodyAsError(res)
+	}
+	var acl TemplateACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.
