@@ -11,7 +11,8 @@ import (
 )
 
 type CreateGroupRequest struct {
-	Name string `json:"name"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 type Group struct {
@@ -19,6 +20,7 @@ type Group struct {
 	Name           string    `json:"name"`
 	OrganizationID uuid.UUID `json:"organization_id"`
 	Members        []User    `json:"members"`
+	AvatarURL      string    `json:"avatar_url"`
 }
 
 func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGroupRequest) (Group, error) {
@@ -77,6 +79,7 @@ type PatchGroupRequest struct {
 	AddUsers    []string `json:"add_users"`
 	RemoveUsers []string `json:"remove_users"`
 	Name        string   `json:"name"`
+	AvatarURL   *string  `json:"avatar_url"`
 }
 
 func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroupRequest) (Group, error) {

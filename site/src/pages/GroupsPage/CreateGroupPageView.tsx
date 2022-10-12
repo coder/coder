@@ -28,6 +28,7 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
   const form = useFormik<CreateGroupRequest>({
     initialValues: {
       name: "",
+      avatar_url: "",
     },
     validationSchema,
     onSubmit,
@@ -46,6 +47,15 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
             autoFocus
             fullWidth
             label="Name"
+            variant="outlined"
+          />
+          <TextField
+            {...getFieldHelpers("avatar_url")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="avatar url"
+            autoFocus
+            fullWidth
+            label="Avatar URL"
             variant="outlined"
           />
           <FormFooter onCancel={onCancel} isLoading={isLoading} />
