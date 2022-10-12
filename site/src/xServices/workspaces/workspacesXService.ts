@@ -209,12 +209,11 @@ interface WorkspacesContext {
 }
 
 type WorkspacesEvent =
-  | { type: "GET_WORKSPACES"; query: string }
+  | { type: "GET_WORKSPACES"; query?: string }
   | { type: "UPDATE_VERSION"; workspaceId: string }
 
 export const workspacesMachine = createMachine(
   {
-    predictableActionArguments: true,
     tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
     schema: {
       context: {} as WorkspacesContext,
@@ -223,21 +222,28 @@ export const workspacesMachine = createMachine(
         getWorkspaces: {
           data: TypesGen.Workspace[]
         }
+        updateWorkspaceRefs: {
+          data: {
+            refsToKeep: WorkspaceItemMachineRef[]
+            newWorkspaces: TypesGen.Workspace[]
+          }
+        }
       },
     },
+    predictableActionArguments: true,
     id: "workspacesState",
     on: {
       GET_WORKSPACES: {
         actions: "assignFilter",
-        target: "gettingWorkspaces",
+        target: ".gettingWorkspaces",
+        internal: false,
       },
       UPDATE_VERSION: {
         actions: "triggerUpdateVersion",
       },
     },
-    initial: "idle",
+    initial: "gettingWorkspaces",
     states: {
-      idle: {},
       gettingWorkspaces: {
         entry: "clearGetWorkspacesError",
         invoke: {
@@ -245,24 +251,39 @@ export const workspacesMachine = createMachine(
           id: "getWorkspaces",
           onDone: [
             {
-              target: "waitToRefreshWorkspaces",
-              actions: ["assignWorkspaceRefs"],
+              actions: "assignWorkspaceRefs",
               cond: "isEmpty",
+              target: "waitToRefreshWorkspaces",
             },
             {
-              target: "waitToRefreshWorkspaces",
-              actions: ["updateWorkspaceRefs"],
+              target: "updatingWorkspaceRefs",
             },
           ],
-          onError: {
-            target: "waitToRefreshWorkspaces",
-            actions: ["assignGetWorkspacesError"],
-          },
+          onError: [
+            {
+              actions: "assignGetWorkspacesError",
+              target: "waitToRefreshWorkspaces",
+            },
+          ],
+        },
+      },
+      updatingWorkspaceRefs: {
+        invoke: {
+          src: "updateWorkspaceRefs",
+          id: "updateWorkspaceRefs",
+          onDone: [
+            {
+              actions: "assignUpdatedWorkspaceRefs",
+              target: "waitToRefreshWorkspaces",
+            },
+          ],
         },
       },
       waitToRefreshWorkspaces: {
         after: {
-          5000: "gettingWorkspaces",
+          "5000": {
+            target: "gettingWorkspaces",
+          },
         },
       },
     },
@@ -279,7 +300,7 @@ export const workspacesMachine = createMachine(
           }),
       }),
       assignFilter: assign({
-        filter: (_, event) => event.query,
+        filter: (context, event) => event.query ?? context.filter,
       }),
       assignGetWorkspacesError: assign({
         getWorkspacesError: (_, event) => event.data,
@@ -297,55 +318,48 @@ export const workspacesMachine = createMachine(
 
         workspaceRef.send("UPDATE_VERSION")
       },
-      // Opened discussion on XState https://github.com/statelyai/xstate/discussions/3406
-      updateWorkspaceRefs: assign({
-        workspaceRefs: (context, event) => {
-          let workspaceRefs = context.workspaceRefs
-
-          if (!workspaceRefs) {
-            throw new Error("No workspaces loaded.")
-          }
-
-          // Update the existent workspaces or create the new ones
-          for (const data of event.data) {
-            const ref = workspaceRefs.find((ref) => ref.id === data.id)
-
-            if (!ref) {
-              workspaceRefs.push(
-                spawn(workspaceItemMachine.withContext({ data }), data.id),
-              )
-            } else {
-              ref.send({ type: "UPDATE_DATA", data })
-            }
-          }
-
-          // Remove workspaces that were deleted
-          for (const ref of workspaceRefs) {
-            const refData = event.data.find(
-              (workspaceData) => workspaceData.id === ref.id,
-            )
-
-            // If there is no refData, it is because the workspace was deleted
-            if (!refData) {
-              // Stop the actor before remove it from the array
-              if (ref.stop) {
-                ref.stop()
-              }
-
-              // Remove ref from the array
-              workspaceRefs = workspaceRefs.filter(
-                (oldRef) => oldRef.id !== ref.id,
-              )
-            }
-          }
-
-          return workspaceRefs
+      assignUpdatedWorkspaceRefs: assign({
+        workspaceRefs: (_, event) => {
+          const newWorkspaceRefs = event.data.newWorkspaces.map((workspace) =>
+            spawn(
+              workspaceItemMachine.withContext({ data: workspace }),
+              workspace.id,
+            ),
+          )
+          return event.data.refsToKeep.concat(newWorkspaceRefs)
         },
       }),
     },
     services: {
       getWorkspaces: (context) =>
         API.getWorkspaces(queryToFilter(context.filter)),
+      updateWorkspaceRefs: (context, event) => {
+        const refsToKeep: WorkspaceItemMachineRef[] = []
+        context.workspaceRefs?.forEach((ref) => {
+          const matchingWorkspace = event.data.find(
+            (workspace) => ref.id === workspace.id,
+          )
+          if (matchingWorkspace) {
+            // if a workspace machine reference describes a workspace that has not been deleted,
+            // update its data and mark it as a refToKeep
+            ref.send({ type: "UPDATE_DATA", data: matchingWorkspace })
+            refsToKeep.push(ref)
+          } else {
+            // if it describes a workspace that has been deleted, stop the machine
+            ref.stop && ref.stop()
+          }
+        })
+
+        const newWorkspaces = event.data.filter(
+          (workspace) =>
+            !context.workspaceRefs?.find((ref) => ref.id === workspace.id),
+        )
+
+        return Promise.resolve({
+          refsToKeep,
+          newWorkspaces,
+        })
+      },
     },
   },
 )

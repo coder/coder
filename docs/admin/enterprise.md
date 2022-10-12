@@ -7,13 +7,14 @@ These features are available in the enterprise edition:
 
 - [Audit Logging](./audit-logs.md)
 - [Browser Only Connections](../networking.md#browser-only-connections)
+- [Groups](./groups.md)
+- [Template RBAC](./rbac.md)
 - [Quotas](./quotas.md)
 - [SCIM](./auth.md#scim)
 
 And we're releasing these imminently:
 
 - High Availability
-- Template RBAC
 - Multiple Git Provider Authentication
 
 ## Adding your license key

@@ -15,26 +15,26 @@ export const NotEnabled = Template.bind({})
 NotEnabled.args = {
   groups: [MockGroup],
   canCreateGroup: true,
-  isRBACEnabled: false,
+  isTemplateRBACEnabled: false,
 }
 
 export const WithGroups = Template.bind({})
 WithGroups.args = {
   groups: [MockGroup],
   canCreateGroup: true,
-  isRBACEnabled: true,
+  isTemplateRBACEnabled: true,
 }
 
 export const EmptyGroup = Template.bind({})
 EmptyGroup.args = {
   groups: [],
   canCreateGroup: false,
-  isRBACEnabled: true,
+  isTemplateRBACEnabled: true,
 }
 
 export const EmptyGroupWithPermission = Template.bind({})
 EmptyGroupWithPermission.args = {
   groups: [],
   canCreateGroup: true,
-  isRBACEnabled: true,
+  isTemplateRBACEnabled: true,
 }

@@ -1,6 +1,7 @@
 import { getGroups, getUsers } from "api/api"
 import { Group, User } from "api/typesGenerated"
 import { queryToFilter } from "util/filters"
+import { everyOneGroup } from "util/groups"
 import { assign, createMachine } from "xstate"
 
 export type SearchUsersAndGroupsEvent =
@@ -61,7 +62,9 @@ export const searchUsersAndGroupsMachine = createMachine(
           getGroups(organizationId),
         ])
 
-        return { users, groups }
+        // The Everyone groups is not returned by the API so we have to add it
+        // manually
+        return { users, groups: [everyOneGroup(organizationId), ...groups] }
       },
     },
     actions: {

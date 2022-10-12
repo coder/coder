@@ -87,18 +87,19 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType    string
-	AccountID      string
-	Trial          bool
-	AllFeatures    bool
-	GraceAt        time.Time
-	ExpiresAt      time.Time
-	UserLimit      int64
-	AuditLog       bool
-	BrowserOnly    bool
-	SCIM           bool
-	WorkspaceQuota bool
-	RBACEnabled    bool
+	AccountType      string
+	AccountID        string
+	Trial            bool
+	AllFeatures      bool
+	GraceAt          time.Time
+	ExpiresAt        time.Time
+	UserLimit        int64
+	AuditLog         bool
+	BrowserOnly      bool
+	SCIM             bool
+	WorkspaceQuota   bool
+	TemplateRBAC     bool
+	HighAvailability bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -134,10 +135,14 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.WorkspaceQuota {
 		workspaceQuota = 1
 	}
+	highAvailability := int64(0)
+	if options.HighAvailability {
+		highAvailability = 1
+	}
 
-	rbac := int64(0)
-	if options.RBACEnabled {
-		rbac = 1
+	rbacEnabled := int64(0)
+	if options.TemplateRBAC {
+		rbacEnabled = 1
 	}
 
 	c := &license.Claims{
@@ -154,12 +159,13 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
 		Features: license.Features{
-			UserLimit:      options.UserLimit,
-			AuditLog:       auditLog,
-			BrowserOnly:    browserOnly,
-			SCIM:           scim,
-			WorkspaceQuota: workspaceQuota,
-			RBAC:           rbac,
+			UserLimit:        options.UserLimit,
+			AuditLog:         auditLog,
+			BrowserOnly:      browserOnly,
+			SCIM:             scim,
+			WorkspaceQuota:   workspaceQuota,
+			HighAvailability: highAvailability,
+			TemplateRBAC:     rbacEnabled,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

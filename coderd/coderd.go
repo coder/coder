@@ -76,7 +76,7 @@ type Options struct {
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 
-	TailnetCoordinator *tailnet.Coordinator
+	TailnetCoordinator tailnet.Coordinator
 	DERPMap            *tailcfg.DERPMap
 
 	MetricsCacheRefreshInterval time.Duration
@@ -119,7 +119,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator()
+		options.TailnetCoordinator = tailnet.NewMemoryCoordinator()
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
@@ -159,6 +159,7 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
+	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	api.derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger))
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -531,6 +532,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
+	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"

@@ -15,12 +15,13 @@ const (
 )
 
 const (
-	FeatureUserLimit      = "user_limit"
-	FeatureAuditLog       = "audit_log"
-	FeatureBrowserOnly    = "browser_only"
-	FeatureSCIM           = "scim"
-	FeatureWorkspaceQuota = "workspace_quota"
-	FeatureRBAC           = "rbac"
+	FeatureUserLimit        = "user_limit"
+	FeatureAuditLog         = "audit_log"
+	FeatureBrowserOnly      = "browser_only"
+	FeatureSCIM             = "scim"
+	FeatureWorkspaceQuota   = "workspace_quota"
+	FeatureTemplateRBAC     = "template_rbac"
+	FeatureHighAvailability = "high_availability"
 )
 
 var FeatureNames = []string{
@@ -29,7 +30,8 @@ var FeatureNames = []string{
 	FeatureBrowserOnly,
 	FeatureSCIM,
 	FeatureWorkspaceQuota,
-	FeatureRBAC,
+	FeatureTemplateRBAC,
+	FeatureHighAvailability,
 }
 
 type Feature struct {

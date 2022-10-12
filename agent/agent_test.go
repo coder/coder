@@ -560,7 +560,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 	}
-	coordinator := tailnet.NewCoordinator()
+	coordinator := tailnet.NewMemoryCoordinator()
 	agentID := uuid.New()
 	statsCh := make(chan *codersdk.AgentStats)
 	closer := agent.New(agent.Options{

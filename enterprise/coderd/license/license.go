@@ -17,7 +17,13 @@ import (
 )
 
 // Entitlements processes licenses to return whether features are enabled or not.
-func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, keys map[string]ed25519.PublicKey, enablements map[string]bool) (codersdk.Entitlements, error) {
+func Entitlements(
+	ctx context.Context,
+	db database.Store,
+	logger slog.Logger,
+	keys map[string]ed25519.PublicKey,
+	enablements map[string]bool,
+) (codersdk.Entitlements, error) {
 	now := time.Now()
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
@@ -96,10 +102,16 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 				Enabled:     enablements[codersdk.FeatureWorkspaceQuota],
 			}
 		}
-		if claims.Features.RBAC > 0 {
-			entitlements.Features[codersdk.FeatureRBAC] = codersdk.Feature{
+		if claims.Features.HighAvailability > 0 {
+			entitlements.Features[codersdk.FeatureHighAvailability] = codersdk.Feature{
 				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureRBAC],
+				Enabled:     enablements[codersdk.FeatureHighAvailability],
+			}
+		}
+		if claims.Features.TemplateRBAC > 0 {
+			entitlements.Features[codersdk.FeatureTemplateRBAC] = codersdk.Feature{
+				Entitlement: entitlement,
+				Enabled:     enablements[codersdk.FeatureTemplateRBAC],
 			}
 		}
 		if claims.AllFeatures {
@@ -171,12 +183,13 @@ var (
 )
 
 type Features struct {
-	UserLimit      int64 `json:"user_limit"`
-	AuditLog       int64 `json:"audit_log"`
-	BrowserOnly    int64 `json:"browser_only"`
-	SCIM           int64 `json:"scim"`
-	WorkspaceQuota int64 `json:"workspace_quota"`
-	RBAC           int64 `json:"rbac"`
+	UserLimit        int64 `json:"user_limit"`
+	AuditLog         int64 `json:"audit_log"`
+	BrowserOnly      int64 `json:"browser_only"`
+	SCIM             int64 `json:"scim"`
+	WorkspaceQuota   int64 `json:"workspace_quota"`
+	TemplateRBAC     int64 `json:"template_rbac"`
+	HighAvailability int64 `json:"high_availability"`
 }
 
 type Claims struct {
