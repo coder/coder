@@ -829,7 +829,13 @@ export const MockAuditLog: TypesGen.AuditLog = {
   resource_target: "bruno-dev",
   resource_icon: "",
   action: "create",
-  diff: {},
+  diff: {
+    ttl: {
+      old: 0,
+      new: 3600000000000,
+      secret: false,
+    },
+  },
   status_code: 200,
   additional_fields: "",
   description: "{user} updated workspace {target}",
@@ -862,6 +868,26 @@ export const MockAuditLog2: TypesGen.AuditLog = {
       secret: false,
     },
   },
+}
+
+export const MockAuditLogWithEmptyDiff: TypesGen.AuditLog = {
+  id: "958d5bdc-d034-4857-891e-33393ba07e55",
+  request_id: "0585f890-2659-4761-bcb4-3bbca1fe4ab7",
+  time: "2022-10-12T13:36:31.682107Z",
+  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  ip: "127.0.0.1",
+  user_agent:
+    '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+  resource_type: "workspace",
+  resource_id: "ef8d1cf4-82de-4fd9-8980-047dad6d06b5",
+  resource_target: "bruno-dev",
+  resource_icon: "",
+  action: "create",
+  diff: {},
+  status_code: 200,
+  additional_fields: "",
+  description: "{user} updated workspace {target}",
+  user: MockUser,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

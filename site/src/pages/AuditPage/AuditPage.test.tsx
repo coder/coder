@@ -5,11 +5,14 @@ import {
   history,
   MockAuditLog,
   MockAuditLog2,
+  MockAuditLogWithEmptyDiff,
   render,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import * as CreateDayString from "util/createDayString"
 import AuditPage from "./AuditPage"
+import { server } from "testHelpers/server"
+import { rest } from "msw"
 
 describe("AuditPage", () => {
   beforeEach(() => {
@@ -25,6 +28,21 @@ describe("AuditPage", () => {
     // Then
     await screen.findByTestId(`audit-log-row-${MockAuditLog.id}`)
     screen.getByTestId(`audit-log-row-${MockAuditLog2.id}`)
+  })
+
+  it("filters out audit logs with empty diffs", async () => {
+    server.use(
+      rest.get(`/api/v2/audit`, (_, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockAuditLogWithEmptyDiff))
+      }),
+    )
+
+    // When
+    render(<AuditPage />)
+
+    // Then
+    const logRow = screen.queryByTestId(`audit-log-row-${MockAuditLogWithEmptyDiff.id}`)
+    expect(logRow).not.toBeInTheDocument()
   })
 
   describe("Filtering", () => {
