@@ -41,7 +41,9 @@ describe("AuditPage", () => {
     render(<AuditPage />)
 
     // Then
-    const logRow = screen.queryByTestId(`audit-log-row-${MockAuditLogWithEmptyDiff.id}`)
+    const logRow = screen.queryByTestId(
+      `audit-log-row-${MockAuditLogWithEmptyDiff.id}`,
+    )
     expect(logRow).not.toBeInTheDocument()
   })
 
