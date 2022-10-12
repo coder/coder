@@ -317,6 +317,6 @@ Template permissions can be used to give users and groups access to specific tem
 ## Next Steps
 
 - Learn about [Authentication & Secrets](templates/authentication.md)
-- Learn about [Change management](templates/change-management.md)
+- Learn about [Change Management](templates/change-management.md)
 - Learn about [Resource Metadata](templates/resource-metadata.md)
 - Learn about [Workspaces](workspaces.md)
