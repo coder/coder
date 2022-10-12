@@ -45,7 +45,8 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({
 
 const useStyles = makeStyles((theme) => ({
   labelText: {
-    marginRight: theme.spacing(2),
+    marginRight: theme.spacing(1),
+    marginLeft: theme.spacing(1),
     lineHeight: "160%",
 
     [theme.breakpoints.down("sm")]: {

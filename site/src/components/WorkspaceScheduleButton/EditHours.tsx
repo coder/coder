@@ -1,6 +1,7 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
+import { Stack } from "components/Stack/Stack"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
@@ -15,6 +16,7 @@ export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
 
   return (
     <form onSubmit={() => handleSubmit(hours)}>
+      <Stack direction="row" alignItems="baseline" spacing={1}>
       <TextField
         className={styles.inputField}
         inputProps={{ min: 0, step: 1 }}
@@ -23,15 +25,25 @@ export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
         onChange={(e) => setHours(parseInt(e.target.value))}
         type="number"
       />
-      <Button type="submit">
+      <Button className={styles.button} type="submit">
         {t("workspaceScheduleButton.submitDeadline")}
       </Button>
+</Stack>
     </form>
   )
 }
 
 const useStyles = makeStyles(() => ({
   inputField: {
-    width: '70px'
+    width: '70px',
+    "& .MuiOutlinedInput-root": {
+      height: '30px'
+    }
+  },
+  button: {
+    "&.MuiButton-root": {
+      minHeight: '30px',
+      height: '30px'
+    }
   }
 }))

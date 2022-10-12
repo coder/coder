@@ -7,6 +7,7 @@ import AddIcon from "@material-ui/icons/Add"
 import RemoveIcon from "@material-ui/icons/Remove"
 import ScheduleIcon from "@material-ui/icons/Schedule"
 import { Maybe } from "components/Conditionals/Maybe"
+import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
@@ -76,11 +77,13 @@ export const WorkspaceScheduleButton: React.FC<
   }
 
   const handleSubmitHours = (hours: number) => {
-    if (editMode === "add") {
-      onDeadlinePlus(hours)
-    }
-    if (editMode === "subtract") {
-      onDeadlineMinus(hours)
+    if (hours !== 0) {
+      if (editMode === "add") {
+        onDeadlinePlus(hours)
+      }
+      if (editMode === "subtract") {
+        onDeadlineMinus(hours)
+      }
     }
     setEditMode("off")
   }
@@ -88,7 +91,7 @@ export const WorkspaceScheduleButton: React.FC<
   return (
     <span className={styles.wrapper}>
       <Maybe condition={shouldDisplayScheduleLabel(workspace)}>
-        <span className={styles.label}>
+        <Stack className={styles.label} spacing={1} direction="row" alignItems="center" >
           <WorkspaceScheduleLabel workspace={workspace} />
           <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
             <span className={styles.actions}>
@@ -121,7 +124,7 @@ export const WorkspaceScheduleButton: React.FC<
               <EditHours handleSubmit={handleSubmitHours} />
             </Maybe>
           </Maybe>
-        </span>
+        </Stack>
       </Maybe>
       <>
         <Button
@@ -218,13 +221,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   addButton: {
     borderRadius: theme.shape.borderRadius,
-    backgroundColor: ({ editMode }) =>
-      editMode === "add" ? theme.palette.primary.main : "inherit",
+    border: ({ editMode }) =>
+      editMode === "add" ? `2px solid ${theme.palette.primary.main}` : "2px solid transparent",
   },
   subtractButton: {
     borderRadius: theme.shape.borderRadius,
-    backgroundColor: ({ editMode }) =>
-      editMode === "subtract" ? theme.palette.primary.main : "inherit",
+    border: ({ editMode }) =>
+      editMode === "subtract" ? `2px solid ${theme.palette.primary.main}` : "2px solid transparent"
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
