@@ -50,6 +50,8 @@ export interface WorkspaceScheduleButtonProps {
   onDeadlineMinus: (hours: number) => void
   deadlineMinusEnabled: () => boolean
   deadlinePlusEnabled: () => boolean
+  maxDeadlineIncrease: number
+  maxDeadlineDecrease: number
   canUpdateWorkspace: boolean
 }
 
@@ -63,6 +65,8 @@ export const WorkspaceScheduleButton: React.FC<
   onDeadlineMinus,
   deadlinePlusEnabled,
   deadlineMinusEnabled,
+  maxDeadlineDecrease,
+  maxDeadlineIncrease,
   canUpdateWorkspace,
 }) => {
   const { t } = useTranslation("workspacePage")
@@ -121,7 +125,7 @@ export const WorkspaceScheduleButton: React.FC<
               </IconButton>
             </span>
             <Maybe condition={editMode !== "off"}>
-              <EditHours handleSubmit={handleSubmitHours} />
+              <EditHours handleSubmit={handleSubmitHours} max={editMode === "add" ? maxDeadlineIncrease : maxDeadlineDecrease} />
             </Maybe>
           </Maybe>
         </Stack>

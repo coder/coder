@@ -4,6 +4,8 @@ import dayjs from "dayjs"
 import { useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
+import { getMaxDeadline, getMaxDeadlineChange, getMinDeadline } from "util/schedule"
+//import { getMaxDeadlineDecrease, getMaxDeadlineIncrease } from "util/schedule"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
@@ -95,6 +97,8 @@ export const WorkspaceReadyPage = ({
           },
           deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),
           deadlinePlusEnabled: () => !bannerState.matches("atMaxDeadline"),
+          maxDeadlineDecrease: getMaxDeadlineChange(bannerState.context.workspace.deadline, getMinDeadline()),
+          maxDeadlineIncrease: getMaxDeadlineChange(bannerState.context.workspace.deadline, getMaxDeadline(workspace, bannerState.context.template))
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}

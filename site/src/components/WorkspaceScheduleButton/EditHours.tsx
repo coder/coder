@@ -7,9 +7,10 @@ import { useTranslation } from "react-i18next"
 
 interface EditHoursProps {
   handleSubmit: (hours: number) => void
+  max: number
 }
 
-export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
+export const EditHours = ({ handleSubmit, max }: EditHoursProps): JSX.Element => {
   const { t } = useTranslation("workspacePage")
   const [hours, setHours] = useState(1)
   const styles = useStyles()
@@ -19,7 +20,7 @@ export const EditHours = ({ handleSubmit }: EditHoursProps): JSX.Element => {
       <Stack direction="row" alignItems="baseline" spacing={1}>
       <TextField
         className={styles.inputField}
-        inputProps={{ min: 0, step: 1 }}
+        inputProps={{ min: 0, max, step: 1 }}
         label={t("workspaceScheduleButton.hours")}
         value={hours}
         onChange={(e) => setHours(parseInt(e.target.value))}
