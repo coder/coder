@@ -920,10 +920,10 @@ export const MockGroup: TypesGen.Group = {
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
   group: [
-    { ...everyOneGroup(MockOrganization.id), role: "view" },
+    { ...everyOneGroup(MockOrganization.id), role: "use" },
     { ...MockGroup, role: "admin" },
   ],
-  users: [{ ...MockUser, role: "view" }],
+  users: [{ ...MockUser, role: "use" }],
 }
 
 export const MockTemplateACLEmpty: TypesGen.TemplateACL = {
