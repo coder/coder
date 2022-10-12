@@ -135,30 +135,6 @@ resource "kubernetes_manifest" "kvcluster" {
           "type" = "ClusterIP"
         }
       }
-      # "controlPlaneEndpoint" = {
-      #   "host" = ""
-      #   "port" = 0
-      # }
-      # "kubernetesVersion" = "1.23.4"
-      # "helmRelease" = {
-      #   "chart" = {
-      #     "name"    = null
-      #     "repo"    = null
-      #     "version" = null
-      #   }
-      #   "values" = <<-EOT
-      #   service:
-      #     type: NodePort
-      #   securityContext:
-      #     runAsUser: 12345
-      #     runAsNonRoot: true
-      #     privileged: false
-      #   syncer:
-      #     extraArgs:
-      #       - --tls-san="${data.coder_workspace.me.name}.${var.base_domain}"
-      #       - --tls-san="${data.coder_workspace.me.name}.${data.coder_workspace.me.name}.svc"
-      #   EOT
-      # }
     }
   }
 }
@@ -257,10 +233,11 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
               "op"   = "replace"
               "path" = "/machine/install"
               "value" = {
-                "bootloader" = true
-                "disk"       = "/dev/sda"
-                "image"      = "ghcr.io/siderolabs/installer:v1.2.4"
-                "wipe"       = false
+                "bootloader"      = true
+                "disk"            = "/dev/vda"
+                "image"           = "ghcr.io/siderolabs/installer:v1.2.4"
+                "wipe"            = false
+                "extraKernelArgs" = ["console=ttyS0"]
               }
             },
             {
@@ -292,47 +269,6 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
           ]
           "generateType" = "controlplane"
         }
-        "init" = {
-          "configPatches" = [
-            {
-              "op"   = "replace"
-              "path" = "/machine/install"
-              "value" = {
-                "bootloader" = true
-                "disk"       = "/dev/sda"
-                "image"      = "ghcr.io/siderolabs/installer:v1.2.4"
-                "wipe"       = false
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/machine/kubelet/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/cluster/apiServer/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/cluster/controllerManager/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"    = "add"
-              "path"  = "/cluster/allowSchedulingOnMasters"
-              "value" = true
-            },
-          ]
-          "generateType" = "init"
-        }
       }
       "infrastructureTemplate" = {
         "apiVersion" = "infrastructure.cluster.x-k8s.io/v1alpha1"
@@ -347,7 +283,7 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
 
 // TODO check resource cross references
 
-Resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
+resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
   manifest = {
     "apiVersion" = "infrastructure.cluster.x-k8s.io/v1alpha1"
     "kind"       = "KubevirtMachineTemplate"
@@ -441,7 +377,8 @@ resource "kubernetes_manifest" "talosconfigtemplate_talos_em_worker_a" {
     "spec" = {
       "template" = {
         "spec" = {
-          "generateType" = "init"
+          "generateType" = "join"
+          "talosVersion" = "v1.2.4"
         }
       }
     }

@@ -13,13 +13,27 @@ kubectl create -f https://github.com/kubevirt/containerized-data-importer/releas
 kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
 #+end_src
 
+#+RESULTS:
+#+begin_example
+namespace/cdi created
+customresourcedefinition.apiextensions.k8s.io/cdis.cdi.kubevirt.io created
+clusterrole.rbac.authorization.k8s.io/cdi-operator-cluster created
+clusterrolebinding.rbac.authorization.k8s.io/cdi-operator created
+serviceaccount/cdi-operator created
+role.rbac.authorization.k8s.io/cdi-operator created
+rolebinding.rbac.authorization.k8s.io/cdi-operator created
+deployment.apps/cdi-operator created
+configmap/cdi-operator-leader-election-helper created
+cdi.cdi.kubevirt.io/cdi created
+#+end_example
+
 * Coder Iteration Loop
 ** Start Coder
 #+begin_src tmate :window coder :dir "../../.."
 
 cd ~/sharingio/coder
 rm -rf ~/.config/coderv2/ # delete database
-coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 --tunnel \
+coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 \
     2>&1 | tee coder-server.log
 #+end_src
 #+begin_src shell
@@ -29,10 +43,10 @@ coder login `cat ~/.config/coderv2/url` -u ii -p ii -e ii@ii.nz
 #+RESULTS:
 #+begin_example
 > Your Coder deployment hasn't been set up!
-
-  Welcome to Coder, ii! You're authenticated.
-
-  Get started by creating a template:  coder templates init
+                                                            
+  Welcome to Coder, ii! You're authenticated.               
+                                                            
+  Get started by creating a template:  coder templates init 
 #+end_example
 ** coder url
 #+begin_src shell :dir "../../.."
@@ -54,9 +68,9 @@ export CRI_PATH=/var/run/containerd/containerd.sock
 export IMAGE_REPO=k8s.gcr.io
 export NODE_VM_IMAGE_TEMPLATE=quay.io/capk/ubuntu-2004-container-disk:v1.22.0
 coder template create kubevirt-talos \
-    -d examples/templates/kubevirt-sidero-talos -
+    -d examples/templates/kubevirt-talos \
     --yes
-coder create kv1 --template kubevirt-talos --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
+coder create kv1 --template kubevirt-talos
 #+end_src
 
 ** update template and new cluster
