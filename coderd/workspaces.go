@@ -1078,6 +1078,9 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
 func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+	if page.Limit < 1 {
+		page.Limit = 65536
+	}
 	filter := database.GetWorkspacesParams{
 		Offset: int32(page.Offset),
 		Limit:  int32(page.Limit),
