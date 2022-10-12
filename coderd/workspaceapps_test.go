@@ -836,7 +836,18 @@ func TestAppSharing(t *testing.T) {
 		// If the client has a session token, we also want to check that a
 		// scoped key works.
 		clients := []*codersdk.Client{client}
-		// TODO: generate scoped token and add to slice
+		if client.SessionToken != "" {
+			token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scope: codersdk.APIKeyScopeApplicationConnect,
+			})
+			require.NoError(t, err)
+
+			scopedClient := codersdk.New(client.URL)
+			scopedClient.SessionToken = token.Key
+			scopedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+
+			clients = append(clients, scopedClient)
+		}
 
 		for i, client := range clients {
 			msg := fmt.Sprintf("client %d", i)

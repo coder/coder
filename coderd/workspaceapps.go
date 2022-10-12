@@ -327,7 +327,18 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.App
 			return false, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
 		}
 
-		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionRead, template.RBACObject())
+		// We have to perform this check without scopes enabled because
+		// otherwise this check will always fail on a scoped API key.
+		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, rbac.ScopeAll, []string{}, rbac.ActionRead, template.RBACObject())
+		if err != nil {
+			// Exit early if the user doesn't have access to the template.
+			return false, nil
+		}
+
+		// Now check if the user has ApplicationConnect access to their own
+		// workspaces.
+		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.ID.String())
+		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, object)
 		if err == nil {
 			return true, nil
 		}
