@@ -142,7 +142,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{hash}": {
+		"GET:/api/v2/files/{hashID}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceFile.WithOwner(a.Admin.UserID.String()),
 		},

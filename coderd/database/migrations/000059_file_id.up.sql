@@ -14,7 +14,7 @@ BEGIN;
 -- Drop the primary key on hash.
 ALTER TABLE files DROP CONSTRAINT files_pkey;
 
--- Add an 'id' colum and designate it the primary key.
+-- Add an 'id' column and designate it the primary key.
 ALTER TABLE files ADD COLUMN 
 	id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid ();
     
