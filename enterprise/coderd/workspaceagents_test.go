@@ -82,7 +82,6 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
-							// TODO: sharing levels
 							Apps: []*proto.App{
 								{
 									Name:         testAppNameOwner,

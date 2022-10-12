@@ -34,41 +34,10 @@ import (
 const (
 	// This needs to be a super unique query parameter because we don't want to
 	// conflict with query parameters that users may use.
-	// TODO: this will make dogfooding harder so come up with a more unique
-	// solution
 	//nolint:gosec
 	subdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
 	redirectURIQueryParam     = "redirect_uri"
 )
-
-type AppAuthorizer interface {
-	// Authorize returns true if the request is authorized to access an app at
-	// share level `AppSharingLevel` in `workspace`. An error is only returned if
-	// there is a processing error. "Unauthorized" errors should not be
-	// returned.
-	//
-	// It must be able to handle optional user authorization. Use
-	// `httpmw.*Optional` methods.
-	Authorize(r *http.Request, db database.Store, AppSharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error)
-}
-
-type AGPLAppAuthorizer struct {
-	RBAC rbac.Authorizer
-}
-
-var _ AppAuthorizer = &AGPLAppAuthorizer{}
-
-// Authorize provides an AGPL implementation of AppAuthorizer. It does not
-// support app sharing levels as they are an enterprise feature.
-func (a AGPLAppAuthorizer) Authorize(r *http.Request, _ database.Store, _ database.AppSharingLevel, workspace database.Workspace) (bool, error) {
-	roles, ok := httpmw.UserAuthorizationOptional(r)
-	if !ok {
-		return false, nil
-	}
-
-	err := a.RBAC.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, workspace.ApplicationConnectRBAC())
-	return err == nil, nil
-}
 
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.GetAppHostResponse{
@@ -326,12 +295,69 @@ func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agen
 	return app, true
 }
 
+func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
+	ctx := r.Context()
+
+	// Short circuit if not authenticated.
+	roles, ok := httpmw.UserAuthorizationOptional(r)
+	if !ok {
+		// The user is not authenticated, so they can only access the app if it
+		// is public.
+		return sharingLevel == database.AppSharingLevelPublic, nil
+	}
+
+	// Do a standard RBAC check. This accounts for share level "owner" and any
+	// other RBAC rules that may be in place.
+	//
+	// Regardless of share level or whether it's enabled or not, the owner of
+	// the workspace can always access applications (as long as their key's
+	// scope allows it).
+	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, workspace.ApplicationConnectRBAC())
+	if err == nil {
+		return true, nil
+	}
+
+	switch sharingLevel {
+	case database.AppSharingLevelOwner:
+		// We essentially already did this above.
+	case database.AppSharingLevelTemplate:
+		// Check if the user has access to the same template as the workspace.
+		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return false, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
+		}
+
+		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionRead, template.RBACObject())
+		if err == nil {
+			return true, nil
+		}
+	case database.AppSharingLevelAuthenticated:
+		// The user is authenticated at this point, but we need to make sure
+		// that they have ApplicationConnect permissions to their own
+		// workspaces. This ensures that the key's scope has permission to
+		// connect to workspace apps.
+		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.ID.String())
+		err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), rbac.ActionCreate, object)
+		if err == nil {
+			return true, nil
+		}
+	case database.AppSharingLevelPublic:
+		// We don't really care about scopes and stuff if it's public anyways.
+		// Someone with a restricted-scope API key could just not submit the
+		// API key cookie in the request and access the page.
+		return true, nil
+	}
+
+	// No checks were successful.
+	return false, nil
+}
+
 // fetchWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
 // for a given app share level in the given workspace. The user's authorization
 // status is returned. If a server error occurs, a HTML error page is rendered
 // and false is returned so the caller can return early.
-func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, AppSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
-	ok, err := (*api.AppAuthorizer.Load()).Authorize(r, api.Database, AppSharingLevel, workspace)
+func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
+	ok, err := api.authorizeWorkspaceApp(r, appSharingLevel, workspace)
 	if err != nil {
 		api.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -351,8 +377,8 @@ func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 // for a given app share level in the given workspace. If the user is not
 // authorized or a server error occurs, a discrete HTML error page is rendered
 // and false is returned so the caller can return early.
-func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, AppSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, AppSharingLevel)
+func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspace, appSharingLevel)
 	if !ok {
 		return false
 	}

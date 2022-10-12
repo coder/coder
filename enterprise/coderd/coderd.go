@@ -15,7 +15,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -39,36 +38,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewAuthorizer()
-	}
-	if options.Options.AppAuthorizer == nil {
-		var (
-			// The default is that only level "owner" should be allowed.
-			levelOwnerAllowed         = len(options.AllowedApplicationSharingLevels) == 0
-			levelTemplateAllowed      = false
-			levelAuthenticatedAllowed = false
-			levelPublicAllowed        = false
-		)
-		for _, v := range options.AllowedApplicationSharingLevels {
-			switch v {
-			case database.AppSharingLevelOwner:
-				levelOwnerAllowed = true
-			case database.AppSharingLevelTemplate:
-				levelTemplateAllowed = true
-			case database.AppSharingLevelAuthenticated:
-				levelAuthenticatedAllowed = true
-			case database.AppSharingLevelPublic:
-				levelPublicAllowed = true
-			default:
-				return nil, xerrors.Errorf("unknown workspace app sharing level %q", v)
-			}
-		}
-		options.Options.AppAuthorizer = &EnterpriseAppAuthorizer{
-			RBAC:                      options.Options.Authorizer,
-			LevelOwnerAllowed:         levelOwnerAllowed,
-			LevelTemplateAllowed:      levelTemplateAllowed,
-			LevelAuthenticatedAllowed: levelAuthenticatedAllowed,
-			LevelPublicAllowed:        levelPublicAllowed,
-		}
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
@@ -145,9 +114,6 @@ type Options struct {
 	BrowserOnly        bool
 	SCIMAPIKey         []byte
 	UserWorkspaceQuota int
-	// Defaults to []database.AppSharingLevel{database.AppSharingLevelOwner} which
-	// essentially means "function identically to AGPL Coder".
-	AllowedApplicationSharingLevels []database.AppSharingLevel
 
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -238,9 +204,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 		if claims.Features.WorkspaceQuota > 0 {
 			entitlements.workspaceQuota = entitlement
-		}
-		if claims.Features.ApplicationSharing > 0 {
-			entitlements.applicationSharing = entitlement
 		}
 	}
 
@@ -354,27 +317,6 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 		if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod {
 			resp.Warnings = append(resp.Warnings,
 				"Workspace quotas are enabled but your license for this feature is expired.")
-		}
-	}
-
-	// App sharing is disabled if no levels are allowed or the only allowed
-	// level is "owner".
-	appSharingEnabled := true
-	if len(api.AllowedApplicationSharingLevels) == 0 || (len(api.AllowedApplicationSharingLevels) == 1 && api.AllowedApplicationSharingLevels[0] == database.AppSharingLevelOwner) {
-		appSharingEnabled = false
-	}
-	resp.Features[codersdk.FeatureApplicationSharing] = codersdk.Feature{
-		Entitlement: entitlements.applicationSharing,
-		Enabled:     appSharingEnabled,
-	}
-	if appSharingEnabled {
-		if entitlements.applicationSharing == codersdk.EntitlementNotEntitled {
-			resp.Warnings = append(resp.Warnings,
-				"Application sharing is enabled but your license is not entitled to this feature.")
-		}
-		if entitlements.applicationSharing == codersdk.EntitlementGracePeriod {
-			resp.Warnings = append(resp.Warnings,
-				"Application sharing is enabled but your license for this feature is expired.")
 		}
 	}
 

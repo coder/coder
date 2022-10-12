@@ -958,7 +958,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
-		// All api generated keys will last 1 week. Browser login tokens have
+		// All API generated keys will last 1 week. Browser login tokens have
 		// a shorter life.
 		ExpiresAt:       database.Now().Add(lifeTime),
 		LifetimeSeconds: int64(lifeTime.Seconds()),
@@ -972,7 +972,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// We intentionally do not set the cookie on the response here.
-	// Setting the cookie will couple the browser sesion to the API
+	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
 	// invalid your CLI key.
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
