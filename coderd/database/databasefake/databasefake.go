@@ -695,6 +695,19 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		workspaces = append(workspaces, workspace)
 	}
 
+	if arg.Offset > 0 {
+		if int(arg.Offset) > len(workspaces) {
+			return []database.Workspace{}, nil
+		}
+		workspaces = workspaces[arg.Offset:]
+	}
+	if arg.Limit > 0 {
+		if int(arg.Limit) > len(workspaces) {
+			return workspaces, nil
+		}
+		workspaces = workspaces[:arg.Limit]
+	}
+
 	return workspaces, nil
 }
 

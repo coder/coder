@@ -167,6 +167,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.NoACLConfig()))
 	rows, err := q.db.QueryContext(ctx, query,
+		arg.Limit,
+		arg.Offset,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,

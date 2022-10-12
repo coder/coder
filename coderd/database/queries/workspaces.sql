@@ -132,6 +132,12 @@ WHERE
 			name ILIKE '%' || @name || '%'
 		ELSE true
 	END
+ORDER BY
+    last_used_at DESC
+LIMIT
+    $1
+OFFSET
+    $2
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one
