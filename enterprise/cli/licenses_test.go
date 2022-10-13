@@ -327,8 +327,11 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 			},
 		},
 	}
+
 	rw.WriteHeader(http.StatusOK)
-	err := json.NewEncoder(rw).Encode(resp)
+	err := json.NewEncoder(rw).Encode(codersdk.LicensesResponse{
+		Licenses: resp,
+	})
 	assert.NoError(s.t, err)
 }
 
