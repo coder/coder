@@ -228,6 +228,7 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
     "spec" = {
       "controlPlaneConfig" = {
         "controlplane" = {
+          "generateType" = "controlplane"
           "configPatches" = [
             {
               "op"   = "replace"
@@ -267,7 +268,6 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
               "value" = true
             },
           ]
-          "generateType" = "controlplane"
         }
         "init" = {
           "configPatches" = [

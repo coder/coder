@@ -1,0 +1,213 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  labels:
+    cluster-name: talos
+  name: talos
+spec:
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: TalosControlPlane
+    name: talos
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: KubevirtCluster
+    name: talos
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    services:
+      cidrBlocks:
+        - 172.26.0.0/16
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtCluster
+metadata:
+  name: talos
+spec:
+  controlPlaneServiceTemplate:
+    spec:
+      type: ClusterIP
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: talos
+spec:
+  clusterName: talos
+  replicas: 0
+  selector:
+    matchLabes: null
+  template:
+    spec:
+      clusterName: talos
+      version: v1.23.5
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: TalosConfigTemplate
+          name: talos
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: KubevirtMachineTemplate
+        name: talos
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: talos
+spec:
+  replicas: 1
+  version: "v1.25.2"
+  infrastructureTemplate:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: KubevirtMachineTemplate
+    name: talos-cp
+  controlPlaneConfig:
+    init:
+      generateType: init
+      configPatches:
+        - path: /machine/install
+          op: replace
+          value:
+            bootloader: true
+            disk: /dev/vda
+            image: ghcr.io/siderolabs/installer:v1.2.4
+            wipe: false
+            extraKernelArgs:
+              - console=ttyS0
+        - path: /machine/kubelet/extraArgs
+          op: add
+          value:
+            cloud-provider: external
+        - path: /machine/apiServer/extraArgs
+          op: add
+          value:
+            cloud-provider: external
+        - path: /machine/controllerManager/extraArgs
+          op: add
+          value:
+            cloud-provider: external
+        - path: /cluster/allowSchedulingOnMasters
+          op: add
+          value: true
+    controlplane:
+      generateType: controlplane
+      configPatches:
+        - path: /machine/install
+          op: replace
+          value:
+            bootloader: true
+            disk: /dev/vda
+            image: ghcr.io/siderolabs/installer:v1.2.4
+            wipe: false
+            extraKernelArgs:
+              - console=ttyS0
+        - path: /machine/kubelet/extraArgs
+          op: add
+          value:
+            cloud-provider: external
+        - path: /machine/apiServer/extraArgs
+          op: add
+          value:
+            cloud-provider: external
+        - path: /machine/controllerManager/extraArgs
+          op: add
+          value:
+            cloud-provider: external
+        - path: /cluster/allowSchedulingOnMasters
+          op: add
+          value: true
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: talos-cp
+spec:
+  template:
+    spec:
+      virtualMachineTemplate:
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              evictionStrategy: External
+              volumes:
+                - name: vmdisk
+                  dataVolume:
+                    name: vmdisk-dv
+              domain:
+                cpu:
+                  cores: 2
+                devices:
+                  disks:
+                    - name: vmdisk
+                      disk:
+                        bus: virtio
+                memory:
+                  guest: "4Gi"
+          dataVolumeTemplates:
+            - metadata:
+                name: vmdisk-dv
+              spec:
+                pvc:
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: "15Gi"
+                source:
+                  http:
+                    url: "https://github.com/siderolabs/talos/releases/download/v1.2.4/talos-amd64.iso"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: talos
+spec:
+  template:
+    spec:
+      virtualMachineTemplate:
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              evictionStrategy: External
+              volumes:
+                - name: vmdisk
+                  dataVolume:
+                    name: vmdisk-dv
+              domain:
+                cpu:
+                  cores: 2
+                devices:
+                  disks:
+                    - name: vmdisk
+                      disk:
+                        bus: virtio
+                memory:
+                  guest: "4Gi"
+          dataVolumeTemplates:
+            - metadata:
+                name: vmdisk-dv
+              spec:
+                pvc:
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: "15Gi"
+                source:
+                  http:
+                    url: "https://github.com/siderolabs/talos/releases/download/v1.2.4/talos-amd64.iso"
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: talos
+spec:
+  template:
+    spec:
+      generateType: join
+      talosVersion: v1.2.4
