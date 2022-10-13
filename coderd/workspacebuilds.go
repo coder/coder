@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -250,10 +251,13 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// STARTS HERE
+
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
+
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
@@ -261,6 +265,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	// Rbac action depends on the transition
 	var action rbac.Action
+
 	switch createBuild.Transition {
 	case codersdk.WorkspaceTransitionDelete:
 		action = rbac.ActionDelete
@@ -275,6 +280,22 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, action, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+
+	// we only want to create audit logs for delete builds right now
+	if action == rbac.ActionDelete {
+		var (
+			auditor           = api.Auditor.Load()
+			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+				Audit:   *auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionDelete,
+			})
+		)
+
+		defer commitAudit()
+		aReq.Old = workspace
 	}
 
 	if createBuild.TemplateVersionID == uuid.Nil {
@@ -524,6 +545,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
+
+// ENDS HERE !!!!!
 
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
