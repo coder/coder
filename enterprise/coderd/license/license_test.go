@@ -31,7 +31,7 @@ func TestEntitlements(t *testing.T) {
 	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)

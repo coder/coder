@@ -63,11 +63,12 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		RBAC:                       true,
-		AuditLogging:               options.AuditLogging,
-		BrowserOnly:                options.BrowserOnly,
-		SCIMAPIKey:                 options.SCIMAPIKey,
-		DERPServerRelayAddress:     oop.AccessURL.String(),
+		RBAC:         true,
+		AuditLogging: options.AuditLogging,
+		BrowserOnly:  options.BrowserOnly,
+		SCIMAPIKey:   options.SCIMAPIKey,
+		// TODO: Kyle change this before merge!
+		DERPServerRelayAddress:     oop.AccessURL.String() + "/derp",
 		DERPServerRegionID:         1,
 		HighAvailability:           true,
 		ReplicaID:                  uuid.New(),

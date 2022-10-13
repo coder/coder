@@ -153,14 +153,19 @@ func Entitlements(
 			case codersdk.EntitlementNotEntitled:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf("%s is enabled but your license is not entitled to this feature.", niceName))
-				// Disable the feature and add a warning...
-				feature.Enabled = false
-				entitlements.Features[featureName] = feature
 			case codersdk.EntitlementGracePeriod:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
 			default:
 			}
+		}
+	}
+
+	for _, featureName := range codersdk.FeatureNames {
+		feature := entitlements.Features[featureName]
+		if feature.Entitlement == codersdk.EntitlementNotEntitled {
+			feature.Enabled = false
+			entitlements.Features[featureName] = feature
 		}
 	}
 

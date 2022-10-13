@@ -2,14 +2,16 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 )
 
@@ -18,11 +20,15 @@ func TestReplicas(t *testing.T) {
 	db, pubsub := dbtestutil.NewDB(t)
 	firstClient := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
+			IncludeProvisionerDaemon: true,
+			Database:                 db,
+			Pubsub:                   pubsub,
 		},
 	})
-	_ = coderdtest.CreateFirstUser(t, firstClient)
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	coderdenttest.AddLicense(t, firstClient, coderdenttest.LicenseOptions{
+		HighAvailability: true,
+	})
 
 	secondClient := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
@@ -32,7 +38,13 @@ func TestReplicas(t *testing.T) {
 	})
 	secondClient.SessionToken = firstClient.SessionToken
 
-	user, err := secondClient.User(context.Background(), codersdk.Me)
+	agentID := setupWorkspaceAgent(t, firstClient, firstUser)
+	conn, err := secondClient.DialWorkspaceAgentTailnet(context.Background(), slogtest.Make(t, nil).Leveled(slog.LevelDebug), agentID)
 	require.NoError(t, err)
-	fmt.Printf("%+v\n", user)
+	require.Eventually(t, func() bool {
+		_, err = conn.Ping()
+		return err == nil
+	}, 10*time.Second, 250*time.Millisecond)
+
+	_ = conn.Close()
 }
