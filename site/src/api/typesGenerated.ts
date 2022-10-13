@@ -31,8 +31,13 @@ export interface AgentStatsReportResponse {
 }
 
 // From codersdk/roles.go
-export interface AssignableRoles extends Role {
+export interface AssignableRole extends Role {
   readonly assignable: boolean
+}
+
+// From codersdk/roles.go
+export interface AssignableRolesResponse {
+  readonly roles: AssignableRole[]
 }
 
 // From codersdk/audit.go
@@ -266,6 +271,11 @@ export interface GetAppHostResponse {
   readonly host: string
 }
 
+// From codersdk/apikey.go
+export interface GetTokensResponse {
+  readonly tokens: APIKey[]
+}
+
 // From codersdk/gitsshkey.go
 export interface GitSSHKey {
   readonly user_id: string
@@ -329,6 +339,11 @@ export interface OrganizationMember {
   readonly roles: Role[]
 }
 
+// From codersdk/users.go
+export interface OrganizationsByUserResponse {
+  readonly organizations: Organization[]
+}
+
 // From codersdk/pagination.go
 export interface Pagination {
   readonly after_id?: string
@@ -369,6 +384,11 @@ export interface ParameterSchema {
   readonly validation_contains?: string[]
 }
 
+// From codersdk/parameters.go
+export interface ParametersResponse {
+  readonly parameters: Parameter[]
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -376,6 +396,11 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string
   readonly name: string
   readonly provisioners: ProvisionerType[]
+}
+
+// From codersdk/organizations.go
+export interface ProvisionerDaemonsResponse {
+  readonly provisioner_daemons: ProvisionerDaemon[]
 }
 
 // From codersdk/provisionerdaemons.go
@@ -400,9 +425,19 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerJobLogsResponse {
+  readonly logs: ProvisionerJobLog[]
+}
+
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
+}
+
+// From codersdk/templateversions.go
+export interface ResourcesResponse {
+  readonly resources: WorkspaceResource[]
 }
 
 // From codersdk/error.go
@@ -463,9 +498,29 @@ export interface TemplateVersion {
   readonly created_by_name: string
 }
 
+// From codersdk/templateversions.go
+export interface TemplateVersionParametersResponse {
+  readonly parameters: ComputedParameter[]
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionSchemaResponse {
+  readonly parameter_schemas: ParameterSchema[]
+}
+
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/templates.go
+export interface TemplateVersionsByTemplateResponse {
+  readonly template_versions: TemplateVersion[]
+}
+
+// From codersdk/organizations.go
+export interface TemplatesResponse {
+  readonly templates: Template[]
 }
 
 // From codersdk/templates.go
@@ -542,6 +597,11 @@ export interface UsersRequest extends Pagination {
   readonly q?: string
 }
 
+// From codersdk/users.go
+export interface UsersResponse {
+  readonly users: User[]
+}
+
 // From codersdk/error.go
 export interface ValidationError {
   readonly field: string
@@ -586,6 +646,11 @@ export interface WorkspaceAgent {
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentAppsResponse {
+  readonly apps: WorkspaceApp[]
 }
 
 // From codersdk/workspaceagents.go
@@ -649,6 +714,11 @@ export interface WorkspaceBuildsRequest extends Pagination {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceBuildsResponse {
+  readonly builds: WorkspaceBuild[]
+}
+
+// From codersdk/workspaces.go
 export interface WorkspaceFilter {
   readonly q?: string
 }
@@ -683,6 +753,11 @@ export interface WorkspaceResourceMetadata {
   readonly key: string
   readonly value: string
   readonly sensitive: boolean
+}
+
+// From codersdk/workspaces.go
+export interface WorkspacesResponse {
+  readonly workspaces: Workspace[]
 }
 
 // From codersdk/audit.go
@@ -727,10 +802,10 @@ export type ProvisionerJobStatus =
   | "running"
   | "succeeded"
 
-// From codersdk/organizations.go
+// From codersdk/provisionerdaemons.go
 export type ProvisionerStorageMethod = "file"
 
-// From codersdk/organizations.go
+// From codersdk/provisionerdaemons.go
 export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/audit.go

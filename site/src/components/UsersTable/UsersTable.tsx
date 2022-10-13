@@ -19,7 +19,7 @@ export const Language = {
 
 export interface UsersTableProps {
   users?: TypesGen.User[]
-  roles?: TypesGen.AssignableRoles[]
+  roles?: TypesGen.AssignableRole[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
   isLoading?: boolean

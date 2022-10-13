@@ -144,10 +144,10 @@ export const getTemplate = async (templateId: string): Promise<TypesGen.Template
 }
 
 export const getTemplates = async (organizationId: string): Promise<TypesGen.Template[]> => {
-  const response = await axios.get<TypesGen.Template[]>(
+  const response = await axios.get<TypesGen.TemplatesResponse>(
     `/api/v2/organizations/${organizationId}/templates`,
   )
-  return response.data
+  return response.data.templates
 }
 
 export const getTemplateByName = async (
@@ -188,10 +188,10 @@ export const getTemplateVersionResources = async (
 export const getTemplateVersions = async (
   templateId: string,
 ): Promise<TypesGen.TemplateVersion[]> => {
-  const response = await axios.get<TypesGen.TemplateVersion[]>(
+  const response = await axios.get<TypesGen.TemplateVersionsByTemplateResponse>(
     `/api/v2/templates/${templateId}/versions`,
   )
-  return response.data
+  return response.data.template_versions
 }
 
 export const updateTemplateMeta = async (
@@ -381,9 +381,9 @@ export const updateUserPassword = async (
   updatePassword: TypesGen.UpdateUserPasswordRequest,
 ): Promise<undefined> => axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
-export const getSiteRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
-  const response = await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`)
-  return response.data
+export const getSiteRoles = async (): Promise<TypesGen.AssignableRole[]> => {
+  const response = await axios.get<TypesGen.AssignableRolesResponse>(`/api/v2/users/roles`)
+  return response.data.roles
 }
 
 export const updateUserRoles = async (
@@ -429,10 +429,10 @@ export const getWorkspaceBuildLogs = async (
   buildname: string,
   before: Date,
 ): Promise<TypesGen.ProvisionerJobLog[]> => {
-  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(
+  const response = await axios.get<TypesGen.ProvisionerJobLogsResponse>(
     `/api/v2/workspacebuilds/${buildname}/logs?before=${before.getTime()}`,
   )
-  return response.data
+  return response.data.logs
 }
 
 export const putWorkspaceExtension = async (

@@ -51,7 +51,7 @@ export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
 
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
-export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRoles {
+export function assignableRole(role: TypesGen.Role, assignable: boolean): TypesGen.AssignableRole {
   return {
     ...role,
     assignable: assignable,
