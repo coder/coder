@@ -5559,9 +5559,9 @@ ORDER BY
     last_used_at DESC
 LIMIT
     CASE
-		WHEN $9 :: integer > 0 THEN
-			$9
-	END
+        WHEN $9 :: integer > 0 THEN
+            $9
+    END
 OFFSET
     $8
 `
