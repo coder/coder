@@ -53,7 +53,6 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
             {...getFieldHelpers("avatar_url")}
             onChange={onChangeTrimmed(form)}
             autoComplete="avatar url"
-            autoFocus
             fullWidth
             label="Avatar URL"
             variant="outlined"
