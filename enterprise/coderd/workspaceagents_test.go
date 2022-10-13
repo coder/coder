@@ -23,7 +23,6 @@ import (
 // App names for each app sharing level.
 const (
 	testAppNameOwner         = "test-app-owner"
-	testAppNameTemplate      = "test-app-template"
 	testAppNameAuthenticated = "test-app-authenticated"
 	testAppNamePublic        = "test-app-public"
 )
@@ -86,11 +85,6 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 								{
 									Name:         testAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
-									Url:          fmt.Sprintf("http://localhost:%d", appPort),
-								},
-								{
-									Name:         testAppNameTemplate,
-									SharingLevel: proto.AppSharingLevel_TEMPLATE,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{

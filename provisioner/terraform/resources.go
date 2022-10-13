@@ -240,8 +240,6 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		switch strings.ToLower(attrs.Share) {
 		case "owner":
 			sharingLevel = proto.AppSharingLevel_OWNER
-		case "template":
-			sharingLevel = proto.AppSharingLevel_TEMPLATE
 		case "authenticated":
 			sharingLevel = proto.AppSharingLevel_AUTHENTICATED
 		case "public":

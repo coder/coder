@@ -17,7 +17,6 @@ type WorkspaceAppSharingLevel string
 
 const (
 	WorkspaceAppSharingLevelOwner         WorkspaceAppSharingLevel = "owner"
-	WorkspaceAppSharingLevelTemplate      WorkspaceAppSharingLevel = "template"
 	WorkspaceAppSharingLevelAuthenticated WorkspaceAppSharingLevel = "authenticated"
 	WorkspaceAppSharingLevelPublic        WorkspaceAppSharingLevel = "public"
 )

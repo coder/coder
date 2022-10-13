@@ -32,7 +32,6 @@ const (
 	proxyTestAgentName            = "agent-name"
 	proxyTestAppNameFake          = "test-app-fake"
 	proxyTestAppNameOwner         = "test-app-owner"
-	proxyTestAppNameTemplate      = "test-app-template"
 	proxyTestAppNameAuthenticated = "test-app-authenticated"
 	proxyTestAppNamePublic        = "test-app-public"
 	proxyTestAppQuery             = "query=true"
@@ -132,11 +131,6 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 								{
 									Name:         proxyTestAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
-									Url:          appURL,
-								},
-								{
-									Name:         proxyTestAppNameTemplate,
-									SharingLevel: proto.AppSharingLevel_TEMPLATE,
 									Url:          appURL,
 								},
 								{
@@ -736,11 +730,11 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 func TestAppSharing(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T) (workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, client *codersdk.Client, clientWithTemplateAccess *codersdk.Client, clientWithNoTemplateAccess *codersdk.Client, clientWithNoAuth *codersdk.Client) {
+	setup := func(t *testing.T) (workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 		//nolint:gosec
 		const password = "password"
 
-		client, firstUser, workspace, _ := setupProxyTest(t)
+		client, _, workspace, _ = setupProxyTest(t)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
@@ -756,7 +750,6 @@ func TestAppSharing(t *testing.T) {
 		expected := map[string]codersdk.WorkspaceAppSharingLevel{
 			proxyTestAppNameFake:          codersdk.WorkspaceAppSharingLevelOwner,
 			proxyTestAppNameOwner:         codersdk.WorkspaceAppSharingLevelOwner,
-			proxyTestAppNameTemplate:      codersdk.WorkspaceAppSharingLevelTemplate,
 			proxyTestAppNameAuthenticated: codersdk.WorkspaceAppSharingLevelAuthenticated,
 			proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
 		}
@@ -765,58 +758,29 @@ func TestAppSharing(t *testing.T) {
 		}
 		require.Equal(t, expected, found, "apps have incorrect sharing levels")
 
-		// Create a user in the same org (should be able to read the template).
-		userWithTemplateAccess, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "template-access@coder.com",
-			Username:       "template-access",
-			Password:       password,
-			OrganizationID: firstUser.OrganizationID,
-		})
-		require.NoError(t, err)
-
-		clientWithTemplateAccess = codersdk.New(client.URL)
-		loginRes, err := clientWithTemplateAccess.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    userWithTemplateAccess.Email,
-			Password: password,
-		})
-		require.NoError(t, err)
-		clientWithTemplateAccess.SessionToken = loginRes.SessionToken
-		clientWithTemplateAccess.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-
-		// Double check that the user can read the template.
-		_, err = clientWithTemplateAccess.Template(ctx, workspace.TemplateID)
-		require.NoError(t, err)
-
-		// Create a user in a different org (should not be able to read the
-		// template).
-		differentOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+		// Create a user in a different org.
+		otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "a-different-org",
 		})
 		require.NoError(t, err)
-		userWithNoTemplateAccess, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		userInOtherOrg, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "no-template-access@coder.com",
 			Username:       "no-template-access",
 			Password:       password,
-			OrganizationID: differentOrg.ID,
+			OrganizationID: otherOrg.ID,
 		})
 		require.NoError(t, err)
 
-		clientWithNoTemplateAccess = codersdk.New(client.URL)
-		loginRes, err = clientWithNoTemplateAccess.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    userWithNoTemplateAccess.Email,
+		clientInOtherOrg = codersdk.New(client.URL)
+		loginRes, err := clientInOtherOrg.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    userInOtherOrg.Email,
 			Password: password,
 		})
 		require.NoError(t, err)
-		clientWithNoTemplateAccess.SessionToken = loginRes.SessionToken
-		clientWithNoTemplateAccess.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		clientInOtherOrg.SessionToken = loginRes.SessionToken
+		clientInOtherOrg.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-
-		// Double check that the user cannot read the template.
-		_, err = clientWithNoTemplateAccess.Template(ctx, workspace.TemplateID)
-		require.Error(t, err)
 
 		// Create an unauthenticated codersdk client.
 		clientWithNoAuth = codersdk.New(client.URL)
@@ -824,7 +788,7 @@ func TestAppSharing(t *testing.T) {
 			return http.ErrUseLastResponse
 		}
 
-		return workspace, agnt, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth
+		return workspace, agnt, user, client, clientInOtherOrg, clientWithNoAuth
 	}
 
 	verifyAccess := func(t *testing.T, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
@@ -884,7 +848,7 @@ func TestAppSharing(t *testing.T) {
 	t.Run("Level", func(t *testing.T) {
 		t.Parallel()
 
-		workspace, agent, user, client, clientWithTemplateAccess, clientWithNoTemplateAccess, clientWithNoAuth := setup(t)
+		workspace, agent, user, client, clientInOtherOrg, clientWithNoAuth := setup(t)
 
 		t.Run("Owner", func(t *testing.T) {
 			t.Parallel()
@@ -892,30 +856,12 @@ func TestAppSharing(t *testing.T) {
 			// Owner should be able to access their own workspace.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, client, true, false)
 
-			// User with or without template access should not have access to a
-			// workspace that they do not own.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientWithTemplateAccess, false, false)
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientWithNoTemplateAccess, false, false)
+			// Authenticated users should not have access to a workspace that
+			// they do not own.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
 
 			// Unauthenticated user should not have any access.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
-		})
-
-		t.Run("Template", func(t *testing.T) {
-			t.Parallel()
-
-			// Owner should be able to access their own workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameTemplate, client, true, false)
-
-			// User with template access should be able to access the workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameTemplate, clientWithTemplateAccess, true, false)
-
-			// User without template access should not have access to a workspace
-			// that they do not own.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameTemplate, clientWithNoTemplateAccess, false, false)
-
-			// Unauthenticated user should not have any access.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameTemplate, clientWithNoAuth, false, true)
 		})
 
 		t.Run("Authenticated", func(t *testing.T) {
@@ -924,10 +870,8 @@ func TestAppSharing(t *testing.T) {
 			// Owner should be able to access their own workspace.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, client, true, false)
 
-			// User with or without template access should be able to access the
-			// workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientWithTemplateAccess, true, false)
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientWithNoTemplateAccess, true, false)
+			// Authenticated users should be able to access the workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, true, false)
 
 			// Unauthenticated user should not have any access.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
@@ -939,10 +883,8 @@ func TestAppSharing(t *testing.T) {
 			// Owner should be able to access their own workspace.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, client, true, false)
 
-			// User with or without template access should be able to access the
-			// workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithTemplateAccess, true, false)
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithNoTemplateAccess, true, false)
+			// Authenticated users should be able to access the workspace.
+			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientInOtherOrg, true, false)
 
 			// Unauthenticated user should be able to access the workspace.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithNoAuth, true, false)

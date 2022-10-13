@@ -2,9 +2,6 @@
 CREATE TYPE app_sharing_level AS ENUM (
 	-- only the workspace owner can access the app
 	'owner',
-	-- the workspace owner and other users that can read the workspace template
-	-- can access the app
-	'template',
 	-- any authenticated user on the site can access the app
 	'authenticated',
 	-- any user can access the app even if they are not authenticated

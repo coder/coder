@@ -89,9 +89,8 @@ message Agent {
 
 enum AppSharingLevel {
 	OWNER = 0;
-	TEMPLATE = 1;
-	AUTHENTICATED = 2;
-	PUBLIC = 3;
+	AUTHENTICATED = 1;
+	PUBLIC = 2;
 }
 
 // App represents a dev-accessible application on the workspace.

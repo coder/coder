@@ -942,11 +942,7 @@ export type WorkspaceAppHealth =
   | "unhealthy"
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppSharingLevel =
-  | "authenticated"
-  | "owner"
-  | "public"
-  | "template"
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

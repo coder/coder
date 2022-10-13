@@ -816,8 +816,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 			sharingLevel := database.AppSharingLevelOwner
 			switch app.SharingLevel {
-			case sdkproto.AppSharingLevel_TEMPLATE:
-				sharingLevel = database.AppSharingLevelTemplate
 			case sdkproto.AppSharingLevel_AUTHENTICATED:
 				sharingLevel = database.AppSharingLevelAuthenticated
 			case sdkproto.AppSharingLevel_PUBLIC:

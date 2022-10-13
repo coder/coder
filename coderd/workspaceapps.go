@@ -310,7 +310,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.App
 	// other RBAC rules that may be in place.
 	//
 	// Regardless of share level or whether it's enabled or not, the owner of
-	// the workspace can always access applications (as long as their key's
+	// the workspace can always access applications (as long as their API key's
 	// scope allows it).
 	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
 	if err == nil {
@@ -319,29 +319,9 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, sharingLevel database.App
 
 	switch sharingLevel {
 	case database.AppSharingLevelOwner:
-		// We essentially already did this above.
-	case database.AppSharingLevelTemplate:
-		// Check if the user has access to the same template as the workspace.
-		template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			return false, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
-		}
-
-		// We have to perform this check without scopes enabled because
-		// otherwise this check will always fail on a scoped API key.
-		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, rbac.ScopeAll, []string{}, rbac.ActionRead, template.RBACObject())
-		if err != nil {
-			// Exit early if the user doesn't have access to the template.
-			return false, nil
-		}
-
-		// Now check if the user has ApplicationConnect access to their own
-		// workspaces.
-		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.ID.String())
-		err = api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, object)
-		if err == nil {
-			return true, nil
-		}
+		// We essentially already did this above with the regular RBAC check.
+		// Owners can always access their own apps according to RBAC rules, so
+		// they have already been returned from this function.
 	case database.AppSharingLevelAuthenticated:
 		// The user is authenticated at this point, but we need to make sure
 		// that they have ApplicationConnect permissions to their own

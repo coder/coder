@@ -4451,7 +4451,7 @@ INSERT INTO
         command,
         url,
         subdomain,
-		sharing_level,
+        sharing_level,
         healthcheck_url,
         healthcheck_interval,
         healthcheck_threshold,

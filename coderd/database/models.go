@@ -38,7 +38,6 @@ type AppSharingLevel string
 
 const (
 	AppSharingLevelOwner         AppSharingLevel = "owner"
-	AppSharingLevelTemplate      AppSharingLevel = "template"
 	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
 	AppSharingLevelPublic        AppSharingLevel = "public"
 )
