@@ -254,6 +254,10 @@ type WorkspaceFilter struct {
 	Name string `json:"name,omitempty" typescript:"-"`
 	// Status is a workspace status, which is really the status of the latest build
 	Status string `json:"status,omitempty" typescript:"-"`
+	// Offset is the number of workspaces to skip before returning results.
+	Offset int `json:"offset,omitempty" typescript:"-"`
+	// Limit is a limit on the number of workspaces returned.
+	Limit int `json:"limit,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -290,7 +294,11 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 
 // Workspaces returns all workspaces the authenticated user has access to.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+	page := Pagination{
+		Offset: filter.Offset,
+		Limit:  filter.Limit,
+	}
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption(), page.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

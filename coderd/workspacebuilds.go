@@ -458,7 +458,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {

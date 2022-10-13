@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 
 	"github.com/stretchr/testify/require"
 )
@@ -135,7 +136,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := workspaceSearchQuery(c.Query)
+			values, errs := workspaceSearchQuery(c.Query, codersdk.Pagination{})
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
