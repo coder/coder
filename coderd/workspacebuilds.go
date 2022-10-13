@@ -255,7 +255,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
-
 	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(ctx, rw, r, &createBuild) {
 		return
@@ -263,7 +262,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	// Rbac action depends on the transition
 	var action rbac.Action
-
 	switch createBuild.Transition {
 	case codersdk.WorkspaceTransitionDelete:
 		action = rbac.ActionDelete
