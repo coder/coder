@@ -68,7 +68,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     oop.AccessURL.String(),
-		DERPServerRegionID:         1,
+		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
 		ReplicaID:                  uuid.New(),
 		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,

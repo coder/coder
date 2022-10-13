@@ -48,7 +48,10 @@ type Options struct {
 	Addresses []netip.Prefix
 	DERPMap   *tailcfg.DERPMap
 
-	Logger slog.Logger
+	// BlockEndpoints specifies whether P2P endpoints are blocked.
+	// If so, only DERPs can establish connections.
+	BlockEndpoints bool
+	Logger         slog.Logger
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -175,6 +178,7 @@ func NewConn(options *Options) (*Conn, error) {
 	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
+		blockEndpoints:   options.BlockEndpoints,
 		dialContext:      dialContext,
 		dialCancel:       dialCancel,
 		closed:           make(chan struct{}),
@@ -240,11 +244,12 @@ func IP() netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	dialContext context.Context
-	dialCancel  context.CancelFunc
-	mutex       sync.Mutex
-	closed      chan struct{}
-	logger      slog.Logger
+	dialContext    context.Context
+	dialCancel     context.CancelFunc
+	mutex          sync.Mutex
+	closed         chan struct{}
+	logger         slog.Logger
+	blockEndpoints bool
 
 	dialer             *tsdial.Dialer
 	tunDevice          *tstun.Wrapper
@@ -428,6 +433,9 @@ func (c *Conn) sendNode() {
 		Endpoints:     c.lastEndpoints,
 		PreferredDERP: c.lastPreferredDERP,
 		DERPLatency:   c.lastDERPLatency,
+	}
+	if c.blockEndpoints {
+		node.Endpoints = nil
 	}
 	nodeCallback := c.nodeCallback
 	if nodeCallback == nil {
