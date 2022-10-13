@@ -87,15 +87,15 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	hashID := chi.URLParam(r, "hashID")
-	if hashID == "" {
+	fileID := chi.URLParam(r, "fileID")
+	if fileID == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File id must be provided in url.",
 		})
 		return
 	}
 
-	id, err := uuid.Parse(hashID)
+	id, err := uuid.Parse(fileID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File id must be a valid UUID.",
