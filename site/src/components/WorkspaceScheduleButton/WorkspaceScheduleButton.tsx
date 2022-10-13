@@ -101,42 +101,54 @@ export const WorkspaceScheduleButton: React.FC<
           direction="row"
           alignItems="center"
         >
-          <WorkspaceScheduleLabel workspace={workspace} />
-          <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
-            <span className={styles.actions}>
-              <IconButton
-                className={styles.subtractButton}
-                size="small"
-                disabled={!deadlineMinusEnabled()}
-                onClick={() => {
-                  setEditMode("subtract")
-                }}
-              >
-                <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
-                  <RemoveIcon />
-                </Tooltip>
-              </IconButton>
-              <IconButton
-                className={styles.addButton}
-                size="small"
-                disabled={!deadlinePlusEnabled()}
-                onClick={() => {
-                  setEditMode("add")
-                }}
-              >
-                <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
-                  <AddIcon />
-                </Tooltip>
-              </IconButton>
-            </span>
-            <Maybe condition={editMode !== "off"}>
-              <EditHours
-                handleSubmit={handleSubmitHours}
-                max={
-                  editMode === "add" ? maxDeadlineIncrease : maxDeadlineDecrease
-                }
-              />
+          <Stack spacing={1} direction="row" alignItems="center">
+            <WorkspaceScheduleLabel workspace={workspace} />
+            <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
+              <span className={styles.actions}>
+                <IconButton
+                  className={styles.subtractButton}
+                  size="small"
+                  disabled={!deadlineMinusEnabled()}
+                  onClick={() => {
+                    setEditMode("subtract")
+                  }}
+                >
+                  <Tooltip
+                    title={t("workspaceScheduleButton.editDeadlineMinus")}
+                  >
+                    <RemoveIcon />
+                  </Tooltip>
+                </IconButton>
+                <IconButton
+                  className={styles.addButton}
+                  size="small"
+                  disabled={!deadlinePlusEnabled()}
+                  onClick={() => {
+                    setEditMode("add")
+                  }}
+                >
+                  <Tooltip
+                    title={t("workspaceScheduleButton.editDeadlinePlus")}
+                  >
+                    <AddIcon />
+                  </Tooltip>
+                </IconButton>
+              </span>
             </Maybe>
+          </Stack>
+          <Maybe
+            condition={
+              canUpdateWorkspace &&
+              canEditDeadline(workspace) &&
+              editMode !== "off"
+            }
+          >
+            <EditHours
+              handleSubmit={handleSubmitHours}
+              max={
+                editMode === "add" ? maxDeadlineIncrease : maxDeadlineDecrease
+              }
+            />
           </Maybe>
         </Stack>
       </Maybe>
@@ -194,15 +206,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     },
   },
   label: {
-    borderRight: 0,
-    padding: "0 8px 0 16px",
+    padding: theme.spacing(0, 2),
     color: theme.palette.text.secondary,
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
-      display: "flex",
-      alignItems: "center",
       padding: theme.spacing(1.5, 2),
+      flexDirection: "column",
     },
   },
   actions: {
