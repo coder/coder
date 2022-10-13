@@ -33,7 +33,7 @@ cdi.cdi.kubevirt.io/cdi created
 
 cd ~/sharingio/coder
 rm -rf ~/.config/coderv2/ # delete database
-coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 \
+coder server --address=0.0.0.0:7080 --access-url=https://coder.$SHARINGIO_PAIR_BASE_DNS_NAME \
     2>&1 | tee coder-server.log
 #+end_src
 #+begin_src shell
@@ -43,10 +43,10 @@ coder login `cat ~/.config/coderv2/url` -u ii -p ii -e ii@ii.nz
 #+RESULTS:
 #+begin_example
 > Your Coder deployment hasn't been set up!
-                                                            
-  Welcome to Coder, ii! You're authenticated.               
-                                                            
-  Get started by creating a template:  coder templates init 
+
+  Welcome to Coder, ii! You're authenticated.
+
+  Get started by creating a template:  coder templates init
 #+end_example
 ** coder url
 #+begin_src shell :dir "../../.."
@@ -55,7 +55,7 @@ grep "coder login https://" coder-server.log | cut -d\  -f 4
 
 #+RESULTS:
 #+begin_example
-https://fcca300a80606183a90494dccb9d8ffc.pit-1.try.coder.app
+https://coder.bobymcbobs.pair.sharing.io
 #+end_example
 
 
@@ -77,7 +77,7 @@ coder create kv1 --template kubevirt-talos
 
 #+begin_src tmate :dir "../../.." :window kubevirt
 export WORKSPACE=kv1
-coder template push kubevirt -d examples/templates/kubevirt-talos --yes --parameter-file examples/templates/kubevirt/kubevirt.param.yaml
+coder template push kubevirt-talos -d examples/templates/kubevirt-talos --yes
 coder create $WORKSPACE --template kubevirt-talos --parameter-file examples/templates/kubevirt/kubevirt.param.yaml --yes
 #+end_src
 
@@ -151,3 +151,75 @@ Conditions:
   PIDPressure      False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletHasSufficientPID      kubelet has sufficient PID available
   Ready            False   Sat, 08 Oct 2022 23:39:08 -0600   Sat, 08 Oct 2022 23:38:52 -0600   KubeletNotReady              container runtime network not ready: NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: cni plugin not initialized
 #+end_example
+
+** list all relevant resources
+#+begin_src shell
+kubectl get $(kubectl api-resources | grep -E 'x-k8s|sidero' | awk '{print $1}' | xargs | tr ' ' ','),secrets,configmaps,pods,svc,pvc,vmis -o wide -n kv10
+#+end_src
+
+#+RESULTS:
+#+begin_example
+NAME                                              AGE
+clusterresourceset.addons.cluster.x-k8s.io/kv10   25s
+
+NAME                                                AGE
+talosconfig.bootstrap.cluster.x-k8s.io/kv10-nz842   5s
+
+NAME                                                  AGE
+talosconfigtemplate.bootstrap.cluster.x-k8s.io/kv10   27s
+
+NAME                            PHASE         AGE   VERSION
+cluster.cluster.x-k8s.io/kv10   Provisioned   24s
+
+NAME                                      CLUSTER   DESIRED   REPLICAS   READY   UPDATED   UNAVAILABLE   PHASE     AGE   VERSION
+machinedeployment.cluster.x-k8s.io/kv10   kv10      0                                                    Running   23s   v1.23.5
+
+NAME                                  CLUSTER   NODENAME   PROVIDERID   PHASE          AGE   VERSION
+machine.cluster.x-k8s.io/kv10-mknmr   kv10                              Provisioning   5s    v1.25.2
+
+NAME                                          CLUSTER   DESIRED   REPLICAS   READY   AVAILABLE   AGE   VERSION
+machineset.cluster.x-k8s.io/kv10-7c6b4779d9   kv10      0                                        22s   v1.23.5
+
+NAME                                                   READY   INITIALIZED   REPLICAS   READY REPLICAS   UNAVAILABLE REPLICAS
+taloscontrolplane.controlplane.cluster.x-k8s.io/kv10                         1                           1
+
+NAME                                                   AGE
+kubevirtcluster.infrastructure.cluster.x-k8s.io/kv10   26s
+
+NAME                                                            AGE
+kubevirtmachine.infrastructure.cluster.x-k8s.io/kv10-cp-9klxl   5s
+
+NAME                                                              AGE
+kubevirtmachinetemplate.infrastructure.cluster.x-k8s.io/kv10      22s
+kubevirtmachinetemplate.infrastructure.cluster.x-k8s.io/kv10-cp   22s
+
+NAME                                        TYPE                                  DATA   AGE
+secret/default-token-5f5r8                  kubernetes.io/service-account-token   3      30s
+secret/kv10-ca                              Opaque                                2      5s
+secret/kv10-kubeconfig                      cluster.x-k8s.io/secret               1      4s
+secret/kv10-mknmr-bootstrap-data            Opaque                                1      5s
+secret/kv10-mknmr-bootstrap-data-userdata   cluster.x-k8s.io/secret               1      5s
+secret/kv10-ssh-keys                        cluster.x-k8s.io/secret               2      24s
+secret/kv10-talos                           Opaque                                1      5s
+secret/kv10-talosconfig                     Opaque                                1      5s
+secret/letsencrypt-prod                     kubernetes.io/tls                     2      30s
+
+NAME                         DATA   AGE
+configmap/capi-init          1      24s
+configmap/kube-root-ca.crt   1      30s
+
+NAME                                   READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+pod/importer-kv10-cp-9klxl-vmdisk-dv   0/1     Pending   0          5s    <none>   <none>   <none>           <none>
+
+NAME              TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+service/kv10-lb   ClusterIP   10.97.239.4   <none>        6443/TCP   24s   cluster.x-k8s.io/cluster-name=kv10,cluster.x-k8s.io/role=control-plane
+
+NAME                                            STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE   VOLUMEMODE
+persistentvolumeclaim/kv10-cp-9klxl-vmdisk-dv   Pending                                      local-path     5s    Filesystem
+#+end_example
+
+* Tear down
+
+#+begin_src tmate :window kubevirt
+coder delete kv9
+#+end_src

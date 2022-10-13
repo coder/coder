@@ -166,13 +166,13 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       "accessModes" = ["ReadWriteOnce"]
                       "resources" = {
                         "requests" = {
-                          "storage" = "15Gi"
+                          "storage" = "50Gi"
                         }
                       }
                     }
                     "source" = {
                       "http" = {
-                        "url" = "https://github.com/siderolabs/talos/releases/download/v1.2.4/talos-amd64.iso"
+                        "url" = "https://github.com/siderolabs/talos/releases/download/v1.2.5/nocloud-amd64.raw.xz"
                       }
                     }
                   }
@@ -188,7 +188,7 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       "disks" = [
                         {
                           "disk" = {
-                            "bus" = "virtio"
+                            "bus" = "scsi"
                           }
                           "name" = "vmdisk"
                         },
@@ -234,36 +234,36 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
               "path" = "/machine/install"
               "value" = {
                 "bootloader"      = true
-                "disk"            = "/dev/vda"
-                "image"           = "ghcr.io/siderolabs/installer:v1.2.4"
                 "wipe"            = false
+                "disk"            = "/dev/sda"
+                "image"           = "ghcr.io/siderolabs/installer:v1.2.5"
                 "extraKernelArgs" = ["console=ttyS0"]
               }
             },
-            {
-              "op"   = "add"
-              "path" = "/machine/kubelet/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/cluster/apiServer/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/cluster/controllerManager/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
+            # {
+            #   "op"   = "add"
+            #   "path" = "/machine/kubelet/extraArgs"
+            #   "value" = {
+            #     "cloud-provider" = "external"
+            #   }
+            # },
+            # {
+            #   "op"   = "add"
+            #   "path" = "/cluster/apiServer/extraArgs"
+            #   "value" = {
+            #     "cloud-provider" = "external"
+            #   }
+            # },
+            # {
+            #   "op"   = "add"
+            #   "path" = "/cluster/controllerManager/extraArgs"
+            #   "value" = {
+            #     "cloud-provider" = "external"
+            #   }
+            # },
             {
               "op"    = "add"
-              "path"  = "/cluster/allowSchedulingOnMasters"
+              "path"  = "/cluster/allowSchedulingOnControlPlanes"
               "value" = true
             },
           ]
@@ -276,36 +276,36 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
               "path" = "/machine/install"
               "value" = {
                 "bootloader"      = true
-                "disk"            = "/dev/vda"
-                "image"           = "ghcr.io/siderolabs/installer:v1.2.4"
                 "wipe"            = false
+                "disk"            = "/dev/sda"
+                "image"           = "ghcr.io/siderolabs/installer:v1.2.5"
                 "extraKernelArgs" = ["console=ttyS0"]
               }
             },
-            {
-              "op"   = "add"
-              "path" = "/machine/kubelet/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/cluster/apiServer/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
-            {
-              "op"   = "add"
-              "path" = "/cluster/controllerManager/extraArgs"
-              "value" = {
-                "cloud-provider" = "external"
-              }
-            },
+            # {
+            #   "op"   = "add"
+            #   "path" = "/machine/kubelet/extraArgs"
+            #   "value" = {
+            #     "cloud-provider" = "external"
+            #   }
+            # },
+            # {
+            #   "op"   = "add"
+            #   "path" = "/cluster/apiServer/extraArgs"
+            #   "value" = {
+            #     "cloud-provider" = "external"
+            #   }
+            # },
+            # {
+            #   "op"   = "add"
+            #   "path" = "/cluster/controllerManager/extraArgs"
+            #   "value" = {
+            #     "cloud-provider" = "external"
+            #   }
+            # },
             {
               "op"    = "add"
-              "path"  = "/cluster/allowSchedulingOnMasters"
+              "path"  = "/cluster/allowSchedulingOnControlPlanes"
               "value" = true
             },
           ]
@@ -322,8 +322,6 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
     }
   }
 }
-
-// TODO check resource cross references
 
 resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
   manifest = {
@@ -354,13 +352,13 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       ]
                       "resources" = {
                         "requests" = {
-                          "storage" = "15Gi"
+                          "storage" = "50Gi"
                         }
                       }
                     }
                     "source" = {
                       "http" = {
-                        "url" = "https://github.com/siderolabs/talos/releases/download/v1.2.4/talos-amd64.iso"
+                        "url" = "https://github.com/siderolabs/talos/releases/download/v1.2.5/nocloud-amd64.raw.xz"
                       }
                     }
                   }
@@ -376,7 +374,7 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       "disks" = [
                         {
                           "disk" = {
-                            "bus" = "virtio"
+                            "bus" = "scsi"
                           }
                           "name" = "vmdisk"
                         },
@@ -420,7 +418,7 @@ resource "kubernetes_manifest" "talosconfigtemplate_talos_em_worker_a" {
       "template" = {
         "spec" = {
           "generateType" = "join"
-          "talosVersion" = "v1.2.4"
+          "talosVersion" = "v1.2.5"
         }
       }
     }
