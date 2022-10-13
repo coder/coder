@@ -69,6 +69,9 @@ export const formValuesToTTLRequest = (
 ): TypesGen.UpdateWorkspaceTTLRequest => {
   return {
     // minutes to nanoseconds
-    ttl_ms: values.autoStopEnabled && values.ttl ? values.ttl * 60 * 60 * 1000 : undefined,
+    ttl_ms:
+      values.autoStopEnabled && values.ttl
+        ? values.ttl * 60 * 60 * 1000
+        : undefined,
   }
 }

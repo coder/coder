@@ -1,6 +1,6 @@
-import useTheme from "@material-ui/styles/useTheme"
-
 import { Theme } from "@material-ui/core/styles"
+import useTheme from "@material-ui/styles/useTheme"
+import * as TypesGen from "api/typesGenerated"
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -16,12 +16,15 @@ import {
 } from "chart.js"
 import "chartjs-adapter-date-fns"
 import { Stack } from "components/Stack/Stack"
-import { HelpTooltip, HelpTooltipText, HelpTooltipTitle } from "components/Tooltips/HelpTooltip"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
 import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { Line } from "react-chartjs-2"
-import * as TypesGen from "../../api/typesGenerated"
 
 ChartJS.register(
   CategoryScale,
@@ -42,7 +45,9 @@ export const Language = {
   chartTitle: "Daily Active Users",
 }
 
-export const DAUChart: FC<DAUChartProps> = ({ templateDAUs: templateMetricsData }) => {
+export const DAUChart: FC<DAUChartProps> = ({
+  templateDAUs: templateMetricsData,
+}) => {
   const theme: Theme = useTheme()
 
   if (templateMetricsData.entries.length === 0) {

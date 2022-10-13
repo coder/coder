@@ -10,7 +10,9 @@ import { AuditPageView } from "./AuditPageView"
 const AuditPage: FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const currentPage = searchParams.get("page") ? Number(searchParams.get("page")) : 1
+  const currentPage = searchParams.get("page")
+    ? Number(searchParams.get("page"))
+    : 1
   const { filter, setFilter } = useFilter("")
   const [auditState, auditSend] = useMachine(auditMachine, {
     context: {

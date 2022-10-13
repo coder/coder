@@ -10,7 +10,8 @@ import {
 
 export const Language = {
   outdatedLabel: "Outdated",
-  versionTooltipText: "This workspace version is outdated and a newer version is available.",
+  versionTooltipText:
+    "This workspace version is outdated and a newer version is available.",
   updateVersionLabel: "Update version",
 }
 
@@ -28,7 +29,11 @@ export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipAction icon={RefreshIcon} onClick={onUpdateVersion} ariaLabel={ariaLabel}>
+        <HelpTooltipAction
+          icon={RefreshIcon}
+          onClick={onUpdateVersion}
+          ariaLabel={ariaLabel}
+        >
           {Language.updateVersionLabel}
         </HelpTooltipAction>
       </HelpTooltipLinksGroup>

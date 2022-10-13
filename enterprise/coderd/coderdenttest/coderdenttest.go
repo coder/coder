@@ -62,6 +62,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
+		RBACEnabled:                true,
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
@@ -76,6 +77,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
 	}
+
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -85,17 +87,18 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType    string
-	AccountID      string
-	Trial          bool
-	AllFeatures    bool
-	GraceAt        time.Time
-	ExpiresAt      time.Time
-	UserLimit      int64
-	AuditLog       bool
-	BrowserOnly    bool
-	SCIM           bool
-	WorkspaceQuota bool
+	AccountType         string
+	AccountID           string
+	Trial               bool
+	AllFeatures         bool
+	GraceAt             time.Time
+	ExpiresAt           time.Time
+	UserLimit           int64
+	AuditLog            bool
+	BrowserOnly         bool
+	SCIM                bool
+	WorkspaceQuota      bool
+	TemplateRBACEnabled bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -132,6 +135,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		workspaceQuota = 1
 	}
 
+	rbacEnabled := int64(0)
+	if options.TemplateRBACEnabled {
+		rbacEnabled = 1
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -151,6 +159,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			BrowserOnly:    browserOnly,
 			SCIM:           scim,
 			WorkspaceQuota: workspaceQuota,
+			TemplateRBAC:   rbacEnabled,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

@@ -8,7 +8,9 @@ export interface ResourceAgentLatencyProps {
   latency: WorkspaceAgent["latency"]
 }
 
-export const ResourceAgentLatency: React.FC<ResourceAgentLatencyProps> = (props) => {
+export const ResourceAgentLatency: React.FC<ResourceAgentLatencyProps> = (
+  props,
+) => {
   const styles = useStyles()
   if (!props.latency) {
     return null
@@ -23,8 +25,8 @@ export const ResourceAgentLatency: React.FC<ResourceAgentLatencyProps> = (props)
         <b>Latency</b>
         <HelpTooltip size="small">
           <HelpTooltipText>
-            Latency from relay servers, used when connections cannot connect peer-to-peer. Star
-            indicates the preferred relay.
+            Latency from relay servers, used when connections cannot connect
+            peer-to-peer. Star indicates the preferred relay.
           </HelpTooltipText>
         </HelpTooltip>
       </div>
@@ -34,7 +36,8 @@ export const ResourceAgentLatency: React.FC<ResourceAgentLatencyProps> = (props)
           const value = latency[region]
           return (
             <div key={region} className={styles.region}>
-              <b>{region}:</b>&nbsp;{Math.round(value.latency_ms * 100) / 100} ms
+              <b>{region}:</b>&nbsp;{Math.round(value.latency_ms * 100) / 100}{" "}
+              ms
               {value.preferred && <StarIcon className={styles.star} />}
             </div>
           )

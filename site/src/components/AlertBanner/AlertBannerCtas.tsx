@@ -5,7 +5,10 @@ import Button from "@material-ui/core/Button"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { useTranslation } from "react-i18next"
 
-type AlertBannerCtasProps = Pick<AlertBannerProps, "actions" | "dismissible" | "retry"> & {
+type AlertBannerCtasProps = Pick<
+  AlertBannerProps,
+  "actions" | "dismissible" | "retry"
+> & {
   setOpen: (arg0: boolean) => void
 }
 
@@ -20,12 +23,18 @@ export const AlertBannerCtas: FC<AlertBannerCtasProps> = ({
   return (
     <Stack direction="row">
       {/* CTAs passed in by the consumer */}
-      {actions.length > 0 && actions.map((action) => <div key={String(action)}>{action}</div>)}
+      {actions.length > 0 &&
+        actions.map((action) => <div key={String(action)}>{action}</div>)}
 
       {/* retry CTA */}
       {retry && (
         <div>
-          <Button size="small" onClick={retry} startIcon={<RefreshIcon />} variant="outlined">
+          <Button
+            size="small"
+            onClick={retry}
+            startIcon={<RefreshIcon />}
+            variant="outlined"
+          >
             {t("ctas.retry")}
           </Button>
         </div>

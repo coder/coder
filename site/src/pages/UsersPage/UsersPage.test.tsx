@@ -14,15 +14,22 @@ import {
   MockAuditorRole,
   MockUser,
   MockUser2,
-  render,
+  renderWithAuth,
   SuspendedMockUser,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { permissionsToCheck } from "../../xServices/auth/authXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
-import { Language as UsersViewLanguage } from "./UsersPageView"
 
 const { t } = i18n
+
+const renderPage = () => {
+  return renderWithAuth(
+    <>
+      <UsersPage />
+      <GlobalSnackbar />
+    </>,
+  )
+}
 
 const suspendUser = async (setupActionSpies: () => void) => {
   const user = userEvent.setup()
@@ -33,7 +40,9 @@ const suspendUser = async (setupActionSpies: () => void) => {
   await user.click(firstMoreButton)
 
   const menu = await screen.findByRole("menu")
-  const suspendButton = within(menu).getByText(UsersTableBodyLanguage.suspendMenuItem)
+  const suspendButton = within(menu).getByText(
+    UsersTableBodyLanguage.suspendMenuItem,
+  )
 
   await user.click(suspendButton)
 
@@ -64,7 +73,9 @@ const deleteUser = async (setupActionSpies: () => void) => {
   await user.click(selectedMoreButton)
 
   const menu = await screen.findByRole("menu")
-  const deleteButton = within(menu).getByText(UsersTableBodyLanguage.deleteMenuItem)
+  const deleteButton = within(menu).getByText(
+    UsersTableBodyLanguage.deleteMenuItem,
+  )
 
   await user.click(deleteButton)
 
@@ -75,7 +86,10 @@ const deleteUser = async (setupActionSpies: () => void) => {
   )
 
   // Confirm with text input
-  const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "user" })
+  const labelText = t("deleteDialog.confirmLabel", {
+    ns: "common",
+    entity: "user",
+  })
   const textField = screen.getByLabelText(labelText)
   const dialog = screen.getByRole("dialog")
   await user.type(textField, MockUser2.username)
@@ -94,7 +108,9 @@ const activateUser = async (setupActionSpies: () => void) => {
   fireEvent.click(suspendedMoreButton)
 
   const menu = screen.getByRole("menu")
-  const activateButton = within(menu).getByText(UsersTableBodyLanguage.activateMenuItem)
+  const activateButton = within(menu).getByText(
+    UsersTableBodyLanguage.activateMenuItem,
+  )
   fireEvent.click(activateButton)
 
   // Check if the confirm message is displayed
@@ -107,7 +123,9 @@ const activateUser = async (setupActionSpies: () => void) => {
   setupActionSpies()
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByText(UsersPageLanguage.activateDialogAction)
+  const confirmButton = within(confirmDialog).getByText(
+    UsersPageLanguage.activateDialogAction,
+  )
   fireEvent.click(confirmButton)
 }
 
@@ -118,7 +136,9 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   fireEvent.click(firstMoreButton)
 
   const menu = screen.getByRole("menu")
-  const resetPasswordButton = within(menu).getByText(UsersTableBodyLanguage.resetPasswordMenuItem)
+  const resetPasswordButton = within(menu).getByText(
+    UsersTableBodyLanguage.resetPasswordMenuItem,
+  )
 
   fireEvent.click(resetPasswordButton)
 
@@ -148,7 +168,9 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
   }
 
   // Click on the "roles" menu to display the role options
-  const rolesLabel = within(firstUserRow).getByLabelText(RoleSelectLanguage.label)
+  const rolesLabel = within(firstUserRow).getByLabelText(
+    RoleSelectLanguage.label,
+  )
   const rolesMenuTrigger = within(rolesLabel).getByRole("button")
   // For MUI v4, the Select was changed to open on mouseDown instead of click
   // https://github.com/mui-org/material-ui/pull/17978
@@ -159,7 +181,9 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
 
   // Click on the role option
   const listBox = screen.getByRole("listbox")
-  const auditorOption = within(listBox).getByRole("option", { name: role.display_name })
+  const auditorOption = within(listBox).getByRole("option", {
+    name: role.display_name,
+  })
   fireEvent.click(auditorOption)
 
   return {
@@ -169,54 +193,21 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
 
 describe("UsersPage", () => {
   it("shows users", async () => {
-    render(<UsersPage />)
+    renderPage()
     const users = await screen.findAllByText(/.*@coder.com/)
     expect(users.length).toEqual(3)
-  })
-
-  it("shows 'Create user' button to an authorized user", async () => {
-    render(<UsersPage />)
-    const createUserButton = await screen.findByText(UsersViewLanguage.createButton)
-    // wait for users page to finish loading
-    await screen.findAllByLabelText("more")
-    expect(createUserButton).toBeDefined()
-  })
-
-  it("does not show 'Create user' button to unauthorized user", async () => {
-    server.use(
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-        const permissions = Object.keys(permissionsToCheck)
-        const response = permissions.reduce((obj, permission) => {
-          return {
-            ...obj,
-            [permission]: true,
-            createUser: false,
-          }
-        }, {})
-
-        return res(ctx.status(200), ctx.json(response))
-      }),
-    )
-    render(<UsersPage />)
-    const createUserButton = screen.queryByText(UsersViewLanguage.createButton)
-    // wait for users page to finish loading
-    await screen.findAllByLabelText("more")
-    expect(createUserButton).toBeNull()
   })
 
   describe("suspend user", () => {
     describe("when it is success", () => {
       it("shows a success message and refresh the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest.spyOn(API, "getUsers").mockResolvedValueOnce([SuspendedMockUser, MockUser2])
+          jest
+            .spyOn(API, "getUsers")
+            .mockResolvedValueOnce([SuspendedMockUser, MockUser2])
         })
 
         // Check if the success message is displayed
@@ -232,12 +223,7 @@ describe("UsersPage", () => {
     })
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockRejectedValueOnce({})
@@ -256,16 +242,13 @@ describe("UsersPage", () => {
   describe("delete user", () => {
     describe("when it is success", () => {
       it("shows a success message and refresh the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
-          jest.spyOn(API, "getUsers").mockResolvedValueOnce([MockUser, SuspendedMockUser])
+          jest
+            .spyOn(API, "getUsers")
+            .mockResolvedValueOnce([MockUser, SuspendedMockUser])
         })
 
         // Check if the success message is displayed
@@ -284,12 +267,7 @@ describe("UsersPage", () => {
     })
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockRejectedValueOnce({})
@@ -308,18 +286,17 @@ describe("UsersPage", () => {
   describe("activate user", () => {
     describe("when user is successfully activated", () => {
       it("shows a success message and refreshes the page", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await activateUser(() => {
-          jest.spyOn(API, "activateUser").mockResolvedValueOnce(SuspendedMockUser)
+          jest
+            .spyOn(API, "activateUser")
+            .mockResolvedValueOnce(SuspendedMockUser)
           jest
             .spyOn(API, "getUsers")
-            .mockImplementationOnce(() => Promise.resolve([MockUser, MockUser2, SuspendedMockUser]))
+            .mockImplementationOnce(() =>
+              Promise.resolve([MockUser, MockUser2, SuspendedMockUser]),
+            )
         })
 
         // Check if the success message is displayed
@@ -332,12 +309,7 @@ describe("UsersPage", () => {
     })
     describe("when activation fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await activateUser(() => {
           jest.spyOn(API, "activateUser").mockRejectedValueOnce({})
@@ -356,12 +328,7 @@ describe("UsersPage", () => {
   describe("reset user password", () => {
     describe("when it is success", () => {
       it("shows a success message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await resetUserPassword(() => {
           jest.spyOn(API, "updateUserPassword").mockResolvedValueOnce(undefined)
@@ -380,12 +347,7 @@ describe("UsersPage", () => {
     })
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await resetUserPassword(() => {
           jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({})
@@ -407,12 +369,7 @@ describe("UsersPage", () => {
   describe("Update user role", () => {
     describe("when it is success", () => {
       it("updates the roles", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         const { rolesMenuTrigger } = await updateUserRole(() => {
           jest.spyOn(API, "updateUserRoles").mockResolvedValueOnce({
@@ -422,7 +379,9 @@ describe("UsersPage", () => {
         }, MockAuditorRole)
 
         // Check if the select text was updated with the Auditor role
-        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Owner, Auditor"))
+        await waitFor(() =>
+          expect(rolesMenuTrigger).toHaveTextContent("Owner, Auditor"),
+        )
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)
@@ -436,19 +395,16 @@ describe("UsersPage", () => {
 
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         await updateUserRole(() => {
           jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({})
         }, MockAuditorRole)
 
         // Check if the error message is displayed
-        const errorMessage = await screen.findByText(usersXServiceLanguage.updateUserRolesError)
+        const errorMessage = await screen.findByText(
+          usersXServiceLanguage.updateUserRolesError,
+        )
         await waitFor(() => expect(errorMessage).toBeDefined())
 
         // Check if the API was called correctly
@@ -461,16 +417,14 @@ describe("UsersPage", () => {
         )
       })
       it("shows an error from the backend", async () => {
-        render(
-          <>
-            <UsersPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderPage()
 
         server.use(
           rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
-            return res(ctx.status(401), ctx.json({ message: "message from the backend" }))
+            return res(
+              ctx.status(401),
+              ctx.json({ message: "message from the backend" }),
+            )
           }),
         )
 

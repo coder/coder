@@ -24,7 +24,9 @@ const newData = {
 
 const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Username"))
-  fireEvent.change(screen.getByLabelText("Username"), { target: { value: newData.username } })
+  fireEvent.change(screen.getByLabelText("Username"), {
+    target: { value: newData.username },
+  })
   fireEvent.click(screen.getByText(AccountForm.Language.updateSettings))
 }
 
@@ -47,7 +49,9 @@ describe("AccountPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const successMessage = await screen.findByText(AuthXService.Language.successProfileUpdate)
+      const successMessage = await screen.findByText(
+        AuthXService.Language.successProfileUpdate,
+      )
       expect(successMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)
@@ -61,7 +65,9 @@ describe("AccountPage", () => {
         response: {
           data: {
             message: "Invalid profile",
-            validations: [{ detail: "Username is already in use", field: "username" }],
+            validations: [
+              { detail: "Username is already in use", field: "username" },
+            ],
           },
         },
       })
@@ -85,7 +91,9 @@ describe("AccountPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorText = t("warningsAndErrors.somethingWentWrong", { ns: "common" })
+      const errorText = t("warningsAndErrors.somethingWentWrong", {
+        ns: "common",
+      })
       const errorMessage = await screen.findByText(errorText)
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)

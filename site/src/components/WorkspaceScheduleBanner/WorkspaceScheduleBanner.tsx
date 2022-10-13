@@ -26,11 +26,9 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   return deadline.isSameOrBefore(thirtyMinutesFromNow)
 }
 
-export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceScheduleBannerProps>> = ({
-  isLoading,
-  onExtend,
-  workspace,
-}) => {
+export const WorkspaceScheduleBanner: FC<
+  React.PropsWithChildren<WorkspaceScheduleBannerProps>
+> = ({ isLoading, onExtend, workspace }) => {
   const { t } = useTranslation("workspacePage")
 
   if (!shouldDisplay(workspace)) {
@@ -38,7 +36,12 @@ export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceSchedu
   }
 
   const ScheduleButton = (
-    <Button variant="outlined" disabled={isLoading} onClick={onExtend} size="small">
+    <Button
+      variant="outlined"
+      disabled={isLoading}
+      onClick={onExtend}
+      size="small"
+    >
       {t("ctas.extendScheduleCta")}
     </Button>
   )

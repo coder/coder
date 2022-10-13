@@ -66,7 +66,7 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --username=admin --email=admin@coder.com --password="${password}" ||
+		"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" ||
 			echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
 
 		# Try to create a regular user.

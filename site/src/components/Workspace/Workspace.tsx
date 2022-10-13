@@ -5,7 +5,11 @@ import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
@@ -75,7 +79,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
-  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
+  const hasTemplateIcon =
+    workspace.template_icon && workspace.template_icon !== ""
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <AlertBanner
@@ -85,7 +90,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
-  const cancellationError = Boolean(workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]) && (
+  const cancellationError = Boolean(
+    workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
+  ) && (
     <AlertBanner
       severity="error"
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
@@ -93,7 +100,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
-  const workspaceRefreshWarning = Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
+  const workspaceRefreshWarning = Boolean(
+    workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR],
+  ) && (
     <AlertBanner
       severity="warning"
       text={t("warningsAndErrors.workspaceRefreshWarning")}
@@ -127,19 +136,32 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           </Stack>
         }
       >
-        <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
+        <WorkspaceStatusBadge
+          build={workspace.latest_build}
+          className={styles.statusBadge}
+        />
         <Stack direction="row" spacing={3} alignItems="center">
           {hasTemplateIcon && (
-            <img alt="" src={workspace.template_icon} className={styles.templateIcon} />
+            <img
+              alt=""
+              src={workspace.template_icon}
+              className={styles.templateIcon}
+            />
           )}
           <div>
             <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-            <PageHeaderSubtitle condensed>{workspace.owner_name}</PageHeaderSubtitle>
+            <PageHeaderSubtitle condensed>
+              {workspace.owner_name}
+            </PageHeaderSubtitle>
           </div>
         </Stack>
       </PageHeader>
 
-      <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
+      <Stack
+        direction="column"
+        className={styles.firstColumnSpacer}
+        spacing={2.5}
+      >
         {buildError}
         {cancellationError}
         {workspaceRefreshWarning}
@@ -150,14 +172,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           workspace={workspace}
         />
 
-        <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
+        <WorkspaceDeletedBanner
+          workspace={workspace}
+          handleClick={() => navigate(`/templates`)}
+        />
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
-            getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
+            getResourcesError={
+              workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]
+            }
             workspace={workspace}
             canUpdateWorkspace={canUpdateWorkspace}
             buildInfo={buildInfo}
@@ -166,7 +193,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           />
         )}
 
-        <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
+        <WorkspaceSection
+          title="Logs"
+          contentsProps={{ className: styles.timelineContents }}
+        >
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
             <AlertBanner
               severity="error"

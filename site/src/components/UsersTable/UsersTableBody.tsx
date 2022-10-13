@@ -32,10 +32,15 @@ interface UsersTableBodyProps {
   onListWorkspaces: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
-  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
+  onUpdateUserRoles: (
+    user: TypesGen.User,
+    roles: TypesGen.Role["name"][],
+  ) => void
 }
 
-export const UsersTableBody: FC<React.PropsWithChildren<UsersTableBodyProps>> = ({
+export const UsersTableBody: FC<
+  React.PropsWithChildren<UsersTableBodyProps>
+> = ({
   users,
   roles,
   onSuspendUser,

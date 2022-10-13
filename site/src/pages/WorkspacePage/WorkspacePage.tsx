@@ -10,12 +10,17 @@ import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 
 export const WorkspacePage: FC = () => {
-  const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
+  const { username: usernameQueryParam, workspace: workspaceQueryParam } =
+    useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
-  const { workspace, getWorkspaceError, getTemplateWarning, checkPermissionsError } =
-    workspaceState.context
+  const {
+    workspace,
+    getWorkspaceError,
+    getTemplateWarning,
+    checkPermissionsError,
+  } = workspaceState.context
   const styles = useStyles()
 
   /**
@@ -23,14 +28,18 @@ export const WorkspacePage: FC = () => {
    * workspaceSend should not change.
    */
   useEffect(() => {
-    username && workspaceName && workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
+    username &&
+      workspaceName &&
+      workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, workspaceSend])
 
   return (
     <ChooseOne>
       <Cond condition={workspaceState.matches("error")}>
         <div className={styles.error}>
-          {Boolean(getWorkspaceError) && <AlertBanner severity="error" error={getWorkspaceError} />}
+          {Boolean(getWorkspaceError) && (
+            <AlertBanner severity="error" error={getWorkspaceError} />
+          )}
           {Boolean(getTemplateWarning) && (
             <AlertBanner severity="error" error={getTemplateWarning} />
           )}
@@ -40,7 +49,10 @@ export const WorkspacePage: FC = () => {
         </div>
       </Cond>
       <Cond condition={Boolean(workspace) && workspaceState.matches("ready")}>
-        <WorkspaceReadyPage workspaceState={workspaceState} workspaceSend={workspaceSend} />
+        <WorkspaceReadyPage
+          workspaceState={workspaceState}
+          workspaceSend={workspaceSend}
+        />
       </Cond>
       <Cond>
         <FullScreenLoader />

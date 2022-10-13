@@ -33,7 +33,9 @@ const fillForm = async ({
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
-  const submitButton = await screen.findByText(FooterLanguage.defaultSubmitLabel)
+  const submitButton = await screen.findByText(
+    FooterLanguage.defaultSubmitLabel,
+  )
   fireEvent.click(submitButton)
 }
 
@@ -55,7 +57,9 @@ describe("Create User Page", () => {
     })
     await renderCreateUserPage()
     await fillForm({})
-    const errorMessage = await screen.findByText(CreateUserLanguage.createUserError)
+    const errorMessage = await screen.findByText(
+      CreateUserLanguage.createUserError,
+    )
     expect(errorMessage).toBeDefined()
   })
 
@@ -86,7 +90,9 @@ describe("Create User Page", () => {
   it("shows success notification and redirects to users page", async () => {
     await renderCreateUserPage()
     await fillForm({})
-    const successMessage = screen.findByText(CreateUserLanguage.createUserSuccess)
+    const successMessage = screen.findByText(
+      CreateUserLanguage.createUserSuccess,
+    )
     expect(successMessage).toBeDefined()
   })
 })

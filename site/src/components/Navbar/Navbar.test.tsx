@@ -2,7 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react"
 import { App } from "app"
 import { Language } from "components/NavbarView/NavbarView"
 import { rest } from "msw"
-import { MockEntitlementsWithAuditLog, MockMemberPermissions } from "testHelpers/renderHelpers"
+import {
+  MockEntitlementsWithAuditLog,
+  MockMemberPermissions,
+} from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 
 /**

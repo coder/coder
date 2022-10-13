@@ -11,7 +11,10 @@ import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
+import {
+  displayWorkspaceBuildDuration,
+  getDisplayWorkspaceBuildStatus,
+} from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { TableLoader } from "../TableLoader/TableLoader"
@@ -72,7 +75,9 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
                   }}
                   className={styles.clickableTableRow}
                 >
-                  <TableCellLink to={buildPageLink}>{build.transition}</TableCellLink>
+                  <TableCellLink to={buildPageLink}>
+                    {build.transition}
+                  </TableCellLink>
                   <TableCellLink to={buildPageLink}>
                     <span style={{ color: theme.palette.text.secondary }}>
                       {displayWorkspaceBuildDuration(build)}
@@ -84,7 +89,10 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
                     </span>
                   </TableCellLink>
                   <TableCellLink to={buildPageLink}>
-                    <span style={{ color: status.color }} className={styles.status}>
+                    <span
+                      style={{ color: status.color }}
+                      className={styles.status}
+                    >
                       {status.status}
                     </span>
                   </TableCellLink>

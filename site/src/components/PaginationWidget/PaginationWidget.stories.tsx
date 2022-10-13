@@ -7,9 +7,9 @@ export default {
   component: PaginationWidget,
 }
 
-const Template: Story<PaginationWidgetProps> = (args: PaginationWidgetProps) => (
-  <PaginationWidget {...args} />
-)
+const Template: Story<PaginationWidgetProps> = (
+  args: PaginationWidgetProps,
+) => <PaginationWidget {...args} />
 
 const defaultProps = {
   prevLabel: "Previous",

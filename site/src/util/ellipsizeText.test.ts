@@ -10,7 +10,11 @@ describe("ellipsizeText", () => {
     ["Hello World", "Hello...".length, "Hello..."],
   ])(
     `ellipsizeText(%p, %p) returns %p`,
-    (str: Nullable<string>, maxLength: number | undefined, output: Nullable<string>) => {
+    (
+      str: Nullable<string>,
+      maxLength: number | undefined,
+      output: Nullable<string>,
+    ) => {
       expect(ellipsizeText(str, maxLength)).toBe(output)
     },
   )

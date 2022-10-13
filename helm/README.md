@@ -51,5 +51,6 @@ coder:
       value: "kubernetes"
 
   tls:
-    secretName: my-tls-secret-name
+    secretNames: 
+      - my-tls-secret-name
 ```

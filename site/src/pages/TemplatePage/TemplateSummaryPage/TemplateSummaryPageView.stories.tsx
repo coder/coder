@@ -1,19 +1,27 @@
 import { Story } from "@storybook/react"
-import * as Mocks from "../../testHelpers/renderHelpers"
-import { TemplatePageView, TemplatePageViewProps } from "./TemplatePageView"
+import * as Mocks from "testHelpers/renderHelpers"
+import {
+  TemplateSummaryPageView,
+  TemplateSummaryPageViewProps,
+} from "./TemplateSummaryPageView"
 
 export default {
-  title: "pages/TemplatePageView",
-  component: TemplatePageView,
+  title: "pages/TemplateSummaryPageView",
+  component: TemplateSummaryPageView,
 }
 
-const Template: Story<TemplatePageViewProps> = (args) => <TemplatePageView {...args} />
+const Template: Story<TemplateSummaryPageViewProps> = (args) => (
+  <TemplateSummaryPageView {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {
   template: Mocks.MockTemplate,
   activeTemplateVersion: Mocks.MockTemplateVersion,
-  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateResources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+  ],
   templateVersions: [Mocks.MockTemplateVersion],
 }
 
@@ -21,7 +29,10 @@ export const NoIcon = Template.bind({})
 NoIcon.args = {
   template: { ...Mocks.MockTemplate, icon: "" },
   activeTemplateVersion: Mocks.MockTemplateVersion,
-  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateResources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+  ],
   templateVersions: [Mocks.MockTemplateVersion],
 }
 
@@ -42,7 +53,10 @@ You can add instructions here
 \`\`\`
 `,
   },
-  templateResources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
+  templateResources: [
+    Mocks.MockWorkspaceResource,
+    Mocks.MockWorkspaceResource2,
+  ],
   templateVersions: [Mocks.MockTemplateVersion],
 }
 SmallViewport.parameters = {

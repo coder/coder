@@ -50,7 +50,9 @@ export interface WorkspaceScheduleButtonProps {
   canUpdateWorkspace: boolean
 }
 
-export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = ({
+export const WorkspaceScheduleButton: React.FC<
+  WorkspaceScheduleButtonProps
+> = ({
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
@@ -127,7 +129,10 @@ export const WorkspaceScheduleButton: React.FC<WorkspaceScheduleButtonProps> = (
             horizontal: "right",
           }}
         >
-          <WorkspaceSchedule workspace={workspace} canUpdateWorkspace={canUpdateWorkspace} />
+          <WorkspaceSchedule
+            workspace={workspace}
+            canUpdateWorkspace={canUpdateWorkspace}
+          />
         </Popover>
       </>
     </span>
@@ -189,6 +194,8 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
   },
   popoverPaper: {
-    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,
+    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
+      3,
+    )}px`,
   },
 }))

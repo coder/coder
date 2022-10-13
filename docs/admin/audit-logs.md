@@ -1,6 +1,6 @@
 # Audit Logs
 
-Audit Logs allows **Admins** and **Auditors** to monitor user operations in
+Audit Logs allows **Auditors** to monitor user operations in
 their deployment.
 
 ## Tracked Events
@@ -32,4 +32,4 @@ The supported filters are:
 
 ## Enabling this feature
 
-This feature is auto enabled for all enterprise deployments. Admins may contact us to purchase a license [here](https://coder.com/contact?note=I%20want%20to%20upgrade%20my%20license).
+This feature is only available with an enterprise license. [Learn more](./enterprise.md)
