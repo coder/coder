@@ -82,6 +82,12 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the name matches the existing group name pretend we aren't
+	// updating the name at all.
+	if req.Name == group.Name {
+		req.Name = ""
+	}
+
 	users := make([]string, 0, len(req.AddUsers)+len(req.RemoveUsers))
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
@@ -110,22 +116,16 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.Name != "" {
-		existingGroup, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+	if req.Name != "" && req.Name != group.Name {
+		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
 			Name:           req.Name,
 		})
 		if err == nil {
-			// We may have just queried ourself. This should really
-			// go in the tx.
-			if existingGroup.ID != group.ID {
-				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-					Message: fmt.Sprintf("A group with name %q already exists.", req.Name),
-				})
-				return
-			}
-			// If we queried ourself then we don't want to update the name.
-			req.Name = ""
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("A group with name %q already exists.", req.Name),
+			})
+			return
 		}
 	}
 
