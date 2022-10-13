@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -18,9 +19,16 @@ import (
 
 func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx = r.Context()
-		org = httpmw.OrganizationParam(r)
+		ctx               = r.Context()
+		org               = httpmw.OrganizationParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
+			Audit:   api.Auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
 	)
+	defer commitAudit()
 
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup) {
 		http.NotFound(rw, r)
@@ -54,15 +62,25 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	aReq.New = group
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertGroup(group, nil))
 }
 
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		group = httpmw.GroupParam(r)
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.Auditor
+		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
 	)
+	defer commitAudit()
+	aReq.Old = group
 
 	if !api.Authorize(r, rbac.ActionUpdate, group) {
 		http.NotFound(rw, r)
@@ -175,14 +193,25 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = group
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, members))
 }
 
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		group = httpmw.GroupParam(r)
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.Auditor
+		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
 	)
+	defer commitAudit()
+	aReq.Old = group
 
 	if !api.Authorize(r, rbac.ActionDelete, group) {
 		httpapi.ResourceNotFound(rw)

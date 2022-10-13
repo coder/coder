@@ -281,6 +281,7 @@ const (
 	ResourceTypeWorkspace       ResourceType = "workspace"
 	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
 	ResourceTypeApiKey          ResourceType = "api_key"
+	ResourceTypeGroup           ResourceType = "group"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {

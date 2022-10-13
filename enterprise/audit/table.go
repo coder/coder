@@ -101,6 +101,11 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
 	},
+	&database.Group{}: {
+		"id":         ActionTrack,
+		"name":       ActionTrack,
+		"avatar_url": ActionTrack,
+	},
 })
 
 // auditMap converts a map of struct pointers to a map of struct names as
