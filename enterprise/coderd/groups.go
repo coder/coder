@@ -130,7 +130,8 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		group, err := tx.GetGroupByID(ctx, group.ID)
+		var err error
+		group, err = tx.GetGroupByID(ctx, group.ID)
 		if err != nil {
 			return xerrors.Errorf("get group by ID: %w", err)
 		}
