@@ -5,6 +5,7 @@ export const everyOneGroup = (organizationId: string): Group => ({
   name: "Everyone",
   organization_id: organizationId,
   members: [],
+  avatar_url: "",
 })
 
 export const getGroupSubtitle = (group: Group): string => {
