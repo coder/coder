@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -541,6 +542,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	closeDaemon.Close()
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	auditor := audit.NewMock()
 
 	// initial returned state is "pending"
 	require.EqualValues(t, codersdk.WorkspaceStatusPending, workspace.LatestBuild.Status)
@@ -575,4 +577,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
+
+	require.Len(t, auditor.AuditLogs, 4)
+	assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[3].Action)
 }
