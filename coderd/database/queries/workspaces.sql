@@ -132,6 +132,8 @@ WHERE
 			name ILIKE '%' || @name || '%'
 		ELSE true
 	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
+	-- @authorize_filter
 ORDER BY
     last_used_at DESC
 LIMIT
