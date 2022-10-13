@@ -251,8 +251,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
-// STARTS HERE
-
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -545,8 +543,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
-
-// ENDS HERE !!!!!
 
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
