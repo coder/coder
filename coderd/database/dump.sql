@@ -151,7 +151,8 @@ CREATE TABLE files (
     created_at timestamp with time zone NOT NULL,
     created_by uuid NOT NULL,
     mimetype character varying(64) NOT NULL,
-    data bytea NOT NULL
+    data bytea NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
 CREATE TABLE gitsshkeys (
@@ -270,10 +271,10 @@ CREATE TABLE provisioner_jobs (
     initiator_id uuid NOT NULL,
     provisioner provisioner_type NOT NULL,
     storage_method provisioner_storage_method NOT NULL,
-    storage_source text NOT NULL,
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
-    worker_id uuid
+    worker_id uuid,
+    file_id uuid NOT NULL
 );
 
 CREATE TABLE site_configs (
@@ -432,7 +433,10 @@ ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY files
-    ADD CONSTRAINT files_pkey PRIMARY KEY (hash);
+    ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
+
+ALTER TABLE ONLY files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);

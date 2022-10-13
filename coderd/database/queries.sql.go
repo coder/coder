@@ -647,19 +647,26 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
-const getFileByHash = `-- name: GetFileByHash :one
+const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
-	hash, created_at, created_by, mimetype, data
+	hash, created_at, created_by, mimetype, data, id
 FROM
 	files
 WHERE
 	hash = $1
+AND
+	created_by = $2
 LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, error) {
-	row := q.db.QueryRowContext(ctx, getFileByHash, hash)
+type GetFileByHashAndCreatorParams struct {
+	Hash      string    `db:"hash" json:"hash"`
+	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error) {
+	row := q.db.QueryRowContext(ctx, getFileByHashAndCreator, arg.Hash, arg.CreatedBy)
 	var i File
 	err := row.Scan(
 		&i.Hash,
@@ -667,18 +674,45 @@ func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, erro
 		&i.CreatedBy,
 		&i.Mimetype,
 		&i.Data,
+		&i.ID,
+	)
+	return i, err
+}
+
+const getFileByID = `-- name: GetFileByID :one
+SELECT
+	hash, created_at, created_by, mimetype, data, id
+FROM
+	files
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error) {
+	row := q.db.QueryRowContext(ctx, getFileByID, id)
+	var i File
+	err := row.Scan(
+		&i.Hash,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.Mimetype,
+		&i.Data,
+		&i.ID,
 	)
 	return i, err
 }
 
 const insertFile = `-- name: InsertFile :one
 INSERT INTO
-	files (hash, created_at, created_by, mimetype, "data")
+	files (id, hash, created_at, created_by, mimetype, "data")
 VALUES
-	($1, $2, $3, $4, $5) RETURNING hash, created_at, created_by, mimetype, data
+	($1, $2, $3, $4, $5, $6) RETURNING hash, created_at, created_by, mimetype, data, id
 `
 
 type InsertFileParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
@@ -688,6 +722,7 @@ type InsertFileParams struct {
 
 func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File, error) {
 	row := q.db.QueryRowContext(ctx, insertFile,
+		arg.ID,
 		arg.Hash,
 		arg.CreatedAt,
 		arg.CreatedBy,
@@ -701,6 +736,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 		&i.CreatedBy,
 		&i.Mimetype,
 		&i.Data,
+		&i.ID,
 	)
 	return i, err
 }
@@ -2237,7 +2273,7 @@ WHERE
 			SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
 `
 
 type AcquireProvisionerJobParams struct {
@@ -2267,17 +2303,17 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.InitiatorID,
 		&i.Provisioner,
 		&i.StorageMethod,
-		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
+		&i.FileID,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
 FROM
 	provisioner_jobs
 WHERE
@@ -2299,17 +2335,17 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.InitiatorID,
 		&i.Provisioner,
 		&i.StorageMethod,
-		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
+		&i.FileID,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
 FROM
 	provisioner_jobs
 WHERE
@@ -2337,10 +2373,10 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.InitiatorID,
 			&i.Provisioner,
 			&i.StorageMethod,
-			&i.StorageSource,
 			&i.Type,
 			&i.Input,
 			&i.WorkerID,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}
@@ -2356,7 +2392,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -2380,10 +2416,10 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.InitiatorID,
 			&i.Provisioner,
 			&i.StorageMethod,
-			&i.StorageSource,
 			&i.Type,
 			&i.Input,
 			&i.WorkerID,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}
@@ -2408,12 +2444,12 @@ INSERT INTO
 		initiator_id,
 		provisioner,
 		storage_method,
-		storage_source,
+		file_id,
 		"type",
 		"input"
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
 `
 
 type InsertProvisionerJobParams struct {
@@ -2424,7 +2460,7 @@ type InsertProvisionerJobParams struct {
 	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource  string                   `db:"storage_source" json:"storage_source"`
+	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 }
@@ -2438,7 +2474,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.InitiatorID,
 		arg.Provisioner,
 		arg.StorageMethod,
-		arg.StorageSource,
+		arg.FileID,
 		arg.Type,
 		arg.Input,
 	)
@@ -2455,10 +2491,10 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.InitiatorID,
 		&i.Provisioner,
 		&i.StorageMethod,
-		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
+		&i.FileID,
 	)
 	return i, err
 }

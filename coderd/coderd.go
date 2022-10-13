@@ -280,7 +280,7 @@ func New(options *Options) *API {
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
 			)
-			r.Get("/{hash}", api.fileByHash)
+			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
 

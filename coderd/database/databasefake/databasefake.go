@@ -316,12 +316,24 @@ func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetFileByHash(_ context.Context, hash string) (database.File, error) {
+func (q *fakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for _, file := range q.files {
-		if file.Hash == hash {
+		if file.Hash == arg.Hash && file.CreatedBy == arg.CreatedBy {
+			return file, nil
+		}
+	}
+	return database.File{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.File, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, file := range q.files {
+		if file.ID == id {
 			return file, nil
 		}
 	}
@@ -1901,6 +1913,7 @@ func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 
 	//nolint:gosimple
 	file := database.File{
+		ID:        arg.ID,
 		Hash:      arg.Hash,
 		CreatedAt: arg.CreatedAt,
 		CreatedBy: arg.CreatedBy,
@@ -2085,7 +2098,7 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		InitiatorID:    arg.InitiatorID,
 		Provisioner:    arg.Provisioner,
 		StorageMethod:  arg.StorageMethod,
-		StorageSource:  arg.StorageSource,
+		FileID:         arg.FileID,
 		Type:           arg.Type,
 		Input:          arg.Input,
 	}

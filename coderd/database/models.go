@@ -404,6 +404,7 @@ type File struct {
 	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -501,10 +502,10 @@ type ProvisionerJob struct {
 	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource  string                   `db:"storage_source" json:"storage_source"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
+	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 }
 
 type ProvisionerJobLog struct {
