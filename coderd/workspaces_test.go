@@ -781,6 +781,47 @@ func TestWorkspaceFilterManual(t *testing.T) {
 	})
 }
 
+func TestOffsetLimit(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	// empty finds all workspaces
+	ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, ws, 3)
+
+	// offset 1 finds 2 workspaces
+	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Offset: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, ws, 2)
+
+	// offset 1 limit 1 finds 1 workspace
+	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Offset: 1,
+		Limit:  1,
+	})
+	require.NoError(t, err)
+	require.Len(t, ws, 1)
+
+	// offset 3 finds no workspaces
+	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Offset: 3,
+	})
+	require.NoError(t, err)
+	require.Len(t, ws, 0)
+}
+
 func TestPostWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("NoTemplateVersion", func(t *testing.T) {

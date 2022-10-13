@@ -5553,6 +5553,17 @@ WHERE
 			name ILIKE '%' || $7 || '%'
 		ELSE true
 	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
+	-- @authorize_filter
+ORDER BY
+    last_used_at DESC
+LIMIT
+    CASE
+        WHEN $9 :: integer > 0 THEN
+            $9
+    END
+OFFSET
+    $8
 `
 
 type GetWorkspacesParams struct {
@@ -5563,6 +5574,8 @@ type GetWorkspacesParams struct {
 	TemplateName  string      `db:"template_name" json:"template_name"`
 	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name          string      `db:"name" json:"name"`
+	Offset        int32       `db:"offset_" json:"offset_"`
+	Limit         int32       `db:"limit_" json:"limit_"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error) {
@@ -5574,6 +5587,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
 		arg.Name,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
