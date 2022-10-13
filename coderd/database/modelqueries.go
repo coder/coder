@@ -166,7 +166,7 @@ type workspaceQuerier interface {
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
-	// authorizedFilter between the end of the where claus and those statements.
+	// authorizedFilter between the end of the where clause and those statements.
 	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filter)
