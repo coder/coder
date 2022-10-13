@@ -137,9 +137,12 @@ WHERE
 ORDER BY
     last_used_at DESC
 LIMIT
-    $1
+    CASE
+		WHEN @limit_ :: integer > 0 THEN
+			@limit_
+	END
 OFFSET
-    $2
+    @offset_
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one

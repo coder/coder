@@ -5457,60 +5457,60 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
-	workspaces.deleted = $3
+	workspaces.deleted = $1
 	AND CASE
-		WHEN $4 :: text != '' THEN
+		WHEN $2 :: text != '' THEN
 			CASE
-				WHEN $4 = 'pending' THEN
+				WHEN $2 = 'pending' THEN
 					latest_build.started_at IS NULL
-				WHEN $4 = 'starting' THEN
+				WHEN $2 = 'starting' THEN
 					latest_build.started_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.completed_at IS NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'start'::workspace_transition
 
-				WHEN $4 = 'running' THEN
+				WHEN $2 = 'running' THEN
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
 					latest_build.transition = 'start'::workspace_transition
 
-				WHEN $4 = 'stopping' THEN
+				WHEN $2 = 'stopping' THEN
 					latest_build.started_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.completed_at IS NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'stop'::workspace_transition
 
-				WHEN $4 = 'stopped' THEN
+				WHEN $2 = 'stopped' THEN
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
 					latest_build.transition = 'stop'::workspace_transition
 
-				WHEN $4 = 'failed' THEN
+				WHEN $2 = 'failed' THEN
 					(latest_build.canceled_at IS NOT NULL AND
 						latest_build.error IS NOT NULL) OR
 					(latest_build.completed_at IS NOT NULL AND
 						latest_build.error IS NOT NULL)
 
-				WHEN $4 = 'canceling' THEN
+				WHEN $2 = 'canceling' THEN
 					latest_build.canceled_at IS NOT NULL AND
 					latest_build.completed_at IS NULL
 
-				WHEN $4 = 'canceled' THEN
+				WHEN $2 = 'canceled' THEN
 					latest_build.canceled_at IS NOT NULL AND
 					latest_build.completed_at IS NOT NULL
 
-				WHEN $4 = 'deleted' THEN
+				WHEN $2 = 'deleted' THEN
 					latest_build.started_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'delete'::workspace_transition
 
-				WHEN $4 = 'deleting' THEN
+				WHEN $2 = 'deleting' THEN
 					latest_build.completed_at IS NOT NULL AND
 					latest_build.canceled_at IS NULL AND
 					latest_build.error IS NULL AND
@@ -5523,34 +5523,34 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $5 :: uuid != '00000000-00000000-00000000-00000000' THEN
-			owner_id = $5
+		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = $3
 		ELSE true
 	END
 	-- Filter by owner_name
 	AND CASE
-		WHEN $6 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower($6) AND deleted = false)
+		WHEN $4 :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($7)  AND deleted = false)
+		WHEN $5 :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5)  AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($8 :: uuid[], 1) > 0 THEN
-			template_id = ANY($8)
+		WHEN array_length($6 :: uuid[], 1) > 0 THEN
+			template_id = ANY($6)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			name ILIKE '%' || $9 || '%'
+		WHEN $7 :: text != '' THEN
+			name ILIKE '%' || $7 || '%'
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
@@ -5558,14 +5558,15 @@ WHERE
 ORDER BY
     last_used_at DESC
 LIMIT
-    $1
+    CASE
+		WHEN $9 :: integer > 0 THEN
+			$9
+	END
 OFFSET
-    $2
+    $8
 `
 
 type GetWorkspacesParams struct {
-	Limit         int32       `db:"limit" json:"limit"`
-	Offset        int32       `db:"offset" json:"offset"`
 	Deleted       bool        `db:"deleted" json:"deleted"`
 	Status        string      `db:"status" json:"status"`
 	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
@@ -5573,12 +5574,12 @@ type GetWorkspacesParams struct {
 	TemplateName  string      `db:"template_name" json:"template_name"`
 	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name          string      `db:"name" json:"name"`
+	Offset        int32       `db:"offset_" json:"offset_"`
+	Limit         int32       `db:"limit_" json:"limit_"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
-		arg.Limit,
-		arg.Offset,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
@@ -5586,6 +5587,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
 		arg.Name,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
