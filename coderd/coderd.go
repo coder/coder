@@ -558,7 +558,10 @@ func (api *API) Close() error {
 	api.websocketWaitMutex.Unlock()
 
 	api.metricsCache.Close()
-
+	coordinator := api.TailnetCoordinator.Load()
+	if coordinator != nil {
+		_ = (*coordinator).Close()
+	}
 	return api.workspaceAgentCache.Close()
 }
 

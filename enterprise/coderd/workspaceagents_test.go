@@ -89,9 +89,9 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
-	defer func() {
+	t.Cleanup(func() {
 		_ = agentCloser.Close()
-	}()
+	})
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return resources[0].Agents[0].ID
 }
