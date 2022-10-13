@@ -175,6 +175,7 @@ export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
  * @param template
  * @returns number, in hours
  */
-export const getMaxDeadlineChange = (deadline: dayjs.Dayjs, extremeDeadline: dayjs.Dayjs): number => (
-  Math.abs(deadline.diff(extremeDeadline, "hours"))
-)
+export const getMaxDeadlineChange = (
+  deadline: dayjs.Dayjs,
+  extremeDeadline: dayjs.Dayjs,
+): number => Math.abs(deadline.diff(extremeDeadline, "hours"))

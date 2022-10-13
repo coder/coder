@@ -17,11 +17,11 @@ export default {
       defaultValue: true,
     },
     deadlineMinusEnabled: {
-      defaultValue: (): boolean => false
+      defaultValue: (): boolean => false,
     },
     deadlinePlusEnabled: {
-      defaultValue: (): boolean => false
-    }
+      defaultValue: (): boolean => false,
+    },
   },
 }
 

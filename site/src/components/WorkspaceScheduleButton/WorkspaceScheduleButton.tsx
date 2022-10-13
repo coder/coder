@@ -95,7 +95,12 @@ export const WorkspaceScheduleButton: React.FC<
   return (
     <span className={styles.wrapper}>
       <Maybe condition={shouldDisplayScheduleLabel(workspace)}>
-        <Stack className={styles.label} spacing={1} direction="row" alignItems="center" >
+        <Stack
+          className={styles.label}
+          spacing={1}
+          direction="row"
+          alignItems="center"
+        >
           <WorkspaceScheduleLabel workspace={workspace} />
           <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
             <span className={styles.actions}>
@@ -125,7 +130,12 @@ export const WorkspaceScheduleButton: React.FC<
               </IconButton>
             </span>
             <Maybe condition={editMode !== "off"}>
-              <EditHours handleSubmit={handleSubmitHours} max={editMode === "add" ? maxDeadlineIncrease : maxDeadlineDecrease} />
+              <EditHours
+                handleSubmit={handleSubmitHours}
+                max={
+                  editMode === "add" ? maxDeadlineIncrease : maxDeadlineDecrease
+                }
+              />
             </Maybe>
           </Maybe>
         </Stack>
@@ -226,12 +236,16 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   addButton: {
     borderRadius: theme.shape.borderRadius,
     border: ({ editMode }) =>
-      editMode === "add" ? `2px solid ${theme.palette.primary.main}` : "2px solid transparent",
+      editMode === "add"
+        ? `2px solid ${theme.palette.primary.main}`
+        : "2px solid transparent",
   },
   subtractButton: {
     borderRadius: theme.shape.borderRadius,
     border: ({ editMode }) =>
-      editMode === "subtract" ? `2px solid ${theme.palette.primary.main}` : "2px solid transparent"
+      editMode === "subtract"
+        ? `2px solid ${theme.palette.primary.main}`
+        : "2px solid transparent",
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
