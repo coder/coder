@@ -113,6 +113,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		// If no resources were provided, there's nothing we can audit.
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
+			fmt.Println("FUCK")
 			return
 		}
 

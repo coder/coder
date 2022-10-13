@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -33,6 +34,7 @@ type MockAuditor struct {
 
 func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
 	a.AuditLogs = append(a.AuditLogs, alog)
+	fmt.Println("WE APPENDED len: ", len(a.AuditLogs))
 	return nil
 }
 

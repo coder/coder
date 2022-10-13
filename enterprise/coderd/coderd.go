@@ -20,8 +20,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/audit"
-	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd/license"
 )
 
@@ -178,11 +176,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureAuditLog); changed {
 		auditor := agplaudit.NewNop()
 		if enabled {
-			auditor = audit.NewAuditor(
-				audit.DefaultFilter,
-				backends.NewPostgres(api.Database, true),
-				backends.NewSlog(api.Logger),
-			)
+			auditor = api.AGPL.Options.Auditor
 		}
 		api.AGPL.Auditor.Store(&auditor)
 	}

@@ -42,6 +42,7 @@ func TestCreateGroup(t *testing.T) {
 
 		auditor := audit.NewMock()
 		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Auditor:                  auditor,
@@ -51,7 +52,9 @@ func TestCreateGroup(t *testing.T) {
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			TemplateRBACEnabled: true,
+			AuditLog:            true,
 		})
+
 		ctx, _ := testutil.Context(t)
 
 		numLogs := len(auditor.AuditLogs)
@@ -200,16 +203,20 @@ func TestPatchGroup(t *testing.T) {
 
 		auditor := audit.NewMock()
 		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Auditor:                  auditor,
 			},
 		})
+
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			TemplateRBACEnabled: true,
+			AuditLog:            true,
 		})
+
 		ctx, _ := testutil.Context(t)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -553,6 +560,7 @@ func TestDeleteGroup(t *testing.T) {
 
 		auditor := audit.NewMock()
 		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Auditor:                  auditor,
@@ -562,6 +570,7 @@ func TestDeleteGroup(t *testing.T) {
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			TemplateRBACEnabled: true,
+			AuditLog:            true,
 		})
 		ctx, _ := testutil.Context(t)
 

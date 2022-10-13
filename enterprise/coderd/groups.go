@@ -21,8 +21,9 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	var (
 		ctx               = r.Context()
 		org               = httpmw.OrganizationParam(r)
+		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:   api.Auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
@@ -71,9 +72,9 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
-		auditor           = api.Auditor
+		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:   auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
@@ -202,9 +203,9 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
-		auditor           = api.Auditor
+		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:   auditor,
+			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionDelete,
