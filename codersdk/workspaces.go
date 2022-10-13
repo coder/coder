@@ -93,6 +93,10 @@ type WorkspaceBuildsRequest struct {
 	Since time.Time
 }
 
+type WorkspaceBuildsResponse struct {
+	Builds []WorkspaceBuild `json:"builds"`
+}
+
 func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
 	res, err := c.Request(
 		ctx, http.MethodGet,
@@ -106,8 +110,9 @@ func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var workspaceBuild []WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+
+	var resp WorkspaceBuildsResponse
+	return resp.Builds, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // CreateWorkspaceBuild queues a new build to occur for a workspace.
@@ -283,6 +288,10 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 	}
 }
 
+type WorkspacesResponse struct {
+	Workspaces []Workspace `json:"workspaces"`
+}
+
 // Workspaces returns all workspaces the authenticated user has access to.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
@@ -295,8 +304,8 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 		return nil, readBodyAsError(res)
 	}
 
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+	var resp WorkspacesResponse
+	return resp.Workspaces, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.

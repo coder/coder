@@ -52,6 +52,10 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 	return nil
 }
 
+type TemplateVersionSchemaResponse struct {
+	ParameterSchemas []ParameterSchema `json:"parameter_schemas"`
+}
+
 // TemplateVersionSchema returns schemas for a template version by ID.
 func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
@@ -62,8 +66,13 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []ParameterSchema
-	return params, json.NewDecoder(res.Body).Decode(&params)
+
+	var resp TemplateVersionSchemaResponse
+	return resp.ParameterSchemas, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+type TemplateVersionParametersResponse struct {
+	Parameters []ComputedParameter `json:"parameters"`
 }
 
 // TemplateVersionParameters returns computed parameters for a template version.
@@ -76,8 +85,13 @@ func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUI
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []ComputedParameter
-	return params, json.NewDecoder(res.Body).Decode(&params)
+
+	var resp TemplateVersionParametersResponse
+	return resp.Parameters, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+type ResourcesResponse struct {
+	Resources []WorkspaceResource `json:"resources"`
 }
 
 // TemplateVersionResources returns resources a template version declares.
@@ -90,8 +104,9 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var resources []WorkspaceResource
-	return resources, json.NewDecoder(res.Body).Decode(&resources)
+
+	var resp ResourcesResponse
+	return resp.Resources, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // TemplateVersionLogsBefore returns logs that occurred before a specific time.
@@ -155,8 +170,8 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 		return nil, readBodyAsError(res)
 	}
 
-	var resources []WorkspaceResource
-	return resources, json.NewDecoder(res.Body).Decode(&resources)
+	var resp ResourcesResponse
+	return resp.Resources, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // TemplateVersionDryRunLogsBefore returns logs for a template version dry-run

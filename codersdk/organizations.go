@@ -11,19 +11,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type ProvisionerStorageMethod string
-
-const (
-	ProvisionerStorageMethodFile ProvisionerStorageMethod = "file"
-)
-
-type ProvisionerType string
-
-const (
-	ProvisionerTypeEcho      ProvisionerType = "echo"
-	ProvisionerTypeTerraform ProvisionerType = "terraform"
-)
-
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
 	ID        uuid.UUID `json:"id" validate:"required"`
@@ -102,6 +89,10 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 	return organization, json.NewDecoder(res.Body).Decode(&organization)
 }
 
+type ProvisionerDaemonsResponse struct {
+	ProvisionerDaemons []ProvisionerDaemon `json:"provisioner_daemons"`
+}
+
 // ProvisionerDaemonsByOrganization returns provisioner daemons available for an organization.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	res, err := c.Request(ctx, http.MethodGet,
@@ -117,8 +108,8 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 		return nil, readBodyAsError(res)
 	}
 
-	var daemons []ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+	var resp ProvisionerDaemonsResponse
+	return resp.ProvisionerDaemons, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // CreateTemplateVersion processes source-code and optionally associates the version with a template.
@@ -160,6 +151,10 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 	return template, json.NewDecoder(res.Body).Decode(&template)
 }
 
+type TemplatesResponse struct {
+	Templates []Template `json:"templates"`
+}
+
 // TemplatesByOrganization lists all templates inside of an organization.
 func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Template, error) {
 	res, err := c.Request(ctx, http.MethodGet,
@@ -175,8 +170,8 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 		return nil, readBodyAsError(res)
 	}
 
-	var templates []Template
-	return templates, json.NewDecoder(res.Body).Decode(&templates)
+	var resp TemplatesResponse
+	return resp.Templates, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.

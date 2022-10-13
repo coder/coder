@@ -149,7 +149,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, wss)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+		Workspaces: wss,
+	})
 }
 
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {

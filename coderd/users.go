@@ -207,7 +207,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		RbacRole:  params.RbacRole,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.User{})
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.UsersResponse{
+			Users: []codersdk.User{},
+		})
 		return
 	}
 	if err != nil {
@@ -248,7 +250,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUsers(users, organizationIDsByUserID))
+	render.JSON(rw, r, codersdk.UsersResponse{
+		Users: convertUsers(users, organizationIDsByUserID),
+	})
 }
 
 // Creates a new user.
@@ -813,8 +817,8 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 
 	organizations, err := api.Database.GetOrganizationsByUserID(ctx, user.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
 		organizations = []database.Organization{}
+		err = nil
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -839,7 +843,9 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, publicOrganizations)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationsByUserResponse{
+		Organizations: publicOrganizations,
+	})
 }
 
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {

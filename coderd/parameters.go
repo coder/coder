@@ -99,6 +99,7 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		ScopeIds: []uuid.UUID{scopeID},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
+		parameterValues = []database.ParameterValue{}
 		err = nil
 	}
 	if err != nil {
@@ -113,7 +114,9 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		apiParameterValues = append(apiParameterValues, convertParameterValue(parameterValue))
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, apiParameterValues)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ParametersResponse{
+		Parameters: apiParameterValues,
+	})
 }
 
 func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {

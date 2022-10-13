@@ -59,7 +59,11 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (*GenerateAPIKey
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
-// GetTokens list machine API keys.
+type GetTokensResponse struct {
+	Tokens []APIKey `json:"tokens"`
+}
+
+// GetTokens list API keys.
 func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
 	if err != nil {
@@ -69,8 +73,9 @@ func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error)
 	if res.StatusCode > http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var apiKey = []APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+
+	var resp GetTokensResponse
+	return resp.Tokens, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetAPIKey returns the api key by id.

@@ -71,7 +71,9 @@ func (api *API) workspaceAgentApps(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, convertApps(dbApps))
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceAgentAppsResponse{
+		Apps: convertApps(dbApps),
+	})
 }
 
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {

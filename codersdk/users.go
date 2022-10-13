@@ -313,6 +313,10 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+type UsersResponse struct {
+	Users []User `json:"users"`
+}
+
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
 func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
@@ -346,8 +350,12 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 		return []User{}, readBodyAsError(res)
 	}
 
-	var users []User
-	return users, json.NewDecoder(res.Body).Decode(&users)
+	var resp UsersResponse
+	return resp.Users, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+type OrganizationsByUserResponse struct {
+	Organizations []Organization `json:"organizations"`
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.
@@ -360,8 +368,9 @@ func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organi
 	if res.StatusCode > http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var orgs []Organization
-	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
+
+	var resp OrganizationsByUserResponse
+	return resp.Organizations, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, user string, name string) (Organization, error) {

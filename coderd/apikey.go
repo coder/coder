@@ -129,8 +129,8 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 
 	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.APIKey{})
-		return
+		keys = []database.APIKey{}
+		err = nil
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -145,7 +145,9 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		apiKeys = append(apiKeys, convertAPIKey(key))
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, apiKeys)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetTokensResponse{
+		Tokens: apiKeys,
+	})
 }
 
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {

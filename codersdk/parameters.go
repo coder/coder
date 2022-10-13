@@ -128,6 +128,10 @@ func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id u
 	return nil
 }
 
+type ParametersResponse struct {
+	Parameters []Parameter `json:"parameters"`
+}
+
 func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id uuid.UUID) ([]Parameter, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), nil)
 	if err != nil {
@@ -139,6 +143,6 @@ func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id uuid.U
 		return nil, readBodyAsError(res)
 	}
 
-	var parameters []Parameter
-	return parameters, json.NewDecoder(res.Body).Decode(&parameters)
+	var resp ParametersResponse
+	return resp.Parameters, json.NewDecoder(res.Body).Decode(&resp)
 }

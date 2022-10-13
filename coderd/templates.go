@@ -381,7 +381,9 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates, workspaceCounts, createdByNameMap))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplatesResponse{
+		Templates: api.convertTemplates(templates, workspaceCounts, createdByNameMap),
+	})
 }
 
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {

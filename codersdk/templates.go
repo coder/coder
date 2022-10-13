@@ -107,6 +107,10 @@ type TemplateVersionsByTemplateRequest struct {
 	Pagination
 }
 
+type TemplateVersionsByTemplateResponse struct {
+	TemplateVersions []TemplateVersion `json:"template_versions"`
+}
+
 // TemplateVersionsByTemplate lists versions associated with a template.
 func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID), nil, req.Pagination.asRequestOption())
@@ -117,8 +121,9 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var templateVersion []TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+
+	var resp TemplateVersionsByTemplateResponse
+	return resp.TemplateVersions, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // TemplateVersionByName returns a template version by it's friendly name.

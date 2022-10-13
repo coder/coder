@@ -148,7 +148,9 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		}
 		apiSchemas = append(apiSchemas, apiSchema)
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateVersionSchemaResponse{
+		ParameterSchemas: apiSchemas,
+	})
 }
 
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
@@ -190,7 +192,9 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 		values = []parameter.ComputedValue{}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, values)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateVersionParametersResponse{
+		Parameters: convertComputedValues(values),
+	})
 }
 
 func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
@@ -467,7 +471,9 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			OffsetOpt:  int32(paginationParams.Offset),
 		})
 		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusOK, apiVersions)
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateVersionsByTemplateResponse{
+				TemplateVersions: apiVersions,
+			})
 			return err
 		}
 		if err != nil {
@@ -520,7 +526,9 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, apiVersions)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateVersionsByTemplateResponse{
+		TemplateVersions: apiVersions,
+	})
 }
 
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
@@ -915,4 +923,67 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedByID:    version.CreatedBy.UUID,
 		CreatedByName:  createdByName,
 	}
+}
+
+func convertParameterScopeToSDK(scope database.ParameterScope) codersdk.ParameterScope {
+	switch scope {
+	case database.ParameterScopeTemplate:
+		return codersdk.ParameterTemplate
+	case database.ParameterScopeWorkspace:
+		return codersdk.ParameterWorkspace
+	case database.ParameterScopeImportJob:
+		return codersdk.ParameterImportJob
+	}
+
+	return codersdk.ParameterScope(scope)
+}
+
+func convertParameterSourceSchemeToSDK(scheme database.ParameterSourceScheme) codersdk.ParameterSourceScheme {
+	switch scheme {
+	case database.ParameterSourceSchemeNone:
+		return codersdk.ParameterSourceSchemeNone
+	case database.ParameterSourceSchemeData:
+		return codersdk.ParameterSourceSchemeData
+	}
+
+	return codersdk.ParameterSourceScheme(scheme)
+}
+
+func convertParameterDestinationSchemeToSDK(scheme database.ParameterDestinationScheme) codersdk.ParameterDestinationScheme {
+	switch scheme {
+	case database.ParameterDestinationSchemeNone:
+		return codersdk.ParameterDestinationSchemeNone
+	case database.ParameterDestinationSchemeEnvironmentVariable:
+		return codersdk.ParameterDestinationSchemeEnvironmentVariable
+	case database.ParameterDestinationSchemeProvisionerVariable:
+		return codersdk.ParameterDestinationSchemeProvisionerVariable
+	}
+
+	return codersdk.ParameterDestinationScheme(scheme)
+}
+
+func convertComputedValue(param parameter.ComputedValue) codersdk.ComputedParameter {
+	return codersdk.ComputedParameter{
+		Parameter: codersdk.Parameter{
+			ID:                param.ID,
+			Scope:             convertParameterScopeToSDK(param.Scope),
+			ScopeID:           param.ScopeID,
+			Name:              param.Name,
+			SourceScheme:      convertParameterSourceSchemeToSDK(param.SourceScheme),
+			DestinationScheme: convertParameterDestinationSchemeToSDK(param.DestinationScheme),
+			CreatedAt:         param.CreatedAt,
+			UpdatedAt:         param.UpdatedAt,
+		},
+		SourceValue:        param.SourceValue,
+		SchemaID:           param.SchemaID,
+		DefaultSourceValue: param.DefaultSourceValue,
+	}
+}
+
+func convertComputedValues(params []parameter.ComputedValue) []codersdk.ComputedParameter {
+	sdkParams := make([]codersdk.ComputedParameter, len(params))
+	for i, param := range params {
+		sdkParams[i] = convertComputedValue(param)
+	}
+	return sdkParams
 }

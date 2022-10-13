@@ -34,6 +34,19 @@ const (
 	LogLevelError LogLevel = "error"
 )
 
+type ProvisionerStorageMethod string
+
+const (
+	ProvisionerStorageMethodFile ProvisionerStorageMethod = "file"
+)
+
+type ProvisionerType string
+
+const (
+	ProvisionerTypeEcho      ProvisionerType = "echo"
+	ProvisionerTypeTerraform ProvisionerType = "terraform"
+)
+
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `json:"id"`
 	CreatedAt    time.Time         `json:"created_at"`
@@ -83,6 +96,10 @@ type ProvisionerJobLog struct {
 	Output    string    `json:"output"`
 }
 
+type ProvisionerJobLogsResponse struct {
+	Logs []ProvisionerJobLog `json:"logs"`
+}
+
 // provisionerJobLogsBefore provides log output that occurred before a time.
 // This is abstracted from a specific job type to provide consistency between
 // APIs. Logs is the only shared route between jobs.
@@ -100,8 +117,8 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, befo
 		return nil, readBodyAsError(res)
 	}
 
-	var logs []ProvisionerJobLog
-	return logs, json.NewDecoder(res.Body).Decode(&logs)
+	var resp ProvisionerJobLogsResponse
+	return resp.Logs, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.

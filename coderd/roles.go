@@ -20,7 +20,9 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AssignableRolesResponse{
+		Roles: assignableRoles(actorRoles.Roles, roles),
+	})
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
@@ -35,7 +37,9 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AssignableRolesResponse{
+		Roles: assignableRoles(actorRoles.Roles, roles),
+	})
 }
 
 func convertRole(role rbac.Role) codersdk.Role {
@@ -45,13 +49,13 @@ func convertRole(role rbac.Role) codersdk.Role {
 	}
 }
 
-func assignableRoles(actorRoles []string, roles []rbac.Role) []codersdk.AssignableRoles {
-	assignable := make([]codersdk.AssignableRoles, 0)
+func assignableRoles(actorRoles []string, roles []rbac.Role) []codersdk.AssignableRole {
+	assignable := make([]codersdk.AssignableRole, 0)
 	for _, role := range roles {
 		if role.DisplayName == "" {
 			continue
 		}
-		assignable = append(assignable, codersdk.AssignableRoles{
+		assignable = append(assignable, codersdk.AssignableRole{
 			Role: codersdk.Role{
 				Name:        role.Name,
 				DisplayName: role.DisplayName,

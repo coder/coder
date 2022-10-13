@@ -58,7 +58,9 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, daemons)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProvisionerDaemonsResponse{
+		ProvisionerDaemons: provisionerDaemonsToSDK(daemons),
+	})
 }
 
 // ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
@@ -963,4 +965,41 @@ func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkpro
 	default:
 		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
 	}
+}
+
+func provisionerTypeToSDK(pt database.ProvisionerType) codersdk.ProvisionerType {
+	switch pt {
+	case database.ProvisionerTypeEcho:
+		return codersdk.ProvisionerTypeEcho
+	case database.ProvisionerTypeTerraform:
+		return codersdk.ProvisionerTypeTerraform
+	default:
+		return ""
+	}
+}
+
+func provisionerDaemonToSDK(p database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
+	pts := make([]codersdk.ProvisionerType, 0, len(p.Provisioners))
+	for _, pt := range p.Provisioners {
+		if sdkpt := provisionerTypeToSDK(pt); sdkpt != "" {
+			pts = append(pts, sdkpt)
+		}
+	}
+
+	return codersdk.ProvisionerDaemon{
+		ID:           p.ID,
+		CreatedAt:    p.CreatedAt,
+		UpdatedAt:    p.UpdatedAt,
+		Name:         p.Name,
+		Provisioners: pts,
+	}
+}
+
+func provisionerDaemonsToSDK(ps []database.ProvisionerDaemon) []codersdk.ProvisionerDaemon {
+	sdkps := make([]codersdk.ProvisionerDaemon, len(ps))
+	for i, p := range ps {
+		sdkps[i] = provisionerDaemonToSDK(p)
+	}
+
+	return sdkps
 }

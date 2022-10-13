@@ -34,14 +34,14 @@ func TestListRoles(t *testing.T) {
 	testCases := []struct {
 		Name            string
 		Client          *codersdk.Client
-		APICall         func(context.Context) ([]codersdk.AssignableRoles, error)
-		ExpectedRoles   []codersdk.AssignableRoles
+		APICall         func(context.Context) ([]codersdk.AssignableRole, error)
+		ExpectedRoles   []codersdk.AssignableRole
 		AuthorizedError string
 	}{
 		{
 			// Members cannot assign any roles
 			Name: "MemberListSite",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
@@ -54,7 +54,7 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "OrgMemberListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
@@ -63,7 +63,7 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "NonOrgMemberListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: forbidden,
@@ -71,7 +71,7 @@ func TestListRoles(t *testing.T) {
 		// Org admin
 		{
 			Name: "OrgAdminListSite",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
@@ -83,7 +83,7 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "OrgAdminListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
@@ -92,7 +92,7 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: forbidden,
@@ -100,7 +100,7 @@ func TestListRoles(t *testing.T) {
 		// Admin
 		{
 			Name: "AdminListSite",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return client.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
@@ -112,7 +112,7 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "AdminListOrg",
-			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
+			APICall: func(ctx context.Context) ([]codersdk.AssignableRole, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
@@ -151,11 +151,11 @@ func convertRole(roleName string) codersdk.Role {
 	}
 }
 
-func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {
-	converted := make([]codersdk.AssignableRoles, 0, len(assignableRoles))
+func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRole {
+	converted := make([]codersdk.AssignableRole, 0, len(assignableRoles))
 	for roleName, assignable := range assignableRoles {
 		role := convertRole(roleName)
-		converted = append(converted, codersdk.AssignableRoles{
+		converted = append(converted, codersdk.AssignableRole{
 			Role:       role,
 			Assignable: assignable,
 		})

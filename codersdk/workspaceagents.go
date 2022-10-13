@@ -448,6 +448,10 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+type WorkspaceAgentAppsResponse struct {
+	Apps []WorkspaceApp `json:"apps"`
+}
+
 // MyWorkspaceAgent returns the requesting agent.
 func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/apps", nil)
@@ -458,8 +462,9 @@ func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error)
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var workspaceApps []WorkspaceApp
-	return workspaceApps, json.NewDecoder(res.Body).Decode(&workspaceApps)
+
+	var resp WorkspaceAgentAppsResponse
+	return resp.Apps, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // PostWorkspaceAgentAppHealth updates the workspace agent app health status.

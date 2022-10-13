@@ -135,7 +135,9 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 
 	if !follow {
 		logger.Debug(ctx, "Finished non-follow job logs")
-		httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProvisionerJobLogsResponse{
+			Logs: convertProvisionerJobLogs(logs),
+		})
 		return
 	}
 
@@ -292,7 +294,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return apiResources[i].Name < apiResources[j].Name
 	})
 
-	httpapi.Write(ctx, rw, http.StatusOK, apiResources)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ResourcesResponse{
+		Resources: apiResources,
+	})
 }
 
 func convertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) []codersdk.ProvisionerJobLog {

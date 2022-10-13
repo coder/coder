@@ -165,7 +165,9 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, apiBuilds)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceBuildsResponse{
+		Builds: apiBuilds,
+	})
 }
 
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
