@@ -138,9 +138,9 @@ ORDER BY
     last_used_at DESC
 LIMIT
     CASE
-		WHEN @limit_ :: integer > 0 THEN
-			@limit_
-	END
+        WHEN @limit_ :: integer > 0 THEN
+            @limit_
+    END
 OFFSET
     @offset_
 ;
