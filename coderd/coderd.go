@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"crypto/x509"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -129,7 +128,6 @@ func New(options *Options) *API {
 		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
 	}
 
-	fmt.Printf("options.Auditor: %T\n", options.Auditor)
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
 		siteCacheDir = filepath.Join(siteCacheDir, "site")
@@ -166,8 +164,6 @@ func New(options *Options) *API {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-
-	fmt.Printf("load it: %T\n", *api.Auditor.Load())
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 		DB:              options.Database,

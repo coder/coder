@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/deployment"
+	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd"
 
 	agpl "github.com/coder/coder/cli"
@@ -27,6 +29,7 @@ func server() *cobra.Command {
 		if err != nil {
 			return nil, err
 		}
+		api.Auditor = audit.NewAuditor(audit.DefaultFilter, backends.NewPostgres(api.Database, true), backends.NewSlog(api.AGPL.Logger))
 		return api.AGPL, nil
 	})
 
