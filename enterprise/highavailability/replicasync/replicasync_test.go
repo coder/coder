@@ -1,4 +1,4 @@
-package replica_test
+package replicasync_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/enterprise/highavailability/replica"
+	"github.com/coder/coder/enterprise/highavailability/replicasync"
 	"github.com/coder/coder/testutil"
 )
 
@@ -32,12 +32,12 @@ func TestReplica(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
 		id := uuid.New()
-		cancel, err := pubsub.Subscribe(replica.PubsubEvent, func(ctx context.Context, message []byte) {
+		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
 			assert.Equal(t, []byte(id.String()), message)
 		})
 		require.NoError(t, err)
 		defer cancel()
-		server, err := replica.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replica.Options{
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
 			ID: id,
 		})
 		require.NoError(t, err)
@@ -54,12 +54,12 @@ func TestReplica(t *testing.T) {
 			ID: id,
 		})
 		require.NoError(t, err)
-		cancel, err := pubsub.Subscribe(replica.PubsubEvent, func(ctx context.Context, message []byte) {
+		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
 			assert.Equal(t, []byte(id.String()), message)
 		})
 		require.NoError(t, err)
 		defer cancel()
-		server, err := replica.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replica.Options{
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
 			ID: id,
 		})
 		require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestReplica(t *testing.T) {
 			RelayAddress: srv.URL,
 		})
 		require.NoError(t, err)
-		server, err := replica.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replica.Options{
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
 			ID: uuid.New(),
 		})
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestReplica(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
 		var count atomic.Int32
-		cancel, err := pubsub.Subscribe(replica.PubsubEvent, func(ctx context.Context, message []byte) {
+		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
 			count.Add(1)
 		})
 		require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestReplica(t *testing.T) {
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
-		server, err := replica.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replica.Options{
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
 			ID:          uuid.New(),
 			PeerTimeout: 1 * time.Millisecond,
 		})
@@ -130,7 +130,7 @@ func TestReplica(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
 		id := uuid.New()
-		server, err := replica.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replica.Options{
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
 			ID: id,
 		})
 		require.NoError(t, err)
@@ -145,9 +145,9 @@ func TestReplica(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Publish multiple times to ensure it can handle that case.
-		err = pubsub.Publish(replica.PubsubEvent, []byte(peer.ID.String()))
+		err = pubsub.Publish(replicasync.PubsubEvent, []byte(peer.ID.String()))
 		require.NoError(t, err)
-		err = pubsub.Publish(replica.PubsubEvent, []byte(peer.ID.String()))
+		err = pubsub.Publish(replicasync.PubsubEvent, []byte(peer.ID.String()))
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			return len(server.Regional()) == 1
@@ -168,7 +168,7 @@ func TestReplica(t *testing.T) {
 		count := 20
 		wg.Add(count)
 		for i := 0; i < count; i++ {
-			server, err := replica.New(context.Background(), logger, db, pubsub, replica.Options{
+			server, err := replicasync.New(context.Background(), logger, db, pubsub, replicasync.Options{
 				ID:           uuid.New(),
 				RelayAddress: srv.URL,
 			})

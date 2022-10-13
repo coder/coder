@@ -1,4 +1,4 @@
-package replica
+package replicasync
 
 import (
 	"context"
@@ -34,7 +34,7 @@ type Options struct {
 
 // New registers the replica with the database and periodically updates to ensure
 // it's healthy. It contacts all other alive replicas to ensure they are reachable.
-func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub, options Options) (*Server, error) {
+func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub, options Options) (*Manager, error) {
 	if options.ID == uuid.Nil {
 		panic("An ID must be provided!")
 	}
@@ -88,7 +88,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 		return nil, xerrors.Errorf("publish new replica: %w", err)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
-	server := &Server{
+	server := &Manager{
 		options:     &options,
 		db:          db,
 		pubsub:      pubsub,
@@ -110,7 +110,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	return server, nil
 }
 
-type Server struct {
+// Manager keeps the replica up to date and in sync with other replicas.
+type Manager struct {
 	options *Options
 	db      database.Store
 	pubsub  database.Pubsub
@@ -128,7 +129,7 @@ type Server struct {
 }
 
 // loop runs the replica update sequence on an update interval.
-func (s *Server) loop(ctx context.Context) {
+func (s *Manager) loop(ctx context.Context) {
 	defer s.closeWait.Done()
 	ticker := time.NewTicker(s.options.UpdateInterval)
 	defer ticker.Stop()
@@ -146,7 +147,7 @@ func (s *Server) loop(ctx context.Context) {
 }
 
 // subscribe listens for new replica information!
-func (s *Server) subscribe(ctx context.Context) error {
+func (s *Manager) subscribe(ctx context.Context) error {
 	needsUpdate := false
 	updating := false
 	updateMutex := sync.Mutex{}
@@ -199,7 +200,7 @@ func (s *Server) subscribe(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) run(ctx context.Context) error {
+func (s *Manager) run(ctx context.Context) error {
 	s.closeMutex.Lock()
 	s.closeWait.Add(1)
 	s.closeMutex.Unlock()
@@ -291,21 +292,21 @@ func (s *Server) run(ctx context.Context) error {
 }
 
 // Self represents the current replica.
-func (s *Server) Self() database.Replica {
+func (s *Manager) Self() database.Replica {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return s.self
 }
 
 // All returns every replica, including itself.
-func (s *Server) All() []database.Replica {
+func (s *Manager) All() []database.Replica {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return append(s.peers, s.self)
 }
 
 // Regional returns all replicas in the same region excluding itself.
-func (s *Server) Regional() []database.Replica {
+func (s *Manager) Regional() []database.Replica {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	replicas := make([]database.Replica, 0)
@@ -320,7 +321,7 @@ func (s *Server) Regional() []database.Replica {
 
 // SetCallback sets a function to execute whenever new peers
 // are refreshed or updated.
-func (s *Server) SetCallback(callback func()) {
+func (s *Manager) SetCallback(callback func()) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.callback = callback
@@ -328,7 +329,7 @@ func (s *Server) SetCallback(callback func()) {
 	go callback()
 }
 
-func (s *Server) Close() error {
+func (s *Manager) Close() error {
 	s.closeMutex.Lock()
 	select {
 	case <-s.closed:

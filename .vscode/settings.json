@@ -85,6 +85,7 @@
     "ptytest",
     "quickstart",
     "reconfig",
+    "replicasync",
     "retrier",
     "rpty",
     "sdkproto",

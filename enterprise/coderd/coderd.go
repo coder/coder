@@ -26,7 +26,7 @@ import (
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/highavailability"
 	"github.com/coder/coder/enterprise/highavailability/derpmesh"
-	"github.com/coder/coder/enterprise/highavailability/replica"
+	"github.com/coder/coder/enterprise/highavailability/replicasync"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -127,7 +127,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	})
 
 	var err error
-	api.replica, err = replica.New(ctx, options.Logger, options.Database, options.Pubsub, replica.Options{
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
 		ID:           options.ReplicaID,
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
@@ -171,7 +171,7 @@ type API struct {
 	*Options
 
 	// Detects multiple Coder replicas running at the same time.
-	replica *replica.Server
+	replicaManager *replicasync.Manager
 	// Meshes DERP connections from multiple replicas.
 	derpMesh *derpmesh.Mesh
 
@@ -182,7 +182,7 @@ type API struct {
 
 func (api *API) Close() error {
 	api.cancelEntitlementsLoop()
-	_ = api.replica.Close()
+	_ = api.replicaManager.Close()
 	_ = api.derpMesh.Close()
 	return api.AGPL.Close()
 }
@@ -256,9 +256,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				coordinator = haCoordinator
 			}
 
-			api.replica.SetCallback(func() {
+			api.replicaManager.SetCallback(func() {
 				addresses := make([]string, 0)
-				for _, replica := range api.replica.Regional() {
+				for _, replica := range api.replicaManager.Regional() {
 					addresses = append(addresses, replica.RelayAddress)
 				}
 				api.derpMesh.SetAddresses(addresses)
