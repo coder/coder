@@ -18,7 +18,7 @@ FROM
 WHERE
 	user_id = $1;
 
--- name: UpdateGitSSHKey :exec
+-- name: UpdateGitSSHKey :one
 UPDATE
 	gitsshkeys
 SET
@@ -26,7 +26,9 @@ SET
 	private_key = $3,
 	public_key = $4
 WHERE
-	user_id = $1;
+	user_id = $1
+RETURNING
+	*;
 
 -- name: DeleteGitSSHKey :exec
 DELETE FROM
