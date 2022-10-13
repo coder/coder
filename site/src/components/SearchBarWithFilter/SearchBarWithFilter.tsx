@@ -5,11 +5,10 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
-import { Theme } from "@material-ui/core/styles/createMuiTheme"
+import { Theme } from "@material-ui/core/styles/createTheme"
 import SearchIcon from "@material-ui/icons/Search"
-import { FormikErrors, useFormik } from "formik"
 import debounce from "just-debounce-it"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
@@ -23,6 +22,7 @@ export interface SearchBarWithFilterProps {
   onFilter: (query: string) => void
   presetFilters?: PresetFilter[]
   error?: unknown
+  docs?: string
 }
 
 export interface PresetFilter {
@@ -30,29 +30,11 @@ export interface PresetFilter {
   query: string
 }
 
-interface FilterFormValues {
-  query: string
-}
-
-export type FilterFormErrors = FormikErrors<FilterFormValues>
-
-export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWithFilterProps>> = ({
-  filter,
-  onFilter,
-  presetFilters,
-  error,
-}) => {
+export const SearchBarWithFilter: React.FC<
+  React.PropsWithChildren<SearchBarWithFilterProps>
+> = ({ filter, onFilter, presetFilters, error, docs }) => {
   const styles = useStyles({ error: Boolean(error) })
-
-  const form = useFormik<FilterFormValues>({
-    enableReinitialize: true,
-    initialValues: {
-      query: filter ?? "",
-    },
-    onSubmit: ({ query }) => {
-      onFilter(query)
-    },
-  })
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // debounce query string entry by user
   // we want the dependency array empty here
@@ -65,12 +47,6 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
     [],
   )
 
-  // update the query params while typing
-  useEffect(() => {
-    debouncedOnFilter(form.values.query)
-    return () => debouncedOnFilter.cancel()
-  }, [debouncedOnFilter, form.values.query])
-
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -82,8 +58,15 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
   }
 
   const setPresetFilter = (query: string) => () => {
-    void form.setFieldValue("query", query)
-    void form.submitForm()
+    if (!searchInputRef.current) {
+      throw new Error("Search input not found.")
+    }
+
+    onFilter(query)
+    // Update this to the input directly instead of create a new state and
+    // re-render the component since the onFilter is already calling the
+    // filtering process
+    searchInputRef.current.value = query
     handleClose()
   }
 
@@ -99,27 +82,34 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
             onClick={handleClick}
             className={styles.buttonRoot}
           >
-            {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
+            {Language.filterName}{" "}
+            {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
           </Button>
         )}
 
-        <form onSubmit={form.handleSubmit} className={styles.filterForm}>
+        <div role="form" className={styles.filterForm}>
           <OutlinedInput
             id="query"
             name="query"
-            value={form.values.query}
+            defaultValue={filter}
             error={Boolean(error)}
             className={styles.inputStyles}
-            onChange={form.handleChange}
+            onChange={(event) => {
+              debouncedOnFilter(event.currentTarget.value)
+            }}
+            inputRef={searchInputRef}
+            inputProps={{
+              "aria-label": "Filter",
+            }}
             startAdornment={
               <InputAdornment position="start" className={styles.searchIcon}>
                 <SearchIcon fontSize="small" />
               </InputAdornment>
             }
           />
-        </form>
+        </div>
 
-        {presetFilters && presetFilters.length && (
+        {presetFilters && presetFilters.length > 0 ? (
           <Menu
             id="filter-menu"
             anchorEl={anchorEl}
@@ -137,14 +127,24 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
             }}
           >
             {presetFilters.map((presetFilter) => (
-              <MenuItem key={presetFilter.name} onClick={setPresetFilter(presetFilter.query)}>
+              <MenuItem
+                key={presetFilter.name}
+                onClick={setPresetFilter(presetFilter.query)}
+              >
                 {presetFilter.name}
               </MenuItem>
             ))}
+            {docs && (
+              <MenuItem component="a" href={docs} target="_blank">
+                View advanced filtering
+              </MenuItem>
+            )}
           </Menu>
-        )}
+        ) : null}
       </Stack>
-      {errorMessage && <Stack className={styles.errorRoot}>{errorMessage}</Stack>}
+      {errorMessage && (
+        <Stack className={styles.errorRoot}>{errorMessage}</Stack>
+      )}
     </Stack>
   )
 }

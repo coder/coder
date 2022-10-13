@@ -139,12 +139,11 @@ func configSSH() *cobra.Command {
 		usePreviousOpts  bool
 		dryRun           bool
 		skipProxyCommand bool
-		wireguard        bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
-		Short:       "Populate your SSH config with Host entries for all of your workspaces",
+		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
 		Example: formatExamples(
 			example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
@@ -289,15 +288,11 @@ func configSSH() *cobra.Command {
 						"\tLogLevel ERROR",
 					)
 					if !skipProxyCommand {
-						wgArg := ""
-						if wireguard {
-							wgArg = "--wireguard "
-						}
 						configOptions = append(
 							configOptions,
 							fmt.Sprintf(
-								"\tProxyCommand %s --global-config %s ssh %s--stdio %s",
-								escapedCoderBinary, escapedGlobalConfig, wgArg, hostname,
+								"\tProxyCommand %s --global-config %s ssh --stdio %s",
+								escapedCoderBinary, escapedGlobalConfig, hostname,
 							),
 						)
 					}
@@ -374,9 +369,6 @@ func configSSH() *cobra.Command {
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
-	_ = cmd.Flags().MarkHidden("wireguard")
-
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd

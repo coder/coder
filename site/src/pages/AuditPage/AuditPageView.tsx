@@ -6,11 +6,15 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
 import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
-import { CodeExample } from "components/CodeExample/CodeExample"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "components/PageHeader/PageHeader"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
+import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { AuditHelpTooltip } from "components/Tooltips"
@@ -19,14 +23,26 @@ import { FC } from "react"
 export const Language = {
   title: "Audit",
   subtitle: "View events in your audit log.",
-  tooltipTitle: "Copy to clipboard and try the Coder CLI",
 }
+
+const presetFilters = [
+  {
+    query: "resource_type:workspace action:create",
+    name: "Created workspaces",
+  },
+  { query: "resource_type:template action:create", name: "Added templates" },
+  { query: "resource_type:user action:create", name: "Added users" },
+  { query: "resource_type:template action:delete", name: "Deleted templates" },
+  { query: "resource_type:user action:delete", name: "Deleted users" },
+]
 
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[]
   count?: number
   page: number
   limit: number
+  filter: string
+  onFilter: (filter: string) => void
   onNext: () => void
   onPrevious: () => void
   onGoToPage: (page: number) => void
@@ -37,6 +53,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   count,
   page,
   limit,
+  filter,
+  onFilter,
   onNext,
   onPrevious,
   onGoToPage,
@@ -47,11 +65,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
   return (
     <Margins>
-      <PageHeader
-        actions={
-          <CodeExample tooltipTitle={Language.tooltipTitle} code="coder audit [organization_ID]" />
-        }
-      >
+      <PageHeader>
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.title}</span>
@@ -60,6 +74,13 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         </PageHeaderTitle>
         <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
       </PageHeader>
+
+      <SearchBarWithFilter
+        docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
+        filter={filter}
+        onFilter={onFilter}
+        presetFilters={presetFilters}
+      />
 
       <TableContainer>
         <Table>
@@ -71,7 +92,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
           <TableBody>
             {isLoading && <TableLoader />}
             {hasResults &&
-              auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)}
+              auditLogs.map((auditLog) => (
+                <AuditLogRow auditLog={auditLog} key={auditLog.id} />
+              ))}
             {isEmpty && (
               <TableRow>
                 <TableCell colSpan={999}>

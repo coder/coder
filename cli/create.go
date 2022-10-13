@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,7 +26,7 @@ func create() *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "create [name]",
-		Short:       "Create a workspace from a template",
+		Short:       "Create a workspace",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -139,7 +140,7 @@ func create() *cobra.Command {
 			}
 
 			after := time.Now()
-			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
 				AutostartSchedule: schedSpec,
@@ -253,7 +254,7 @@ PromptParamLoop:
 		Cancel: func() error {
 			return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
 		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
 			return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
 		},
 		// Don't show log output for the dry-run unless there's an error.

@@ -61,7 +61,6 @@ func TestScheduleShow(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx       = context.Background()
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -69,13 +68,12 @@ func TestScheduleShow(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.AutostartSchedule = nil
+				cwr.TTLMillis = nil
 			})
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			cmdArgs   = []string{"schedule", "show", workspace.Name}
 			stdoutBuf = &bytes.Buffer{}
 		)
-
-		// unset workspace TTL
-		require.NoError(t, client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil}))
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)

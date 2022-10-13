@@ -19,7 +19,9 @@ const ParameterLabel: React.FC<{ schema: ParameterSchema }> = ({ schema }) => {
   return (
     <label className={styles.label} htmlFor={schema.name}>
       <strong>var.{schema.name}</strong>
-      {schema.description && <span className={styles.labelDescription}>{schema.description}</span>}
+      {schema.description && (
+        <span className={styles.labelDescription}>{schema.description}</span>
+      )}
     </label>
   )
 }
@@ -30,28 +32,28 @@ export interface ParameterInputProps {
   onChange: (value: string) => void
 }
 
-export const ParameterInput: FC<React.PropsWithChildren<ParameterInputProps>> = ({
-  disabled,
-  onChange,
-  schema,
-}) => {
+export const ParameterInput: FC<
+  React.PropsWithChildren<ParameterInputProps>
+> = ({ disabled, onChange, schema }) => {
   const styles = useStyles()
 
   return (
     <Stack direction="column" className={styles.root}>
       <ParameterLabel schema={schema} />
       <div className={styles.input}>
-        <ParameterField disabled={disabled} onChange={onChange} schema={schema} />
+        <ParameterField
+          disabled={disabled}
+          onChange={onChange}
+          schema={schema}
+        />
       </div>
     </Stack>
   )
 }
 
-const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = ({
-  disabled,
-  onChange,
-  schema,
-}) => {
+const ParameterField: React.FC<
+  React.PropsWithChildren<ParameterInputProps>
+> = ({ disabled, onChange, schema }) => {
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <TextField

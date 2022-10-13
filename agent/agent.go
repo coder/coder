@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -34,8 +34,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
@@ -52,42 +51,23 @@ const (
 	MagicSessionErrorCode = 229
 )
 
-var (
-	// tailnetIP is a static IPv6 address with the Tailscale prefix that is used to route
-	// connections from clients to this node. A dynamic address is not required because a Tailnet
-	// client only dials a single agent at a time.
-	tailnetIP                  = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-	tailnetSSHPort             = 1
-	tailnetReconnectingPTYPort = 2
-	tailnetSpeedtestPort       = 3
-)
-
 type Options struct {
-	CoordinatorDialer CoordinatorDialer
-	WebRTCDialer      WebRTCDialer
-	FetchMetadata     FetchMetadata
-
-	StatsReporter          StatsReporter
-	ReconnectingPTYTimeout time.Duration
-	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
+	CoordinatorDialer           CoordinatorDialer
+	FetchMetadata               FetchMetadata
+	StatsReporter               StatsReporter
+	WorkspaceAgentApps          WorkspaceAgentApps
+	PostWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
+	ReconnectingPTYTimeout      time.Duration
+	EnvironmentVariables        map[string]string
+	Logger                      slog.Logger
 }
-
-type Metadata struct {
-	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script"`
-	Directory            string            `json:"directory"`
-}
-
-type WebRTCDialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error)
 
 // CoordinatorDialer is a function that constructs a new broker.
 // A dialer must be passed in to allow for reconnects.
-type CoordinatorDialer func(ctx context.Context) (net.Conn, error)
+type CoordinatorDialer func(context.Context) (net.Conn, error)
 
 // FetchMetadata is a function to obtain metadata for the agent.
-type FetchMetadata func(ctx context.Context) (Metadata, error)
+type FetchMetadata func(context.Context) (codersdk.WorkspaceAgentMetadata, error)
 
 func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
@@ -95,24 +75,24 @@ func New(options Options) io.Closer {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		webrtcDialer:           options.WebRTCDialer,
-		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
-		logger:                 options.Logger,
-		closeCancel:            cancelFunc,
-		closed:                 make(chan struct{}),
-		envVars:                options.EnvironmentVariables,
-		coordinatorDialer:      options.CoordinatorDialer,
-		fetchMetadata:          options.FetchMetadata,
-		stats:                  &Stats{},
-		statsReporter:          options.StatsReporter,
+		reconnectingPTYTimeout:      options.ReconnectingPTYTimeout,
+		logger:                      options.Logger,
+		closeCancel:                 cancelFunc,
+		closed:                      make(chan struct{}),
+		envVars:                     options.EnvironmentVariables,
+		coordinatorDialer:           options.CoordinatorDialer,
+		fetchMetadata:               options.FetchMetadata,
+		stats:                       &Stats{},
+		statsReporter:               options.StatsReporter,
+		workspaceAgentApps:          options.WorkspaceAgentApps,
+		postWorkspaceAgentAppHealth: options.PostWorkspaceAgentAppHealth,
 	}
 	server.init(ctx)
 	return server
 }
 
 type agent struct {
-	webrtcDialer WebRTCDialer
-	logger       slog.Logger
+	logger slog.Logger
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -128,14 +108,16 @@ type agent struct {
 	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	network           *tailnet.Conn
-	coordinatorDialer CoordinatorDialer
-	stats             *Stats
-	statsReporter     StatsReporter
+	network                     *tailnet.Conn
+	coordinatorDialer           CoordinatorDialer
+	stats                       *Stats
+	statsReporter               StatsReporter
+	workspaceAgentApps          WorkspaceAgentApps
+	postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
 }
 
 func (a *agent) run(ctx context.Context) {
-	var metadata Metadata
+	var metadata codersdk.WorkspaceAgentMetadata
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
@@ -173,11 +155,12 @@ func (a *agent) run(ctx context.Context) {
 		}
 	}()
 
-	if a.webrtcDialer != nil {
-		go a.runWebRTCNetworking(ctx)
-	}
 	if metadata.DERPMap != nil {
 		go a.runTailnet(ctx, metadata.DERPMap)
+	}
+
+	if a.workspaceAgentApps != nil && a.postWorkspaceAgentAppHealth != nil {
+		go NewWorkspaceAppHealthReporter(a.logger, a.workspaceAgentApps, a.postWorkspaceAgentAppHealth)(ctx)
 	}
 }
 
@@ -193,7 +176,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	}
 	var err error
 	a.network, err = tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnetIP, 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
@@ -210,7 +193,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	})
 	go a.runCoordinator(ctx)
 
-	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSSHPort))
+	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for ssh", slog.Error(err))
 		return
@@ -224,7 +207,8 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
 		}
 	}()
-	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetReconnectingPTYPort))
+
+	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for reconnecting pty", slog.Error(err))
 		return
@@ -250,7 +234,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			if err != nil {
 				continue
 			}
-			var msg reconnectingPTYInit
+			var msg codersdk.ReconnectingPTYInit
 			err = json.Unmarshal(data, &msg)
 			if err != nil {
 				continue
@@ -258,7 +242,8 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
 	}()
-	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(tailnetSpeedtestPort))
+
+	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
 	if err != nil {
 		a.logger.Critical(ctx, "listen for speedtest", slog.Error(err))
 		return
@@ -279,10 +264,44 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			}()
 		}
 	}()
+
+	statisticsListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for statistics", slog.Error(err))
+		return
+	}
+	go func() {
+		defer statisticsListener.Close()
+		server := &http.Server{
+			Handler:           a.statisticsHandler(),
+			ReadTimeout:       20 * time.Second,
+			ReadHeaderTimeout: 20 * time.Second,
+			WriteTimeout:      20 * time.Second,
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
+		}
+		go func() {
+			<-ctx.Done()
+			_ = server.Close()
+		}()
+
+		err = server.Serve(statisticsListener)
+		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
+			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
+		}
+	}()
 }
 
 // runCoordinator listens for nodes and updates the self-node as it changes.
 func (a *agent) runCoordinator(ctx context.Context) {
+	for {
+		reconnect := a.runCoordinatorWithRetry(ctx)
+		if !reconnect {
+			return
+		}
+	}
+}
+
+func (a *agent) runCoordinatorWithRetry(ctx context.Context) (reconnect bool) {
 	var coordinator net.Conn
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
@@ -291,81 +310,38 @@ func (a *agent) runCoordinator(ctx context.Context) {
 		coordinator, err = a.coordinatorDialer(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
-				return
+				return false
 			}
 			if a.isClosed() {
-				return
+				return false
 			}
 			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
+		//nolint:revive // Defer is ok because we're exiting this loop.
+		defer coordinator.Close()
 		a.logger.Info(context.Background(), "connected to coordination server")
 		break
 	}
 	select {
 	case <-ctx.Done():
-		return
+		return false
 	default:
 	}
-	defer coordinator.Close()
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
 	a.network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():
-		return
+		return false
 	case err := <-errChan:
 		if a.isClosed() {
-			return
+			return false
 		}
 		if errors.Is(err, context.Canceled) {
-			return
+			return false
 		}
 		a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
-		a.runCoordinator(ctx)
-		return
-	}
-}
-
-func (a *agent) runWebRTCNetworking(ctx context.Context) {
-	var peerListener *peerbroker.Listener
-	var err error
-	// An exponential back-off occurs when the connection is failing to dial.
-	// This is to prevent server spam in case of a coderd outage.
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = a.webrtcDialer(ctx, a.logger)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if a.isClosed() {
-				return
-			}
-			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
-			continue
-		}
-		a.logger.Info(context.Background(), "connected to webrtc broker")
-		break
-	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
-	for {
-		conn, err := peerListener.Accept()
-		if err != nil {
-			if a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
-			a.runWebRTCNetworking(ctx)
-			return
-		}
-		a.closeMutex.Lock()
-		a.connCloseWait.Add(1)
-		a.closeMutex.Unlock()
-		go a.handlePeerConn(ctx, conn)
+		return true
 	}
 }
 
@@ -374,7 +350,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0600)
+	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
@@ -399,74 +375,6 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	return nil
-}
-
-func (a *agent) handlePeerConn(ctx context.Context, peerConn *peer.Conn) {
-	go func() {
-		select {
-		case <-a.closed:
-		case <-peerConn.Closed():
-		}
-		_ = peerConn.Close()
-		a.connCloseWait.Done()
-	}()
-	for {
-		channel, err := peerConn.Accept(ctx)
-		if err != nil {
-			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
-			return
-		}
-
-		conn := channel.NetConn()
-
-		switch channel.Protocol() {
-		case ProtocolSSH:
-			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
-		case ProtocolReconnectingPTY:
-			rawID := channel.Label()
-			// The ID format is referenced in conn.go.
-			// <uuid>:<height>:<width>
-			idParts := strings.SplitN(rawID, ":", 4)
-			if len(idParts) != 4 {
-				a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
-				continue
-			}
-			id := idParts[0]
-			// Enforce a consistent format for IDs.
-			_, err := uuid.Parse(id)
-			if err != nil {
-				a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
-				continue
-			}
-			// Parse the initial terminal dimensions.
-			height, err := strconv.Atoi(idParts[1])
-			if err != nil {
-				a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
-				continue
-			}
-			width, err := strconv.Atoi(idParts[2])
-			if err != nil {
-				a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
-				continue
-			}
-			go a.handleReconnectingPTY(ctx, reconnectingPTYInit{
-				ID:      id,
-				Height:  uint16(height),
-				Width:   uint16(width),
-				Command: idParts[3],
-			}, a.stats.wrapConn(conn))
-		case ProtocolDial:
-			go a.handleDial(ctx, channel.Label(), a.stats.wrapConn(conn))
-		default:
-			a.logger.Warn(ctx, "unhandled protocol from channel",
-				slog.F("protocol", channel.Protocol()),
-				slog.F("label", channel.Label()),
-			)
-		}
-	}
 }
 
 func (a *agent) init(ctx context.Context) {
@@ -537,6 +445,8 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				session.DisablePTYEmulation()
+
 				server, err := sftp.NewServer(session)
 				if err != nil {
 					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
@@ -554,7 +464,7 @@ func (a *agent) init(ctx context.Context) {
 
 	go a.run(ctx)
 	if a.statsReporter != nil {
-		cl, err := a.statsReporter(ctx, a.logger, func() *Stats {
+		cl, err := a.statsReporter(ctx, a.logger, func() *codersdk.AgentStats {
 			return a.stats.Copy()
 		})
 		if err != nil {
@@ -589,7 +499,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if rawMetadata == nil {
 		return nil, xerrors.Errorf("no metadata was provided: %w", err)
 	}
-	metadata, valid := rawMetadata.(Metadata)
+	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
 	if !valid {
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
@@ -661,7 +571,8 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 }
 
 func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
-	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
+	ctx := session.Context()
+	cmd, err := a.createCommand(ctx, session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
 	}
@@ -678,32 +589,34 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
+		// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
+		// See https://github.com/coder/coder/issues/3371.
+		session.DisablePTYEmulation()
+
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
 		// The pty package sets `SSH_TTY` on supported platforms.
-		ptty, process, err := pty.Start(cmd)
+		ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
+			pty.WithSSHRequest(sshPty),
+			pty.WithLogger(slog.Stdlib(ctx, a.logger, slog.LevelInfo)),
+		))
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
 		defer func() {
 			closeErr := ptty.Close()
 			if closeErr != nil {
-				a.logger.Warn(context.Background(), "failed to close tty",
-					slog.Error(closeErr))
+				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
 				if retErr == nil {
 					retErr = closeErr
 				}
 			}
 		}()
-		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
-		if err != nil {
-			return xerrors.Errorf("resize ptty: %w", err)
-		}
 		go func() {
 			for win := range windowSize {
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
 				if resizeErr != nil {
-					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(resizeErr))
+					a.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()
@@ -718,8 +631,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 		// and not something to be concerned about.  But, if it's something else, we should log it.
 		if err != nil && !xerrors.As(err, &exitErr) {
-			a.logger.Warn(context.Background(), "wait error",
-				slog.Error(err))
+			a.logger.Warn(ctx, "wait error", slog.Error(err))
 		}
 		return err
 	}
@@ -743,7 +655,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYInit, conn net.Conn) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
 	var rpty *reconnectingPTY
@@ -884,7 +796,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 		rpty.activeConnsMutex.Unlock()
 	}()
 	decoder := json.NewDecoder(conn)
-	var req ReconnectingPTYRequest
+	var req codersdk.ReconnectingPTYRequest
 	for {
 		err = decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
@@ -909,70 +821,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg reconnectingPTYIn
 			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 		}
 	}
-}
-
-// dialResponse is written to datachannels with protocol "dial" by the agent as
-// the first packet to signify whether the dial succeeded or failed.
-type dialResponse struct {
-	Error string `json:"error,omitempty"`
-}
-
-func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
-	defer conn.Close()
-
-	writeError := func(responseError error) error {
-		msg := ""
-		if responseError != nil {
-			msg = responseError.Error()
-			if !xerrors.Is(responseError, io.EOF) {
-				a.logger.Warn(ctx, "handle dial", slog.F("label", label), slog.Error(responseError))
-			}
-		}
-		b, err := json.Marshal(dialResponse{
-			Error: msg,
-		})
-		if err != nil {
-			a.logger.Warn(ctx, "write dial response", slog.F("label", label), slog.Error(err))
-			return xerrors.Errorf("marshal agent webrtc dial response: %w", err)
-		}
-
-		_, err = conn.Write(b)
-		return err
-	}
-
-	u, err := url.Parse(label)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("parse URL %q: %w", label, err))
-		return
-	}
-
-	network := u.Scheme
-	addr := u.Host + u.Path
-	if strings.HasPrefix(network, "unix") {
-		if runtime.GOOS == "windows" {
-			_ = writeError(xerrors.New("Unix forwarding is not supported from Windows workspaces"))
-			return
-		}
-		addr, err = ExpandRelativeHomePath(addr)
-		if err != nil {
-			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
-			return
-		}
-	}
-
-	d := net.Dialer{Timeout: 3 * time.Second}
-	nconn, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
-		return
-	}
-
-	err = writeError(nil)
-	if err != nil {
-		return
-	}
-
-	Bicopy(ctx, conn, nconn)
 }
 
 // isClosed returns whether the API is closed or not.

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.5"
+      version = "0.5.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -42,6 +42,12 @@ resource "coder_app" "code-server" {
   name     = "code-server"
   url      = "http://localhost:13337/"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }
 
 
@@ -71,7 +77,7 @@ locals {
 resource "docker_image" "dogfood" {
   name          = data.docker_registry_image.dogfood.name
   pull_triggers = [data.docker_registry_image.dogfood.sha256_digest]
-  keep_locally = true
+  keep_locally  = true
 }
 
 resource "docker_container" "workspace" {

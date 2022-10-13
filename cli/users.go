@@ -8,9 +8,12 @@ import (
 
 func users() *cobra.Command {
 	cmd := &cobra.Command{
-		Short:   "Create, remove, and list users",
+		Short:   "Manage users",
 		Use:     "users",
 		Aliases: []string{"user"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		userCreate(),

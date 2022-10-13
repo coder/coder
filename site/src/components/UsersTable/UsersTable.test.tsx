@@ -10,6 +10,8 @@ describe("AuditPage", () => {
     render(
       <UsersTable
         onSuspendUser={() => jest.fn()}
+        onDeleteUser={() => jest.fn()}
+        onListWorkspaces={() => jest.fn()}
         onActivateUser={() => jest.fn()}
         onResetUserPassword={() => jest.fn()}
         onUpdateUserRoles={() => jest.fn()}
@@ -17,7 +19,9 @@ describe("AuditPage", () => {
     )
 
     // Then
-    const tooltipIcon = await screen.findByRole("button", { name: TooltipLanguage.ariaLabel })
+    const tooltipIcon = await screen.findByRole("button", {
+      name: TooltipLanguage.ariaLabel,
+    })
     fireEvent.mouseOver(tooltipIcon)
     expect(await screen.findByText(UserRoleLanguage.title)).toBeInTheDocument()
   })

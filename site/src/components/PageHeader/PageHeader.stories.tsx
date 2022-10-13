@@ -17,7 +17,9 @@ export const WithTitle = WithTitleTemplate.bind({})
 const WithSubtitleTemplate: Story = () => (
   <PageHeader>
     <PageHeaderTitle>Templates</PageHeaderTitle>
-    <PageHeaderSubtitle>Create a new workspace from a Template</PageHeaderSubtitle>
+    <PageHeaderSubtitle>
+      Create a new workspace from a Template
+    </PageHeaderSubtitle>
   </PageHeader>
 )
 

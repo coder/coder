@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.9"
+      version = "0.5.0"
     }
   }
 }
@@ -73,9 +73,9 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "coder_agent" "main" {
-  arch = "amd64"
-  auth = "aws-instance-identity"
-  os   = "linux"
+  arch           = "amd64"
+  auth           = "aws-instance-identity"
+  os             = "linux"
   startup_script = <<EOT
     #!/bin/bash
 
@@ -90,6 +90,12 @@ resource "coder_app" "code-server" {
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 3
+    threshold = 10
+  }
 }
 
 locals {

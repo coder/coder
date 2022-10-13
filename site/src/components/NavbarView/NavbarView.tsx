@@ -36,7 +36,10 @@ const NavItems: React.FC<
     <List className={combineClasses([styles.navItems, className])}>
       <ListItem button className={styles.item}>
         <NavLink
-          className={combineClasses([styles.link, location.pathname.startsWith("/@") && "active"])}
+          className={combineClasses([
+            styles.link,
+            location.pathname.startsWith("/@") && "active",
+          ])}
           to="/workspaces"
         >
           {Language.workspaces}
@@ -48,7 +51,10 @@ const NavItems: React.FC<
         </NavLink>
       </ListItem>
       <ListItem button className={styles.item}>
-        <NavLink className={styles.link} to="/users">
+        <NavLink
+          className={styles.link}
+          to={`/users?filter=${encodeURIComponent("status:active")}`}
+        >
           {Language.users}
         </NavLink>
       </ListItem>
@@ -83,7 +89,11 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           <MenuIcon />
         </IconButton>
 
-        <Drawer anchor="left" open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)}>
+        <Drawer
+          anchor="left"
+          open={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+        >
           <div className={styles.drawer}>
             <div className={styles.drawerHeader}>
               <Logo fill="white" opacity={1} width={125} />
@@ -96,7 +106,10 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           <Logo fill="white" opacity={1} width={125} />
         </NavLink>
 
-        <NavItems className={styles.desktopNavItems} canViewAuditLog={canViewAuditLog} />
+        <NavItems
+          className={styles.desktopNavItems}
+          canViewAuditLog={canViewAuditLog}
+        />
 
         <div className={styles.profileButton}>
           {user && <UserDropdown user={user} onSignOut={onSignOut} />}
@@ -175,6 +188,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     color: colors.gray[6],
     display: "flex",
+    flex: 1,
     fontSize: 16,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
     textDecoration: "none",
@@ -187,7 +201,7 @@ const useStyles = makeStyles((theme) => ({
     // NavLink adds this class when the current route matches.
     "&.active": {
       position: "relative",
-      color: theme.palette.primary.contrastText,
+      color: theme.palette.text.primary,
       fontWeight: "bold",
 
       "&::before": {

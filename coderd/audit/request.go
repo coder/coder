@@ -12,14 +12,13 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/features"
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 type RequestParams struct {
-	Features features.Service
-	Log      slog.Logger
+	Audit Auditor
+	Log   slog.Logger
 
 	Request *http.Request
 	Action  database.AuditAction
@@ -93,22 +92,13 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
 func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func()) {
-	sw, ok := w.(*httpapi.StatusWriter)
+	sw, ok := w.(*tracing.StatusWriter)
 	if !ok {
-		panic("dev error: http.ResponseWriter is not *httpapi.StatusWriter")
+		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 	}
 
 	req := &Request[T]{
 		params: p,
-	}
-
-	feats := struct {
-		Audit Auditor
-	}{}
-	err := p.Features.Get(&feats)
-	if err != nil {
-		p.Log.Error(p.Request.Context(), "unable to get auditor interface", slog.Error(err))
-		return req, func() {}
 	}
 
 	return req, func() {
@@ -120,15 +110,25 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			return
 		}
 
-		diff := Diff(feats.Audit, req.Old, req.New)
-		diffRaw, _ := json.Marshal(diff)
+		var diffRaw = []byte("{}")
+		// Only generate diffs if the request succeeded.
+		if sw.Status < 400 {
+			diff := Diff(p.Audit, req.Old, req.New)
+
+			var err error
+			diffRaw, err = json.Marshal(diff)
+			if err != nil {
+				p.Log.Warn(logCtx, "marshal diff", slog.Error(err))
+				diffRaw = []byte("{}")
+			}
+		}
 
 		ip, err := parseIP(p.Request.RemoteAddr)
 		if err != nil {
 			p.Log.Warn(logCtx, "parse ip", slog.Error(err))
 		}
 
-		err = feats.Audit.Export(ctx, database.AuditLog{
+		err = p.Audit.Export(ctx, database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
 			UserID:           httpmw.APIKey(p.Request).UserID,

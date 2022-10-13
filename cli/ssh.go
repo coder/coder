@@ -22,7 +22,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -43,12 +42,11 @@ func ssh() *cobra.Command {
 		forwardAgent   bool
 		identityAgent  string
 		wsPollInterval time.Duration
-		wireguard      bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
-		Short:       "SSH into a workspace",
+		Short:       "Start a shell into a workspace",
 		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
@@ -88,12 +86,7 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			var conn agent.Conn
-			if !wireguard {
-				conn, err = client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
-			} else {
-				conn, err = client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
-			}
+			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
 			if err != nil {
 				return err
 			}
@@ -195,6 +188,13 @@ func ssh() *cobra.Command {
 			// shutdown of services.
 			defer cancel()
 
+			if validOut {
+				// Set initial window size.
+				width, height, err := term.GetSize(int(stdoutFile.Fd()))
+				if err == nil {
+					_ = sshSession.WindowChange(height, width)
+				}
+			}
 			err = sshSession.Wait()
 			if err != nil {
 				// If the connection drops unexpectedly, we get an ExitMissingError but no other
@@ -214,9 +214,6 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
-	_ = cmd.Flags().MarkHidden("wireguard")
-
 	return cmd
 }
 
@@ -264,10 +261,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
-	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("fetch workspace resources: %w", err)
-	}
+	resources := workspace.LatestBuild.Resources
 
 	agents := make([]codersdk.WorkspaceAgent, 0)
 	for _, resource := range resources {

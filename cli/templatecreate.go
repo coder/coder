@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -143,6 +144,7 @@ func templateCreate() *cobra.Command {
 }
 
 type createValidTemplateVersionArgs struct {
+	Name          string
 	Client        *codersdk.Client
 	Organization  codersdk.Organization
 	Provisioner   database.ProvisionerType
@@ -161,6 +163,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	client := args.Client
 
 	req := codersdk.CreateTemplateVersionRequest{
+		Name:            args.Name,
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
 		StorageSource:   args.FileHash,
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
@@ -182,7 +185,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		Cancel: func() error {
 			return client.CancelTemplateVersion(cmd.Context(), version.ID)
 		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
 			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, before)
 		},
 	})

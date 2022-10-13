@@ -11,7 +11,7 @@ import (
 	tsspeedtest "tailscale.com/net/speedtest"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -27,7 +27,7 @@ func speedtest() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Args:        cobra.ExactArgs(1),
-		Short:       "Run a speed test from your machine to the workspace.",
+		Short:       "Run upload and download tests from your machine to a workspace",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
@@ -51,36 +51,42 @@ func speedtest() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
 			}
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			if cliflag.IsSetBool(cmd, varVerbose) {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+			conn, err := client.DialWorkspaceAgentTailnet(ctx, logger, workspaceAgent.ID)
 			if err != nil {
 				return err
 			}
 			defer conn.Close()
-			if direct {
-				ticker := time.NewTicker(time.Second)
-				defer ticker.Stop()
-				for {
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case <-ticker.C:
-					}
-					dur, err := conn.Ping()
-					if err != nil {
-						continue
-					}
-					tc, _ := conn.(*agent.TailnetConn)
-					status := tc.Status()
-					if len(status.Peers()) != 1 {
-						continue
-					}
-					peer := status.Peer[status.Peers()[0]]
-					if peer.CurAddr == "" {
-						cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
-						continue
-					}
-					break
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-ticker.C:
 				}
+				dur, err := conn.Ping()
+				if err != nil {
+					continue
+				}
+				status := conn.Status()
+				if len(status.Peers()) != 1 {
+					continue
+				}
+				peer := status.Peer[status.Peers()[0]]
+				if peer.CurAddr == "" && direct {
+					cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
+					continue
+				}
+				via := peer.Relay
+				if via == "" {
+					via = "direct"
+				}
+				cmd.Printf("%dms via %s\n", dur.Milliseconds(), via)
+				break
 			}
 			dir := tsspeedtest.Download
 			if reverse {

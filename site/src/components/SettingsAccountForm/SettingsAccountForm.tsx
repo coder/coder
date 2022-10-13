@@ -1,11 +1,15 @@
 import TextField from "@material-ui/core/TextField"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export interface AccountFormValues {
   username: string
@@ -41,19 +45,25 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
   updateProfileError,
   initialTouched,
 }) => {
-  const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
-    initialValues,
-    validationSchema,
-    onSubmit,
-    initialTouched,
-  })
-  const getFieldHelpers = getFormHelpersWithError<AccountFormValues>(form, updateProfileError)
+  const form: FormikContextType<AccountFormValues> =
+    useFormik<AccountFormValues>({
+      initialValues,
+      validationSchema,
+      onSubmit,
+      initialTouched,
+    })
+  const getFieldHelpers = getFormHelpers<AccountFormValues>(
+    form,
+    updateProfileError,
+  )
 
   return (
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {updateProfileError ? <ErrorSummary error={updateProfileError} /> : <></>}
+          {Boolean(updateProfileError) && (
+            <AlertBanner severity="error" error={updateProfileError} />
+          )}
           <TextField
             disabled
             fullWidth

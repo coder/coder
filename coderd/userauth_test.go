@@ -79,6 +79,10 @@ func TestUserAuthMethods(t *testing.T) {
 // nolint:bodyclose
 func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
+
+	stateActive := "active"
+	statePending := "pending"
+
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -86,6 +90,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				OAuth2Config: &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("kyle"),
 						},
@@ -106,6 +111,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				OAuth2Config:       &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
@@ -132,6 +138,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AllowOrganizations: []string{"coder"},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
@@ -160,6 +167,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AllowOrganizations: []string{"coder"},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
@@ -188,6 +196,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AllowOrganizations: []string{"coder"},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
@@ -221,6 +230,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AllowSignups:       true,
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
@@ -245,7 +255,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = resp.Cookies()[0].Value
+		client.SessionToken = authCookieValue(resp.Cookies())
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
@@ -262,6 +272,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				OAuth2Config:       &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
 					return []*github.Membership{{
+						State: &stateActive,
 						Organization: &github.Organization{
 							Login: github.String("coder"),
 						},
@@ -286,6 +297,42 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupFailedInactiveInOrg", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:       true,
+				AllowOrganizations: []string{"coder"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"coder", "frontend"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						State: &statePending,
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return &github.Membership{}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("kyle"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 }
 
@@ -326,6 +373,15 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups: true,
 		EmailDomain:  "coder.com",
 		StatusCode:   http.StatusForbidden,
+	}, {
+		Name: "EmailDomainCaseInsensitive",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@KWC.io",
+			"email_verified": true,
+		},
+		AllowSignups: true,
+		EmailDomain:  "kwc.io",
+		StatusCode:   http.StatusTemporaryRedirect,
 	}, {
 		Name:         "EmptyClaims",
 		Claims:       jwt.MapClaims{},
@@ -398,14 +454,14 @@ func TestUserOIDC(t *testing.T) {
 			defer cancel()
 
 			if tc.Username != "" {
-				client.SessionToken = resp.Cookies()[0].Value
+				client.SessionToken = authCookieValue(resp.Cookies())
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 			}
 
 			if tc.AvatarURL != "" {
-				client.SessionToken = resp.Cookies()[0].Value
+				client.SessionToken = authCookieValue(resp.Cookies())
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
@@ -533,4 +589,13 @@ func oidcCallback(t *testing.T, client *codersdk.Client) *http.Response {
 
 func i64ptr(i int64) *int64 {
 	return &i
+}
+
+func authCookieValue(cookies []*http.Cookie) string {
+	for _, cookie := range cookies {
+		if cookie.Name == codersdk.SessionTokenKey {
+			return cookie.Value
+		}
+	}
+	return ""
 }

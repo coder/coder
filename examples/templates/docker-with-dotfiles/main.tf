@@ -9,7 +9,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.9"
+      version = "0.5.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -25,6 +25,10 @@ provider "docker" {
 }
 
 data "coder_workspace" "me" {
+}
+
+variable "docker_image" {
+  default = "codercom/enterprise-base:ubuntu"
 }
 
 variable "dotfiles_uri" {
@@ -48,12 +52,12 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "codercom/enterprise-base:ubuntu"
+  image = var.docker_image
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   dns  = ["1.1.1.1"]
   # Refer to Docker host when Coder is on localhost
-  command = ["sh", "-c", replace(coder_agent.main.init_script, "127.0.0.1", "host.docker.internal")]
+  command = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"

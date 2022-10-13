@@ -5,8 +5,10 @@
  * @param returnTo page to redirect to later (for instance, after logging in)
  * @returns URL containing a redirect query parameter
  */
-export const embedRedirect = (returnTo: string, navigateTo = "/login"): string =>
-  `${navigateTo}?redirect=${encodeURIComponent(returnTo)}`
+export const embedRedirect = (
+  returnTo: string,
+  navigateTo = "/login",
+): string => `${navigateTo}?redirect=${encodeURIComponent(returnTo)}`
 
 /**
  * Retrieves a url from the query string of the current URL

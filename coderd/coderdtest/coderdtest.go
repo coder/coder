@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -21,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -38,7 +36,9 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -47,12 +47,10 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -64,6 +62,7 @@ import (
 )
 
 type Options struct {
+	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
@@ -79,9 +78,9 @@ type Options struct {
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
-	APIBuilder                  func(*coderd.Options) *coderd.API
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+	DeploymentFlags             *codersdk.DeploymentFlags
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -111,14 +110,11 @@ func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client,
 // and is a temporary measure while the API to register provisioners is ironed
 // out.
 func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
-	client, closer, _ := newWithAPI(t, options)
+	client, closer, _ := NewWithAPI(t, options)
 	return client, closer
 }
 
-// newWithAPI constructs an in-memory API instance and returns a client to talk to it.
-// Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
-// Do not expose the API or wrath shall descend upon thee.
-func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.CancelFunc, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -139,34 +135,10 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 			close(options.AutobuildStats)
 		})
 	}
-	if options.APIBuilder == nil {
-		options.APIBuilder = coderd.New
-	}
 
-	// This can be hotswapped for a live database instance.
-	db := databasefake.New()
-	pubsub := database.NewPubsubInMemory()
-	if os.Getenv("DB") != "" {
-		connectionURL, closePg, err := postgres.Open()
-		require.NoError(t, err)
-		t.Cleanup(closePg)
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		db = database.New(sqlDB)
-
-		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = pubsub.Close()
-		})
-	}
+	db, pubsub := dbtestutil.NewDB(t)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer t.Cleanup(cancelFunc) // Defer to ensure cancelFunc is executed first.
-
 	lifecycleExecutor := executor.New(
 		ctx,
 		db,
@@ -182,62 +154,59 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	srv.Start()
 	t.Cleanup(srv.Close)
 
+	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
+	serverURL.Host = fmt.Sprintf("localhost:%d", tcpAddr.Port)
 
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
+
+	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	t.Cleanup(stunCleanup)
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
-	turnServer, err := turnconn.New(nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = turnServer.Close()
-	})
-
-	features := coderd.DisabledImplementations
-	if options.Auditor != nil {
-		features.Auditor = options.Auditor
-	}
-
-	// We set the handler after server creation for the access URL.
-	coderAPI := options.APIBuilder(&coderd.Options{
+	return srv, cancelFunc, &coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
 		// agents are not marked as disconnected during slow tests.
 		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
+		AppHostname:                    options.AppHostname,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
 		Database:                       db,
 		Pubsub:                         pubsub,
 
+		Auditor:              options.Auditor,
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
 		GithubOAuth2Config:   options.GithubOAuth2Config,
 		OIDCConfig:           options.OIDCConfig,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
 		DERPMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
 				1: {
-					RegionID:   1,
-					RegionCode: "coder",
-					RegionName: "Coder",
+					EmbeddedRelay: true,
+					RegionID:      1,
+					RegionCode:    "coder",
+					RegionName:    "Coder",
 					Nodes: []*tailcfg.DERPNode{{
 						Name:             "1a",
 						RegionID:         1,
 						IPv4:             "127.0.0.1",
 						DERPPort:         derpPort,
-						STUNPort:         -1,
+						STUNPort:         stunAddr.Port,
 						InsecureForTests: true,
 						ForceHTTP:        true,
 					}},
@@ -247,22 +216,31 @@ func newWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-		FeaturesService:             coderd.NewMockFeaturesService(features),
-	})
-	t.Cleanup(func() {
-		_ = coderAPI.Close()
-	})
-	srv.Config.Handler = coderAPI.Handler
+		DeploymentFlags:             options.DeploymentFlags,
+	}
+}
 
+// NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
+// Most tests never need a reference to the API, but AuthorizationTest in this module uses it.
+// Do not expose the API or wrath shall descend upon thee.
+func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+	if options == nil {
+		options = &Options{}
+	}
+	srv, cancelFunc, newOptions := NewOptions(t, options)
+	// We set the handler after server creation for the access URL.
+	coderAPI := coderd.New(newOptions)
+	srv.Config.Handler = coderAPI.RootHandler
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	t.Cleanup(func() {
+		cancelFunc()
 		_ = provisionerCloser.Close()
+		_ = coderAPI.Close()
 	})
-
-	return codersdk.New(serverURL), provisionerCloser, coderAPI
+	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -399,6 +377,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
 func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.TemplateVersion {
+	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
@@ -488,18 +467,22 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
 	t.Helper()
 
-	t.Logf("waiting for workspace agents (build %s)", build)
+	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
-		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
+		workspace, err := client.Workspace(context.Background(), workspaceID)
 		if !assert.NoError(t, err) {
 			return false
 		}
-		for _, resource := range resources {
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
 					t.Logf("agent %s not connected yet", agent.Name)
@@ -507,6 +490,8 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 				}
 			}
 		}
+		resources = workspace.LatestBuild.Resources
+
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
 	return resources
@@ -526,7 +511,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	for _, mutator := range mutators {
 		mutator(&req)
 	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
+	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
 	require.NoError(t, err)
 	return workspace
 }

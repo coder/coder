@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.9"
+      version = "0.5.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -22,8 +22,8 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
   startup_script = <<EOT
     #!/bin/bash
 
@@ -38,6 +38,13 @@ resource "coder_app" "code-server" {
   name     = "code-server"
   url      = "http://localhost:13337/?folder=/home/coder"
   icon     = "/icon/code.svg"
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 3
+    threshold = 10
+  }
+
 }
 
 variable "docker_image" {
@@ -83,7 +90,7 @@ resource "docker_container" "workspace" {
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
   # Use the docker gateway if the access URL is 127.0.0.1
-  command = ["sh", "-c", replace(coder_agent.main.init_script, "127.0.0.1", "host.docker.internal")]
+  command = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   host {
     host = "host.docker.internal"

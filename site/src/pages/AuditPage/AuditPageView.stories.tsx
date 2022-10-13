@@ -7,7 +7,9 @@ export default {
   component: AuditPageView,
 } as ComponentMeta<typeof AuditPageView>
 
-const Template: Story<AuditPageViewProps> = (args) => <AuditPageView {...args} />
+const Template: Story<AuditPageViewProps> = (args) => (
+  <AuditPageView {...args} />
+)
 
 export const AuditPage = Template.bind({})
 AuditPage.args = {

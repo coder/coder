@@ -21,7 +21,9 @@ const getDiffValue = (value: unknown): string => {
   return value.toString()
 }
 
-export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
+export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({
+  diff,
+}) => {
   const styles = useStyles()
   const diffEntries = Object.entries(diff)
 
@@ -34,7 +36,12 @@ export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => 
             <div className={styles.diffIcon}>-</div>
             <div>
               {attrName}:{" "}
-              <span className={combineClasses([styles.diffValue, styles.diffValueOld])}>
+              <span
+                className={combineClasses([
+                  styles.diffValue,
+                  styles.diffValueOld,
+                ])}
+              >
                 {getDiffValue(valueDiff.old)}
               </span>
             </div>
@@ -48,7 +55,12 @@ export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({ diff }) => 
             <div className={styles.diffIcon}>+</div>
             <div>
               {attrName}:{" "}
-              <span className={combineClasses([styles.diffValue, styles.diffValueNew])}>
+              <span
+                className={combineClasses([
+                  styles.diffValue,
+                  styles.diffValueNew,
+                ])}
+              >
                 {getDiffValue(valueDiff.new)}
               </span>
             </div>

@@ -32,7 +32,11 @@ func TestFirstUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{})
+		has, err := client.HasFirstUser(context.Background())
+		require.NoError(t, err)
+		require.False(t, has)
+
+		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{})
 		require.Error(t, err)
 	})
 
@@ -59,6 +63,35 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+	})
+
+	t.Run("LastSeenAt", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		firstUserResp := coderdtest.CreateFirstUser(t, client)
+
+		firstUser, err := client.User(ctx, firstUserResp.UserID.String())
+		require.NoError(t, err)
+
+		_ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
+
+		allUsers, err := client.Users(ctx, codersdk.UsersRequest{})
+		require.NoError(t, err)
+
+		require.Len(t, allUsers, 2)
+
+		// We sent the "GET Users" request with the first user, but the second user
+		// should be Never since they haven't performed a request.
+		for _, user := range allUsers {
+			if user.ID == firstUser.ID {
+				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
+			} else {
+				require.Zero(t, user.LastSeenAt)
+			}
+		}
 	})
 
 	t.Run("AutoImportsTemplates", func(t *testing.T) {
@@ -223,8 +256,16 @@ func TestPostLogin(t *testing.T) {
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
+
 		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
+			Password: req.Password,
+		})
+		require.NoError(t, err)
+
+		// Login should be case insensitive
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    strings.ToUpper(req.Email),
 			Password: req.Password,
 		})
 		require.NoError(t, err)
@@ -244,16 +285,61 @@ func TestPostLogin(t *testing.T) {
 		require.NoError(t, err, "fetch login key")
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
-		// Generated tokens have a longer life
-		token, err := client.CreateAPIKey(ctx, admin.UserID.String())
-		require.NoError(t, err, "make new api key")
+		// tokens have a longer life
+		token, err := client.CreateToken(ctx, codersdk.Me)
+		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
 		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*6)), "api key lasts more than 6 days")
-		require.True(t, apiKey.ExpiresAt.After(key.ExpiresAt.Add(time.Hour)), "api key should be longer expires")
-		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "api key should have longer lifetime")
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*438300)), "tokens lasts more than 50 years")
+		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "token should have longer lifetime")
+	})
+}
+
+func TestDeleteUser(t *testing.T) {
+	t.Parallel()
+	t.Run("Works", func(t *testing.T) {
+		t.Parallel()
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api)
+		_, another := coderdtest.CreateAnotherUserWithUser(t, api, user.OrganizationID)
+		err := api.DeleteUser(context.Background(), another.ID)
+		require.NoError(t, err)
+		// Attempt to create a user with the same email and username, and delete them again.
+		another, err = api.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          another.Email,
+			Username:       another.Username,
+			Password:       "testing",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		err = api.DeleteUser(context.Background(), another.ID)
+		require.NoError(t, err)
+	})
+	t.Run("NoPermission", func(t *testing.T) {
+		t.Parallel()
+		api := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, api)
+		client, _ := coderdtest.CreateAnotherUserWithUser(t, api, firstUser.OrganizationID)
+		err := client.DeleteUser(context.Background(), firstUser.UserID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+	t.Run("HasWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdtest.NewWithProvisionerCloser(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherClient, another := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
+		err := client.DeleteUser(context.Background(), another.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
 	})
 }
 
@@ -284,10 +370,16 @@ func TestPostLogout(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		cookies := res.Cookies()
-		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, codersdk.SessionTokenKey, cookies[0].Name, "Cookie should be the auth cookie")
-		require.Equal(t, -1, cookies[0].MaxAge, "Cookie should be set to delete")
+		var found bool
+		for _, cookie := range cookies {
+			if cookie.Name == codersdk.SessionTokenKey {
+				require.Equal(t, codersdk.SessionTokenKey, cookie.Name, "Cookie should be the auth cookie")
+				require.Equal(t, -1, cookie.MaxAge, "Cookie should be set to delete")
+				found = true
+			}
+		}
+		require.True(t, found, "auth cookie should be returned")
 
 		_, err = client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		sdkErr := &codersdk.Error{}
@@ -1102,36 +1194,18 @@ func TestGetUsers(t *testing.T) {
 	})
 }
 
-func TestPostAPIKey(t *testing.T) {
+func TestPostTokens(t *testing.T) {
 	t.Parallel()
-	t.Run("InvalidUser", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		client.SessionToken = ""
-		_, err := client.CreateAPIKey(ctx, codersdk.Me)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		apiKey, err := client.CreateAPIKey(ctx, codersdk.Me)
-		require.NotNil(t, apiKey)
-		require.GreaterOrEqual(t, len(apiKey.Key), 2)
-		require.NoError(t, err)
-	})
+	apiKey, err := client.CreateToken(ctx, codersdk.Me)
+	require.NotNil(t, apiKey)
+	require.GreaterOrEqual(t, len(apiKey.Key), 2)
+	require.NoError(t, err)
 }
 
 func TestWorkspacesByUser(t *testing.T) {
@@ -1194,6 +1268,7 @@ func TestWorkspacesByUser(t *testing.T) {
 // This is mainly to confirm the db fake has the same behavior.
 func TestSuspendedPagination(t *testing.T) {
 	t.Parallel()
+	t.Skip("This fails when two users are created at the exact same time. The reason is unknown... See: https://github.com/coder/coder/actions/runs/3057047622/jobs/4931863163")
 	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
 	coderdtest.CreateFirstUser(t, client)
 

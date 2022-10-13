@@ -53,7 +53,9 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
           setIsCopied(false)
         }, 1000)
       } else {
-        const wrappedErr = new Error("copyToClipboard: failed to copy text to clipboard")
+        const wrappedErr = new Error(
+          "copyToClipboard: failed to copy text to clipboard",
+        )
         if (err instanceof Error) {
           wrappedErr.stack = err.stack
         }
@@ -64,7 +66,9 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
 
   return (
     <Tooltip title={tooltipTitle} placement="top">
-      <div className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}>
+      <div
+        className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}
+      >
         <IconButton
           className={combineClasses([styles.copyButton, buttonClassName])}
           onClick={copyToClipboard}

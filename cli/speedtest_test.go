@@ -25,12 +25,11 @@ func TestSpeedtest(t *testing.T) {
 	agentClient.SessionToken = agentToken
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
 	defer agentCloser.Close()
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	cmd, root := clitest.New(t, "speedtest", workspace.Name)
 	clitest.SetupConfig(t, client, root)

@@ -25,18 +25,27 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string `mapstructure:"agent_id"`
-	Name         string `mapstructure:"name"`
-	Icon         string `mapstructure:"icon"`
-	URL          string `mapstructure:"url"`
-	Command      string `mapstructure:"command"`
-	RelativePath bool   `mapstructure:"relative_path"`
+	AgentID     string                     `mapstructure:"agent_id"`
+	Name        string                     `mapstructure:"name"`
+	Icon        string                     `mapstructure:"icon"`
+	URL         string                     `mapstructure:"url"`
+	Command     string                     `mapstructure:"command"`
+	Subdomain   bool                       `mapstructure:"subdomain"`
+	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+}
+
+// A mapping of attributes on the "healthcheck" resource.
+type appHealthcheckAttributes struct {
+	URL       string `mapstructure:"url"`
+	Interval  int32  `mapstructure:"interval"`
+	Threshold int32  `mapstructure:"threshold"`
 }
 
 // A mapping of attributes on the "coder_metadata" resource.
 type metadataAttributes struct {
 	ResourceID string         `mapstructure:"resource_id"`
 	Hide       bool           `mapstructure:"hide"`
+	Icon       string         `mapstructure:"icon"`
 	Items      []metadataItem `mapstructure:"item"`
 }
 
@@ -217,6 +226,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			// Default to the resource name if none is set!
 			attrs.Name = resource.Name
 		}
+		var healthcheck *proto.Healthcheck
+		if len(attrs.Healthcheck) != 0 {
+			healthcheck = &proto.Healthcheck{
+				Url:       attrs.Healthcheck[0].URL,
+				Interval:  attrs.Healthcheck[0].Interval,
+				Threshold: attrs.Healthcheck[0].Threshold,
+			}
+		}
+
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -224,11 +242,12 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:         attrs.Name,
-					Command:      attrs.Command,
-					Url:          attrs.URL,
-					Icon:         attrs.Icon,
-					RelativePath: attrs.RelativePath,
+					Name:        attrs.Name,
+					Command:     attrs.Command,
+					Url:         attrs.URL,
+					Icon:        attrs.Icon,
+					Subdomain:   attrs.Subdomain,
+					Healthcheck: healthcheck,
 				})
 			}
 		}
@@ -237,6 +256,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}
+	resourceIcon := map[string]string{}
 	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_metadata" {
 			continue
@@ -295,6 +315,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		resourceHidden[targetLabel] = attrs.Hide
+		resourceIcon[targetLabel] = attrs.Icon
 		for _, item := range attrs.Items {
 			resourceMetadata[targetLabel] = append(resourceMetadata[targetLabel],
 				&proto.Resource_Metadata{
@@ -325,6 +346,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			Type:     resource.Type,
 			Agents:   agents,
 			Hide:     resourceHidden[label],
+			Icon:     resourceIcon[label],
 			Metadata: resourceMetadata[label],
 		})
 	}

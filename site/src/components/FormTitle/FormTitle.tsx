@@ -18,7 +18,10 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const FormTitle: FC<React.PropsWithChildren<FormTitleProps>> = ({ title, detail }) => {
+export const FormTitle: FC<React.PropsWithChildren<FormTitleProps>> = ({
+  title,
+  detail,
+}) => {
   const styles = useStyles()
 
   return (

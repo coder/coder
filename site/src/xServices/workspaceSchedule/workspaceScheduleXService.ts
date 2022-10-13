@@ -21,8 +21,6 @@ export interface WorkspaceScheduleContext {
    * machine is partially influenced by workspaceXService.
    */
   workspace?: TypesGen.Workspace
-  // permissions
-  userId?: string
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
   submitScheduleError?: Error | unknown
@@ -53,6 +51,8 @@ export type WorkspaceScheduleEvent =
 
 export const workspaceSchedule = createMachine(
   {
+    id: "workspaceScheduleState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./workspaceScheduleXService.typegen").Typegen0,
     schema: {
       context: {} as WorkspaceScheduleContext,
@@ -63,7 +63,6 @@ export const workspaceSchedule = createMachine(
         }
       },
     },
-    id: "workspaceScheduleState",
     initial: "idle",
     on: {
       GET_WORKSPACE: "gettingWorkspace",
@@ -174,15 +173,20 @@ export const workspaceSchedule = createMachine(
 
     services: {
       getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(event.username, event.workspaceName)
+        return await API.getWorkspaceByOwnerAndName(
+          event.username,
+          event.workspaceName,
+        )
       },
       checkPermissions: async (context) => {
-        if (context.workspace && context.userId) {
-          return await API.checkUserPermissions(context.userId, {
+        if (context.workspace) {
+          return await API.checkAuthorization({
             checks: permissionsToCheck(context.workspace),
           })
         } else {
-          throw Error("Cannot check permissions without both workspace and user id")
+          throw Error(
+            "Cannot check permissions without both workspace and user id",
+          )
         }
       },
       submitSchedule: async (context, event) => {

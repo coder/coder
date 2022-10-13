@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,13 +14,14 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// subject is required because rego needs
 type subject struct {
 	UserID string `json:"id"`
 	// For the unit test we want to pass in the roles directly, instead of just
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
-	Roles []Role `json:"roles"`
+	Roles  []Role   `json:"roles"`
+	Groups []string `json:"groups"`
+	Scope  Role     `json:"scope"`
 }
 
 type fakeObject struct {
@@ -39,10 +41,9 @@ func (w fakeObject) RBACObject() Object {
 
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	auth, err := NewAuthorizer()
-	require.NoError(t, err)
+	auth := NewAuthorizer()
 
-	_, err = Filter(context.Background(), auth, uuid.NewString(), []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -75,6 +76,7 @@ func TestFilter(t *testing.T) {
 		SubjectID  string
 		Roles      []string
 		Action     Action
+		Scope      Scope
 		ObjectType string
 	}{
 		{
@@ -139,6 +141,13 @@ func TestFilter(t *testing.T) {
 			ObjectType: ResourceOrganization.Type,
 			Action:     ActionRead,
 		},
+		{
+			Name:       "ScopeApplicationConnect",
+			SubjectID:  userIDs[0].String(),
+			Roles:      []string{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+			ObjectType: ResourceWorkspace.Type,
+			Action:     ActionRead,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -151,14 +160,18 @@ func TestFilter(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-			auth, err := NewAuthorizer()
-			require.NoError(t, err, "new auth")
+			auth := NewAuthorizer()
+
+			scope := ScopeAll
+			if tc.Scope != "" {
+				scope = tc.Scope
+			}
 
 			// Run auth 1 by 1
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, ActionRead, obj.RBACObject())
+				err := auth.ByRoleName(ctx, tc.SubjectID, tc.Roles, scope, []string{}, ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -167,7 +180,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, tc.SubjectID, tc.Roles, scope, []string{}, tc.Action, localObjects)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {
@@ -182,14 +195,81 @@ func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
 	unuseID := uuid.New()
+	allUsersGroup := "Everyone"
 
 	user := subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
+		Groups: []string{allUsersGroup},
 		Roles: []Role{
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
 	}
+
+	testAuthorize(t, "UserACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: allActions(),
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+				user.UserID: {ActionRead, ActionUpdate},
+			}),
+			actions: []Action{ActionCreate, ActionDelete},
+			allow:   false,
+		},
+		{
+			// By default users cannot update templates
+			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
+				user.UserID: {ActionUpdate},
+			}),
+			actions: []Action{ActionUpdate},
+			allow:   true,
+		},
+	})
+
+	testAuthorize(t, "GroupACLList", user, []authTestCase{
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: allActions(),
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: {WildcardSymbol},
+			}),
+			actions: allActions(),
+			allow:   true,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: {ActionRead, ActionUpdate},
+			}),
+			actions: []Action{ActionCreate, ActionDelete},
+			allow:   false,
+		},
+		{
+			// By default users cannot update templates
+			resource: ResourceTemplate.InOrg(defOrg).WithGroupACL(map[string][]Action{
+				allUsersGroup: {ActionUpdate},
+			}),
+			actions: []Action{ActionUpdate},
+			allow:   true,
+		},
+	})
 
 	testAuthorize(t, "Member", user, []authTestCase{
 		// Org + me
@@ -218,6 +298,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{{
 			Name: "deny-all",
 			// List out deny permissions explicitly
@@ -258,6 +339,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOrgAdmin(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -291,6 +373,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
@@ -322,90 +405,108 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: true},
 	})
 
-	// In practice this is a token scope on a regular subject.
-	// So this unit test does not represent a practical role. It is just
-	// testing the capabilities of the RBAC system.
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeApplicationConnect)),
 		Roles: []Role{
-			{
-				Name: "WorkspaceToken",
-				// This is at the site level to prevent the token from losing access if the user
-				// is kicked from the org
-				Site: []Permission{
-					{
-						Negate:       false,
-						ResourceType: ResourceWorkspace.Type,
-						Action:       ActionRead,
-					},
-				},
-			},
+			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(RoleMember())),
 		},
 	}
 
-	testAuthorize(t, "WorkspaceToken", user,
-		// Read Actions
+	testAuthorize(t, "ApplicationToken", user,
+		// Create (connect) Actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead}
+			c.actions = []Action{ActionCreate}
 			return c
 		}, []authTestCase{
 			// Org + me
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), allow: true},
-			{resource: ResourceWorkspace.InOrg(defOrg), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner(user.UserID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner(user.UserID), allow: true},
 
-			{resource: ResourceWorkspace.All(), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.All(), allow: false},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), allow: true},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID), allow: false},
 
 			// Other org + other user
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner("not-me"), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me"), allow: false},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), allow: true},
-			{resource: ResourceWorkspace.InOrg(unuseID), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner("not-me"), allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me"), allow: false},
 		}),
-		// Not read actions
+		// Not create actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
 			// Org + me
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
-			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg)},
 
-			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner(user.UserID)},
 
-			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspaceApplicationConnect.All()},
 
 			// Other org + me
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID)},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID)},
 
 			// Other org + other user
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me")},
 
-			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me")},
 
 			// Other org + other use
-			{resource: ResourceWorkspace.InOrg(unuseID).WithOwner("not-me")},
-			{resource: ResourceWorkspace.InOrg(unuseID)},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID).WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unuseID)},
 
-			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspaceApplicationConnect.WithOwner("not-me")},
+		}),
+		// Other Objects
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			// Org + me
+			{resource: ResourceTemplate.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceTemplate.InOrg(defOrg)},
+
+			{resource: ResourceTemplate.WithOwner(user.UserID)},
+
+			{resource: ResourceTemplate.All()},
+
+			// Other org + me
+			{resource: ResourceTemplate.InOrg(unuseID).WithOwner(user.UserID)},
+			{resource: ResourceTemplate.InOrg(unuseID)},
+
+			// Other org + other user
+			{resource: ResourceTemplate.InOrg(defOrg).WithOwner("not-me")},
+
+			{resource: ResourceTemplate.WithOwner("not-me")},
+
+			// Other org + other use
+			{resource: ResourceTemplate.InOrg(unuseID).WithOwner("not-me")},
+			{resource: ResourceTemplate.InOrg(unuseID)},
+
+			{resource: ResourceTemplate.WithOwner("not-me")},
 		}),
 	)
 
 	// In practice this is a token scope on a regular subject
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "ReadOnlyOrgAndUser",
@@ -498,6 +599,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			{
@@ -558,6 +660,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
+		Scope:  must(ScopeRole(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "site-noise",
@@ -614,6 +717,78 @@ func TestAuthorizeLevels(t *testing.T) {
 		}))
 }
 
+func TestAuthorizeScope(t *testing.T) {
+	t.Parallel()
+
+	defOrg := uuid.New()
+	unusedID := uuid.New()
+	user := subject{
+		UserID: "me",
+		Roles:  []Role{must(RoleByName(RoleOwner()))},
+		Scope:  must(ScopeRole(ScopeApplicationConnect)),
+	}
+
+	testAuthorize(t, "Admin_ScopeApplicationConnect", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspace.InOrg(defOrg), allow: false},
+			{resource: ResourceWorkspace.WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspace.All(), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID), allow: false},
+			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
+		}),
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+		},
+	)
+
+	user = subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleOrgMember(defOrg))),
+		},
+		Scope: must(ScopeRole(ScopeApplicationConnect)),
+	}
+
+	testAuthorize(t, "User_ScopeApplicationConnect", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+		},
+	)
+}
+
 // cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {
@@ -633,31 +808,32 @@ type authTestCase struct {
 
 func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTestCase) {
 	t.Helper()
-	authorizer, err := NewAuthorizer()
-	require.NoError(t, err)
+	authorizer := NewAuthorizer()
 	for _, cases := range sets {
-		for _, c := range cases {
-			t.Run(name, func(t *testing.T) {
+		for i, c := range cases {
+			c := c
+			caseName := fmt.Sprintf("%s/%d", name, i)
+			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					t.Cleanup(cancel)
-					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, a, c.resource)
+
+					authError := authorizer.Authorize(ctx, subject.UserID, subject.Roles, subject.Scope, subject.Groups, a, c.resource)
+
+					d, _ := json.Marshal(map[string]interface{}{
+						"subject": subject,
+						"object":  c.resource,
+						"action":  a,
+					})
+
 					// Logging only
+					t.Logf("input: %s", string(d))
 					if authError != nil {
 						var uerr *UnauthorizedError
 						xerrors.As(authError, &uerr)
-						d, _ := json.Marshal(uerr.Input())
-						t.Logf("input: %s", string(d))
 						t.Logf("internal error: %+v", uerr.Internal().Error())
 						t.Logf("output: %+v", uerr.Output())
-					} else {
-						d, _ := json.Marshal(map[string]interface{}{
-							"subject": subject,
-							"object":  c.resource,
-							"action":  a,
-						})
-						t.Log(string(d))
 					}
 
 					if c.allow {
@@ -666,29 +842,31 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 						assert.Error(t, authError, "expected unauthorized")
 					}
 
-					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, a, c.resource.Type)
+					partialAuthz, err := authorizer.Prepare(ctx, subject.UserID, subject.Roles, subject.Scope, subject.Groups, a, c.resource.Type)
 					require.NoError(t, err, "make prepared authorizer")
+
+					// Ensure the partial can compile to a SQL clause.
+					// This does not guarantee that the clause is valid SQL.
+					_, err = Compile(partialAuthz)
+					require.NoError(t, err, "compile prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.
 					// This ensures we can convert the queries into SQL WHERE clauses in the future.
 					// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-					if len(partialAuthz.partialQueries.Support) > 0 {
-						d, _ := json.Marshal(partialAuthz.input)
-						t.Logf("input: %s", string(d))
-						for _, q := range partialAuthz.partialQueries.Queries {
-							t.Logf("query: %+v", q.String())
-						}
-						for _, s := range partialAuthz.partialQueries.Support {
-							t.Logf("support: %+v", s.String())
-						}
+					for _, q := range partialAuthz.partialQueries.Queries {
+						t.Logf("query: %+v", q.String())
 					}
-					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules")
+					for _, s := range partialAuthz.partialQueries.Support {
+						t.Logf("support: %+v", s.String())
+					}
+
+					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules in scope authorizer")
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
 					if authError != nil {
-						assert.Error(t, partialErr, "partial error blocked valid request (false negative)")
+						assert.Error(t, partialErr, "partial allowed invalid request  (false positive)")
 					} else {
-						assert.NoError(t, partialErr, "partial allowed invalid request (false positive)")
+						assert.NoError(t, partialErr, "partial error blocked valid request (false negative)")
 					}
 				}
 			})

@@ -11,7 +11,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
           backgroundImage: `linear-gradient(to right bottom, ${palette.background.default}, ${colors.gray[17]})`,
           backgroundRepeat: "no-repeat",
           backgroundAttachment: "fixed",
-          letterSpacing: "-0.015em",
         },
         ":root": {
           colorScheme: palette.type,
@@ -37,6 +36,10 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         textTransform: "none",
         letterSpacing: "none",
         border: `1px solid ${palette.divider}`,
+
+        "&:focus-visible": {
+          outline: `2px solid ${palette.primary.dark}`,
+        },
       },
       contained: {
         boxShadow: "none",
@@ -81,11 +84,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
     },
-    MuiTableHead: {
-      root: {
-        display: "table-header-group",
-      },
-    },
     MuiTableContainer: {
       root: {
         borderRadius,
@@ -119,6 +117,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         fontSize: 14,
         color: palette.text.secondary,
         fontWeight: 600,
+        background: palette.background.paperLight,
       },
       root: {
         fontSize: 16,

@@ -45,7 +45,7 @@ func login() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "login <url>",
-		Short: "Authenticate with a Coder deployment",
+		Short: "Authenticate with Coder deployment",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rawURL := args[0]
@@ -66,7 +66,10 @@ func login() *cobra.Command {
 				serverURL.Scheme = "https"
 			}
 
-			client := codersdk.New(serverURL)
+			client, err := createUnauthenticatedClient(cmd, serverURL)
+			if err != nil {
+				return err
+			}
 
 			// Try to check the version of the server prior to logging in.
 			// It may be useful to warn the user if they are trying to login
@@ -80,7 +83,7 @@ func login() *cobra.Command {
 
 			hasInitialUser, err := client.HasFirstUser(cmd.Context())
 			if err != nil {
-				return xerrors.Errorf("has initial user: %w", err)
+				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			if !hasInitialUser {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Your Coder deployment hasn't been set up!\n")
@@ -245,9 +248,9 @@ func login() *cobra.Command {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &email, "email", "e", "CODER_EMAIL", "", "Specifies an email address to authenticate with.")
-	cliflag.StringVarP(cmd.Flags(), &username, "username", "u", "CODER_USERNAME", "", "Specifies a username to authenticate with.")
-	cliflag.StringVarP(cmd.Flags(), &password, "password", "p", "CODER_PASSWORD", "", "Specifies a password to authenticate with.")
+	cliflag.StringVarP(cmd.Flags(), &email, "first-user-email", "", "CODER_FIRST_USER_EMAIL", "", "Specifies an email address to use if creating the first user for the deployment.")
+	cliflag.StringVarP(cmd.Flags(), &username, "first-user-username", "", "CODER_FIRST_USER_USERNAME", "", "Specifies a username to use if creating the first user for the deployment.")
+	cliflag.StringVarP(cmd.Flags(), &password, "first-user-password", "", "CODER_FIRST_USER_PASSWORD", "", "Specifies a password to use if creating the first user for the deployment.")
 	return cmd
 }
 

@@ -177,8 +177,8 @@ runs an additional
 [terraform apply](https://www.terraform.io/cli/commands/apply), informing the
 Coder provider that the workspace has a new transition state.
 
-This template sample has one persistent resource (docker image) and one ephemeral resource
-(docker volume).
+This template sample has one persistent resource (docker volume) and one ephemeral resource
+(docker image).
 
 ```sh
 data "coder_workspace" "me" {
@@ -222,6 +222,23 @@ resource "kubernetes_pod" "podName" {
     }
 }
 ```
+
+### Delete templates
+
+You can delete a template using both the coder CLI and UI. Only
+[template admins and owners](./admin/users.md) can delete a template, and the template
+must not have any running workspaces associated to it.
+
+Using the CLI, login to Coder and run the following command to delete a template:
+
+```console
+coder templates delete <template-name>
+```
+
+In the UI, navigate to the template you want to delete, and select the dropdown in
+the right-hand corner of the page to delete the template.
+
+![delete-template](./images/delete-template.png)
 
 #### Delete workspaces
 
@@ -293,14 +310,13 @@ practices:
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
-## Change Management
+## Template permissions (enterprise)
 
-We recommend source controlling your templates as you would other code.
-
-CI is as simple as running `coder templates push` with the appropriate
-credentials.
-
+Template permissions can be used to give users and groups access to specific templates. [Learn more about RBAC](./admin/rbac.md).
 
 ## Next Steps
+
 - Learn about [Authentication & Secrets](templates/authentication.md)
+- Learn about [Change Management](templates/change-management.md)
+- Learn about [Resource Metadata](templates/resource-metadata.md)
 - Learn about [Workspaces](workspaces.md)

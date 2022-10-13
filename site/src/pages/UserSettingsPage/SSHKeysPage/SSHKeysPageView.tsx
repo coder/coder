@@ -2,8 +2,8 @@ import Box from "@material-ui/core/Box"
 import Button from "@material-ui/core/Button"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { GitSSHKey } from "api/typesGenerated"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { CodeExample } from "components/CodeExample/CodeExample"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 
@@ -21,7 +21,9 @@ export interface SSHKeysPageViewProps {
   onRegenerateClick: () => void
 }
 
-export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> = ({
+export const SSHKeysPageView: FC<
+  React.PropsWithChildren<SSHKeysPageViewProps>
+> = ({
   isLoading,
   hasLoaded,
   getSSHKeyError,
@@ -42,21 +44,24 @@ export const SSHKeysPageView: FC<React.PropsWithChildren<SSHKeysPageViewProps>> 
       {/* Regenerating the key is not an option if getSSHKey fails.
         Only one of the error messages will exist at a single time */}
 
-      {getSSHKeyError ? <ErrorSummary error={getSSHKeyError} /> : <></>}
-      {regenerateSSHKeyError ? (
-        <ErrorSummary
+      {Boolean(getSSHKeyError) && (
+        <AlertBanner severity="error" error={getSSHKeyError} />
+      )}
+      {Boolean(regenerateSSHKeyError) && (
+        <AlertBanner
+          severity="error"
           error={regenerateSSHKeyError}
-          defaultMessage={Language.errorRegenerateSSHKey}
+          text={Language.errorRegenerateSSHKey}
           dismissible
         />
-      ) : (
-        <></>
       )}
       {hasLoaded && sshKey && (
         <>
           <CodeExample code={sshKey.public_key.trim()} />
           <div>
-            <Button onClick={onRegenerateClick}>{Language.regenerateLabel}</Button>
+            <Button onClick={onRegenerateClick}>
+              {Language.regenerateLabel}
+            </Button>
           </div>
         </>
       )}

@@ -13,7 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es2018",
+    "target": "es2020",
     "baseUrl": "./src"
   },
   "include": ["**/*.ts", "**/*.tsx"],

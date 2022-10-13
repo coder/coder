@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,15 @@ func TestLogin(t *testing.T) {
 		root, _ := clitest.New(t, "login", client.URL.String())
 		err := root.Execute()
 		require.Error(t, err)
+	})
+
+	t.Run("InitialUserBadLoginURL", func(t *testing.T) {
+		t.Parallel()
+		badLoginURL := "https://fcca2077f06e68aaf9"
+		root, _ := clitest.New(t, "login", badLoginURL)
+		err := root.Execute()
+		errMsg := fmt.Sprintf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser?", badLoginURL)
+		require.ErrorContains(t, err, errMsg)
 	})
 
 	t.Run("InitialUserTTY", func(t *testing.T) {
@@ -64,7 +74,7 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--username", "testuser", "--email", "user@coder.com", "--password", "password")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "password")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())

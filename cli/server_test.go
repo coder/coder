@@ -21,10 +21,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -55,6 +56,7 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t,
 			"server",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--postgres-url", connectionURL,
 			"--cache-dir", t.TempDir(),
 		)
@@ -73,7 +75,7 @@ func TestServer(t *testing.T) {
 		})
 		require.NoError(t, err)
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
@@ -86,6 +88,7 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t,
 			"server",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
@@ -101,7 +104,7 @@ func TestServer(t *testing.T) {
 			return err == nil && rawURL != ""
 		}, 3*time.Minute, testutil.IntervalFast, "failed to get access URL")
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 	})
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
@@ -129,8 +132,9 @@ func TestServer(t *testing.T) {
 			"--access-url", "localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
-		buf := newThreadSafeBuffer()
-		root.SetOutput(buf)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -139,10 +143,11 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
+		pty.ExpectMatch("this may cause unexpected problems when creating workspaces")
+		pty.ExpectMatch("View the Web UI: http://localhost:3000/")
+
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
-		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: http://localhost:3000/\n")
+		require.NoError(t, <-errC)
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
@@ -156,11 +161,13 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--access-url", "foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
 		)
-		buf := newThreadSafeBuffer()
-		root.SetOutput(buf)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -169,10 +176,11 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
+		pty.ExpectMatch("this may cause unexpected problems when creating workspaces")
+		pty.ExpectMatch("View the Web UI: https://foobarbaz.mydomain")
+
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
-		require.Contains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: https://foobarbaz.mydomain\n")
+		require.NoError(t, <-errC)
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -184,11 +192,13 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
 		)
-		buf := newThreadSafeBuffer()
-		root.SetOutput(buf)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)
@@ -197,10 +207,10 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
+		pty.ExpectMatch("View the Web UI: https://google.com")
+
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
-		require.NotContains(t, buf.String(), "this may cause unexpected problems when creating workspaces")
-		require.Contains(t, buf.String(), "View the Web UI: https://google.com\n")
+		require.NoError(t, <-errC)
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
@@ -212,6 +222,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--tls-enable",
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
@@ -228,6 +239,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--tls-enable",
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
@@ -235,20 +247,65 @@ func TestServer(t *testing.T) {
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
 	})
-	t.Run("TLSNoCertFile", func(t *testing.T) {
+	t.Run("TLSInvalid", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
 
-		root, _ := clitest.New(t,
-			"server",
-			"--in-memory",
-			"--address", ":0",
-			"--tls-enable",
-			"--cache-dir", t.TempDir(),
-		)
-		err := root.ExecuteContext(ctx)
-		require.Error(t, err)
+		cert1Path, key1Path := generateTLSCertificate(t)
+		cert2Path, key2Path := generateTLSCertificate(t)
+
+		cases := []struct {
+			name        string
+			args        []string
+			errContains string
+		}{
+			{
+				name:        "NoCertAndKey",
+				args:        []string{"--tls-enable"},
+				errContains: "--tls-cert-file is required when tls is enabled",
+			},
+			{
+				name:        "NoCert",
+				args:        []string{"--tls-enable", "--tls-key-file", key1Path},
+				errContains: "--tls-cert-file and --tls-key-file must be used the same amount of times",
+			},
+			{
+				name:        "NoKey",
+				args:        []string{"--tls-enable", "--tls-cert-file", cert1Path},
+				errContains: "--tls-cert-file and --tls-key-file must be used the same amount of times",
+			},
+			{
+				name:        "MismatchedCount",
+				args:        []string{"--tls-enable", "--tls-cert-file", cert1Path, "--tls-key-file", key1Path, "--tls-cert-file", cert2Path},
+				errContains: "--tls-cert-file and --tls-key-file must be used the same amount of times",
+			},
+			{
+				name:        "MismatchedCertAndKey",
+				args:        []string{"--tls-enable", "--tls-cert-file", cert1Path, "--tls-key-file", key2Path},
+				errContains: "load TLS key pair",
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				defer cancelFunc()
+
+				args := []string{
+					"server",
+					"--in-memory",
+					"--address", ":0",
+					"--access-url", "example.com",
+					"--cache-dir", t.TempDir(),
+				}
+				args = append(args, c.args...)
+				root, _ := clitest.New(t, args...)
+				err := root.ExecuteContext(ctx)
+				require.Error(t, err)
+				require.ErrorContains(t, err, c.errContains)
+			})
+		}
 	})
 	t.Run("TLSValid", func(t *testing.T) {
 		t.Parallel()
@@ -260,6 +317,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--tls-enable",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
@@ -286,7 +344,88 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
+	})
+	t.Run("TLSValidMultiple", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		cert1Path, key1Path := generateTLSCertificate(t, "alpaca.com")
+		cert2Path, key2Path := generateTLSCertificate(t, "*.llama.com")
+		root, cfg := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--access-url", "example.com",
+			"--tls-enable",
+			"--tls-cert-file", cert1Path,
+			"--tls-key-file", key1Path,
+			"--tls-cert-file", cert2Path,
+			"--tls-key-file", key2Path,
+			"--cache-dir", t.TempDir(),
+		)
+		errC := make(chan error, 1)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+		accessURL := waitAccessURL(t, cfg)
+		require.Equal(t, "https", accessURL.Scheme)
+		originalHost := accessURL.Host
+
+		var (
+			expectAddr string
+			dials      int64
+		)
+		client := codersdk.New(accessURL)
+		client.HTTPClient = &http.Client{
+			Transport: &http.Transport{
+				DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					atomic.AddInt64(&dials, 1)
+					assert.Equal(t, expectAddr, addr)
+
+					host, _, err := net.SplitHostPort(addr)
+					require.NoError(t, err)
+
+					// Always connect to the accessURL ip:port regardless of
+					// hostname.
+					conn, err := tls.Dial(network, originalHost, &tls.Config{
+						MinVersion: tls.VersionTLS12,
+						//nolint:gosec
+						InsecureSkipVerify: true,
+						ServerName:         host,
+					})
+					if err != nil {
+						return nil, err
+					}
+
+					// We can't call conn.VerifyHostname because it requires
+					// that the certificates are valid, so we call
+					// VerifyHostname on the first certificate instead.
+					require.Len(t, conn.ConnectionState().PeerCertificates, 1)
+					err = conn.ConnectionState().PeerCertificates[0].VerifyHostname(host)
+					assert.NoError(t, err, "invalid cert common name")
+					return conn, nil
+				},
+			},
+		}
+
+		// Use the first certificate and hostname.
+		client.URL.Host = "alpaca.com:443"
+		expectAddr = "alpaca.com:443"
+		_, err := client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, atomic.LoadInt64(&dials))
+
+		// Use the second certificate (wildcard) and hostname.
+		client.URL.Host = "hi.llama.com:443"
+		expectAddr = "hi.llama.com:443"
+		_, err = client.HasFirstUser(ctx)
+		require.NoError(t, err)
+		require.EqualValues(t, 2, atomic.LoadInt64(&dials))
+
+		cancelFunc()
+		require.NoError(t, <-errC)
 	})
 	// This cannot be ran in parallel because it uses a signal.
 	//nolint:paralleltest
@@ -302,6 +441,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--provisioner-daemons", "1",
 			"--cache-dir", t.TempDir(),
 		)
@@ -317,7 +457,7 @@ func TestServer(t *testing.T) {
 		// We cannot send more signals here, because it's possible Coder
 		// has already exited, which could cause the test to fail due to interrupt.
 		err = <-serverErr
-		require.ErrorIs(t, err, context.Canceled)
+		require.NoError(t, err)
 	})
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
@@ -328,6 +468,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--trace=true",
 			"--cache-dir", t.TempDir(),
 		)
@@ -336,7 +477,7 @@ func TestServer(t *testing.T) {
 			errC <- root.ExecuteContext(ctx)
 		}()
 		cancelFunc()
-		require.ErrorIs(t, <-errC, context.Canceled)
+		require.NoError(t, <-errC)
 		require.Error(t, goleak.Find())
 	})
 	t.Run("Telemetry", func(t *testing.T) {
@@ -365,6 +506,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--telemetry",
 			"--telemetry-url", server.URL,
 			"--cache-dir", t.TempDir(),
@@ -395,6 +537,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--provisioner-daemons", "1",
 			"--prometheus-enable",
 			"--prometheus-address", ":"+strconv.Itoa(randomPort),
@@ -447,6 +590,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
+			"--access-url", "example.com",
 			"--oauth2-github-client-id", "fake",
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,
@@ -475,16 +619,22 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
+func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
 	dir := t.TempDir()
 
+	commonNameStr := "localhost"
+	if len(commonName) > 0 {
+		commonNameStr = commonName[0]
+	}
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
 			Organization: []string{"Acme Co"},
+			CommonName:   commonNameStr,
 		},
+		DNSNames:  []string{commonNameStr},
 		NotBefore: time.Now(),
 		NotAfter:  time.Now().Add(time.Hour * 24 * 180),
 
@@ -493,6 +643,7 @@ func generateTLSCertificate(t testing.TB) (certPath, keyPath string) {
 		BasicConstraintsValid: true,
 		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
 	}
+
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
 	require.NoError(t, err)
 	certFile, err := os.CreateTemp(dir, "")

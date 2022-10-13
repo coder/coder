@@ -22,7 +22,7 @@ func dotfiles() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dotfiles [git_repo_url]",
 		Args:  cobra.ExactArgs(1),
-		Short: "Check out and install a dotfiles repository.",
+		Short: "Checkout and install a dotfiles repository from a Git URL",
 		Example: formatExamples(
 			example{
 				Description: "Check out and install a dotfiles repository without prompts",

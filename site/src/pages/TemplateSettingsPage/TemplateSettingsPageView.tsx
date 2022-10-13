@@ -1,5 +1,5 @@
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
 import { Loader } from "components/Loader/Loader"
 import { ComponentProps, FC } from "react"
@@ -33,7 +33,9 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 
   return (
     <FullPageForm title={Language.title} onCancel={onCancel}>
-      {Boolean(errors.getTemplateError) && <ErrorSummary error={errors.getTemplateError} />}
+      {Boolean(errors.getTemplateError) && (
+        <AlertBanner severity="error" error={errors.getTemplateError} />
+      )}
       {isLoading && <Loader />}
       {template && (
         <TemplateSettingsForm

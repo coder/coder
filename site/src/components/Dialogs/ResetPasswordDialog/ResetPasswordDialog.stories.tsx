@@ -1,6 +1,9 @@
 import { Story } from "@storybook/react"
 import { MockUser } from "../../../testHelpers/renderHelpers"
-import { ResetPasswordDialog, ResetPasswordDialogProps } from "./ResetPasswordDialog"
+import {
+  ResetPasswordDialog,
+  ResetPasswordDialogProps,
+} from "./ResetPasswordDialog"
 
 export default {
   title: "components/Dialogs/ResetPasswordDialog",
@@ -11,9 +14,9 @@ export default {
   },
 }
 
-const Template: Story<ResetPasswordDialogProps> = (args: ResetPasswordDialogProps) => (
-  <ResetPasswordDialog {...args} />
-)
+const Template: Story<ResetPasswordDialogProps> = (
+  args: ResetPasswordDialogProps,
+) => <ResetPasswordDialog {...args} />
 
 export const Example = Template.bind({})
 Example.args = {

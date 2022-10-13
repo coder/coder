@@ -34,6 +34,7 @@ func TestTelemetry(t *testing.T) {
 		_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
 			ID:       uuid.NewString(),
 			LastUsed: database.Now(),
+			Scope:    database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		_, err = db.InsertParameterSchema(ctx, database.InsertParameterSchemaParams{

@@ -23,9 +23,9 @@ export interface TemplateResourcesProps {
   resources: WorkspaceResource[]
 }
 
-export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResourcesProps>> = ({
-  resources,
-}) => {
+export const TemplateResourcesTable: FC<
+  React.PropsWithChildren<TemplateResourcesProps>
+> = ({ resources }) => {
   const styles = useStyles()
 
   return (
@@ -61,7 +61,7 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
                         title={resource.name}
                         subtitle={resource.type}
                         highlightTitle
-                        avatar={<ResourceAvatar type={resource.type} />}
+                        avatar={<ResourceAvatar resource={resource} />}
                       />
                     </TableCell>
                     <TableCell colSpan={3}></TableCell>
@@ -74,19 +74,24 @@ export const TemplateResourcesTable: FC<React.PropsWithChildren<TemplateResource
                   {/* We only want to display the name in the first row because we are using rowSpan */}
                   {/* The rowspan should be the same than the number of agents */}
                   {agentIndex === 0 && (
-                    <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
+                    <TableCell
+                      className={styles.resourceNameCell}
+                      rowSpan={agents.length}
+                    >
                       <AvatarData
                         title={resource.name}
                         subtitle={resource.type}
                         highlightTitle
-                        avatar={<ResourceAvatar type={resource.type} />}
+                        avatar={<ResourceAvatar resource={resource} />}
                       />
                     </TableCell>
                   )}
 
                   <TableCell className={styles.agentColumn}>
                     {agent.name}
-                    <span className={styles.operatingSystem}>{agent.operating_system}</span>
+                    <span className={styles.operatingSystem}>
+                      {agent.operating_system}
+                    </span>
                   </TableCell>
                 </TableRow>
               )

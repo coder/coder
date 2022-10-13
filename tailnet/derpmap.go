@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 
 	"golang.org/x/xerrors"
@@ -14,7 +15,10 @@ import (
 
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
-func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL string) (*tailcfg.DERPMap, error) {
+func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string) (*tailcfg.DERPMap, error) {
+	if remoteURL != "" && localPath != "" {
+		return nil, xerrors.New("a remote URL or local path must be specified, not both")
+	}
 	if region != nil {
 		for index, stunAddr := range stunAddrs {
 			host, rawPort, err := net.SplitHostPort(stunAddr)
@@ -51,6 +55,16 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		err = json.NewDecoder(res.Body).Decode(&derpMap)
 		if err != nil {
 			return nil, xerrors.Errorf("fetch derpmap: %w", err)
+		}
+	}
+	if localPath != "" {
+		content, err := os.ReadFile(localPath)
+		if err != nil {
+			return nil, xerrors.Errorf("read derpmap from %q: %w", localPath, err)
+		}
+		err = json.Unmarshal(content, &derpMap)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal derpmap: %w", err)
 		}
 	}
 	if region != nil {

@@ -6,13 +6,14 @@ interface TemplatesContext {
   organizations?: TypesGen.Organization[]
   templates?: TypesGen.Template[]
   canCreateTemplate?: boolean
-  permissionsError?: Error | unknown
-  organizationsError?: Error | unknown
-  templatesError?: Error | unknown
+  getOrganizationsError?: Error | unknown
+  getTemplatesError?: Error | unknown
 }
 
 export const templatesMachine = createMachine(
   {
+    id: "templatesState",
+    predictableActionArguments: true,
     tsTypes: {} as import("./templatesXService.typegen").Typegen0,
     schema: {
       context: {} as TemplatesContext,
@@ -20,49 +21,41 @@ export const templatesMachine = createMachine(
         getOrganizations: {
           data: TypesGen.Organization[]
         }
-        getPermissions: {
-          data: boolean
-        }
         getTemplates: {
           data: TypesGen.Template[]
         }
       },
     },
-    id: "templatesState",
     initial: "gettingOrganizations",
     states: {
       gettingOrganizations: {
-        entry: "clearOrganizationsError",
+        entry: "clearGetOrganizationsError",
         invoke: {
           src: "getOrganizations",
           id: "getOrganizations",
-          onDone: [
-            {
-              actions: ["assignOrganizations", "clearOrganizationsError"],
-              target: "gettingTemplates",
-            },
-          ],
-          onError: [
-            {
-              actions: "assignOrganizationsError",
-              target: "error",
-            },
-          ],
+          onDone: {
+            actions: ["assignOrganizations"],
+            target: "gettingTemplates",
+          },
+          onError: {
+            actions: "assignGetOrganizationsError",
+            target: "error",
+          },
         },
         tags: "loading",
       },
       gettingTemplates: {
-        entry: "clearTemplatesError",
+        entry: "clearGetTemplatesError",
         invoke: {
           src: "getTemplates",
           id: "getTemplates",
           onDone: {
+            actions: "assignTemplates",
             target: "done",
-            actions: ["assignTemplates", "clearTemplatesError"],
           },
           onError: {
+            actions: "assignGetTemplatesError",
             target: "error",
-            actions: "assignTemplatesError",
           },
         },
         tags: "loading",
@@ -76,20 +69,21 @@ export const templatesMachine = createMachine(
       assignOrganizations: assign({
         organizations: (_, event) => event.data,
       }),
-      assignOrganizationsError: assign({
-        organizationsError: (_, event) => event.data,
+      assignGetOrganizationsError: assign({
+        getOrganizationsError: (_, event) => event.data,
       }),
-      clearOrganizationsError: assign((context) => ({
+      clearGetOrganizationsError: assign((context) => ({
         ...context,
-        organizationsError: undefined,
+        getOrganizationsError: undefined,
       })),
       assignTemplates: assign({
         templates: (_, event) => event.data,
       }),
-      assignTemplatesError: assign({
-        templatesError: (_, event) => event.data,
+      assignGetTemplatesError: assign({
+        getTemplatesError: (_, event) => event.data,
       }),
-      clearTemplatesError: (context) => assign({ ...context, getWorkspacesError: undefined }),
+      clearGetTemplatesError: (context) =>
+        assign({ ...context, getTemplatesError: undefined }),
     },
     services: {
       getOrganizations: API.getOrganizations,

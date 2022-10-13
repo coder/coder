@@ -604,14 +604,13 @@ func TestTemplateDAUs(t *testing.T) {
 	agentCloser := agent.New(agent.Options{
 		Logger:            slogtest.Make(t, nil),
 		StatsReporter:     agentClient.AgentReportStats,
-		WebRTCDialer:      agentClient.ListenWorkspaceAgent,
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
 		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
 	})
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -665,6 +664,6 @@ func TestTemplateDAUs(t *testing.T) {
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		time.Now(), workspaces[0].LastUsedAt, time.Minute,
+		database.Now(), workspaces[0].LastUsedAt, time.Minute,
 	)
 }

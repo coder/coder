@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
@@ -41,20 +43,24 @@ const (
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
 	varGlobalConfig     = "global-config"
+	varHeader           = "header"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
 	varForceTty         = "force-tty"
 	varVerbose          = "verbose"
+	varExperimental     = "experimental"
 	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
+	envExperimental     = "CODER_EXPERIMENTAL"
+	envSessionToken     = "CODER_SESSION_TOKEN"
+	envURL              = "CODER_URL"
 )
 
 var (
 	errUnauthenticated = xerrors.New(notLoggedInMessage)
-	envSessionToken    = "CODER_SESSION_TOKEN"
 )
 
 func init() {
@@ -89,12 +95,14 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
-		features(),
+		tokens(),
 	}
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(coderd.New))
+	all := append(Core(), Server(deployment.Flags(), func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
+		return coderd.New(o), nil
+	}))
 	return all
 }
 
@@ -103,7 +111,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: `Coder — A tool for provisioning self-hosted development environments.
+		Long: `Coder — A tool for provisioning self-hosted development environments with Terraform.
 `,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
@@ -162,25 +170,57 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	}
 
 	cmd.AddCommand(subcommands...)
+	fixUnknownSubcommandError(cmd.Commands())
 
 	cmd.SetUsageTemplate(usageTemplate())
 
-	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
+	cliflag.String(cmd.PersistentFlags(), varURL, "", envURL, "", "URL to a deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoFeatureWarning, "", envNoFeatureWarning, false, "Suppress warnings about unlicensed features.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
-	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
+	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "An agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
-	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
+	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
+	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
+	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
-	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output")
+	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
+	cliflag.Bool(cmd.PersistentFlags(), varExperimental, "", envExperimental, false, "Enable experimental features. Experimental features are not ready for production.")
 
 	return cmd
+}
+
+// fixUnknownSubcommandError modifies the provided commands so that the
+// ones with subcommands output the correct error message when an
+// unknown subcommand is invoked.
+//
+// Example:
+//
+//	unknown command "bad" for "coder templates"
+func fixUnknownSubcommandError(commands []*cobra.Command) {
+	for _, sc := range commands {
+		if sc.HasSubCommands() {
+			if sc.Run == nil && sc.RunE == nil {
+				if sc.Args != nil {
+					// In case the developer does not know about this
+					// behavior in Cobra they must verify correct
+					// behavior. For instance, settings Args to
+					// `cobra.ExactArgs(0)` will not give the same
+					// message as `cobra.NoArgs`. Likewise, omitting the
+					// run function will not give the wanted error.
+					panic("developer error: subcommand has subcommands and Args but no Run or RunE")
+				}
+				sc.Args = cobra.NoArgs
+				sc.Run = func(*cobra.Command, []string) {}
+			}
+
+			fixUnknownSubcommandError(sc.Commands())
+		}
+	}
 }
 
 // versionCmd prints the coder version
@@ -237,8 +277,32 @@ func CreateClient(cmd *cobra.Command) (*codersdk.Client, error) {
 			return nil, err
 		}
 	}
+	client, err := createUnauthenticatedClient(cmd, serverURL)
+	if err != nil {
+		return nil, err
+	}
+	client.SessionToken = token
+	return client, nil
+}
+
+func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*codersdk.Client, error) {
 	client := codersdk.New(serverURL)
-	client.SessionToken = strings.TrimSpace(token)
+	headers, err := cmd.Flags().GetStringArray(varHeader)
+	if err != nil {
+		return nil, err
+	}
+	transport := &headerTransport{
+		transport: http.DefaultTransport,
+		headers:   map[string]string{},
+	}
+	for _, header := range headers {
+		parts := strings.SplitN(header, "=", 2)
+		if len(parts) < 2 {
+			return nil, xerrors.Errorf("split header %q had less than two parts", header)
+		}
+		transport.headers[parts[0]] = parts[1]
+	}
+	client.HTTPClient.Transport = transport
 	return client, nil
 }
 
@@ -521,11 +585,36 @@ func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
 	defer cancel()
 
 	entitlements, err := client.Entitlements(ctx)
-	if err != nil {
-		return xerrors.Errorf("get entitlements to show warnings: %w", err)
+	if err == nil {
+		for _, w := range entitlements.Warnings {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
+		}
 	}
-	for _, w := range entitlements.Warnings {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
+	return nil
+}
+
+type headerTransport struct {
+	transport http.RoundTripper
+	headers   map[string]string
+}
+
+func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	for k, v := range h.headers {
+		req.Header.Add(k, v)
+	}
+	return h.transport.RoundTrip(req)
+}
+
+// ExperimentalEnabled returns if the experimental feature flag is enabled.
+func ExperimentalEnabled(cmd *cobra.Command) bool {
+	return cliflag.IsSetBool(cmd, varExperimental)
+}
+
+// EnsureExperimental will ensure that the experimental feature flag is set if the given flag is set.
+func EnsureExperimental(cmd *cobra.Command, name string) error {
+	_, set := cliflag.IsSet(cmd, name)
+	if set && !ExperimentalEnabled(cmd) {
+		return xerrors.Errorf("flag %s is set but requires flag --experimental or environment variable CODER_EXPERIMENTAL=true.", name)
 	}
 
 	return nil

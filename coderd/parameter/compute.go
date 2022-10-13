@@ -15,8 +15,6 @@ import (
 // ComputeScope targets identifiers to pull parameters from.
 type ComputeScope struct {
 	TemplateImportJobID       uuid.UUID
-	OrganizationID            uuid.UUID
-	UserID                    uuid.UUID
 	TemplateID                uuid.NullUUID
 	WorkspaceID               uuid.NullUUID
 	AdditionalParameterValues []database.ParameterValue
