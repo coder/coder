@@ -47,6 +47,7 @@ export CODER_EMAIL CODER_PASSWORD CODER_USERNAME
 coder login $CODER_URL -u $CODER_USERNAME -p $CODER_PASSWORD -e $CODER_EMAIL
 export HELM_VALUES="service:\n  type: NodePort\nsyncer:\n  extraArgs:\n    - --tls-san=${SHARINGIO_PAIR_BASE_DNS_NAME}"
 export EXP_CLUSTER_RESOURCE_SET=true
+
 # Install kubevirt
 export RELEASE=$(curl https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt)
 # Deploy the KubeVirt operator
@@ -56,6 +57,13 @@ kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/${RELEAS
 # wait until all KubeVirt components are up
 kubectl -n kubevirt wait kv kubevirt --for condition=Available
 
+# install CDI support for KubeVirt
+export TAG=$(curl -s -w %{redirect_url} https://github.com/kubevirt/containerized-data-importer/releases/latest)
+export VERSION=$(echo ${TAG##*/})
+kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-operator.yaml
+kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
+
+# cluster-api bootstrapping
 clusterctl init --infrastructure vcluster
 clusterctl init --infrastructure kubevirt
 clusterctl init --infrastructure=packet
