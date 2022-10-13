@@ -17,7 +17,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/enterprise/highavailability/replicasync"
+	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/testutil"
 )
 

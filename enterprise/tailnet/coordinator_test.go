@@ -1,4 +1,4 @@
-package highavailability_test
+package tailnet_test
 
 import (
 	"net"
@@ -11,7 +11,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/enterprise/highavailability"
+	"github.com/coder/coder/enterprise/tailnet"
 	agpl "github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
@@ -20,7 +20,7 @@ func TestCoordinatorSingle(t *testing.T) {
 	t.Parallel()
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
-		coordinator, err := highavailability.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -48,7 +48,7 @@ func TestCoordinatorSingle(t *testing.T) {
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
-		coordinator, err := highavailability.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -76,7 +76,7 @@ func TestCoordinatorSingle(t *testing.T) {
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator, err := highavailability.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -169,11 +169,11 @@ func TestCoordinatorHA(t *testing.T) {
 
 		pubsub := database.NewPubsubInMemory()
 
-		coordinator1, err := highavailability.NewCoordinator(slogtest.Make(t, nil), pubsub)
+		coordinator1, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub)
 		require.NoError(t, err)
 		defer coordinator1.Close()
 
-		coordinator2, err := highavailability.NewCoordinator(slogtest.Make(t, nil), pubsub)
+		coordinator2, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub)
 		require.NoError(t, err)
 		defer coordinator2.Close()
 

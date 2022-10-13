@@ -16,7 +16,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/enterprise/highavailability/derpmesh"
+	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/tailnet"
 )
 

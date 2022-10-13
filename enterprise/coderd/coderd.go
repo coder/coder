@@ -24,10 +24,10 @@ import (
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/enterprise/highavailability"
-	"github.com/coder/coder/enterprise/highavailability/derpmesh"
-	"github.com/coder/coder/enterprise/highavailability/replicasync"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/enterprise/derpmesh"
+	"github.com/coder/coder/enterprise/replicasync"
+	"github.com/coder/coder/enterprise/tailnet"
+	agpltailnet "github.com/coder/coder/tailnet"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -116,15 +116,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			})
 		})
 	}
-
-	// If high availability is disabled and multiple replicas appear, show an error.
-	// If high availability is enabled and the built-in DERP is but the DERP relay isn't set, show an error.
-	// We need to block meshing if high availability is disabled, because the meshing code would just work.
-	// SetAddresses([]string{})
-
-	api.AGPL.RootHandler.Route("/replicas", func(r chi.Router) {
-
-	})
 
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
@@ -244,9 +235,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		coordinator := tailnet.NewCoordinator()
+		coordinator := agpltailnet.NewCoordinator()
 		if enabled {
-			haCoordinator, err := highavailability.NewCoordinator(api.Logger, api.Pubsub)
+			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing
@@ -265,6 +256,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			})
 		} else {
 			api.derpMesh.SetAddresses([]string{})
+			api.replicaManager.SetCallback(func() {})
 		}
 
 		// Recheck changed in case the HA coordinator failed to set up.

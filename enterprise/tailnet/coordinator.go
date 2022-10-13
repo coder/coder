@@ -1,4 +1,4 @@
-package highavailability
+package tailnet
 
 import (
 	"bytes"
