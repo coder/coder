@@ -2,6 +2,7 @@ package derpmesh
 
 import (
 	"context"
+	"net/url"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -40,6 +41,18 @@ type Mesh struct {
 func (m *Mesh) SetAddresses(addresses []string) {
 	total := make(map[string]struct{}, 0)
 	for _, address := range addresses {
+		addressURL, err := url.Parse(address)
+		if err != nil {
+			m.logger.Error(m.ctx, "invalid address", slog.F("address", err), slog.Error(err))
+			continue
+		}
+		derpURL, err := addressURL.Parse("/derp")
+		if err != nil {
+			m.logger.Error(m.ctx, "parse derp", slog.F("address", err), slog.Error(err))
+			continue
+		}
+		address = derpURL.String()
+
 		total[address] = struct{}{}
 		added, err := m.addAddress(address)
 		if err != nil {

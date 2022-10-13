@@ -146,7 +146,6 @@ type Options struct {
 	BrowserOnly        bool
 	SCIMAPIKey         []byte
 	UserWorkspaceQuota int
-	HighAvailability   bool
 
 	// Used for high availability.
 	DERPServerRelayAddress string
@@ -182,12 +181,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, api.Keys, map[string]bool{
+	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), api.Keys, map[string]bool{
 		codersdk.FeatureAuditLog:         api.AuditLogging,
 		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
 		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
 		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
-		codersdk.FeatureHighAvailability: api.HighAvailability,
+		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
 		codersdk.FeatureTemplateRBAC:     api.RBAC,
 	})
 	if err != nil {

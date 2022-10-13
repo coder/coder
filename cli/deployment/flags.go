@@ -130,14 +130,6 @@ func Flags() *codersdk.DeploymentFlags {
 			Description: "The bind address to serve pprof.",
 			Default:     "127.0.0.1:6060",
 		},
-		HighAvailability: &codersdk.BoolFlag{
-			Name:        "High Availability",
-			Flag:        "high-availability",
-			EnvVar:      "CODER_HIGH_AVAILABILITY",
-			Description: "Specifies whether high availability is enabled.",
-			Default:     true,
-			Enterprise:  true,
-		},
 		CacheDir: &codersdk.StringFlag{
 			Name:        "Cache Directory",
 			Flag:        "cache-dir",

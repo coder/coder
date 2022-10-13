@@ -21,6 +21,7 @@ func Entitlements(
 	ctx context.Context,
 	db database.Store,
 	logger slog.Logger,
+	replicaCount int,
 	keys map[string]ed25519.PublicKey,
 	enablements map[string]bool,
 ) (codersdk.Entitlements, error) {
@@ -144,6 +145,10 @@ func Entitlements(
 			if featureName == codersdk.FeatureUserLimit {
 				continue
 			}
+			// High availability has it's own warnings based on replica count!
+			if featureName == codersdk.FeatureHighAvailability {
+				continue
+			}
 			feature := entitlements.Features[featureName]
 			if !feature.Enabled {
 				continue
@@ -158,6 +163,24 @@ func Entitlements(
 					fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
 			default:
 			}
+		}
+	}
+
+	if replicaCount > 1 {
+		feature := entitlements.Features[codersdk.FeatureHighAvailability]
+
+		switch feature.Entitlement {
+		case codersdk.EntitlementNotEntitled:
+			if entitlements.HasLicense {
+				entitlements.Warnings = append(entitlements.Warnings,
+					"You have multiple replicas but your license is not entitled to high availability.")
+			} else {
+				entitlements.Warnings = append(entitlements.Warnings,
+					"You have multiple replicas but high availability is an Enterprise feature. Contact sales to get a license.")
+			}
+		case codersdk.EntitlementGracePeriod:
+			entitlements.Warnings = append(entitlements.Warnings,
+				"You have multiple replicas but your license for high availability is expired.")
 		}
 	}
 

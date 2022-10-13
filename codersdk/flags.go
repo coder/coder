@@ -60,7 +60,6 @@ type DeploymentFlags struct {
 	Verbose                          *BoolFlag        `json:"verbose" typescript:",notnull"`
 	AuditLogging                     *BoolFlag        `json:"audit_logging" typescript:",notnull"`
 	BrowserOnly                      *BoolFlag        `json:"browser_only" typescript:",notnull"`
-	HighAvailability                 *BoolFlag        `json:"high_availability" typescript:",notnull"`
 	SCIMAuthHeader                   *StringFlag      `json:"scim_auth_header" typescript:",notnull"`
 	UserWorkspaceQuota               *IntFlag         `json:"user_workspace_quota" typescript:",notnull"`
 }
