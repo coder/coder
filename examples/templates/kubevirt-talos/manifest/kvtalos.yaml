@@ -73,7 +73,7 @@ spec:
           value:
             bootloader: true
             disk: /dev/vda
-            image: ghcr.io/siderolabs/installer:v1.2.4
+            image: ghcr.io/siderolabs/installer:v1.2.5
             wipe: false
             extraKernelArgs:
               - console=ttyS0
@@ -100,7 +100,7 @@ spec:
           value:
             bootloader: true
             disk: /dev/vda
-            image: ghcr.io/siderolabs/installer:v1.2.4
+            image: ghcr.io/siderolabs/installer:v1.2.5
             wipe: false
             extraKernelArgs:
               - console=ttyS0
@@ -144,7 +144,7 @@ spec:
                   disks:
                     - name: vmdisk
                       disk:
-                        bus: virtio
+                        bus: scsi
                 memory:
                   guest: "4Gi"
           dataVolumeTemplates:
@@ -159,7 +159,7 @@ spec:
                       storage: "15Gi"
                 source:
                   http:
-                    url: "https://github.com/siderolabs/talos/releases/download/v1.2.4/talos-amd64.iso"
+                    url: "https://github.com/siderolabs/talos/releases/download/v1.2.5/nocloud-amd64.raw.xz"
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: KubevirtMachineTemplate
@@ -185,7 +185,7 @@ spec:
                   disks:
                     - name: vmdisk
                       disk:
-                        bus: virtio
+                        bus: scsi
                 memory:
                   guest: "4Gi"
           dataVolumeTemplates:
@@ -200,7 +200,7 @@ spec:
                       storage: "15Gi"
                 source:
                   http:
-                    url: "https://github.com/siderolabs/talos/releases/download/v1.2.4/talos-amd64.iso"
+                    url: "https://github.com/siderolabs/talos/releases/download/v1.2.5/nocloud-amd64.raw.xz"
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
@@ -210,4 +210,4 @@ spec:
   template:
     spec:
       generateType: join
-      talosVersion: v1.2.4
+      talosVersion: v1.2.5
