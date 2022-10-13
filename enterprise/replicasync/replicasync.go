@@ -129,9 +129,9 @@ type Manager struct {
 }
 
 // loop runs the replica update sequence on an update interval.
-func (s *Manager) loop(ctx context.Context) {
-	defer s.closeWait.Done()
-	ticker := time.NewTicker(s.options.UpdateInterval)
+func (m *Manager) loop(ctx context.Context) {
+	defer m.closeWait.Done()
+	ticker := time.NewTicker(m.options.UpdateInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -139,15 +139,15 @@ func (s *Manager) loop(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
-		err := s.run(ctx)
+		err := m.run(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			s.logger.Warn(ctx, "run replica update loop", slog.Error(err))
+			m.logger.Warn(ctx, "run replica update loop", slog.Error(err))
 		}
 	}
 }
 
 // subscribe listens for new replica information!
-func (s *Manager) subscribe(ctx context.Context) error {
+func (m *Manager) subscribe(ctx context.Context) error {
 	needsUpdate := false
 	updating := false
 	updateMutex := sync.Mutex{}
@@ -158,9 +158,9 @@ func (s *Manager) subscribe(ctx context.Context) error {
 	// it will reprocess afterwards.
 	var update func()
 	update = func() {
-		err := s.run(ctx)
+		err := m.run(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			s.logger.Error(ctx, "run replica from subscribe", slog.Error(err))
+			m.logger.Error(ctx, "run replica from subscribe", slog.Error(err))
 		}
 		updateMutex.Lock()
 		if needsUpdate {
@@ -172,7 +172,7 @@ func (s *Manager) subscribe(ctx context.Context) error {
 		updating = false
 		updateMutex.Unlock()
 	}
-	cancelFunc, err := s.pubsub.Subscribe(PubsubEvent, func(ctx context.Context, message []byte) {
+	cancelFunc, err := m.pubsub.Subscribe(PubsubEvent, func(ctx context.Context, message []byte) {
 		updateMutex.Lock()
 		defer updateMutex.Unlock()
 		id, err := uuid.Parse(string(message))
@@ -180,7 +180,7 @@ func (s *Manager) subscribe(ctx context.Context) error {
 			return
 		}
 		// Don't process updates for ourself!
-		if id == s.options.ID {
+		if id == m.options.ID {
 			return
 		}
 		if updating {
@@ -200,46 +200,46 @@ func (s *Manager) subscribe(ctx context.Context) error {
 	return nil
 }
 
-func (s *Manager) run(ctx context.Context) error {
-	s.closeMutex.Lock()
-	s.closeWait.Add(1)
-	s.closeMutex.Unlock()
+func (m *Manager) run(ctx context.Context) error {
+	m.closeMutex.Lock()
+	m.closeWait.Add(1)
+	m.closeMutex.Unlock()
 	go func() {
-		s.closeWait.Done()
+		m.closeWait.Done()
 	}()
 	// Expect replicas to update once every three times the interval...
 	// If they don't, assume death!
-	replicas, err := s.db.GetReplicasUpdatedAfter(ctx, database.Now().Add(-3*s.options.UpdateInterval))
+	replicas, err := m.db.GetReplicasUpdatedAfter(ctx, database.Now().Add(-3*m.options.UpdateInterval))
 	if err != nil {
 		return xerrors.Errorf("get replicas: %w", err)
 	}
 
-	s.mutex.Lock()
-	s.peers = make([]database.Replica, 0, len(replicas))
+	m.mutex.Lock()
+	m.peers = make([]database.Replica, 0, len(replicas))
 	for _, replica := range replicas {
-		if replica.ID == s.options.ID {
+		if replica.ID == m.options.ID {
 			continue
 		}
-		s.peers = append(s.peers, replica)
+		m.peers = append(m.peers, replica)
 	}
-	s.mutex.Unlock()
+	m.mutex.Unlock()
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	failed := make([]string, 0)
-	for _, peer := range s.Regional() {
+	for _, peer := range m.Regional() {
 		wg.Add(1)
 		peer := peer
 		go func() {
 			defer wg.Done()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, peer.RelayAddress, nil)
 			if err != nil {
-				s.logger.Error(ctx, "create http request for relay probe",
+				m.logger.Error(ctx, "create http request for relay probe",
 					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
 				return
 			}
 			client := http.Client{
-				Timeout: s.options.PeerTimeout,
+				Timeout: m.options.PeerTimeout,
 			}
 			res, err := client.Do(req)
 			if err != nil {
@@ -260,58 +260,58 @@ func (s *Manager) run(ctx context.Context) error {
 		}
 	}
 
-	replica, err := s.db.UpdateReplica(ctx, database.UpdateReplicaParams{
-		ID:           s.self.ID,
+	replica, err := m.db.UpdateReplica(ctx, database.UpdateReplicaParams{
+		ID:           m.self.ID,
 		UpdatedAt:    database.Now(),
-		StartedAt:    s.self.StartedAt,
-		StoppedAt:    s.self.StoppedAt,
-		RelayAddress: s.self.RelayAddress,
-		RegionID:     s.self.RegionID,
-		Hostname:     s.self.Hostname,
-		Version:      s.self.Version,
+		StartedAt:    m.self.StartedAt,
+		StoppedAt:    m.self.StoppedAt,
+		RelayAddress: m.self.RelayAddress,
+		RegionID:     m.self.RegionID,
+		Hostname:     m.self.Hostname,
+		Version:      m.self.Version,
 		Error:        replicaError,
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
 	}
-	s.mutex.Lock()
-	if s.self.Error.String != replica.Error.String {
+	m.mutex.Lock()
+	if m.self.Error.String != replica.Error.String {
 		// Publish an update occurred!
-		err = s.pubsub.Publish(PubsubEvent, []byte(s.self.ID.String()))
+		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 		if err != nil {
-			s.mutex.Unlock()
+			m.mutex.Unlock()
 			return xerrors.Errorf("publish replica update: %w", err)
 		}
 	}
-	s.self = replica
-	if s.callback != nil {
-		go s.callback()
+	m.self = replica
+	if m.callback != nil {
+		go m.callback()
 	}
-	s.mutex.Unlock()
+	m.mutex.Unlock()
 	return nil
 }
 
 // Self represents the current replica.
-func (s *Manager) Self() database.Replica {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return s.self
+func (m *Manager) Self() database.Replica {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.self
 }
 
 // All returns every replica, including itself.
-func (s *Manager) All() []database.Replica {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	return append(s.peers, s.self)
+func (m *Manager) All() []database.Replica {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return append(m.peers, m.self)
 }
 
 // Regional returns all replicas in the same region excluding itself.
-func (s *Manager) Regional() []database.Replica {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (m *Manager) Regional() []database.Replica {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	replicas := make([]database.Replica, 0)
-	for _, replica := range s.peers {
-		if replica.RegionID != s.self.RegionID {
+	for _, replica := range m.peers {
+		if replica.RegionID != m.self.RegionID {
 			continue
 		}
 		replicas = append(replicas, replica)
@@ -321,47 +321,47 @@ func (s *Manager) Regional() []database.Replica {
 
 // SetCallback sets a function to execute whenever new peers
 // are refreshed or updated.
-func (s *Manager) SetCallback(callback func()) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.callback = callback
+func (m *Manager) SetCallback(callback func()) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.callback = callback
 	// Instantly call the callback to inform replicas!
 	go callback()
 }
 
-func (s *Manager) Close() error {
-	s.closeMutex.Lock()
+func (m *Manager) Close() error {
+	m.closeMutex.Lock()
 	select {
-	case <-s.closed:
-		s.closeMutex.Unlock()
+	case <-m.closed:
+		m.closeMutex.Unlock()
 		return nil
 	default:
 	}
-	close(s.closed)
-	s.closeCancel()
-	s.closeWait.Wait()
-	s.closeMutex.Unlock()
+	close(m.closed)
+	m.closeCancel()
+	m.closeWait.Wait()
+	m.closeMutex.Unlock()
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
-	_, err := s.db.UpdateReplica(ctx, database.UpdateReplicaParams{
-		ID:        s.self.ID,
+	_, err := m.db.UpdateReplica(ctx, database.UpdateReplicaParams{
+		ID:        m.self.ID,
 		UpdatedAt: database.Now(),
-		StartedAt: s.self.StartedAt,
+		StartedAt: m.self.StartedAt,
 		StoppedAt: sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
 		},
-		RelayAddress: s.self.RelayAddress,
-		RegionID:     s.self.RegionID,
-		Hostname:     s.self.Hostname,
-		Version:      s.self.Version,
-		Error:        s.self.Error,
+		RelayAddress: m.self.RelayAddress,
+		RegionID:     m.self.RegionID,
+		Hostname:     m.self.Hostname,
+		Version:      m.self.Version,
+		Error:        m.self.Error,
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
 	}
-	err = s.pubsub.Publish(PubsubEvent, []byte(s.self.ID.String()))
+	err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 	if err != nil {
 		return xerrors.Errorf("publish replica update: %w", err)
 	}
