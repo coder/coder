@@ -127,6 +127,7 @@ var (
 					ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// Full perms to manage org members
 					ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
 			}
 		},
