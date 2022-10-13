@@ -32,7 +32,7 @@ export const WorkspaceReadyPage = ({
   const [bannerState, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
   )
-  const deadline = bannerState.context.workspace.deadline
+  const deadline = bannerState.context.deadline
   const xServices = useContext(XServiceContext)
   const featureVisibility = useSelector(
     xServices.entitlementsXService,
