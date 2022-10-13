@@ -38,6 +38,10 @@ func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGro
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+type GroupsResponse struct {
+	Groups []Group `json:"groups"`
+}
+
 func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]Group, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/groups", orgID.String()),
@@ -52,8 +56,8 @@ func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]G
 		return nil, readBodyAsError(res)
 	}
 
-	var groups []Group
-	return groups, json.NewDecoder(res.Body).Decode(&groups)
+	var resp GroupsResponse
+	return resp.Groups, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {

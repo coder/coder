@@ -380,6 +380,11 @@ export interface Group {
   readonly members: User[]
 }
 
+// From codersdk/groups.go
+export interface GroupsResponse {
+  readonly groups: Group[]
+}
+
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
   readonly url: string
@@ -406,6 +411,11 @@ export interface License {
   readonly uploaded_at: string
   // eslint-disable-next-line
   readonly claims: Record<string, any>
+}
+
+// From codersdk/licenses.go
+export interface LicensesResponse {
+  readonly licenses: License[]
 }
 
 // From codersdk/agentconn.go

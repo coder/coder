@@ -19,7 +19,7 @@ describe("WorkspacesPage", () => {
     // Given
     server.use(
       rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json([]))
+        return res(ctx.status(200), ctx.json({ workspaces: [] }))
       }),
     )
 

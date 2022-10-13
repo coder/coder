@@ -28,7 +28,7 @@ export const handlers = [
   rest.get(
     "/api/v2/organizations/:organizationId/templates",
     async (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json([M.MockTemplate]))
+      return res(ctx.status(200), ctx.json({ templates: [M.MockTemplate] }))
     },
   ),
 
@@ -37,7 +37,10 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
   rest.get("/api/v2/templates/:templateId/versions", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockTemplateVersion]))
+    return res(
+      ctx.status(200),
+      ctx.json({ template_versions: [M.MockTemplateVersion] }),
+    )
   }),
   rest.patch("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
@@ -51,7 +54,7 @@ export const handlers = [
   rest.get(
     "/api/v2/templateversions/:templateVersionId/schema",
     async (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json([]))
+      return res(ctx.status(200), ctx.json({ parameter_schemas: [] }))
     },
   ),
   rest.get(
@@ -59,7 +62,9 @@ export const handlers = [
     async (req, res, ctx) => {
       return res(
         ctx.status(200),
-        ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]),
+        ctx.json({
+          resources: [M.MockWorkspaceResource, M.MockWorkspaceResource2],
+        }),
       )
     },
   ),
@@ -71,14 +76,17 @@ export const handlers = [
   rest.get("/api/v2/users", async (req, res, ctx) => {
     return res(
       ctx.status(200),
-      ctx.json([M.MockUser, M.MockUser2, M.SuspendedMockUser]),
+      ctx.json({ users: [M.MockUser, M.MockUser2, M.SuspendedMockUser] }),
     )
   }),
   rest.post("/api/v2/users", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockUser))
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockOrganization]))
+    return res(
+      ctx.status(200),
+      ctx.json({ organizations: [M.MockOrganization] }),
+    )
   }),
   rest.get(
     "/api/v2/users/me/organizations/:organizationId",
@@ -95,14 +103,14 @@ export const handlers = [
   rest.get("/api/v2/users/me", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockUser))
   }),
-  rest.get("/api/v2/users/me/keys", async (req, res, ctx) => {
+  rest.post("/api/v2/users/me/keys", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAPIKey))
   }),
   rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAuthMethods))
   }),
   rest.get("/api/v2/users/roles", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockSiteRoles))
+    return res(ctx.status(200), ctx.json({ roles: M.MockSiteRoles }))
   }),
   rest.post("/api/v2/authcheck", async (req, res, ctx) => {
     const permissions = [
@@ -138,7 +146,7 @@ export const handlers = [
 
   // workspaces
   rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockWorkspace]))
+    return res(ctx.status(200), ctx.json({ workspaces: [M.MockWorkspace] }))
   }),
   rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
@@ -168,7 +176,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(result))
   }),
   rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockBuilds))
+    return res(ctx.status(200), ctx.json({ builds: M.MockBuilds }))
   }),
   rest.get(
     "/api/v2/users/:username/workspace/:workspaceName/builds/:buildNumber",
@@ -181,7 +189,9 @@ export const handlers = [
     (req, res, ctx) => {
       return res(
         ctx.status(200),
-        ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]),
+        ctx.json({
+          resources: [M.MockWorkspaceResource, M.MockWorkspaceResource2],
+        }),
       )
     },
   ),
@@ -194,7 +204,7 @@ export const handlers = [
   rest.get(
     "/api/v2/workspacebuilds/:workspaceBuildId/logs",
     (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs))
+      return res(ctx.status(200), ctx.json({ logs: M.MockWorkspaceBuildLogs }))
     },
   ),
   rest.get("/api/v2/entitlements", (req, res, ctx) => {
@@ -222,7 +232,7 @@ export const handlers = [
 
   // Groups
   rest.get("/api/v2/organizations/:organizationId/groups", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([MockGroup]))
+    return res(ctx.status(200), ctx.json({ groups: [MockGroup] }))
   }),
 
   rest.post(

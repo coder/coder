@@ -110,7 +110,9 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	licenses, err := api.Database.GetLicenses(ctx)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.License{})
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.LicensesResponse{
+			Licenses: []codersdk.License{},
+		})
 		return
 	}
 	if err != nil {
@@ -137,7 +139,10 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, sdkLicenses)
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.LicensesResponse{
+		Licenses: sdkLicenses,
+	})
 }
 
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {

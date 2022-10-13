@@ -260,7 +260,9 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		resp = append(resp, convertGroup(group, members))
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupsResponse{
+		Groups: resp,
+	})
 }
 
 func convertGroup(g database.Group, users []database.User) codersdk.Group {

@@ -37,6 +37,10 @@ func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, 
 	return l, d.Decode(&l)
 }
 
+type LicensesResponse struct {
+	Licenses []License `json:"licenses"`
+}
+
 func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/licenses", nil)
 	if err != nil {
@@ -46,10 +50,11 @@ func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var licenses []License
+
+	var resp LicensesResponse
 	d := json.NewDecoder(res.Body)
 	d.UseNumber()
-	return licenses, d.Decode(&licenses)
+	return resp.Licenses, d.Decode(&resp)
 }
 
 func (c *Client) DeleteLicense(ctx context.Context, id int32) error {

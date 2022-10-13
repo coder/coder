@@ -62,21 +62,6 @@ const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
 }
 
-export const provisioners: TypesGen.ProvisionerDaemon[] = [
-  {
-    id: "terraform",
-    name: "Terraform",
-    created_at: "",
-    provisioners: [],
-  },
-  {
-    id: "cdr-basic",
-    name: "Basic",
-    created_at: "",
-    provisioners: [],
-  },
-]
-
 export const login = async (
   email: string,
   password: string,
@@ -134,8 +119,8 @@ export const getUsers = async (
   filter?: TypesGen.UsersRequest,
 ): Promise<TypesGen.User[]> => {
   const url = getURLWithSearchParams("/api/v2/users", filter)
-  const response = await axios.get<TypesGen.User[]>(url)
-  return response.data
+  const response = await axios.get<TypesGen.UsersResponse>(url)
+  return response.data.users
 }
 
 export const getOrganization = async (
@@ -148,10 +133,10 @@ export const getOrganization = async (
 }
 
 export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
-  const response = await axios.get<TypesGen.Organization[]>(
+  const response = await axios.get<TypesGen.OrganizationsByUserResponse>(
     "/api/v2/users/me/organizations",
   )
-  return response.data
+  return response.data.organizations
 }
 
 export const getTemplate = async (
@@ -194,19 +179,19 @@ export const getTemplateVersion = async (
 export const getTemplateVersionSchema = async (
   versionId: string,
 ): Promise<TypesGen.ParameterSchema[]> => {
-  const response = await axios.get<TypesGen.ParameterSchema[]>(
+  const response = await axios.get<TypesGen.TemplateVersionSchemaResponse>(
     `/api/v2/templateversions/${versionId}/schema`,
   )
-  return response.data
+  return response.data.parameter_schemas
 }
 
 export const getTemplateVersionResources = async (
   versionId: string,
 ): Promise<TypesGen.WorkspaceResource[]> => {
-  const response = await axios.get<TypesGen.WorkspaceResource[]>(
+  const response = await axios.get<TypesGen.ResourcesResponse>(
     `/api/v2/templateversions/${versionId}/resources`,
   )
-  return response.data
+  return response.data.resources
 }
 
 export const getTemplateVersions = async (
@@ -282,8 +267,8 @@ export const getWorkspaces = async (
   filter?: TypesGen.WorkspaceFilter,
 ): Promise<TypesGen.Workspace[]> => {
   const url = getURLWithSearchParams("/api/v2/workspaces", filter)
-  const response = await axios.get<TypesGen.Workspace[]>(url)
-  return response.data
+  const response = await axios.get<TypesGen.WorkspacesResponse>(url)
+  return response.data.workspaces
 }
 
 export const getWorkspaceByOwnerAndName = async (
@@ -436,9 +421,7 @@ export const updateUserPassword = async (
 ): Promise<undefined> =>
   axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
-export const getSiteRoles = async (): Promise<
-  TypesGen.AssignableRole[]
-> => {
+export const getSiteRoles = async (): Promise<TypesGen.AssignableRole[]> => {
   const response = await axios.get<TypesGen.AssignableRolesResponse>(
     `/api/v2/users/roles`,
   )
@@ -478,10 +461,10 @@ export const getWorkspaceBuilds = async (
   workspaceId: string,
   since: Date,
 ): Promise<TypesGen.WorkspaceBuild[]> => {
-  const response = await axios.get<TypesGen.WorkspaceBuild[]>(
+  const response = await axios.get<TypesGen.WorkspaceBuildsResponse>(
     `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
   )
-  return response.data
+  return response.data.builds
 }
 
 export const getWorkspaceBuildByNumber = async (
@@ -591,10 +574,10 @@ export const getApplicationsHost =
 export const getGroups = async (
   organizationId: string,
 ): Promise<TypesGen.Group[]> => {
-  const response = await axios.get(
+  const response = await axios.get<TypesGen.GroupsResponse>(
     `/api/v2/organizations/${organizationId}/groups`,
   )
-  return response.data
+  return response.data.groups
 }
 
 export const createGroup = async (
