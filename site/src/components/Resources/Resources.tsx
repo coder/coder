@@ -18,7 +18,9 @@ import { FC, useState } from "react"
 import { getDisplayAgentStatus, getDisplayVersionStatus } from "util/workspace"
 import {
   BuildInfoResponse,
+  DERPRegion,
   Workspace,
+  WorkspaceAgent,
   WorkspaceResource,
 } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
@@ -32,6 +34,9 @@ import { ResourcesHelpTooltip } from "../Tooltips/ResourcesHelpTooltip"
 import { ResourceAgentLatency } from "./ResourceAgentLatency"
 import { ResourceAvatarData } from "./ResourceAvatarData"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ResourceAvatar } from "./ResourceAvatar"
+import { SensitiveValue } from "./SensitiveValue"
+import { AgentLatency } from "./AgentLatency"
 
 const Language = {
   resources: "Resources",
@@ -72,8 +77,154 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
     : resources.filter((resource) => !resource.hide)
   const hasHideResources = resources.some((r) => r.hide)
 
+  const getDisplayLatency = (agent: WorkspaceAgent) => {
+    // Find the right latency to display
+    const latencyValues = Object.values(agent.latency ?? {})
+    const latency =
+      latencyValues.find((derp) => derp.preferred) ??
+      // Accessing an array index can return undefined as well
+      // for some reason TS does not handle that
+      (latencyValues[0] as DERPRegion | undefined)
+
+    if (!latency) {
+      return undefined
+    }
+
+    // Get the color
+    let color = theme.palette.success.light
+    if (latency.latency_ms >= 150 && latency.latency_ms < 300) {
+      color = theme.palette.warning.light
+    } else if (latency.latency_ms >= 300) {
+      color = theme.palette.error.light
+    }
+
+    return {
+      ...latency,
+      color,
+    }
+  }
+
   return (
     <Stack direction="column" spacing={1}>
+      {resources.map((resource) => {
+        // Type is already displayed on top of the resource name
+        const metadataToDisplay =
+          resource.metadata?.filter((data) => data.key !== "type") ?? []
+
+        return (
+          <div key={resource.id} className={styles.resourceCard}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              className={styles.resourceCardHeader}
+            >
+              <div>
+                <ResourceAvatar resource={resource} />
+              </div>
+              <Stack direction="row" spacing={4}>
+                <div className={styles.resourceData}>
+                  <div className={styles.resourceDataLabel}>
+                    {resource.type}
+                  </div>
+                  <div>{resource.name}</div>
+                </div>
+
+                {metadataToDisplay.map((data) => (
+                  <div key={data.key} className={styles.resourceData}>
+                    <div className={styles.resourceDataLabel}>{data.key}</div>
+                    {data.sensitive ? (
+                      <SensitiveValue value={data.value} />
+                    ) : (
+                      <div>{data.value}</div>
+                    )}
+                  </div>
+                ))}
+              </Stack>
+            </Stack>
+
+            <div>
+              {resource.agents?.map((agent) => {
+                const latency = getDisplayLatency(agent)
+
+                return (
+                  <Stack
+                    key={agent.id}
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    className={styles.agentRow}
+                  >
+                    <Stack direction="row" alignItems="baseline">
+                      <div role="status" className={styles.agentStatus} />
+                      <div>
+                        <div className={styles.agentName}>{agent.name}</div>
+                        <Stack
+                          direction="row"
+                          alignItems="baseline"
+                          className={styles.agentData}
+                          spacing={1}
+                        >
+                          <span>{agent.operating_system}</span>
+                          <span>{agent.version}</span>
+                          {latency && <AgentLatency agent={agent} />}
+                        </Stack>
+                      </div>
+                    </Stack>
+
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      {canUpdateWorkspace && agent.status === "connected" && (
+                        <>
+                          {applicationsHost !== undefined && (
+                            <PortForwardButton
+                              host={applicationsHost}
+                              workspaceName={workspace.name}
+                              agentId={agent.id}
+                              agentName={agent.name}
+                              username={workspace.owner_name}
+                            />
+                          )}
+                          {!hideSSHButton && (
+                            <SSHButton
+                              workspaceName={workspace.name}
+                              agentName={agent.name}
+                            />
+                          )}
+                          <TerminalLink
+                            workspaceName={workspace.name}
+                            agentName={agent.name}
+                            userName={workspace.owner_name}
+                          />
+                          {agent.apps.map((app) => (
+                            <AppLink
+                              key={app.name}
+                              appsHost={applicationsHost}
+                              appIcon={app.icon}
+                              appName={app.name}
+                              appCommand={app.command}
+                              appSubdomain={app.subdomain}
+                              username={workspace.owner_name}
+                              workspaceName={workspace.name}
+                              agentName={agent.name}
+                              health={app.health}
+                            />
+                          ))}
+                        </>
+                      )}
+                      {canUpdateWorkspace && agent.status === "connecting" && (
+                        <>
+                          <Skeleton width={80} height={60} />
+                          <Skeleton width={120} height={60} />
+                        </>
+                      )}
+                    </Stack>
+                  </Stack>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+
       <div aria-label={Language.resources} className={styles.wrapper}>
         {getResourcesError ? (
           <AlertBanner severity="error" error={getResourcesError} />
@@ -335,5 +486,52 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 9999,
     width: "100%",
     maxWidth: 260,
+  },
+
+  resourceCard: {
+    background: theme.palette.background.paper,
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
+  },
+
+  resourceCardHeader: {
+    padding: theme.spacing(3, 4),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  },
+
+  resourceData: {
+    fontSize: 16,
+  },
+
+  resourceDataLabel: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+
+  agentRow: {
+    padding: theme.spacing(3, 4),
+    backgroundColor: theme.palette.background.paperLight,
+    fontSize: 16,
+
+    "&:not(:last-child)": {
+      borderBottom: `1px solid ${theme.palette.divider}`,
+    },
+  },
+
+  agentStatus: {
+    width: theme.spacing(1),
+    height: theme.spacing(1),
+    backgroundColor: theme.palette.success.light,
+    borderRadius: "100%",
+  },
+
+  agentName: {
+    fontWeight: 600,
+  },
+
+  agentData: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(0.5),
   },
 }))

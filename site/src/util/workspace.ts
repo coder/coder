@@ -20,8 +20,7 @@ export const DisplayWorkspaceBuildStatusLanguage = {
 }
 
 export const DisplayAgentVersionLanguage = {
-  unknown: "unknown",
-  outdated: "outdated",
+  unknown: "Unknown",
 }
 
 export const getDisplayWorkspaceBuildStatus = (
@@ -149,13 +148,12 @@ export const getDisplayVersionStatus = (
 ): { displayVersion: string; outdated: boolean } => {
   if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
     return {
-      displayVersion:
-        `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
+      displayVersion: agentVersion || DisplayAgentVersionLanguage.unknown,
       outdated: false,
     }
   } else if (semver.lt(agentVersion, serverVersion)) {
     return {
-      displayVersion: `${agentVersion} (${DisplayAgentVersionLanguage.outdated})`,
+      displayVersion: agentVersion,
       outdated: true,
     }
   } else {
