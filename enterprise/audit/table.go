@@ -102,9 +102,9 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"last_used_at":       ActionIgnore,
 	},
 	&database.Group{}: {
-		"id":         ActionTrack,
-		"name":       ActionTrack,
-		"avatar_url": ActionTrack,
+		"id":              ActionTrack,
+		"name":            ActionTrack,
+		"organization_id": ActionTrack,
 	},
 })
 
