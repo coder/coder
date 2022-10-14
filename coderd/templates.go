@@ -772,7 +772,7 @@ func (api *API) convertTemplate(
 	template database.Template, workspaceOwnerCount uint32, createdByName string,
 ) codersdk.Template {
 	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
-	averageBuildTimeSec, _ := api.metricsCache.TemplateAverageBuildTimeSec(template.ID)
+	averageBuildTime, _ := api.metricsCache.TemplateAverageBuildTimeSec(template.ID)
 	return codersdk.Template{
 		ID:                         template.ID,
 		CreatedAt:                  template.CreatedAt,
@@ -783,7 +783,7 @@ func (api *API) convertTemplate(
 		ActiveVersionID:            template.ActiveVersionID,
 		WorkspaceOwnerCount:        workspaceOwnerCount,
 		ActiveUserCount:            activeCount,
-		AverageBuildTimeSec:        averageBuildTimeSec,
+		AverageBuildTimeMillis:     int64(averageBuildTime / time.Millisecond),
 		Description:                template.Description,
 		Icon:                       template.Icon,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),

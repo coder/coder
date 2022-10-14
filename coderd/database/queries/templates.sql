@@ -106,57 +106,25 @@ WHERE
 RETURNING
 	*;
 
--- name: GetTemplatesAverageBuildTime :many
--- Computes average build time for every template.
--- Only considers last moving_average_size successful builds between start_ts and end_ts.
--- If a template does not have at least min_completed_job_count such builds, it gets skipped.
-WITH query_with_all_job_count AS (SELECT
-	DISTINCT t.id,
-	AVG(pj.exec_time_sec)
-		OVER(
-			PARTITION BY t.id
-			ORDER BY pj.completed_at
-			ROWS BETWEEN @moving_average_size::integer PRECEDING AND CURRENT ROW)
-		AS avg_build_time_sec,
-	COUNT(*) OVER(PARTITION BY t.id) as job_count
-FROM
-	(SELECT
-		id,
-		active_version_id
-	FROM
-		templates) AS t
-INNER JOIN
-	(SELECT
-		workspace_id,
-		template_version_id,
-		job_id
-	FROM
-		workspace_builds)
-	AS
-		wb
-ON
-	t.id = wb.workspace_id AND t.active_version_id = wb.template_version_id
-INNER JOIN
-	(SELECT
-		id,
-		completed_at,
-		EXTRACT(EPOCH FROM (completed_at - started_at)) AS exec_time_sec
-	FROM
-		provisioner_jobs
-	WHERE
-		(completed_at IS NOT NULL) AND (started_at IS NOT NULL) AND
-		(completed_at >= @start_ts AND completed_at <= @end_ts) AND
-		(canceled_at IS NULL) AND
-		((error IS NULL) OR (error = '')))
-	AS
-		pj
-ON
-	wb.job_id = pj.id)
+-- name: GetTemplateAverageBuildTime :one
+WITH build_times AS (
 SELECT
-	id,
-	avg_build_time_sec
+	EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at)) AS exec_time_sec
 FROM
-	query_with_all_job_count
+	workspace_builds
+JOIN template_versions ON
+	workspace_builds.template_version_id = template_versions.id
+JOIN provisioner_jobs pj ON
+	workspace_builds.job_id = pj.id
 WHERE
-	job_count >= @min_completed_job_count::integer
+	template_versions.template_id = @template_id AND
+		(workspace_builds.transition = "start") AND
+		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
+		(pj.started_at > @start_time) AND
+		(pj.canceled_at IS NULL) AND
+		((pj.error IS NULL) OR (pj.error = ''))
+ORDER BY
+	workspace_builds.created_at DESC
+)
+SELECT CAST(PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) AS FLOAT) FROM build_times
 ;
