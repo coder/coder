@@ -9,6 +9,7 @@ export interface APIKey {
   readonly created_at: string
   readonly updated_at: string
   readonly login_type: LoginType
+  readonly scope: APIKeyScope
   readonly lifetime_seconds: number
 }
 
@@ -218,6 +219,11 @@ export interface CreateTestAuditLogRequest {
   readonly resource_id?: string
 }
 
+// From codersdk/apikey.go
+export interface CreateTokenRequest {
+  readonly scope: APIKeyScope
+}
+
 // From codersdk/users.go
 export interface CreateUserRequest {
   readonly email: string
@@ -344,7 +350,7 @@ export interface Feature {
   readonly actual?: number
 }
 
-// From codersdk/users.go
+// From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -783,6 +789,7 @@ export interface WorkspaceApp {
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
+  readonly sharing_level: WorkspaceAppSharingLevel
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
@@ -850,6 +857,9 @@ export interface WorkspaceResourceMetadata {
   readonly value: string
   readonly sensitive: boolean
 }
+
+// From codersdk/apikey.go
+export type APIKeyScope = "all" | "application_connect"
 
 // From codersdk/audit.go
 export type AuditAction = "create" | "delete" | "write"
@@ -930,6 +940,9 @@ export type WorkspaceAppHealth =
   | "healthy"
   | "initializing"
   | "unhealthy"
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

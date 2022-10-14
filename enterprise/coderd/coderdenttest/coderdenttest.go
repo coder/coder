@@ -118,19 +118,19 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.GraceAt.IsZero() {
 		options.GraceAt = time.Now().Add(time.Hour)
 	}
-	auditLog := int64(0)
+	var auditLog int64
 	if options.AuditLog {
 		auditLog = 1
 	}
-	browserOnly := int64(0)
+	var browserOnly int64
 	if options.BrowserOnly {
 		browserOnly = 1
 	}
-	scim := int64(0)
+	var scim int64
 	if options.SCIM {
 		scim = 1
 	}
-	workspaceQuota := int64(0)
+	var workspaceQuota int64
 	if options.WorkspaceQuota {
 		workspaceQuota = 1
 	}

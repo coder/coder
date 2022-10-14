@@ -199,6 +199,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   icon: "",
   subdomain: false,
   health: "disabled",
+  sharing_level: "owner",
   healthcheck: {
     url: "",
     interval: 0,

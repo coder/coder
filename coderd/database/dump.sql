@@ -5,6 +5,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'application_connect'
 );
 
+CREATE TYPE app_sharing_level AS ENUM (
+    'owner',
+    'authenticated',
+    'public'
+);
+
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
@@ -371,7 +377,8 @@ CREATE TABLE workspace_apps (
     healthcheck_interval integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
     health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
-    subdomain boolean DEFAULT false NOT NULL
+    subdomain boolean DEFAULT false NOT NULL,
+    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL
 );
 
 CREATE TABLE workspace_builds (

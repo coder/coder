@@ -34,6 +34,26 @@ func (e *APIKeyScope) Scan(src interface{}) error {
 	return nil
 }
 
+type AppSharingLevel string
+
+const (
+	AppSharingLevelOwner         AppSharingLevel = "owner"
+	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelPublic        AppSharingLevel = "public"
+)
+
+func (e *AppSharingLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppSharingLevel(s)
+	case string:
+		*e = AppSharingLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppSharingLevel: %T", src)
+	}
+	return nil
+}
+
 type AuditAction string
 
 const (
@@ -626,6 +646,7 @@ type WorkspaceApp struct {
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
+	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 }
 
 type WorkspaceBuild struct {

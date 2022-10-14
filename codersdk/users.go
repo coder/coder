@@ -96,11 +96,6 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
-// GenerateAPIKeyResponse contains an API key for a user.
-type GenerateAPIKeyResponse struct {
-	Key string `json:"key"`
-}
-
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }

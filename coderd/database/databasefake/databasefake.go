@@ -2324,6 +2324,10 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if arg.SharingLevel == "" {
+		arg.SharingLevel = database.AppSharingLevelOwner
+	}
+
 	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
 		ID:                   arg.ID,
@@ -2334,6 +2338,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Command:              arg.Command,
 		Url:                  arg.Url,
 		Subdomain:            arg.Subdomain,
+		SharingLevel:         arg.SharingLevel,
 		HealthcheckUrl:       arg.HealthcheckUrl,
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
