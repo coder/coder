@@ -4,6 +4,11 @@ import dayjs from "dayjs"
 import { useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
+import {
+  getMaxDeadline,
+  getMaxDeadlineChange,
+  getMinDeadline,
+} from "util/schedule"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
@@ -31,6 +36,7 @@ export const WorkspaceReadyPage = ({
   const [bannerState, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
   )
+  const deadline = bannerState.context.deadline
   const xServices = useContext(XServiceContext)
   const featureVisibility = useSelector(
     xServices.entitlementsXService,
@@ -39,6 +45,7 @@ export const WorkspaceReadyPage = ({
   const [buildInfoState] = useActor(xServices.buildInfoXService)
   const {
     workspace,
+    template,
     refreshWorkspaceWarning,
     builds,
     getBuildsError,
@@ -81,20 +88,30 @@ export const WorkspaceReadyPage = ({
           },
         }}
         scheduleProps={{
-          onDeadlineMinus: () => {
+          onDeadlineMinus: (hours: number) => {
             bannerSend({
               type: "DECREASE_DEADLINE",
-              hours: 1,
+              hours,
             })
           },
-          onDeadlinePlus: () => {
+          onDeadlinePlus: (hours: number) => {
             bannerSend({
               type: "INCREASE_DEADLINE",
-              hours: 1,
+              hours,
             })
           },
           deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),
           deadlinePlusEnabled: () => !bannerState.matches("atMaxDeadline"),
+          maxDeadlineDecrease: deadline
+            ? getMaxDeadlineChange(deadline, getMinDeadline())
+            : 0,
+          maxDeadlineIncrease:
+            deadline && template
+              ? getMaxDeadlineChange(
+                  getMaxDeadline(workspace, template),
+                  deadline,
+                )
+              : 0,
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}
