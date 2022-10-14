@@ -2563,7 +2563,7 @@ JOIN provisioner_jobs pj ON
 	workspace_builds.job_id = pj.id
 WHERE
 	template_versions.template_id = $1 AND
-		(workspace_builds.transition = "start") AND
+		(workspace_builds.transition = 'start') AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
 		(pj.started_at > $2) AND
 		(pj.canceled_at IS NULL) AND

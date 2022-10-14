@@ -118,7 +118,7 @@ JOIN provisioner_jobs pj ON
 	workspace_builds.job_id = pj.id
 WHERE
 	template_versions.template_id = @template_id AND
-		(workspace_builds.transition = "start") AND
+		(workspace_builds.transition = 'start') AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
 		(pj.started_at > @start_time) AND
 		(pj.canceled_at IS NULL) AND
