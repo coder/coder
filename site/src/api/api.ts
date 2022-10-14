@@ -279,7 +279,7 @@ export const getURLWithSearchParams = (
 }
 
 export const getWorkspaces = async (
-  options: TypesGen.AuditLogsRequest,
+  options: TypesGen.WorkspacesRequest,
 ): Promise<TypesGen.Workspace[]> => {
   const searchParams = new URLSearchParams()
   if (options.limit) {
@@ -296,10 +296,9 @@ export const getWorkspaces = async (
   return response.data
 }
 
-// TODO change types
 export const getWorkspacesCount = async (
-  options: TypesGen.AuditLogCountRequest = {},
-): Promise<TypesGen.AuditLogCountResponse> => {
+  options: TypesGen.WorkspaceCountRequest,
+): Promise<TypesGen.WorkspaceCountResponse> => {
   const searchParams = new URLSearchParams()
   if (options.q) {
     searchParams.set("q", options.q)

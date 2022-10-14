@@ -31,6 +31,18 @@ type Workspace struct {
 	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
+type WorkspacesRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
+
+type WorkspaceCountRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+}
+type WorkspaceCountResponse struct {
+	Count int64 `json:"count"`
+}
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
