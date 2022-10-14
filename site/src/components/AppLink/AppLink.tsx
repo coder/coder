@@ -67,7 +67,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   )
 
   let shareIcon = <LockOutlinedIcon />
-  let shareTooltip = "This app is private, only you can access it"
+  let shareTooltip = "Private, only accessible by you"
   if (appSharingLevel === "authenticated") {
     shareIcon = <GroupOutlinedIcon />
     shareTooltip = "Shared with all authenticated users"
