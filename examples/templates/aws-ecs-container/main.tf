@@ -6,7 +6,7 @@ terraform {
     }
     coder = {
       source  = "coder/coder"
-      version = "0.5.0"
+      version = "0.5.3"
     }
   }
 }
@@ -110,6 +110,7 @@ resource "coder_app" "code-server" {
   icon      = "/icon/code.svg"
   url       = "http://localhost:13337?folder=/home/coder"
   subdomain = false
+  share     = "owner"
 
   healthcheck {
     url       = "http://localhost:13337/healthz"

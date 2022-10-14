@@ -305,7 +305,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					DB:              db,
 					RedirectToLogin: true,
 				}),
-				httpmw.ExtractUserParam(db),
+				httpmw.ExtractUserParam(db, false),
 				httpmw.ExtractWorkspaceAndAgentParam(db),
 			)
 			rtr.Get("/", func(w http.ResponseWriter, r *http.Request) {

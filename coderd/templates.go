@@ -600,6 +600,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			now  = database.Now()
 		)
 		file, err := tx.InsertFile(ctx, database.InsertFileParams{
+			ID:        uuid.New(),
 			Hash:      hex.EncodeToString(hash[:]),
 			CreatedAt: now,
 			CreatedBy: opts.userID,
@@ -639,7 +640,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			InitiatorID:    opts.userID,
 			Provisioner:    database.ProvisionerTypeTerraform,
 			StorageMethod:  database.ProvisionerStorageMethodFile,
-			StorageSource:  file.Hash,
+			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          []byte{'{', '}'},
 		})
