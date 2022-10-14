@@ -228,6 +228,9 @@ export const workspacesMachine = createMachine(
         getWorkspaces: {
           data: TypesGen.Workspace[]
         }
+      getWorkspacesCount: {
+        data: { count: number }
+      }
         updateWorkspaceRefs: {
           data: {
             refsToKeep: WorkspaceItemMachineRef[]
@@ -349,16 +352,16 @@ export const workspacesMachine = createMachine(
         },
       }),
       assignNextPage: assign({
-        page: ({ page }) => page + 1,
+        page: (context) => context.page + 1,
       }),
       assignPreviousPage: assign({
-        page: ({ page }) => page - 1,
+        page: (context) => context.page - 1,
       }),
       assignPage: assign({
-        page: (_, { page }) => page,
+        page: (_, event) => event.page,
       }),
       assignCount: assign({
-        count: (_, { count }) => count
+        count: (_, event) => event.data.count
       })
     },
     services: {
@@ -391,6 +394,10 @@ export const workspacesMachine = createMachine(
           newWorkspaces,
         })
       },
+      getWorkspacesCount: () => {
+        //API.getWorkspacesCount()
+        return Promise.resolve({ count: 10 })
+      }
     },
   },
 )
