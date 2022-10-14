@@ -91,7 +91,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	DeploymentFlags             *codersdk.DeploymentFlags
+	DeploymentConfig            *codersdk.DeploymentConfig
 
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
@@ -265,11 +265,20 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 					},
 				},
 			},
+<<<<<<< HEAD
 			AutoImportTemplates:         options.AutoImportTemplates,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentFlags:             options.DeploymentFlags,
 		}
+=======
+		},
+		AutoImportTemplates:         options.AutoImportTemplates,
+		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
+		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+		DeploymentConfig:            options.DeploymentConfig,
+	}
+>>>>>>> idk
 }
 
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
