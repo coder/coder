@@ -40,7 +40,7 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
     >
       <Avatar>
         {avatarURL ? (
-          <img alt={`${name}'s Avatar`} src={avatarURL} width="100%" />
+          <img alt={firstLetter(name)} src={avatarURL} width="100%" />
         ) : (
           firstLetter(name)
         )}
