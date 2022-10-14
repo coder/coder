@@ -30,6 +30,7 @@ func Entitlements(
 	entitlements := codersdk.Entitlements{
 		Features: map[string]codersdk.Feature{},
 		Warnings: []string{},
+		Errors:   []string{},
 	}
 	for _, featureName := range codersdk.FeatureNames {
 		entitlements.Features[featureName] = codersdk.Feature{
@@ -172,15 +173,15 @@ func Entitlements(
 		switch feature.Entitlement {
 		case codersdk.EntitlementNotEntitled:
 			if entitlements.HasLicense {
-				entitlements.Warnings = append(entitlements.Warnings,
-					"You have multiple replicas but your license is not entitled to high availability.")
+				entitlements.Errors = append(entitlements.Warnings,
+					"You have multiple replicas but your license is not entitled to high availability. You will be unable to connect to workspaces.")
 			} else {
-				entitlements.Warnings = append(entitlements.Warnings,
-					"You have multiple replicas but high availability is an Enterprise feature.")
+				entitlements.Errors = append(entitlements.Warnings,
+					"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.")
 			}
 		case codersdk.EntitlementGracePeriod:
 			entitlements.Warnings = append(entitlements.Warnings,
-				"You have multiple replicas but your license for high availability is expired.")
+				"You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.")
 		}
 	}
 

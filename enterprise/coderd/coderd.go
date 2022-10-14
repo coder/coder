@@ -137,7 +137,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
-	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer)
+	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, nil)
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {

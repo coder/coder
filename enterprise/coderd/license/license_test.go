@@ -227,8 +227,8 @@ func TestEntitlements(t *testing.T) {
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
-		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You have multiple replicas but high availability is an Enterprise feature.", entitlements.Warnings[0])
+		require.Len(t, entitlements.Errors, 1)
+		require.Equal(t, "You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.", entitlements.Errors[0])
 	})
 
 	t.Run("MultipleReplicasNotEntitled", func(t *testing.T) {
@@ -245,8 +245,8 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You have multiple replicas but your license is not entitled to high availability.", entitlements.Warnings[0])
+		require.Len(t, entitlements.Errors, 1)
+		require.Equal(t, "You have multiple replicas but your license is not entitled to high availability. You will be unable to connect to workspaces.", entitlements.Errors[0])
 	})
 
 	t.Run("MultipleReplicasGrace", func(t *testing.T) {
@@ -266,6 +266,6 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You have multiple replicas but your license for high availability is expired.", entitlements.Warnings[0])
+		require.Equal(t, "You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.", entitlements.Warnings[0])
 	})
 }

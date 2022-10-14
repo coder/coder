@@ -2,6 +2,7 @@ package derpmesh
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/url"
 	"sync"
@@ -17,20 +18,22 @@ import (
 )
 
 // New constructs a new mesh for DERP servers.
-func New(logger slog.Logger, server *derp.Server) *Mesh {
+func New(logger slog.Logger, server *derp.Server, tlsConfig *tls.Config) *Mesh {
 	return &Mesh{
-		logger: logger,
-		server: server,
-		ctx:    context.Background(),
-		closed: make(chan struct{}),
-		active: make(map[string]context.CancelFunc),
+		logger:    logger,
+		server:    server,
+		tlsConfig: tlsConfig,
+		ctx:       context.Background(),
+		closed:    make(chan struct{}),
+		active:    make(map[string]context.CancelFunc),
 	}
 }
 
 type Mesh struct {
-	logger slog.Logger
-	server *derp.Server
-	ctx    context.Context
+	logger    slog.Logger
+	server    *derp.Server
+	ctx       context.Context
+	tlsConfig *tls.Config
 
 	mutex  sync.Mutex
 	closed chan struct{}
@@ -93,6 +96,7 @@ func (m *Mesh) addAddress(address string) (bool, error) {
 	if err != nil {
 		return false, xerrors.Errorf("create derp client: %w", err)
 	}
+	client.TLSConfig = m.tlsConfig
 	client.MeshKey = m.server.MeshKey()
 	client.SetURLDialer(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		var dialer net.Dialer

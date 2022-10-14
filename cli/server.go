@@ -165,9 +165,10 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			}
 			defer listener.Close()
 
+			var tlsConfig *tls.Config
 			if dflags.TLSEnable.Value {
-				listener, err = configureServerTLS(
-					listener, dflags.TLSMinVersion.Value,
+				tlsConfig, err = configureTLS(
+					dflags.TLSMinVersion.Value,
 					dflags.TLSClientAuth.Value,
 					dflags.TLSCertFiles.Value,
 					dflags.TLSKeyFiles.Value,
@@ -176,6 +177,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
+				listener = tls.NewListener(listener, tlsConfig)
 			}
 
 			tcpAddr, valid := listener.Addr().(*net.TCPAddr)
@@ -888,7 +890,7 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 	return certs, nil
 }
 
-func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (net.Listener, error) {
+func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
@@ -958,7 +960,7 @@ func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth stri
 		tlsConfig.ClientCAs = caPool
 	}
 
-	return tls.NewListener(listener, tlsConfig), nil
+	return tlsConfig, nil
 }
 
 func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
