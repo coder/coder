@@ -1,48 +1,10 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
-import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import LockRounded from "@material-ui/icons/LockRounded"
-import BarChartOutlined from "@material-ui/icons/BarChartOutlined"
 import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
-import React, { ElementType, PropsWithChildren, ReactNode } from "react"
-import { NavLink } from "react-router-dom"
-import { combineClasses } from "util/combineClasses"
-
-const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <nav className={styles.sidebar}>{children}</nav>
-}
-
-const SidebarNavItem: React.FC<
-  PropsWithChildren<{ href: string; icon: ReactNode }>
-> = ({ children, href, icon }) => {
-  const styles = useStyles()
-  return (
-    <NavLink
-      to={href}
-      className={({ isActive }) =>
-        combineClasses([
-          styles.sidebarNavItem,
-          isActive ? styles.sidebarNavItemActive : undefined,
-        ])
-      }
-    >
-      <Stack alignItems="center" spacing={1.5} direction="row">
-        {icon}
-        {children}
-      </Stack>
-    </NavLink>
-  )
-}
-
-const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
-  icon: Icon,
-}) => {
-  const styles = useStyles()
-  return <Icon className={styles.sidebarNavItemIcon} />
-}
+import { Sidebar } from "./Sidebar"
+import React, { PropsWithChildren } from "react"
 
 export const SettingsHeader: React.FC<{
   title: string
@@ -105,33 +67,7 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
   return (
     <Margins>
       <Stack className={styles.wrapper} direction="row" spacing={5}>
-        <Sidebar>
-          <SidebarNavItem
-            href="/settings/general"
-            icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
-          >
-            General
-          </SidebarNavItem>
-          <SidebarNavItem
-            href="/settings/security"
-            icon={<SidebarNavItemIcon icon={LockRounded} />}
-          >
-            Security
-          </SidebarNavItem>
-          <SidebarNavItem
-            href="/settings/metrics"
-            icon={<SidebarNavItemIcon icon={BarChartOutlined} />}
-          >
-            Metrics / observability
-          </SidebarNavItem>
-          <SidebarNavItem
-            href="/settings/auth"
-            icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
-          >
-            Authentication
-          </SidebarNavItem>
-        </Sidebar>
-
+        <Sidebar />
         <main className={styles.content}>{children}</main>
       </Stack>
     </Margins>
@@ -191,7 +127,7 @@ const useStyles = makeStyles((theme) => ({
 
   headingGroup: {
     maxWidth: 420,
-    marginBottom: theme.spacing(4),
+    marginBottom: theme.spacing(2),
   },
 
   title: {
