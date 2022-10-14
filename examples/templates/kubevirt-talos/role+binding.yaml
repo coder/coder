@@ -2,6 +2,8 @@
 # clusterctl init --infrastructure kubevirt
 # clusterctl init --bootstrap talos --control-plane talos
 # Some are at Cluster Level, some are at the coder namespace level
+#
+# Error: Failed to determine if resource "kv1/kv1" exists
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -31,6 +33,8 @@ rules:
       - "kubevirtclusters"
       - "kubevirtmachinetemplates"
       - "clusterresourcesets"
+      - "kubeadmconfigtemplates"
+      - "kubeadmcontrolplanes"
     verbs:
       - "list"
       - "get"

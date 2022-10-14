@@ -26,11 +26,6 @@ terraform {
 #   cluster_ca_certificate = base64decode(yamldecode(data.kubernetes_resource.kubeconfig.data)["value"]["clusters"][0]["cluster"]["certificate-authority-data"])
 # }
 
-variable "base_domain" {
-  type    = string
-  default = "sanskar.pair.sharing.io"
-}
-
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
@@ -230,17 +225,17 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
         "controlplane" = {
           "generateType" = "controlplane"
           "configPatches" = [
-            {
-              "op"   = "replace"
-              "path" = "/machine/install"
-              "value" = {
-                "bootloader"      = true
-                "wipe"            = false
-                "disk"            = "/dev/sda"
-                "image"           = "ghcr.io/siderolabs/installer:v1.2.5"
-                "extraKernelArgs" = ["console=ttyS0"]
-              }
-            },
+            # {
+            #   "op"   = "replace"
+            #   "path" = "/machine/install"
+            #   "value" = {
+            #     "bootloader"      = true
+            #     "wipe"            = false
+            #     "disk"            = "/dev/sda"
+            #     "image"           = "ghcr.io/siderolabs/installer:v1.2.5"
+            #     "extraKernelArgs" = ["console=ttyS0"]
+            #   }
+            # },
             # {
             #   "op"   = "add"
             #   "path" = "/machine/kubelet/extraArgs"

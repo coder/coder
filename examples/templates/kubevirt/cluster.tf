@@ -26,10 +26,10 @@ terraform {
 #   cluster_ca_certificate = base64decode(yamldecode(data.kubernetes_resource.kubeconfig.data)["value"]["clusters"][0]["cluster"]["certificate-authority-data"])
 # }
 
-variable "base_domain" {
-  type    = string
-  default = "sanskar.pair.sharing.io"
-}
+# variable "base_domain" {
+#   type    = string
+#   default = "sanskar.pair.sharing.io"
+# }
 
 data "coder_workspace" "me" {}
 
@@ -168,7 +168,7 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
     "apiVersion" = "infrastructure.cluster.x-k8s.io/v1alpha1"
     "kind"       = "KubevirtMachineTemplate"
     "metadata" = {
-      "name"      = data.coder_workspace.me.name
+      "name"      = "${data.coder_workspace.me.name}-cp"
       "namespace" = data.coder_workspace.me.name
     }
     "spec" = {
@@ -180,6 +180,28 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
             }
             "spec" = {
               "runStrategy" = "Always"
+              "dataVolumeTemplates" = [
+                {
+                  "metadata" = {
+                    "name" = "vmdisk-dv"
+                  }
+                  "spec" = {
+                    "pvc" = {
+                      "accessModes" = ["ReadWriteOnce"]
+                      "resources" = {
+                        "requests" = {
+                          "storage" = "50Gi"
+                        }
+                      }
+                    }
+                    "source" = {
+                      "http" = {
+                        "url" = "https://www.talos.pair.sharing.io/ubuntu-2004-kube-v1.23.10.gz"
+                      }
+                    }
+                  }
+                },
+              ]
               "template" = {
                 "spec" = {
                   "domain" = {
@@ -187,6 +209,8 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       "cores" = 2
                     }
                     "devices" = {
+                      # "autoattachGraphicsDevice" = false
+                      "autoattachSerialConsole" = true
                       "disks" = [
                         {
                           "disk" = {
@@ -203,10 +227,10 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                   "evictionStrategy" = "External"
                   "volumes" = [
                     {
-                      "containerDisk" = {
-                        "image" = "quay.io/capk/ubuntu-2004-container-disk:v1.22.0"
+                      "dataVolume" = {
+                        "name" = "vmdisk-dv"
                       }
-                      "name" = "containervolume"
+                      "name" = "vmdisk"
                     },
                   ]
                 }
@@ -279,6 +303,28 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
             }
             "spec" = {
               "runStrategy" = "Always"
+              "dataVolumeTemplates" = [
+                {
+                  "metadata" = {
+                    "name" = "vmdisk-dv"
+                  }
+                  "spec" = {
+                    "pvc" = {
+                      "accessModes" = ["ReadWriteOnce"]
+                      "resources" = {
+                        "requests" = {
+                          "storage" = "50Gi"
+                        }
+                      }
+                    }
+                    "source" = {
+                      "http" = {
+                        "url" = "https://www.talos.pair.sharing.io/ubuntu-2004-kube-v1.23.10.gz"
+                      }
+                    }
+                  }
+                },
+              ]
               "template" = {
                 "spec" = {
                   "domain" = {
@@ -286,6 +332,7 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       "cores" = 2
                     }
                     "devices" = {
+                      "autoattachSerialConsole" = true
                       "disks" = [
                         {
                           "disk" = {
@@ -302,10 +349,10 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                   "evictionStrategy" = "External"
                   "volumes" = [
                     {
-                      "containerDisk" = {
-                        "image" = "quay.io/capk/ubuntu-2004-container-disk:v1.22.0"
+                      "dataVolume" = {
+                        "name" = "vmdisk-dv"
                       }
-                      "name" = "containervolume"
+                      "name" = "vmdisk"
                     },
                   ]
                 }
@@ -491,44 +538,44 @@ resource "kubernetes_manifest" "clusterresourceset_capi_init" {
 # Need to find a way for it to wait before running, so that the secret exists
 
 # We'll need to use the kubeconfig from above to provision the coder/pair environment
-resource "kubernetes_manifest" "ingress_vcluster" {
-  manifest = {
-    "apiVersion" = "projectcontour.io/v1"
-    "kind"       = "HTTPProxy"
-    "metadata" = {
-      "name"      = "${data.coder_workspace.me.name}-apiserver"
-      "namespace" = data.coder_workspace.me.name
-      "annotations" = {
-        "projectcontour.io/ingress.class" = "contour-external"
-      }
-    }
-    "spec" = {
-      "tcpproxy" = {
-        "services" = [
-          {
-            "name" = "${data.coder_workspace.me.name}"
-            "port" = 443
-          },
-        ]
-      }
-      "virtualhost" = {
-        "fqdn" = "${data.coder_workspace.me.name}.${var.base_domain}"
-        "tls" = {
-          "passthrough" = true
-        }
-      }
-    }
-  }
-}
+# resource "kubernetes_manifest" "ingress_vcluster" {
+#   manifest = {
+#     "apiVersion" = "projectcontour.io/v1"
+#     "kind"       = "HTTPProxy"
+#     "metadata" = {
+#       "name"      = "${data.coder_workspace.me.name}-apiserver"
+#       "namespace" = data.coder_workspace.me.name
+#       "annotations" = {
+#         "projectcontour.io/ingress.class" = "contour-external"
+#       }
+#     }
+#     "spec" = {
+#       "tcpproxy" = {
+#         "services" = [
+#           {
+#             "name" = "${data.coder_workspace.me.name}"
+#             "port" = 443
+#           },
+#         ]
+#       }
+#       "virtualhost" = {
+#         "fqdn" = "${data.coder_workspace.me.name}.${var.base_domain}"
+#         "tls" = {
+#           "passthrough" = true
+#         }
+#       }
+#     }
+#   }
+# }
 
-resource "coder_app" "vcluster-apiserver" {
-  agent_id      = coder_agent.main.id
-  name          = "APIServer"
-  url           = "https://kubernetes.default.svc:443"
-  relative_path = true
-  healthcheck {
-    url       = "https://kubernetes.default.svc:443/healthz"
-    interval  = 5
-    threshold = 6
-  }
-}
+# resource "coder_app" "vcluster-apiserver" {
+#   agent_id      = coder_agent.main.id
+#   name          = "APIServer"
+#   url           = "https://kubernetes.default.svc:443"
+#   relative_path = true
+#   healthcheck {
+#     url       = "https://kubernetes.default.svc:443/healthz"
+#     interval  = 5
+#     threshold = 6
+#   }
+# }
