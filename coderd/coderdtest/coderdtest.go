@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,6 +50,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -172,6 +174,13 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
+	var appHostnameRegex *regexp.Regexp
+	if options.AppHostname != "" {
+		var err error
+		appHostnameRegex, err = httpapi.CompileHostnamePattern(options.AppHostname)
+		require.NoError(t, err)
+	}
+
 	return srv, cancelFunc, &coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		// Force a long disconnection timeout to ensure
@@ -179,6 +188,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
 		AppHostname:                    options.AppHostname,
+		AppHostnameRegex:               appHostnameRegex,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
 		Database:                       db,

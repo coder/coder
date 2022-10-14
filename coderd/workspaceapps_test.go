@@ -35,15 +35,16 @@ const (
 	proxyTestAppNameAuthenticated = "test-app-authenticated"
 	proxyTestAppNamePublic        = "test-app-public"
 	proxyTestAppQuery             = "query=true"
-	proxyTestAppBody              = "hello world"
+	proxyTestAppBody              = "hello world from apps test"
 
-	proxyTestSubdomain = "test.coder.com"
+	proxyTestSubdomainRaw = "*.test.coder.com"
+	proxyTestSubdomain    = "test.coder.com"
 )
 
 func TestGetAppHost(t *testing.T) {
 	t.Parallel()
 
-	cases := []string{"", "test.coder.com"}
+	cases := []string{"", proxyTestSubdomainRaw}
 	for _, c := range cases {
 		c := c
 		name := c
@@ -75,7 +76,7 @@ func TestGetAppHost(t *testing.T) {
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
 // codersdk client, the first user, the workspace, and the port number the test
 // listener is running on.
-func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
+func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
@@ -96,17 +97,42 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
 	require.True(t, ok)
 
+	appHost := proxyTestSubdomainRaw
+	if len(customAppHost) > 0 {
+		appHost = customAppHost[0]
+	}
+
 	client := coderdtest.New(t, &coderdtest.Options{
-		AppHostname:                 proxyTestSubdomain,
+		AppHostname:                 appHost,
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
 		MetricsCacheRefreshInterval: time.Millisecond * 100,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
+
+	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, uint16(tcpAddr.Port))
+
+	// Configure the HTTP client to not follow redirects and to route all
+	// requests regardless of hostname to the coderd test server.
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok)
+	transport := defaultTransport.Clone()
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+	}
+	client.HTTPClient.Transport = transport
+
+	return client, user, workspace, uint16(tcpAddr.Port)
+}
+
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	authToken := uuid.NewString()
 
-	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", tcpAddr.Port, proxyTestAppQuery)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
+	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
@@ -150,9 +176,9 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 			},
 		}},
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, workspaceMutators...)
+	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID, workspaceMutators...)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
@@ -168,20 +194,7 @@ func setupProxyTest(t *testing.T, workspaceMutators ...func(*codersdk.CreateWork
 	})
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	// Configure the HTTP client to not follow redirects and to route all
-	// requests regardless of hostname to the coderd test server.
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	require.True(t, ok)
-	transport := defaultTransport.Clone()
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
-	}
-	client.HTTPClient.Transport = transport
-
-	return client, user, workspace, uint16(tcpAddr.Port)
+	return workspace
 }
 
 func TestWorkspaceAppsProxyPath(t *testing.T) {
@@ -528,28 +541,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 		return client
 	}
 
-	t.Run("NotMatchingHostname", func(t *testing.T) {
-		t.Parallel()
-		client := setup(t, "test."+proxyTestSubdomain)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		uri := fmt.Sprintf("http://app--agent--workspace--username.%s/api/v2/users/me", proxyTestSubdomain)
-		resp, err := client.Request(ctx, http.MethodGet, uri, nil)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Should have an error response.
-		require.Equal(t, http.StatusNotFound, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Contains(t, string(body), "does not accept application requests on this hostname")
-	})
-
 	t.Run("InvalidSubdomain", func(t *testing.T) {
 		t.Parallel()
-		client := setup(t, proxyTestSubdomain)
+		client := setup(t, proxyTestSubdomainRaw)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -569,11 +563,11 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 
 func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Parallel()
-	client, firstUser, workspace, port := setupProxyTest(t)
+	client, firstUser, _, port := setupProxyTest(t)
 
 	// proxyURL generates a URL for the proxy subdomain. The default path is a
 	// slash.
-	proxyURL := func(t *testing.T, appNameOrPort interface{}, pathAndQuery ...string) string {
+	proxyURL := func(t *testing.T, client *codersdk.Client, appNameOrPort interface{}, pathAndQuery ...string) string {
 		t.Helper()
 
 		var (
@@ -587,16 +581,30 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			require.True(t, ok)
 		}
 
-		me, err := client.User(context.Background(), codersdk.Me)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err, "get current user details")
 
-		hostname := httpapi.ApplicationURL{
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
+		require.NoError(t, err, "get workspaces")
+		require.Len(t, workspaces, 1, "expected 1 workspace")
+
+		appHost, err := client.GetAppHost(ctx)
+		require.NoError(t, err, "get app host")
+
+		subdomain := httpapi.ApplicationURL{
 			AppName:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
-			WorkspaceName: workspace.Name,
+			WorkspaceName: workspaces[0].Name,
 			Username:      me.Username,
-		}.String() + "." + proxyTestSubdomain
+		}.String()
+
+		hostname := strings.Replace(appHost.Host, "*", subdomain, 1)
 
 		actualPath := "/"
 		query := ""
@@ -625,7 +633,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := userClient.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppNameOwner), nil)
+		resp, err := userClient.Request(ctx, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -637,7 +645,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		slashlessURL := proxyURL(t, proxyTestAppNameOwner, "")
+		slashlessURL := proxyURL(t, client, proxyTestAppNameOwner, "")
 		resp, err := client.Request(ctx, http.MethodGet, slashlessURL, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -654,7 +662,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		querylessURL := proxyURL(t, proxyTestAppNameOwner, "/", "")
+		querylessURL := proxyURL(t, client, proxyTestAppNameOwner, "/", "")
 		resp, err := client.Request(ctx, http.MethodGet, querylessURL, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -671,7 +679,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppNameOwner, "/", proxyTestAppQuery), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -686,7 +694,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -701,7 +709,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, proxyTestAppNameFake, "/", ""), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, proxyTestAppNameFake, "/", ""), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -714,7 +722,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		port := uint16(codersdk.MinimumListeningPort - 1)
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, port, "/", proxyTestAppQuery), nil)
+		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -724,6 +732,72 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		err = json.NewDecoder(resp.Body).Decode(&resBody)
 		require.NoError(t, err)
 		require.Contains(t, resBody.Message, "Coder reserves ports less than")
+	})
+
+	t.Run("SuffixWildcardOK", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, _, _ := setupProxyTest(t, "*-suffix.test.coder.com")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u := proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery)
+		t.Logf("url: %s", u)
+
+		resp, err := client.Request(ctx, http.MethodGet, u, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, proxyTestAppBody, string(body))
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("SuffixWildcardNotMatch", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, _, _ := setupProxyTest(t, "*-suffix.test.coder.com")
+
+		t.Run("NoSuffix", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			u := proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery)
+			// Replace the -suffix with nothing.
+			u = strings.Replace(u, "-suffix", "", 1)
+
+			resp, err := client.Request(ctx, http.MethodGet, u, nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			// It's probably rendering the dashboard, so only ensure that the body
+			// doesn't match.
+			require.NotContains(t, string(body), proxyTestAppBody)
+		})
+
+		t.Run("DifferentSuffix", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			u := proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery)
+			// Replace the -suffix with something else.
+			u = strings.Replace(u, "-suffix", "-not-suffix", 1)
+
+			resp, err := client.Request(ctx, http.MethodGet, u, nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			// It's probably rendering the dashboard, so only ensure that the body
+			// doesn't match.
+			require.NotContains(t, string(body), proxyTestAppBody)
+		})
 	})
 }
 

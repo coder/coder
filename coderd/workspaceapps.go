@@ -139,7 +139,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 
 			// Step 1: Pass on if subdomain-based application proxying is not
 			// configured.
-			if api.AppHostname == "" {
+			if api.AppHostname == "" || api.AppHostnameRegex == nil {
 				next.ServeHTTP(rw, r)
 				return
 			}
@@ -219,46 +219,29 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 		return httpapi.ApplicationURL{}, false
 	}
 
-	// Split the subdomain so we can parse the application details and verify it
-	// matches the configured app hostname later.
-	subdomain, rest := httpapi.SplitSubdomain(host)
-	if rest == "" {
-		// If there are no periods in the hostname, then it can't be a valid
-		// application URL.
+	// If there are no periods in the hostname, then it can't be a valid
+	// application URL.
+	if !strings.Contains(host, ".") {
 		next.ServeHTTP(rw, r)
 		return httpapi.ApplicationURL{}, false
 	}
-	matchingBaseHostname := httpapi.HostnamesMatch(api.AppHostname, rest)
+
+	// Split the subdomain so we can parse the application details and verify it
+	// matches the configured app hostname later.
+	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, host)
+	if !ok {
+		// Doesn't match the regex, so it's not a valid application URL.
+		next.ServeHTTP(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
 
 	// Parse the application URL from the subdomain.
 	app, err := httpapi.ParseSubdomainAppURL(subdomain)
 	if err != nil {
-		// If it isn't a valid app URL and the base domain doesn't match the
-		// configured app hostname, this request was probably destined for the
-		// dashboard/API router.
-		if !matchingBaseHostname {
-			next.ServeHTTP(rw, r)
-			return httpapi.ApplicationURL{}, false
-		}
-
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadRequest,
 			Title:        "Invalid application URL",
 			Description:  fmt.Sprintf("Could not parse subdomain application URL %q: %s", subdomain, err.Error()),
-			RetryEnabled: false,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return httpapi.ApplicationURL{}, false
-	}
-
-	// At this point we've verified that the subdomain looks like a valid
-	// application URL, so the base hostname should match the configured app
-	// hostname.
-	if !matchingBaseHostname {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusNotFound,
-			Title:        "Not Found",
-			Description:  "The server does not accept application requests on this hostname.",
 			RetryEnabled: false,
 			DashboardURL: api.AccessURL.String(),
 		})
@@ -506,8 +489,8 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 
 	// Ensure that the redirect URI is a subdomain of api.AppHostname and is a
 	// valid app subdomain.
-	subdomain, rest := httpapi.SplitSubdomain(u.Hostname())
-	if !httpapi.HostnamesMatch(api.AppHostname, rest) {
+	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
+	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The redirect_uri query parameter must be a valid app subdomain.",
 		})
