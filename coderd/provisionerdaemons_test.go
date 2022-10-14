@@ -33,11 +33,11 @@ func TestProvisionerDaemons(t *testing.T) {
 
 		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		t.Log(resp.Hash)
+		t.Log(resp.ID)
 
 		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: resp.Hash,
+			FileID:        resp.ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)

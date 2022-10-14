@@ -374,6 +374,15 @@ func TestUserOIDC(t *testing.T) {
 		EmailDomain:  "coder.com",
 		StatusCode:   http.StatusForbidden,
 	}, {
+		Name: "EmailDomainCaseInsensitive",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@KWC.io",
+			"email_verified": true,
+		},
+		AllowSignups: true,
+		EmailDomain:  "kwc.io",
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
 		Name:         "EmptyClaims",
 		Claims:       jwt.MapClaims{},
 		AllowSignups: true,

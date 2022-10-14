@@ -39,7 +39,8 @@ type sqlcQuerier interface {
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
-	GetFileByHash(ctx context.Context, hash string) (File, error)
+	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
+	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)

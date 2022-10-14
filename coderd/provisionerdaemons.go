@@ -315,7 +315,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	}
 	switch job.StorageMethod {
 	case database.ProvisionerStorageMethodFile:
-		file, err := server.Database.GetFileByHash(ctx, job.StorageSource)
+		file, err := server.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
 		}

@@ -109,7 +109,7 @@ WHERE
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username))
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
@@ -117,7 +117,7 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name))
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name)  AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -132,6 +132,17 @@ WHERE
 			name ILIKE '%' || @name || '%'
 		ELSE true
 	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
+	-- @authorize_filter
+ORDER BY
+    last_used_at DESC
+LIMIT
+    CASE
+        WHEN @limit_ :: integer > 0 THEN
+            @limit_
+    END
+OFFSET
+    @offset_
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one
