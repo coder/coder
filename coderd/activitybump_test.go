@@ -23,7 +23,15 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	setupActivityTest := func(t *testing.T) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		var ttlMillis int64 = 60 * 1000
 
-		client, _, workspace, _ = setupProxyTest(t, func(cwr *codersdk.CreateWorkspaceRequest) {
+		client = coderdtest.New(t, &coderdtest.Options{
+			AppHostname:                 proxyTestSubdomainRaw,
+			IncludeProvisionerDaemon:    true,
+			AgentStatsRefreshInterval:   time.Millisecond * 100,
+			MetricsCacheRefreshInterval: time.Millisecond * 100,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
 
