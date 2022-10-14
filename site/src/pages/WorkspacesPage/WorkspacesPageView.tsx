@@ -1,4 +1,6 @@
 import Link from "@material-ui/core/Link"
+import { Maybe } from "components/Conditionals/Maybe"
+import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
@@ -26,13 +28,30 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   isLoading?: boolean
   workspaceRefs?: WorkspaceItemMachineRef[]
+  count?: number
+  page: number
+  limit: number
   filter?: string
   onFilter: (query: string) => void
+  onNext: () => void
+  onPrevious: () => void
+  onGoToPage: (page: number) => void
 }
 
 export const WorkspacesPageView: FC<
   React.PropsWithChildren<WorkspacesPageViewProps>
-> = ({ isLoading, workspaceRefs, filter, onFilter }) => {
+> = ({
+  isLoading,
+  workspaceRefs,
+  count,
+  page,
+  limit,
+  filter,
+  onFilter,
+  onNext,
+  onPrevious,
+  onGoToPage,
+}) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
@@ -72,6 +91,19 @@ export const WorkspacesPageView: FC<
         workspaceRefs={workspaceRefs}
         filter={filter}
       />
+
+      <Maybe condition={count !== undefined && count > limit}>
+        <PaginationWidget
+          prevLabel=""
+          nextLabel=""
+          onPrevClick={onPrevious}
+          onNextClick={onNext}
+          onPageClick={onGoToPage}
+          numRecords={count}
+          activePage={page}
+          numRecordsPerPage={limit}
+        />
+      </Maybe>
     </Margins>
   )
 }

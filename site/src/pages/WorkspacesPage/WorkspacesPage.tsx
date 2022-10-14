@@ -10,13 +10,25 @@ import { WorkspacesPageView } from "./WorkspacesPageView"
 const WorkspacesPage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get("filter") ?? workspaceFilterQuery.me
+  const currentPage = searchParams.get("page")
+    ? Number(searchParams.get("page"))
+    : 1
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
+      page: currentPage,
+      limit: 25,
       filter,
+    },
+    actions: {
+      onPageChange: ({ page }) => {
+        navigate({
+          search: `?page=${page}`,
+        })
+      },
     },
   })
 
-  const { workspaceRefs } = workspacesState.context
+  const { workspaceRefs, count, page, limit } = workspacesState.context
 
   return (
     <>
@@ -28,6 +40,18 @@ const WorkspacesPage: FC = () => {
         filter={workspacesState.context.filter}
         isLoading={!workspaceRefs}
         workspaceRefs={workspaceRefs}
+        count={count}
+        page={page}
+        limit={limit}
+        onNext={() => {
+          send("NEXT")
+        }}
+        onPrevious={() => {
+          send("PREVIOUS")
+        }}
+        onGoToPage={(page) => {
+          send("GO_TO_PAGE", { page })
+        }}
         onFilter={(query) => {
           setSearchParams({ filter: query })
           send({

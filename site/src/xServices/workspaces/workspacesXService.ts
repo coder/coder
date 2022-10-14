@@ -206,11 +206,17 @@ interface WorkspacesContext {
   workspaceRefs?: WorkspaceItemMachineRef[]
   filter: string
   getWorkspacesError?: Error | unknown
+  page: number
+  count?: number
+  limit: number
 }
 
 type WorkspacesEvent =
   | { type: "GET_WORKSPACES"; query?: string }
   | { type: "UPDATE_VERSION"; workspaceId: string }
+  | { type: "NEXT" }
+  | { type: "PREVIOUS" }
+  | { type: "GO_TO_PAGE"; page: number }
 
 export const workspacesMachine = createMachine(
   {
@@ -235,11 +241,23 @@ export const workspacesMachine = createMachine(
     on: {
       GET_WORKSPACES: {
         actions: "assignFilter",
-        target: ".gettingWorkspaces",
+        target: "gettingWorkspaces",
         internal: false,
       },
       UPDATE_VERSION: {
         actions: "triggerUpdateVersion",
+      },
+      NEXT: {
+        actions: ["assignNextPage", "onPageChange"],
+        target: "gettingWorkspaces",
+      },
+      PREVIOUS: {
+        actions: ["assignPreviousPage", "onPageChange"],
+        target: "gettingWorkspaces",
+      },
+      GO_TO_PAGE: {
+        actions: ["assignPage", "onPageChange"],
+        target: "gettingWorkspaces",
       },
     },
     initial: "gettingWorkspaces",
@@ -320,6 +338,7 @@ export const workspacesMachine = createMachine(
       },
       assignUpdatedWorkspaceRefs: assign({
         workspaceRefs: (_, event) => {
+
           const newWorkspaceRefs = event.data.newWorkspaces.map((workspace) =>
             spawn(
               workspaceItemMachine.withContext({ data: workspace }),
@@ -329,6 +348,18 @@ export const workspacesMachine = createMachine(
           return event.data.refsToKeep.concat(newWorkspaceRefs)
         },
       }),
+      assignNextPage: assign({
+        page: ({ page }) => page + 1,
+      }),
+      assignPreviousPage: assign({
+        page: ({ page }) => page - 1,
+      }),
+      assignPage: assign({
+        page: (_, { page }) => page,
+      }),
+      assignCount: assign({
+        count: (_, { count }) => count
+      })
     },
     services: {
       getWorkspaces: (context) =>
