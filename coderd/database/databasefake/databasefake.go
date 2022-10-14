@@ -235,6 +235,35 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	return rs, nil
 }
 
+func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (float64, error) {
+	var times []float64
+	for _, wb := range q.workspaceBuilds {
+		if wb.Transition != database.WorkspaceTransitionStart {
+			continue
+		}
+		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return -1, err
+		}
+		if version.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
+		if err != nil {
+			return -1, err
+		}
+		if job.CompletedAt.Valid {
+			times = append(times, job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds())
+		}
+	}
+	sort.Float64s(times)
+	if len(times) == 0 {
+		return -1, nil
+	}
+	return times[len(times)/2], nil
+}
+
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

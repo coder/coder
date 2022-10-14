@@ -14,6 +14,7 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
+import dayjs from "dayjs"
 import { createDayString } from "util/createDayString"
 import { formatTemplateActiveDevelopers } from "util/templates"
 import * as TypesGen from "../../api/typesGenerated"
@@ -38,12 +39,17 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 
 export const Language = {
+  buildTime: (buildTimeSec: number): string =>
+    buildTimeSec === -1
+      ? "Unknown"
+      : dayjs.duration(buildTimeSec, "seconds").humanize(),
   developerCount: (activeCount: number): string => {
     return `${formatTemplateActiveDevelopers(activeCount)} developer${
       activeCount !== 1 ? "s" : ""
     }`
   },
   nameLabel: "Name",
+  buildTimeLabel: "Build time",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
   emptyViewNoPerms:
