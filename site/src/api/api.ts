@@ -288,7 +288,7 @@ export const getWorkspaces = async (
 
 // TODO change types
 export const getWorkspacesCount = async (
-  options: TypesGen.AuditLogCountRequest = {}
+  options: TypesGen.AuditLogCountRequest = {},
 ): Promise<TypesGen.AuditLogCountResponse> => {
   const searchParams = new URLSearchParams()
   if (options.q) {

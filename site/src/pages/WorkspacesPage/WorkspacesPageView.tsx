@@ -1,4 +1,5 @@
 import Link from "@material-ui/core/Link"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
@@ -29,6 +30,8 @@ export interface WorkspacesPageViewProps {
   isLoading?: boolean
   workspaceRefs?: WorkspaceItemMachineRef[]
   count?: number
+  getWorkspacesError: Error | unknown
+  getCountError: Error | unknown
   page: number
   limit: number
   filter?: string
@@ -44,6 +47,8 @@ export const WorkspacesPageView: FC<
   isLoading,
   workspaceRefs,
   count,
+  getWorkspacesError,
+  getCountError,
   page,
   limit,
   filter,
@@ -79,6 +84,21 @@ export const WorkspacesPageView: FC<
           .
         </PageHeaderSubtitle>
       </PageHeader>
+
+      <Maybe condition={getWorkspacesError !== undefined}>
+        <AlertBanner
+          error={getWorkspacesError}
+          severity={
+            workspaceRefs !== undefined && workspaceRefs.length > 0
+              ? "warning"
+              : "error"
+          }
+        />
+      </Maybe>
+
+      <Maybe condition={getCountError !== undefined}>
+        <AlertBanner error={getCountError} severity="warning" />
+      </Maybe>
 
       <SearchBarWithFilter
         filter={filter}

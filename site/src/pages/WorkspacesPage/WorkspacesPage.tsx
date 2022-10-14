@@ -1,13 +1,14 @@
 import { useMachine } from "@xstate/react"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { workspaceFilterQuery } from "util/filters"
 import { pageTitle } from "util/page"
 import { workspacesMachine } from "xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get("filter") ?? workspaceFilterQuery.me
   const currentPage = searchParams.get("page")
@@ -16,7 +17,7 @@ const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
       page: currentPage,
-      limit: 25,
+      limit: 2, //TODO
       filter,
     },
     actions: {
@@ -28,7 +29,14 @@ const WorkspacesPage: FC = () => {
     },
   })
 
-  const { workspaceRefs, count, page, limit } = workspacesState.context
+  const {
+    workspaceRefs,
+    count,
+    page,
+    limit,
+    getWorkspacesError,
+    getCountError,
+  } = workspacesState.context
 
   return (
     <>
@@ -41,6 +49,8 @@ const WorkspacesPage: FC = () => {
         isLoading={!workspaceRefs}
         workspaceRefs={workspaceRefs}
         count={count}
+        getWorkspacesError={getWorkspacesError}
+        getCountError={getCountError}
         page={page}
         limit={limit}
         onNext={() => {
