@@ -115,10 +115,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if sw.Status < 400 {
 			diff := Diff(p.Audit, req.Old, req.New)
 
-			if len(diff) == 0 {
-				return
-			}
-
 			var err error
 			diffRaw, err = json.Marshal(diff)
 			if err != nil {

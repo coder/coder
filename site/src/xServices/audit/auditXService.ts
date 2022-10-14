@@ -131,12 +131,8 @@ export const auditMachine = createMachine(
           }).then((data) => data.count),
         ])
 
-        // Filter out any logs that don't have an actual diff to present to the user
-        const filteredLogs = auditLogs.filter(
-          (log) => Object.entries(log.diff).length > 0,
-        )
         return {
-          auditLogs: filteredLogs,
+          auditLogs,
           count,
         }
       },

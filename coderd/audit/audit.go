@@ -39,5 +39,5 @@ func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
 }
 
 func (*MockAuditor) diff(any, any) Map {
-	return Map{"ttl": {"3600000000000", "7200000000000", false}}
+	return Map{}
 }
