@@ -1225,8 +1225,8 @@ github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
 github.com/lyft/protoc-gen-star v0.5.3/go.mod h1:V0xaHgaf5oCCqmcxYcWiDfTiKsZsRc87/1qhoTACD8w=
-github.com/mafredri/sftp v1.13.6-0.20221014103342-f1dc1fef3d9e h1:+xFsQ1Ugjladoxp2Pju5m9FSCp799Opvr/ncVhDk7EI=
-github.com/mafredri/sftp v1.13.6-0.20221014103342-f1dc1fef3d9e/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
+github.com/mafredri/sftp v1.13.6-0.20221014125459-6a7168cf46fd h1:X7ZK1YGbCoPkllDq/lG5PLV4k3LVddypzoH5hVgzmiw=
+github.com/mafredri/sftp v1.13.6-0.20221014125459-6a7168cf46fd/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
 github.com/mafredri/udp v0.1.2-0.20220805105907-b2872e92e98d h1:E+lU8/1jcUd3guqaRvjAGCcwoPe7jcYrNv9K0OzEwdQ=
 github.com/mafredri/udp v0.1.2-0.20220805105907-b2872e92e98d/go.mod h1:GUd681aT3Tj7pdNkUtqBz5pp/GLMGIaMI9Obq6+ob48=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=

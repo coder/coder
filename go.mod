@@ -55,7 +55,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-
 // the working directory, this fork adds support for it.
 //
 // Attempt to upstream: https://github.com/pkg/sftp/pull/528
-replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20221014103342-f1dc1fef3d9e
+replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20221014125459-6a7168cf46fd
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
