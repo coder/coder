@@ -5,9 +5,11 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import {
-  DeploySettingsLayout,
-  SettingsHeader,
-} from "components/DeploySettingsLayout/DeploySettingsLayout"
+  DisabledBadge,
+  EnabledBadge,
+} from "components/DeploySettingsLayout/Badges"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { Header } from "components/DeploySettingsLayout/Header"
 import {
   OptionDescription,
   OptionName,
@@ -16,9 +18,11 @@ import {
 import React from "react"
 
 export const MetricsSettingsPage: React.FC = () => {
+  const { deploymentFlags } = useDeploySettings()
+
   return (
-    <DeploySettingsLayout>
-      <SettingsHeader
+    <>
+      <Header
         title="Metrics"
         description="Metrics settings"
         docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
@@ -35,17 +39,25 @@ export const MetricsSettingsPage: React.FC = () => {
           <TableBody>
             <TableRow>
               <TableCell>
-                <OptionName>Telemetry Enabled</OptionName>
-                <OptionDescription>Some description</OptionDescription>
+                <OptionName>{deploymentFlags.telemetry_enable.name}</OptionName>
+                <OptionDescription>
+                  {deploymentFlags.telemetry_enable.description}
+                </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>Yes</OptionValue>
+                <OptionValue>
+                  {deploymentFlags.telemetry_enable.value ? (
+                    <EnabledBadge />
+                  ) : (
+                    <DisabledBadge />
+                  )}
+                </OptionValue>
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
       </TableContainer>
-    </DeploySettingsLayout>
+    </>
   )
 }

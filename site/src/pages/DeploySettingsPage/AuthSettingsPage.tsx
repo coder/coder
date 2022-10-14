@@ -10,10 +10,8 @@ import {
   EnabledBadge,
   EnterpriseBadge,
 } from "components/DeploySettingsLayout/Badges"
-import {
-  DeploySettingsLayout,
-  SettingsHeader,
-} from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { Header } from "components/DeploySettingsLayout/Header"
 import {
   OptionDescription,
   OptionName,
@@ -23,18 +21,24 @@ import { Stack } from "components/Stack/Stack"
 import React from "react"
 
 export const AuthSettingsPage: React.FC = () => {
+  const { deploymentFlags } = useDeploySettings()
+
   return (
-    <DeploySettingsLayout>
+    <>
       <Stack direction="column" spacing={6}>
         <div>
-          <SettingsHeader
+          <Header
             title="GitHub"
             description="Authentication settings for GitHub"
             docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
           />
 
           <Badges>
-            <EnabledBadge />
+            {deploymentFlags.oauth2_github_allow_signups.value ? (
+              <EnabledBadge />
+            ) : (
+              <DisabledBadge />
+            )}
           </Badges>
 
           <TableContainer>
@@ -48,27 +52,35 @@ export const AuthSettingsPage: React.FC = () => {
               <TableBody>
                 <TableRow>
                   <TableCell>
-                    <OptionName>Client ID</OptionName>
+                    <OptionName>
+                      {deploymentFlags.oauth2_github_client_id.name}
+                    </OptionName>
                     <OptionDescription>
-                      GitHub client ID for OAuth
+                      {deploymentFlags.oauth2_github_client_id.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
-                    <OptionValue>asjdalsj-9u129jalksjlakjsd</OptionValue>
+                    <OptionValue>
+                      {deploymentFlags.oauth2_github_client_id.value}
+                    </OptionValue>
                   </TableCell>
                 </TableRow>
 
                 <TableRow>
                   <TableCell>
-                    <OptionName>Client Secret</OptionName>
+                    <OptionName>
+                      {deploymentFlags.oauth2_github_client_secret.name}
+                    </OptionName>
                     <OptionDescription>
-                      GitHub client secret for OAuth
+                      {deploymentFlags.oauth2_github_client_secret.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
-                    <OptionValue>Not available</OptionValue>
+                    <OptionValue>
+                      {deploymentFlags.oauth2_github_client_secret.value}
+                    </OptionValue>
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -77,14 +89,18 @@ export const AuthSettingsPage: React.FC = () => {
         </div>
 
         <div>
-          <SettingsHeader
+          <Header
             title="OIDC"
             description="Authentication settings for GitHub"
             docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
           />
 
           <Badges>
-            <DisabledBadge />
+            {deploymentFlags.oidc_allow_signups.value ? (
+              <EnabledBadge />
+            ) : (
+              <DisabledBadge />
+            )}
             <EnterpriseBadge />
           </Badges>
 
@@ -99,27 +115,35 @@ export const AuthSettingsPage: React.FC = () => {
               <TableBody>
                 <TableRow>
                   <TableCell>
-                    <OptionName>Client ID</OptionName>
+                    <OptionName>
+                      {deploymentFlags.oidc_client_id.name}
+                    </OptionName>
                     <OptionDescription>
-                      GitHub client ID for OAuth
+                      {deploymentFlags.oidc_client_id.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
-                    <OptionValue>asjdalsj-9u129jalksjlakjsd</OptionValue>
+                    <OptionValue>
+                      {deploymentFlags.oidc_client_id.value}
+                    </OptionValue>
                   </TableCell>
                 </TableRow>
 
                 <TableRow>
                   <TableCell>
-                    <OptionName>Client Secret</OptionName>
+                    <OptionName>
+                      {deploymentFlags.oidc_cliet_secret.name}
+                    </OptionName>
                     <OptionDescription>
-                      GitHub client secret for OAuth
+                      {deploymentFlags.oidc_cliet_secret.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
-                    <OptionValue>Not available</OptionValue>
+                    <OptionValue>
+                      {deploymentFlags.oidc_cliet_secret.value}
+                    </OptionValue>
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -127,6 +151,6 @@ export const AuthSettingsPage: React.FC = () => {
           </TableContainer>
         </div>
       </Stack>
-    </DeploySettingsLayout>
+    </>
   )
 }

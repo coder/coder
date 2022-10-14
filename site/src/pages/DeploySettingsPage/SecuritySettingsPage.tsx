@@ -5,9 +5,11 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import {
-  DeploySettingsLayout,
-  SettingsHeader,
-} from "components/DeploySettingsLayout/DeploySettingsLayout"
+  EnabledBadge,
+  DisabledBadge,
+} from "components/DeploySettingsLayout/Badges"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { Header } from "components/DeploySettingsLayout/Header"
 import {
   OptionDescription,
   OptionName,
@@ -16,9 +18,11 @@ import {
 import React from "react"
 
 export const SecuritySettingsPage: React.FC = () => {
+  const { deploymentFlags } = useDeploySettings()
+
   return (
-    <DeploySettingsLayout>
-      <SettingsHeader
+    <>
+      <Header
         title="Security"
         description="Security settings"
         docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
@@ -35,29 +39,41 @@ export const SecuritySettingsPage: React.FC = () => {
           <TableBody>
             <TableRow>
               <TableCell>
-                <OptionName>SSH Keygen Algorithm</OptionName>
-                <OptionDescription>The algorithm used by SSH</OptionDescription>
-              </TableCell>
-
-              <TableCell>
-                <OptionValue>Not sure</OptionValue>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell>
-                <OptionName>TLS Enabled</OptionName>
+                <OptionName>
+                  {deploymentFlags.ssh_keygen_algorithm.name}
+                </OptionName>
                 <OptionDescription>
-                  Specifies the external URL to access Coder.
+                  {deploymentFlags.ssh_keygen_algorithm.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>Yes</OptionValue>
+                <OptionValue>
+                  {deploymentFlags.ssh_keygen_algorithm.value}
+                </OptionValue>
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>
+                <OptionName>{deploymentFlags.tls_enable.name}</OptionName>
+                <OptionDescription>
+                  {deploymentFlags.tls_enable.description}
+                </OptionDescription>
+              </TableCell>
+
+              <TableCell>
+                <OptionValue>
+                  {deploymentFlags.tls_enable.value ? (
+                    <EnabledBadge />
+                  ) : (
+                    <DisabledBadge />
+                  )}
+                </OptionValue>
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
       </TableContainer>
-    </DeploySettingsLayout>
+    </>
   )
 }

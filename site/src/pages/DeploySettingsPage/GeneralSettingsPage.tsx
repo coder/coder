@@ -4,10 +4,8 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import {
-  DeploySettingsLayout,
-  SettingsHeader,
-} from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { Header } from "components/DeploySettingsLayout/Header"
 import {
   OptionDescription,
   OptionName,
@@ -16,9 +14,11 @@ import {
 import React from "react"
 
 export const GeneralSettingsPage: React.FC = () => {
+  const { deploymentFlags } = useDeploySettings()
+
   return (
-    <DeploySettingsLayout>
-      <SettingsHeader
+    <>
+      <Header
         title="General"
         description="Deployment and networking settings"
         docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
@@ -35,31 +35,36 @@ export const GeneralSettingsPage: React.FC = () => {
           <TableBody>
             <TableRow>
               <TableCell>
-                <OptionName>Access URL</OptionName>
+                <OptionName>{deploymentFlags.access_url.name}</OptionName>
                 <OptionDescription>
-                  The address to serve the API and dashboard.
+                  {deploymentFlags.access_url.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>127.0.0.1:3000</OptionValue>
+                <OptionValue>{deploymentFlags.access_url.value}</OptionValue>
               </TableCell>
             </TableRow>
+
             <TableRow>
               <TableCell>
-                <OptionName>Wildcard Access URL</OptionName>
+                <OptionName>
+                  {deploymentFlags.wildcard_access_url.name}
+                </OptionName>
                 <OptionDescription>
-                  Specifies the external URL to access Coder.
+                  {deploymentFlags.wildcard_access_url.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>https://www.dev.coder.com</OptionValue>
+                <OptionValue>
+                  {deploymentFlags.wildcard_access_url.value}
+                </OptionValue>
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
       </TableContainer>
-    </DeploySettingsLayout>
+    </>
   )
 }

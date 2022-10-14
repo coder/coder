@@ -59,6 +59,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 9999,
     display: "flex",
     alignItems: "center",
+    width: "fit-content",
   },
 
   enterpriseBadge: {

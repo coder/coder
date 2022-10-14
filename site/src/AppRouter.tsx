@@ -25,6 +25,7 @@ import { GeneralSettingsPage } from "pages/DeploySettingsPage/GeneralSettingsPag
 import { SecuritySettingsPage } from "pages/DeploySettingsPage/SecuritySettingsPage"
 import { MetricsSettingsPage } from "pages/DeploySettingsPage/MetricsSettingsPage"
 import { AuthSettingsPage } from "pages/DeploySettingsPage/AuthSettingsPage"
+import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -246,7 +247,9 @@ export const AppRouter: FC = () => {
             path="general"
             element={
               <AuthAndFrame>
-                <GeneralSettingsPage />
+                <DeploySettingsLayout>
+                  <GeneralSettingsPage />
+                </DeploySettingsLayout>
               </AuthAndFrame>
             }
           />
@@ -254,7 +257,9 @@ export const AppRouter: FC = () => {
             path="security"
             element={
               <AuthAndFrame>
-                <SecuritySettingsPage />
+                <DeploySettingsLayout>
+                  <SecuritySettingsPage />
+                </DeploySettingsLayout>
               </AuthAndFrame>
             }
           />
@@ -262,7 +267,9 @@ export const AppRouter: FC = () => {
             path="metrics"
             element={
               <AuthAndFrame>
-                <MetricsSettingsPage />
+                <DeploySettingsLayout>
+                  <MetricsSettingsPage />
+                </DeploySettingsLayout>
               </AuthAndFrame>
             }
           />
@@ -270,7 +277,9 @@ export const AppRouter: FC = () => {
             path="auth"
             element={
               <AuthAndFrame>
-                <AuthSettingsPage />
+                <DeploySettingsLayout>
+                  <AuthSettingsPage />
+                </DeploySettingsLayout>
               </AuthAndFrame>
             }
           />
