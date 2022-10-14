@@ -6,6 +6,9 @@ import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { TemplatesPage } from "./TemplatesPage"
 import { Language } from "./TemplatesPageView"
+import MockDate from "mockdate"
+
+MockDate.set("2000-11-22")
 
 describe("TemplatesPage", () => {
   beforeEach(() => {

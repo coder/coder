@@ -20,6 +20,7 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
+import { WorkspaceBuildProgress } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -55,6 +56,7 @@ export interface WorkspaceProps {
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
+  template?: TypesGen.Template
 }
 
 /**
@@ -77,6 +79,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hideSSHButton,
   buildInfo,
   applicationsHost,
+  template,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -182,6 +185,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         />
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {workspace.latest_build.status === "starting" && (
+          <WorkspaceBuildProgress workspace={workspace} template={template} />
+        )}
 
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
