@@ -1,7 +1,8 @@
 import Badge from "@material-ui/core/Badge"
 import MenuItem from "@material-ui/core/MenuItem"
-import { fade, makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import React, { useState } from "react"
+import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
@@ -14,10 +15,9 @@ export interface UserDropdownProps {
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> = ({
-  user,
-  onSignOut,
-}: UserDropdownProps) => {
+export const UserDropdown: React.FC<
+  React.PropsWithChildren<UserDropdownProps>
+> = ({ user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -36,17 +36,21 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
         data-testid="user-dropdown-trigger"
       >
         <div className={styles.inner}>
-          <Badge overlap="circle">
-            <UserAvatar username={user.username} />
+          <Badge overlap="circular">
+            <UserAvatar username={user.username} avatarURL={user.avatar_url} />
           </Badge>
-          {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
+          {anchorEl ? (
+            <CloseDropdown color={colors.gray[6]} />
+          ) : (
+            <OpenDropdown color={colors.gray[6]} />
+          )}
         </div>
       </MenuItem>
 
       <BorderedMenu
         anchorEl={anchorEl}
         getContentAnchorEl={null}
-        open={!!anchorEl}
+        open={Boolean(anchorEl)}
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
@@ -59,7 +63,11 @@ export const UserDropdown: React.FC<React.PropsWithChildren<UserDropdownProps>> 
         variant="user-dropdown"
         onClose={onPopoverClose}
       >
-        <UserDropdownContent user={user} onPopoverClose={onPopoverClose} onSignOut={onSignOut} />
+        <UserDropdownContent
+          user={user}
+          onPopoverClose={onPopoverClose}
+          onSignOut={onSignOut}
+        />
       </BorderedMenu>
     </>
   )
@@ -80,11 +88,10 @@ export const useStyles = makeStyles((theme) => ({
 
   menuItem: {
     height: navHeight,
-    padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
+    padding: theme.spacing(1.5, 0),
 
     "&:hover": {
-      backgroundColor: fade(theme.palette.primary.light, 0.05),
-      transition: "background-color 0.3s ease",
+      backgroundColor: "transparent",
     },
   },
 }))

@@ -28,6 +28,7 @@ func TemplateParam(r *http.Request) database.Template {
 func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			templateID, parsed := parseUUID(rw, r, "template")
 			if !parsed {
 				return
@@ -38,14 +39,14 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching template.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), templateParamContextKey{}, template)
+			ctx = context.WithValue(ctx, templateParamContextKey{}, template)
 			chi.RouteContext(ctx).URLParams.Add("organization", template.OrganizationID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

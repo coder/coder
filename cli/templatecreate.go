@@ -2,12 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -49,6 +52,10 @@ func templateCreate() *cobra.Command {
 				templateName = args[0]
 			}
 
+			if utf8.RuneCountInString(templateName) > 31 {
+				return xerrors.Errorf("Template name must be less than 32 characters")
+			}
+
 			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
 			if err == nil {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
@@ -85,7 +92,7 @@ func templateCreate() *cobra.Command {
 				Client:        client,
 				Organization:  organization,
 				Provisioner:   database.ProvisionerType(provisioner),
-				FileHash:      resp.Hash,
+				FileID:        resp.ID,
 				ParameterFile: parameterFile,
 			})
 			if err != nil {
@@ -138,10 +145,11 @@ func templateCreate() *cobra.Command {
 }
 
 type createValidTemplateVersionArgs struct {
+	Name          string
 	Client        *codersdk.Client
 	Organization  codersdk.Organization
 	Provisioner   database.ProvisionerType
-	FileHash      string
+	FileID        uuid.UUID
 	ParameterFile string
 	// Template is only required if updating a template's active version.
 	Template *codersdk.Template
@@ -156,8 +164,9 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	client := args.Client
 
 	req := codersdk.CreateTemplateVersionRequest{
+		Name:            args.Name,
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
-		StorageSource:   args.FileHash,
+		FileID:          args.FileID,
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
 	}
@@ -177,7 +186,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		Cancel: func() error {
 			return client.CancelTemplateVersion(cmd.Context(), version.ID)
 		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
 			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, before)
 		},
 	})

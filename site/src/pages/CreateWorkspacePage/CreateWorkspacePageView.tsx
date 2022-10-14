@@ -1,26 +1,25 @@
-import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
+import * as TypesGen from "api/typesGenerated"
+import { FormFooter } from "components/FormFooter/FormFooter"
+import { FullPageForm } from "components/FullPageForm/FullPageForm"
+import { Loader } from "components/Loader/Loader"
+import { ParameterInput } from "components/ParameterInput/ParameterInput"
+import { Stack } from "components/Stack/Stack"
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
+import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
+import { i18n } from "i18n"
 import { FC, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
-import * as TypesGen from "../../api/typesGenerated"
-import { FormFooter } from "../../components/FormFooter/FormFooter"
-import { FullPageForm } from "../../components/FullPageForm/FullPageForm"
-import { Loader } from "../../components/Loader/Loader"
-import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
-import { Stack } from "../../components/Stack/Stack"
-import { getFormHelpersWithError, nameValidator, onChangeTrimmed } from "../../util/formUtils"
-
-export const Language = {
-  templateLabel: "Template",
-  nameLabel: "Name",
-}
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
+  GET_WORKSPACE_QUOTA_ERROR = "getWorkspaceQuotaError",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -32,22 +31,31 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
+  workspaceQuota?: TypesGen.WorkspaceQuota
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
+  canCreateForUser?: boolean
+  owner: TypesGen.User | null
+  setOwner: (arg0: TypesGen.User | null) => void
   onCancel: () => void
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
 }
 
+const { t } = i18n
+
 export const validationSchema = Yup.object({
-  name: nameValidator(Language.nameLabel),
+  name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
 })
 
-export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (
-  props,
-) => {
-  const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
-  useStyles()
+export const CreateWorkspacePageView: FC<
+  React.PropsWithChildren<CreateWorkspacePageViewProps>
+> = (props) => {
+  const { t } = useTranslation("createWorkspacePage")
+
+  const [parameterValues, setParameterValues] = useState<
+    Record<string, string>
+  >({})
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -72,7 +80,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           createRequests.push({
             name: schema.name,
             destination_scheme: schema.default_destination_scheme,
-            source_scheme: schema.default_source_scheme,
+            source_scheme: "data",
             source_value: value,
           })
         })
@@ -84,7 +92,7 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
       },
     })
 
-  const getFieldHelpers = getFormHelpersWithError<TypesGen.CreateWorkspaceRequest>(
+  const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
     props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR],
   )
@@ -92,39 +100,66 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   if (props.hasTemplateErrors) {
     return (
       <Stack>
-        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR] ? (
-          <ErrorSummary
-            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+              ]
+            }
           />
-        ) : (
-          <></>
         )}
-        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] ? (
-          <ErrorSummary
-            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+              ]
+            }
           />
-        ) : (
-          <></>
         )}
       </Stack>
     )
   }
 
+  const canSubmit =
+    props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
+      ? props.workspaceQuota.user_workspace_count <
+        props.workspaceQuota.user_workspace_limit
+      : true
+
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR] ? (
-            <ErrorSummary
-              error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
+          {Boolean(
+            props.createWorkspaceErrors[
+              CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+            ],
+          ) && (
+            <AlertBanner
+              severity="error"
+              error={
+                props.createWorkspaceErrors[
+                  CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+                ]
+              }
             />
-          ) : (
-            <></>
           )}
           <TextField
             disabled
             fullWidth
-            label={Language.templateLabel}
+            label={t("templateLabel")}
             value={props.selectedTemplate?.name || props.templateName}
             variant="outlined"
           />
@@ -138,9 +173,30 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 onChange={onChangeTrimmed(form)}
                 autoFocus
                 fullWidth
-                label={Language.nameLabel}
+                label={t("nameLabel")}
                 variant="outlined"
               />
+
+              {props.canCreateForUser && (
+                <UserAutocomplete
+                  value={props.owner}
+                  onChange={props.setOwner}
+                  label={t("ownerLabel")}
+                  inputMargin="dense"
+                  showAvatar
+                />
+              )}
+
+              {props.workspaceQuota && (
+                <WorkspaceQuota
+                  quota={props.workspaceQuota}
+                  error={
+                    props.createWorkspaceErrors[
+                      CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR
+                    ]
+                  }
+                />
+              )}
 
               {props.templateSchema.length > 0 && (
                 <Stack>
@@ -160,7 +216,11 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
                 </Stack>
               )}
 
-              <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
+              <FormFooter
+                onCancel={props.onCancel}
+                isLoading={props.creatingWorkspace}
+                submitDisabled={!canSubmit}
+              />
             </>
           )}
         </Stack>
@@ -168,33 +228,3 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
     </FullPageForm>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  readMoreLink: {
-    display: "flex",
-    alignItems: "center",
-
-    "& svg": {
-      width: 12,
-      height: 12,
-      marginLeft: theme.spacing(0.5),
-    },
-  },
-  emptyState: {
-    padding: 0,
-    fontFamily: "inherit",
-    textAlign: "left",
-    minHeight: "auto",
-    alignItems: "flex-start",
-  },
-  emptyStateDescription: {
-    lineHeight: "160%",
-  },
-  code: {
-    background: theme.palette.background.paper,
-    width: "100%",
-  },
-  codeButton: {
-    background: theme.palette.background.paper,
-  },
-}))

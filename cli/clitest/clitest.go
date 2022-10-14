@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -52,6 +53,9 @@ func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
 // new temporary testing directory.
 func CreateTemplateVersionSource(t *testing.T, responses *echo.Responses) string {
 	directory := t.TempDir()
+	f, err := ioutil.TempFile(directory, "*.tf")
+	require.NoError(t, err)
+	f.Close()
 	data, err := echo.Tar(responses)
 	require.NoError(t, err)
 	extractTar(t, data, directory)

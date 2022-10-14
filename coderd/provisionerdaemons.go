@@ -23,25 +23,24 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer/peerwg"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
+	ctx := r.Context()
+	daemons, err := api.Database.GetProvisionerDaemons(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
@@ -50,16 +49,16 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
-	daemons, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, daemons)
+	daemons, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, daemons)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, daemons)
+	httpapi.Write(ctx, rw, http.StatusOK, daemons)
 }
 
 // ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
@@ -227,12 +226,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
-			OrganizationID:      job.OrganizationID,
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
 			},
-			UserID: user.ID,
 			WorkspaceID: uuid.NullUUID{
 				UUID:  workspace.ID,
 				Valid: true,
@@ -284,9 +281,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Compute parameters for the dry-run to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID:       templateVersion.JobID,
-			OrganizationID:            job.OrganizationID,
 			TemplateID:                templateVersion.TemplateID,
-			UserID:                    user.ID,
 			WorkspaceID:               uuid.NullUUID{},
 			AdditionalParameterValues: input.ParameterValues,
 		}, nil)
@@ -320,7 +315,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	}
 	switch job.StorageMethod {
 	case database.ProvisionerStorageMethodFile:
-		file, err := server.Database.GetFileByHash(ctx, job.StorageSource)
+		file, err := server.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
 		}
@@ -477,8 +472,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: job.ID,
 			TemplateID:          templateID,
-			OrganizationID:      job.OrganizationID,
-			UserID:              job.InitiatorID,
 		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("compute parameters: %w", err)
@@ -754,6 +747,8 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Transition: transition,
 		Type:       protoResource.Type,
 		Name:       protoResource.Name,
+		Hide:       protoResource.Hide,
+		Icon:       protoResource.Icon,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
@@ -804,9 +799,6 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
-			WireguardNodeIPv6:       peerwg.UUIDToInet(agentID),
-			WireguardNodePublicKey:  dbtypes.NodePublic{},
-			WireguardDiscoPublicKey: dbtypes.DiscoPublic{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -814,6 +806,14 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
+			health := database.WorkspaceAppHealthDisabled
+			if app.Healthcheck == nil {
+				app.Healthcheck = &sdkproto.Healthcheck{}
+			}
+			if app.Healthcheck.Url != "" {
+				health = database.WorkspaceAppHealthInitializing
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
@@ -828,7 +828,11 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
-				RelativePath: app.RelativePath,
+				Subdomain:            app.Subdomain,
+				HealthcheckUrl:       app.Healthcheck.Url,
+				HealthcheckInterval:  app.Healthcheck.Interval,
+				HealthcheckThreshold: app.Healthcheck.Threshold,
+				Health:               health,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

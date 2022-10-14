@@ -59,7 +59,7 @@ INSERT INTO
 		initiator_id,
 		provisioner,
 		storage_method,
-		storage_source,
+		file_id,
 		"type",
 		"input"
 	)
@@ -78,7 +78,8 @@ WHERE
 UPDATE
 	provisioner_jobs
 SET
-	canceled_at = $2
+	canceled_at = $2,
+	completed_at = $3
 WHERE
 	id = $1;
 

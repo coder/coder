@@ -1,3 +1,4 @@
+{{- include "coder.verifyDeprecated" . -}}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -11,6 +12,7 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   # NOTE: this is currently not used as coder v2 does not support high
   #       availability yet.
@@ -29,42 +31,31 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: coder
-          image: "{{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}"
+          image: {{ include "coder.image" . | quote }}
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:
-            {{- if .Values.coder.tls.secretName }}
             - name: CODER_ADDRESS
-              value: "0.0.0.0:8443"
-            - name: CODER_TLS_ENABLE
-              value: "true"
-            - name: CODER_TLS_CERT_FILE
-              value: /etc/ssl/certs/coder/tls.crt
-            - name: CODER_TLS_KEY_FILE
-              value: /etc/ssl/certs/coder/tls.key
-            {{- else }}
-            - name: CODER_ADDRESS
-              value: "0.0.0.0:8080"
-            {{- end }}
+              value: "0.0.0.0:{{ include "coder.port" . }}"
+            {{- include "coder.tlsEnv" . | nindent 12 }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
           ports:
-            {{- if .Values.coder.tls.secretName }}
-            - name: https
-              containerPort: 8443
+            - name: {{ include "coder.portName" . | quote }}
+              containerPort: {{ include "coder.port" . }}
               protocol: TCP
-            {{- else }}
-            - name: http
-              containerPort: 8080
-              protocol: TCP
-            {{- end }}
           readinessProbe:
             httpGet:
               path: /api/v2/buildinfo
-              port: http
+              port: {{ include "coder.portName" . | quote }}
+              scheme: {{ include "coder.scheme" . | quote }}
           livenessProbe:
             httpGet:
               path: /api/v2/buildinfo
-              port: http
+              port: {{ include "coder.portName" . | quote }}
+              scheme: {{ include "coder.scheme" . | quote }}
+          {{- include "coder.volumeMounts" . | nindent 10 }}
+
+      {{- include "coder.volumes" . | nindent 6 }}

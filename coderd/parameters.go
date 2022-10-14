@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -18,7 +19,8 @@ import (
 )
 
 func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
-	scope, scopeID, valid := readScopeAndID(rw, r)
+	ctx := r.Context()
+	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
 		return
 	}
@@ -32,29 +34,29 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var createRequest codersdk.CreateParameterRequest
-	if !httpapi.Read(rw, r, &createRequest) {
+	if !httpapi.Read(ctx, rw, r, &createRequest) {
 		return
 	}
-	_, err := api.Database.GetParameterValueByScopeAndName(r.Context(), database.GetParameterValueByScopeAndNameParams{
+	_, err := api.Database.GetParameterValueByScopeAndName(ctx, database.GetParameterValueByScopeAndNameParams{
 		Scope:   scope,
 		ScopeID: scopeID,
 		Name:    createRequest.Name,
 	})
 	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Parameter already exists in scope %q and name %q.", scope, createRequest.Name),
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching parameter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	parameterValue, err := api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+	parameterValue, err := api.Database.InsertParameterValue(ctx, database.InsertParameterValueParams{
 		ID:                uuid.New(),
 		Name:              createRequest.Name,
 		CreatedAt:         database.Now(),
@@ -66,18 +68,19 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 		DestinationScheme: database.ParameterDestinationScheme(createRequest.DestinationScheme),
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting parameter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertParameterValue(parameterValue))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertParameterValue(parameterValue))
 }
 
 func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
-	scope, scopeID, valid := readScopeAndID(rw, r)
+	ctx := r.Context()
+	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
 		return
 	}
@@ -91,7 +94,7 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parameterValues, err := api.Database.ParameterValues(r.Context(), database.ParameterValuesParams{
+	parameterValues, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
 		Scopes:   []database.ParameterScope{scope},
 		ScopeIds: []uuid.UUID{scopeID},
 	})
@@ -99,7 +102,7 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching parameter scope values.",
 			Detail:  err.Error(),
 		})
@@ -110,11 +113,12 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 		apiParameterValues = append(apiParameterValues, convertParameterValue(parameterValue))
 	}
 
-	httpapi.Write(rw, http.StatusOK, apiParameterValues)
+	httpapi.Write(ctx, rw, http.StatusOK, apiParameterValues)
 }
 
 func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
-	scope, scopeID, valid := readScopeAndID(rw, r)
+	ctx := r.Context()
+	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
 		return
 	}
@@ -129,7 +133,7 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	name := chi.URLParam(r, "name")
-	parameterValue, err := api.Database.GetParameterValueByScopeAndName(r.Context(), database.GetParameterValueByScopeAndNameParams{
+	parameterValue, err := api.Database.GetParameterValueByScopeAndName(ctx, database.GetParameterValueByScopeAndNameParams{
 		Scope:   scope,
 		ScopeID: scopeID,
 		Name:    name,
@@ -139,21 +143,21 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching parameter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	err = api.Database.DeleteParameterValueByID(r.Context(), parameterValue.ID)
+	err = api.Database.DeleteParameterValueByID(ctx, parameterValue.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting parameter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Parameter deleted.",
 	})
 }
@@ -215,7 +219,19 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	case database.ParameterScopeWorkspace:
 		resource, err = api.Database.GetWorkspaceByID(ctx, scopeID)
 	case database.ParameterScopeImportJob:
-		resource, err = api.Database.GetTemplateVersionByJobID(ctx, scopeID)
+		// I hate myself.
+		var version database.TemplateVersion
+		version, err = api.Database.GetTemplateVersionByJobID(ctx, scopeID)
+		if err != nil {
+			break
+		}
+		var template database.Template
+		template, err = api.Database.GetTemplateByID(ctx, version.TemplateID.UUID)
+		if err != nil {
+			break
+		}
+		resource = version.RBACObject(template)
+
 	case database.ParameterScopeTemplate:
 		resource, err = api.Database.GetTemplateByID(ctx, scopeID)
 	default:
@@ -225,11 +241,11 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	// Write error payload to rw if we cannot find the resource for the scope
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("Scope %q resource %q not found.", scope, scopeID),
 			})
 		} else {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: err.Error(),
 			})
 		}
@@ -238,12 +254,12 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	return resource, true
 }
 
-func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, uuid.UUID, bool) {
+func readScopeAndID(ctx context.Context, rw http.ResponseWriter, r *http.Request) (database.ParameterScope, uuid.UUID, bool) {
 	scope := database.ParameterScope(chi.URLParam(r, "scope"))
 	switch scope {
 	case database.ParameterScopeTemplate, database.ParameterScopeImportJob, database.ParameterScopeWorkspace:
 	default:
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid scope %q.", scope),
 			Validations: []codersdk.ValidationError{
 				{Field: "scope", Detail: "invalid scope"},
@@ -255,7 +271,7 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	id := chi.URLParam(r, "id")
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid UUID %q.", id),
 			Detail:  err.Error(),
 			Validations: []codersdk.ValidationError{

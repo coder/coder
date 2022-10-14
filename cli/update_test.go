@@ -30,7 +30,7 @@ func TestUpdate(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
@@ -77,7 +77,7 @@ func TestUpdate(t *testing.T) {
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 

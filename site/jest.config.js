@@ -35,8 +35,17 @@ module.exports = {
     {
       displayName: "lint",
       runner: "jest-runner-eslint",
-      testMatch: ["<rootDir>/**/*.js", "<rootDir>/**/*.ts", "<rootDir>/**/*.tsx"],
-      testPathIgnorePatterns: ["/out/", "/_jest/", "jest.config.js", "jest-runner.*.js"],
+      testMatch: [
+        "<rootDir>/**/*.js",
+        "<rootDir>/**/*.ts",
+        "<rootDir>/**/*.tsx",
+      ],
+      testPathIgnorePatterns: [
+        "/out/",
+        "/_jest/",
+        "jest.config.js",
+        "jest-runner.*.js",
+      ],
     },
   ],
   collectCoverageFrom: [
@@ -51,7 +60,6 @@ module.exports = {
     "!<rootDir>/e2e/**/*.*",
     "!<rootDir>/jest-runner.eslint.config.js",
     "!<rootDir>/jest.config.js",
-    "!<rootDir>/webpack.*.ts",
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
   ],

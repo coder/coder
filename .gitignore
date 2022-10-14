@@ -15,6 +15,7 @@ vendor
 yarn-error.log
 gotests.coverage
 .idea
+.gitpod.yml
 .DS_Store
 
 # Front-end ignore
@@ -30,7 +31,8 @@ site/**/*.typegen.ts
 site/build-storybook.log
 
 # Build
-dist/
+/build/
+/dist/
 site/out/
 
 *.tfstate
@@ -40,5 +42,7 @@ site/out/
 .terraform/
 
 .vscode/*.log
+.vscode/launch.json
 **/*.swp
 .coderv2/*
+**/__debug_bin

@@ -2,7 +2,7 @@ FROM rust:slim AS rust-utils
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 env CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install exa bat ripgrep typos-cli
+RUN cargo install exa bat ripgrep typos-cli watchexec-cli
 
 FROM ubuntu AS go
 
@@ -70,6 +70,12 @@ RUN mkdir --parents "$GOPATH" && \
     # nfpm is used with `make build` to make release packages
     go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
 
+FROM alpine:3.16 as proto
+WORKDIR /tmp
+RUN apk add curl unzip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
+RUN unzip protoc.zip
+
 # Ubuntu 20.04 LTS (Focal Fossa)
 FROM ubuntu:focal
 
@@ -119,7 +125,6 @@ RUN apt-get update --quiet && apt-get install --yes \
       openssh-server \
       openssl \
       pkg-config \
-      protobuf-compiler \
       python3 \
       python3-pip \
       rsync \
@@ -155,12 +160,17 @@ RUN apt-get update --quiet && apt-get install --yes \
       podman \
       skopeo \
       fish \
-      gh \
+			unzip \
       zstd && \
     # Delete package cache to avoid consuming space in layer
     apt-get clean && \
     # Configure FIPS-compliant policies
     update-crypto-policies --set FIPS
+
+# See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
+# the apt repository is unreliable
+RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \
+    dpkg -i gh.deb
 
 # Install frontend utilities
 RUN apt-get update && \
@@ -300,6 +310,7 @@ RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/g
 
 COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
+COPY --from=proto /tmp/bin /usr/local/bin
 
 USER coder
 

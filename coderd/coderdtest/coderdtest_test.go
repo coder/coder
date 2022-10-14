@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerD: true,
+		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -23,7 +23,7 @@ func TestNew(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	_, _ = coderdtest.NewGoogleInstanceIdentity(t, "example", false)
 	_, _ = coderdtest.NewAWSInstanceIdentity(t, "an-instance")
 }

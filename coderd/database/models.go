@@ -10,10 +10,29 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbtypes"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
 )
+
+type APIKeyScope string
+
+const (
+	APIKeyScopeAll                APIKeyScope = "all"
+	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
+)
+
+func (e *APIKeyScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = APIKeyScope(s)
+	case string:
+		*e = APIKeyScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for APIKeyScope: %T", src)
+	}
+	return nil
+}
 
 type AuditAction string
 
@@ -102,6 +121,7 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
+	LoginTypeToken    LoginType = "token"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -259,6 +279,8 @@ const (
 	ResourceTypeTemplateVersion ResourceType = "template_version"
 	ResourceTypeUser            ResourceType = "user"
 	ResourceTypeWorkspace       ResourceType = "workspace"
+	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
+	ResourceTypeApiKey          ResourceType = "api_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -292,6 +314,27 @@ func (e *UserStatus) Scan(src interface{}) error {
 	return nil
 }
 
+type WorkspaceAppHealth string
+
+const (
+	WorkspaceAppHealthDisabled     WorkspaceAppHealth = "disabled"
+	WorkspaceAppHealthInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
+)
+
+func (e *WorkspaceAppHealth) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppHealth(s)
+	case string:
+		*e = WorkspaceAppHealth(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
+	}
+	return nil
+}
+
 type WorkspaceTransition string
 
 const (
@@ -313,7 +356,8 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 }
 
 type APIKey struct {
-	ID              string      `db:"id" json:"id"`
+	ID string `db:"id" json:"id"`
+	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
 	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
 	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
 	LastUsed        time.Time   `db:"last_used" json:"last_used"`
@@ -323,21 +367,35 @@ type APIKey struct {
 	LoginType       LoginType   `db:"login_type" json:"login_type"`
 	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
 	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
+	Scope           APIKeyScope `db:"scope" json:"scope"`
+}
+
+type AgentStat struct {
+	ID          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
+	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
+	Payload     json.RawMessage `db:"payload" json:"payload"`
 }
 
 type AuditLog struct {
-	ID             uuid.UUID       `db:"id" json:"id"`
-	Time           time.Time       `db:"time" json:"time"`
-	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip             pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent      string          `db:"user_agent" json:"user_agent"`
-	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget string          `db:"resource_target" json:"resource_target"`
-	Action         AuditAction     `db:"action" json:"action"`
-	Diff           json.RawMessage `db:"diff" json:"diff"`
-	StatusCode     int32           `db:"status_code" json:"status_code"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	Time             time.Time       `db:"time" json:"time"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip               pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent        string          `db:"user_agent" json:"user_agent"`
+	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
+	Action           AuditAction     `db:"action" json:"action"`
+	Diff             json.RawMessage `db:"diff" json:"diff"`
+	StatusCode       int32           `db:"status_code" json:"status_code"`
+	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
 type File struct {
@@ -346,6 +404,7 @@ type File struct {
 	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -354,6 +413,17 @@ type GitSSHKey struct {
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
 	PublicKey  string    `db:"public_key" json:"public_key"`
+}
+
+type Group struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GroupMember struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
 type License struct {
@@ -432,10 +502,10 @@ type ProvisionerJob struct {
 	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource  string                   `db:"storage_source" json:"storage_source"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
+	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 }
 
 type ProvisionerJobLog struct {
@@ -467,6 +537,8 @@ type Template struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
+	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	groupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {
@@ -482,15 +554,18 @@ type TemplateVersion struct {
 }
 
 type User struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	Email          string     `db:"email" json:"email"`
-	Username       string     `db:"username" json:"username"`
-	HashedPassword []byte     `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
-	Status         UserStatus `db:"status" json:"status"`
-	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
-	LoginType      LoginType  `db:"login_type" json:"login_type"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	Status         UserStatus     `db:"status" json:"status"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted        bool           `db:"deleted" json:"deleted"`
+	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 }
 
 type UserLink struct {
@@ -513,40 +588,44 @@ type Workspace struct {
 	Name              string         `db:"name" json:"name"`
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
 }
 
 type WorkspaceAgent struct {
-	ID                      uuid.UUID             `db:"id" json:"id"`
-	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
-	Name                    string                `db:"name" json:"name"`
-	FirstConnectedAt        sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
-	LastConnectedAt         sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
-	DisconnectedAt          sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
-	ResourceID              uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken               uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID          sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture            string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables    pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem         string                `db:"operating_system" json:"operating_system"`
-	StartupScript           sql.NullString        `db:"startup_script" json:"startup_script"`
-	InstanceMetadata        pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata        pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	Directory               string                `db:"directory" json:"directory"`
-	WireguardNodeIPv6       pqtype.Inet           `db:"wireguard_node_ipv6" json:"wireguard_node_ipv6"`
-	WireguardNodePublicKey  dbtypes.NodePublic    `db:"wireguard_node_public_key" json:"wireguard_node_public_key"`
-	WireguardDiscoPublicKey dbtypes.DiscoPublic   `db:"wireguard_disco_public_key" json:"wireguard_disco_public_key"`
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	Name                 string                `db:"name" json:"name"`
+	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture         string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	Directory            string                `db:"directory" json:"directory"`
+	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
+	Version string `db:"version" json:"version"`
 }
 
 type WorkspaceApp struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name                 string             `db:"name" json:"name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
+	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 }
 
 type WorkspaceBuild struct {
@@ -555,7 +634,6 @@ type WorkspaceBuild struct {
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	Name              string              `db:"name" json:"name"`
 	BuildNumber       int32               `db:"build_number" json:"build_number"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
@@ -572,6 +650,8 @@ type WorkspaceResource struct {
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
+	Hide       bool                `db:"hide" json:"hide"`
+	Icon       string              `db:"icon" json:"icon"`
 }
 
 type WorkspaceResourceMetadatum struct {

@@ -2,7 +2,10 @@ import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import * as Mocks from "../../testHelpers/renderHelpers"
 import { makeMockApiError } from "../../testHelpers/renderHelpers"
-import { TemplateSettingsPageView, TemplateSettingsPageViewProps } from "./TemplateSettingsPageView"
+import {
+  TemplateSettingsPageView,
+  TemplateSettingsPageViewProps,
+} from "./TemplateSettingsPageView"
 
 export default {
   title: "pages/TemplateSettingsPageView",

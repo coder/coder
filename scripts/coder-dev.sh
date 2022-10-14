@@ -7,17 +7,22 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
 source "${SCRIPT_DIR}/lib.sh"
-PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 
-CODER_DEV_DIR="$PROJECT_ROOT/.coderv2/"
-CODER_DEV_BIN="${CODER_DEV_DIR}/coder"
-if [[ ! -d "${CODER_DEV_DIR}" ]]; then
-	mkdir -p "${CODER_DEV_DIR}"
-fi
+GOOS="$(go env GOOS)"
+GOARCH="$(go env GOARCH)"
+RELATIVE_BINARY_PATH="build/coder_${GOOS}_${GOARCH}"
+
+# To preserve the CWD when running the binary, we need to use pushd and popd to
+# get absolute paths to everything.
+pushd "$PROJECT_ROOT"
+mkdir -p ./.coderv2
+CODER_DEV_BIN="$(realpath "$RELATIVE_BINARY_PATH")"
+CODER_DEV_DIR="$(realpath ./.coderv2)"
+popd
 
 if [[ ! -x "${CODER_DEV_BIN}" ]]; then
 	echo "Run this command first:"
-	echo "go build -o ${CODER_DEV_BIN} ${PROJECT_ROOT}/enterprise/cmd/coder"
+	echo "  make $RELATIVE_BINARY_PATH"
 	exit 1
 fi
 

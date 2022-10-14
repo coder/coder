@@ -38,24 +38,25 @@ func OrganizationMemberParam(r *http.Request) database.OrganizationMember {
 func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			orgID, ok := parseUUID(rw, r, "organization")
 			if !ok {
 				return
 			}
 
-			organization, err := db.GetOrganizationByID(r.Context(), orgID)
+			organization, err := db.GetOrganizationByID(ctx, orgID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching organization.",
 					Detail:  err.Error(),
 				})
 				return
 			}
-			ctx := context.WithValue(r.Context(), organizationParamContextKey{}, organization)
+			ctx = context.WithValue(ctx, organizationParamContextKey{}, organization)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -66,10 +67,11 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			organization := OrganizationParam(r)
 			user := UserParam(r)
 
-			organizationMember, err := db.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
+			organizationMember, err := db.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
 				OrganizationID: organization.ID,
 				UserID:         user.ID,
 			})
@@ -78,14 +80,14 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching organization member.",
 					Detail:  err.Error(),
 				})
 				return
 			}
-			ctx := context.WithValue(r.Context(), organizationMemberParamContextKey{}, organizationMember)
 
+			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, organizationMember)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

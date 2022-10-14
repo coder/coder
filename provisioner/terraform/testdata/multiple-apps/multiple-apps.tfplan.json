@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.2.5",
+  "terraform_version": "1.2.8",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -30,12 +30,16 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "healthcheck": [],
             "icon": null,
             "name": null,
             "relative_path": null,
+            "subdomain": null,
             "url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "healthcheck": []
+          }
         },
         {
           "address": "coder_app.app2",
@@ -46,12 +50,42 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "healthcheck": [
+              {
+                "interval": 5,
+                "threshold": 6,
+                "url": "http://localhost:13337/healthz"
+              }
+            ],
             "icon": null,
             "name": null,
             "relative_path": null,
+            "subdomain": true,
             "url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "healthcheck": [{}]
+          }
+        },
+        {
+          "address": "coder_app.app3",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app3",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "command": null,
+            "healthcheck": [],
+            "icon": null,
+            "name": null,
+            "relative_path": null,
+            "subdomain": false,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          }
         },
         {
           "address": "null_resource.dev",
@@ -76,9 +110,7 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -94,7 +126,9 @@
           "token": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "token": true
+        }
       }
     },
     {
@@ -104,23 +138,26 @@
       "name": "app1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "command": null,
+          "healthcheck": [],
           "icon": null,
           "name": null,
           "relative_path": null,
+          "subdomain": null,
           "url": null
         },
         "after_unknown": {
           "agent_id": true,
+          "healthcheck": [],
           "id": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "healthcheck": []
+        }
       }
     },
     {
@@ -130,23 +167,61 @@
       "name": "app2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "command": null,
+          "healthcheck": [
+            {
+              "interval": 5,
+              "threshold": 6,
+              "url": "http://localhost:13337/healthz"
+            }
+          ],
           "icon": null,
           "name": null,
           "relative_path": null,
+          "subdomain": true,
           "url": null
         },
         "after_unknown": {
           "agent_id": true,
+          "healthcheck": [{}],
           "id": true
         },
         "before_sensitive": false,
-        "after_sensitive": {}
+        "after_sensitive": {
+          "healthcheck": [{}]
+        }
+      }
+    },
+    {
+      "address": "coder_app.app3",
+      "mode": "managed",
+      "type": "coder_app",
+      "name": "app3",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "command": null,
+          "healthcheck": [],
+          "icon": null,
+          "name": null,
+          "relative_path": null,
+          "subdomain": false,
+          "url": null
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "healthcheck": [],
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "healthcheck": []
+        }
       }
     },
     {
@@ -156,9 +231,7 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": [
-          "create"
-        ],
+        "actions": ["create"],
         "before": null,
         "after": {
           "triggers": null
@@ -176,7 +249,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.4.2"
+        "version_constraint": "0.5.0"
       },
       "null": {
         "name": "null",
@@ -209,10 +282,7 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": [
-                "coder_agent.dev1.id",
-                "coder_agent.dev1"
-              ]
+              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
             }
           },
           "schema_version": 0
@@ -225,10 +295,39 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": [
-                "coder_agent.dev1.id",
-                "coder_agent.dev1"
-              ]
+              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+            },
+            "healthcheck": [
+              {
+                "interval": {
+                  "constant_value": 5
+                },
+                "threshold": {
+                  "constant_value": 6
+                },
+                "url": {
+                  "constant_value": "http://localhost:13337/healthz"
+                }
+              }
+            ],
+            "subdomain": {
+              "constant_value": true
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "coder_app.app3",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "app3",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+            },
+            "subdomain": {
+              "constant_value": false
             }
           },
           "schema_version": 0
@@ -240,9 +339,7 @@
           "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": [
-            "coder_agent.dev1"
-          ]
+          "depends_on": ["coder_agent.dev1"]
         }
       ]
     }
@@ -250,9 +347,7 @@
   "relevant_attributes": [
     {
       "resource": "coder_agent.dev1",
-      "attribute": [
-        "id"
-      ]
+      "attribute": ["id"]
     }
   ]
 }

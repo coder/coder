@@ -11,6 +11,7 @@ import { WorkspacesTableBody } from "./WorkspacesTableBody"
 const Language = {
   name: "Name",
   template: "Template",
+  lastUsed: "Last Used",
   version: "Version",
   status: "Status",
   lastBuiltBy: "Last Built By",
@@ -22,11 +23,9 @@ export interface WorkspacesTableProps {
   filter?: string
 }
 
-export const WorkspacesTable: FC<React.PropsWithChildren<WorkspacesTableProps>> = ({
-  isLoading,
-  workspaceRefs,
-  filter,
-}) => {
+export const WorkspacesTable: FC<
+  React.PropsWithChildren<WorkspacesTableProps>
+> = ({ isLoading, workspaceRefs, filter }) => {
   return (
     <TableContainer>
       <Table>
@@ -34,6 +33,7 @@ export const WorkspacesTable: FC<React.PropsWithChildren<WorkspacesTableProps>> 
           <TableRow>
             <TableCell width="25%">{Language.name}</TableCell>
             <TableCell width="35%">{Language.template}</TableCell>
+            <TableCell width="20%">{Language.lastUsed}</TableCell>
             <TableCell width="20%">{Language.version}</TableCell>
             <TableCell width="20%">{Language.status}</TableCell>
             <TableCell width="1%"></TableCell>

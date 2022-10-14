@@ -39,7 +39,9 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			Pubsub:   fPubsub,
 		}
 		api := New(&opts)
-		server := httptest.NewServer(api.Handler)
+		defer api.Close()
+
+		server := httptest.NewServer(api.RootHandler)
 		defer server.Close()
 		userID := uuid.New()
 		keyID, keySecret, err := generateAPIKeyIDSecret()
@@ -75,6 +77,7 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			UserID:       userID,
 			ExpiresAt:    time.Now().Add(5 * time.Hour),
 			LoginType:    database.LoginTypePassword,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 		_, err = fDB.InsertUser(ctx, database.InsertUserParams{
@@ -105,8 +108,9 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, buildID, time.Now())
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, buildID, time.Now())
 		require.NoError(t, err)
+		defer closer.Close()
 
 		// when the endpoint calls subscribe, we get the listener here.
 		fPubsub.cond.L.Lock()
@@ -181,7 +185,8 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: invalidNullTimeMock,
 			},
 			expected: codersdk.ProvisionerJob{
-				Status: codersdk.ProvisionerJobCanceling,
+				CanceledAt: &validNullTimeMock.Time,
+				Status:     codersdk.ProvisionerJobCanceling,
 			},
 		},
 		{
@@ -192,6 +197,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				Error:       errorMock,
 			},
 			expected: codersdk.ProvisionerJob{
+				CanceledAt:  &validNullTimeMock.Time,
 				CompletedAt: &validNullTimeMock.Time,
 				Status:      codersdk.ProvisionerJobFailed,
 				Error:       errorMock.String,
@@ -204,6 +210,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: validNullTimeMock,
 			},
 			expected: codersdk.ProvisionerJob{
+				CanceledAt:  &validNullTimeMock.Time,
 				CompletedAt: &validNullTimeMock.Time,
 				Status:      codersdk.ProvisionerJobCanceled,
 			},

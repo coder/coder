@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
+
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/tracing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -66,9 +68,9 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 				rctx   = chi.RouteContext(r.Context())
 			)
 
-			sw, ok := w.(chimw.WrapResponseWriter)
+			sw, ok := w.(*tracing.StatusWriter)
 			if !ok {
-				panic("dev error: http.ResponseWriter is not chimw.WrapResponseWriter")
+				panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
 			}
 
 			var (
@@ -76,7 +78,7 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 				distOpts []string
 			)
 			// We want to count WebSockets separately.
-			if isWebsocketUpgrade(r) {
+			if httpapi.IsWebsocketUpgrade(r) {
 				websocketsConcurrent.Inc()
 				defer websocketsConcurrent.Dec()
 
@@ -93,20 +95,10 @@ func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler 
 
 			path := rctx.RoutePattern()
 			distOpts = append(distOpts, path)
-			statusStr := strconv.Itoa(sw.Status())
+			statusStr := strconv.Itoa(sw.Status)
 
 			requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
 			dist.WithLabelValues(distOpts...).Observe(float64(time.Since(start)) / 1e6)
 		})
 	}
-}
-
-func isWebsocketUpgrade(r *http.Request) bool {
-	vs := r.Header.Values("Upgrade")
-	for _, v := range vs {
-		if v == "websocket" {
-			return true
-		}
-	}
-	return false
 }

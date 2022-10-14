@@ -28,24 +28,25 @@ func WorkspaceBuildParam(r *http.Request) database.WorkspaceBuild {
 func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 			workspaceBuildID, parsed := parseUUID(rw, r, "workspacebuild")
 			if !parsed {
 				return
 			}
-			workspaceBuild, err := db.GetWorkspaceBuildByID(r.Context(), workspaceBuildID)
+			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, workspaceBuildID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace build.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), workspaceBuildParamContextKey{}, workspaceBuild)
+			ctx = context.WithValue(ctx, workspaceBuildParamContextKey{}, workspaceBuild)
 			// This injects the "workspace" parameter, because it's expected the consumer
 			// will want to use the Workspace middleware to ensure the caller owns the workspace.
 			chi.RouteContext(ctx).URLParams.Add("workspace", workspaceBuild.WorkspaceID.String())

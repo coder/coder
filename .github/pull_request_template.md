@@ -1,13 +1,3 @@
-<!-- Help reviewers by listing the subtasks in this PR
-
-Here's an example:
-
-This PR adds a new feature to the CLI.
-
-## Subtasks
-
-- [x] added a test for feature
-
-Fixes #345
-
+<!--
+Check if your change requires documentation edits before merging: https://coder.com/docs/coder. Make edits in `docs/`.
 -->

@@ -1,4 +1,5 @@
 import FormControlLabel from "@material-ui/core/FormControlLabel"
+import MenuItem from "@material-ui/core/MenuItem"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
@@ -18,7 +19,9 @@ const ParameterLabel: React.FC<{ schema: ParameterSchema }> = ({ schema }) => {
   return (
     <label className={styles.label} htmlFor={schema.name}>
       <strong>var.{schema.name}</strong>
-      {schema.description && <span className={styles.labelDescription}>{schema.description}</span>}
+      {schema.description && (
+        <span className={styles.labelDescription}>{schema.description}</span>
+      )}
     </label>
   )
 }
@@ -29,47 +32,48 @@ export interface ParameterInputProps {
   onChange: (value: string) => void
 }
 
-export const ParameterInput: FC<React.PropsWithChildren<ParameterInputProps>> = ({
-  disabled,
-  onChange,
-  schema,
-}) => {
+export const ParameterInput: FC<
+  React.PropsWithChildren<ParameterInputProps>
+> = ({ disabled, onChange, schema }) => {
   const styles = useStyles()
 
   return (
     <Stack direction="column" className={styles.root}>
       <ParameterLabel schema={schema} />
       <div className={styles.input}>
-        <ParameterField disabled={disabled} onChange={onChange} schema={schema} />
+        <ParameterField
+          disabled={disabled}
+          onChange={onChange}
+          schema={schema}
+        />
       </div>
     </Stack>
   )
 }
 
-const ParameterField: React.FC<React.PropsWithChildren<ParameterInputProps>> = ({
-  disabled,
-  onChange,
-  schema,
-}) => {
+const ParameterField: React.FC<
+  React.PropsWithChildren<ParameterInputProps>
+> = ({ disabled, onChange, schema }) => {
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
-      <RadioGroup
+      <TextField
         id={schema.name}
+        size="small"
         defaultValue={schema.default_source_value}
+        placeholder={schema.default_source_value}
+        disabled={disabled}
         onChange={(event) => {
           onChange(event.target.value)
         }}
+        select
+        fullWidth
       >
         {schema.validation_contains.map((item) => (
-          <FormControlLabel
-            disabled={disabled}
-            key={item}
-            value={item}
-            control={<Radio color="primary" size="small" disableRipple />}
-            label={item}
-          />
+          <MenuItem key={item} value={item}>
+            {item}
+          </MenuItem>
         ))}
-      </RadioGroup>
+      </TextField>
     )
   }
 

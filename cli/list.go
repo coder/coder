@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,14 +59,17 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 
 func list() *cobra.Command {
 	var (
-		columns     []string
-		searchQuery string
-		me          bool
+		all               bool
+		columns           []string
+		defaultQuery      = "owner:me"
+		searchQuery       string
+		me                bool
+		displayWorkspaces []workspaceListRow
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
-		Short:       "List all workspaces",
+		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
 		Args:        cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,6 +80,10 @@ func list() *cobra.Command {
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
 			}
+			if all && searchQuery == defaultQuery {
+				filter.FilterQuery = ""
+			}
+
 			if me {
 				myUser, err := client.User(cmd.Context(), codersdk.Me)
 				if err != nil {
@@ -104,7 +112,7 @@ func list() *cobra.Command {
 			}
 
 			now := time.Now()
-			displayWorkspaces := make([]workspaceListRow, len(workspaces))
+			displayWorkspaces = make([]workspaceListRow, len(workspaces))
 			for i, workspace := range workspaces {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
@@ -118,9 +126,17 @@ func list() *cobra.Command {
 			return err
 		},
 	}
+
+	availColumns, err := cliui.TableHeaders(displayWorkspaces)
+	if err != nil {
+		panic(err)
+	}
+	columnString := strings.Join(availColumns[:], ", ")
+
+	cmd.Flags().BoolVarP(&all, "all", "a", false,
+		"Specifies whether all workspaces will be listed or not.")
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
-		"Specify a column to filter in the table.")
+		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", columnString))
 	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
-	cmd.Flags().BoolVar(&me, "me", false, "Only show workspaces owned by the current user.")
 	return cmd
 }

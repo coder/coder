@@ -108,11 +108,26 @@ func TestConvertResources(t *testing.T) {
 				Name:            "dev1",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
-				Apps: []*proto.App{{
-					Name: "app1",
-				}, {
-					Name: "app2",
-				}},
+				Apps: []*proto.App{
+					{
+						Name: "app1",
+						// Subdomain defaults to false if unspecified.
+						Subdomain: false,
+					},
+					{
+						Name:      "app2",
+						Subdomain: true,
+						Healthcheck: &proto.Healthcheck{
+							Url:       "http://localhost:13337/healthz",
+							Interval:  5,
+							Threshold: 6,
+						},
+					},
+					{
+						Name:      "app3",
+						Subdomain: false,
+					},
+				},
 				Auth: &proto.Agent_Token{},
 			}},
 		}},
@@ -120,6 +135,8 @@ func TestConvertResources(t *testing.T) {
 		"resource-metadata": {{
 			Name: "about",
 			Type: "null_resource",
+			Hide: true,
+			Icon: "/icon/server.svg",
 			Metadata: []*proto.Resource_Metadata{{
 				Key:   "hello",
 				Value: "world",
@@ -155,11 +172,13 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 				sortResources(resources)
 
-				// plan does not contain metadata, so clone expected and remove it
 				var expectedNoMetadata []*proto.Resource
 				for _, resource := range expected {
 					resourceCopy, _ := protobuf.Clone(resource).(*proto.Resource)
-					resourceCopy.Metadata = nil
+					// plan cannot know whether values are null or not
+					for _, metadata := range resourceCopy.Metadata {
+						metadata.IsNull = false
+					}
 					expectedNoMetadata = append(expectedNoMetadata, resourceCopy)
 				}
 

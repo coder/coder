@@ -139,12 +139,11 @@ func configSSH() *cobra.Command {
 		usePreviousOpts  bool
 		dryRun           bool
 		skipProxyCommand bool
-		wireguard        bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
-		Short:       "Populate your SSH config with Host entries for all of your workspaces",
+		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
 		Example: formatExamples(
 			example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
@@ -170,9 +169,19 @@ func configSSH() *cobra.Command {
 				// that it's possible to capture the diff.
 				out = cmd.OutOrStderr()
 			}
-			binaryFile, err := currentBinPath(out)
+			coderBinary, err := currentBinPath(out)
 			if err != nil {
 				return err
+			}
+			escapedCoderBinary, err := sshConfigExecEscape(coderBinary)
+			if err != nil {
+				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
+			}
+
+			root := createConfig(cmd)
+			escapedGlobalConfig, err := sshConfigExecEscape(string(root))
+			if err != nil {
+				return xerrors.Errorf("escape global config for ssh failed: %w", err)
 			}
 
 			homedir, err := os.UserHomeDir()
@@ -238,7 +247,6 @@ func configSSH() *cobra.Command {
 			}
 
 			configModified := configRaw
-			root := createConfig(cmd)
 
 			buf := &bytes.Buffer{}
 			before, after := sshConfigSplitOnCoderSection(configModified)
@@ -280,17 +288,13 @@ func configSSH() *cobra.Command {
 						"\tLogLevel ERROR",
 					)
 					if !skipProxyCommand {
-						// In SSH configs, strings inside "" are interpreted literally and there
-						// is no need to e.g. escape backslashes (common on Windows platforms).
-						// We will escape the quotes, though.
-						escapedBinaryFile := strings.ReplaceAll(binaryFile, "\"", "\\\"")
-						if !wireguard {
-							//nolint:gocritic // We don't want to use %q here, see above.
-							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand \"%s\" --global-config \"%s\" ssh --stdio %s", escapedBinaryFile, root, hostname))
-						} else {
-							//nolint:gocritic // We don't want to use %q here, see above.
-							configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand \"%s\" --global-config \"%s\" ssh --wireguard --stdio %s", escapedBinaryFile, root, hostname))
-						}
+						configOptions = append(
+							configOptions,
+							fmt.Sprintf(
+								"\tProxyCommand %s --global-config %s ssh --stdio %s",
+								escapedCoderBinary, escapedGlobalConfig, hostname,
+							),
+						)
 					}
 
 					_, _ = buf.WriteString(strings.Join(configOptions, "\n"))
@@ -365,9 +369,6 @@ func configSSH() *cobra.Command {
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_CONFIG_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
-	_ = cmd.Flags().MarkHidden("wireguard")
-
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd
@@ -457,6 +458,11 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	dir := filepath.Dir(path)
 	name := filepath.Base(path)
 
+	// Ensure that e.g. the ~/.ssh directory exists.
+	if err = os.MkdirAll(dir, 0o700); err != nil {
+		return xerrors.Errorf("create directory: %w", err)
+	}
+
 	// Create a tempfile in the same directory for ensuring write
 	// operation does not fail.
 	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s.", name))
@@ -486,6 +492,52 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	}
 
 	return nil
+}
+
+// sshConfigExecEscape quotes the string if it contains spaces, as per
+// `man 5 ssh_config`. However, OpenSSH uses exec in the users shell to
+// run the command, and as such the formatting/escape requirements
+// cannot simply be covered by `fmt.Sprintf("%q", path)`.
+//
+// Always escaping the path with `fmt.Sprintf("%q", path)` usually works
+// on most platforms, but double quotes sometimes break on Windows 10
+// (see #2853). This function takes a best-effort approach to improving
+// compatibility and covering edge cases.
+//
+// Given the following ProxyCommand:
+//
+//	ProxyCommand "/path/with space/coder" ssh --stdio work
+//
+// This is ~what OpenSSH would execute:
+//
+//	/bin/bash -c '"/path/with space/to/coder" ssh --stdio workspace'
+//
+// However, since it's actually an arg in C, the contents inside the
+// single quotes are interpreted as is, e.g. if there was a '\t', it
+// would be the literal string '\t', not a tab.
+//
+// See:
+//   - https://github.com/coder/coder/issues/2853
+//   - https://github.com/openssh/openssh-portable/blob/V_9_0_P1/sshconnect.c#L158-L167
+//   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/sshconnect.c#L231-L293
+//   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/contrib/win32/win32compat/w32fd.c#L1075-L1100
+func sshConfigExecEscape(path string) (string, error) {
+	// This is unlikely to ever happen, but newlines are allowed on
+	// certain filesystems, but cannot be used inside ssh config.
+	if strings.ContainsAny(path, "\n") {
+		return "", xerrors.Errorf("invalid path: %s", path)
+	}
+	// In the unlikely even that a path contains quotes, they must be
+	// escaped so that they are not interpreted as shell quotes.
+	if strings.Contains(path, "\"") {
+		path = strings.ReplaceAll(path, "\"", "\\\"")
+	}
+	// A space or a tab requires quoting, but tabs must not be escaped
+	// (\t) since OpenSSH interprets it as a literal \t, not a tab.
+	if strings.ContainsAny(path, " \t") {
+		path = fmt.Sprintf("\"%s\"", path) //nolint:gocritic // We don't want %q here.
+	}
+	return path, nil
 }
 
 // currentBinPath returns the path to the coder binary suitable for use in ssh

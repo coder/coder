@@ -6,20 +6,23 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.coder.service.annotations | nindent 4 }}
 spec:
   type: {{ .Values.coder.service.type }}
   ports:
-    {{- if .Values.coder.tls.secretName }}
-    - name: https
-      port: 443
-      targetPort: https
+    - name: {{ include "coder.portName" . | quote }}
+      port: {{ include "coder.servicePort" . }}
+      targetPort: {{ include "coder.portName" . | quote }}
       protocol: TCP
-    {{- else }}
-    - name: http
-      port: 80
-      targetPort: http
-      protocol: TCP
-    {{- end }}
+  {{- if eq "LoadBalancer" .Values.coder.service.type }}
+  {{- with .Values.coder.service.loadBalancerIP }}
+  loadBalancerIP: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.coder.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . | quote }}
+  {{- end }}
+  {{- end }}
   selector:
     {{- include "coder.selectorLabels" . | nindent 4 }}
 {{- end }}

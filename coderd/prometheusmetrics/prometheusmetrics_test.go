@@ -38,6 +38,7 @@ func TestActiveUsers(t *testing.T) {
 			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 				UserID:   uuid.New(),
 				LastUsed: database.Now(),
+				Scope:    database.APIKeyScopeAll,
 			})
 			return db
 		},
@@ -49,12 +50,14 @@ func TestActiveUsers(t *testing.T) {
 			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 				UserID:   uuid.New(),
 				LastUsed: database.Now(),
+				Scope:    database.APIKeyScopeAll,
 			})
 			// Because this API key hasn't been used in the past hour, this shouldn't
 			// add to the user count.
 			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 				UserID:   uuid.New(),
 				LastUsed: database.Now().Add(-2 * time.Hour),
+				Scope:    database.APIKeyScopeAll,
 			})
 			return db
 		},
@@ -66,10 +69,12 @@ func TestActiveUsers(t *testing.T) {
 			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 				UserID:   uuid.New(),
 				LastUsed: database.Now(),
+				Scope:    database.APIKeyScopeAll,
 			})
 			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 				UserID:   uuid.New(),
 				LastUsed: database.Now(),
+				Scope:    database.APIKeyScopeAll,
 			})
 			return db
 		},

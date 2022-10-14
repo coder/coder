@@ -12,13 +12,16 @@ export interface FormFooterProps {
   onCancel: () => void
   isLoading: boolean
   submitLabel?: string
+  submitDisabled?: boolean
 }
 
 const useStyles = makeStyles((theme) => ({
   footer: {
     display: "flex",
     flex: "0",
-    flexDirection: "row",
+    // The first button is the submit so it is the first element to be focused
+    // on tab so we use row-reverse to display it on the right
+    flexDirection: "row-reverse",
     gap: theme.spacing(1.5),
     alignItems: "center",
     marginTop: theme.spacing(3),
@@ -32,22 +35,31 @@ export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
   onCancel,
   isLoading,
   submitLabel = Language.defaultSubmitLabel,
+  submitDisabled,
 }) => {
   const styles = useStyles()
   return (
     <div className={styles.footer}>
-      <Button type="button" className={styles.button} onClick={onCancel} variant="outlined">
-        {Language.cancelLabel}
-      </Button>
       <LoadingButton
+        tabIndex={0}
         loading={isLoading}
         className={styles.button}
         variant="contained"
         color="primary"
         type="submit"
+        disabled={submitDisabled}
       >
         {submitLabel}
       </LoadingButton>
+      <Button
+        type="button"
+        className={styles.button}
+        onClick={onCancel}
+        variant="outlined"
+        tabIndex={0}
+      >
+        {Language.cancelLabel}
+      </Button>
     </div>
   )
 }

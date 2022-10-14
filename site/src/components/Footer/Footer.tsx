@@ -3,13 +3,14 @@ import { makeStyles } from "@material-ui/core/styles"
 import AccountTreeIcon from "@material-ui/icons/AccountTree"
 import AssistantIcon from "@material-ui/icons/Assistant"
 import ChatIcon from "@material-ui/icons/Chat"
+import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 
 export const Language = {
   buildInfoText: (buildInfo: TypesGen.BuildInfoResponse): string => {
     return `Coder ${buildInfo.version}`
   },
-  copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`,
+  copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
   reportBugLink: "Report an issue or share feedback",
   discordLink: "Join Coder on Discord",
 }
@@ -18,13 +19,15 @@ export interface FooterProps {
   buildInfo?: TypesGen.BuildInfoResponse
 }
 
-export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildInfo }) => {
+export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
+  buildInfo,
+}) => {
   const styles = useFooterStyles()
 
   const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
 
 <!--- Ask a question or leave feedback! -->`)}`
-  const discordUrl = `https://discord.gg/coder`
+  const discordUrl = `https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer`
 
   return (
     <div className={styles.root}>
@@ -37,14 +40,25 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildIn
             target="_blank"
             href={buildInfo.external_url}
           >
-            <AccountTreeIcon className={styles.icon} /> {Language.buildInfoText(buildInfo)}
+            <AccountTreeIcon className={styles.icon} />{" "}
+            {Language.buildInfoText(buildInfo)}
           </Link>
           &nbsp;|&nbsp;
-          <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={githubUrl}
+          >
             <AssistantIcon className={styles.icon} /> {Language.reportBugLink}
           </Link>
           &nbsp;|&nbsp;
-          <Link className={styles.link} variant="caption" target="_blank" href={discordUrl}>
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={discordUrl}
+          >
             <ChatIcon className={styles.icon} /> {Language.discordLink}
           </Link>
         </div>
@@ -55,12 +69,12 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildIn
 
 const useFooterStyles = makeStyles((theme) => ({
   root: {
-    opacity: 0.6,
+    color: colors.gray[7],
     textAlign: "center",
     flex: "0",
     paddingTop: theme.spacing(2),
     paddingBottom: theme.spacing(2),
-    marginTop: theme.spacing(3),
+    marginTop: theme.spacing(8),
   },
   copyRight: {
     margin: theme.spacing(0.25),

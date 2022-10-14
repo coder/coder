@@ -1,8 +1,13 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
+import { Route, Routes } from "react-router-dom"
 import { Language } from "../../components/SignInForm/SignInForm"
-import { history, render } from "../../testHelpers/renderHelpers"
+import {
+  history,
+  render,
+  waitForLoaderToBeRemoved,
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
 
@@ -30,12 +35,16 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: Language.errorMessages.authError }))
+        return res(
+          ctx.status(500),
+          ctx.json({ message: Language.errorMessages.authError }),
+        )
       }),
     )
 
     // When
     render(<LoginPage />)
+    await waitForLoaderToBeRemoved()
     const email = screen.getByLabelText(Language.emailLabel)
     const password = screen.getByLabelText(Language.passwordLabel)
     await userEvent.type(email, "test@coder.com")
@@ -45,7 +54,9 @@ describe("LoginPage", () => {
     fireEvent.click(signInButton)
 
     // Then
-    const errorMessage = await screen.findByText(Language.errorMessages.authError)
+    const errorMessage = await screen.findByText(
+      Language.errorMessages.authError,
+    )
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })
@@ -99,9 +110,14 @@ describe("LoginPage", () => {
     )
 
     // When
-    render(<LoginPage />)
+    render(
+      <Routes>
+        <Route path="/login" element={<LoginPage />}></Route>
+        <Route path="/setup" element={<h1>Setup</h1>}></Route>
+      </Routes>,
+    )
 
     // Then
-    await waitFor(() => expect(history.location.pathname).toEqual("/setup"))
+    await screen.findByText("Setup")
   })
 })

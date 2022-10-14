@@ -29,37 +29,38 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(codersdk.SessionTokenKey)
-			if err != nil {
-				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+			ctx := r.Context()
+			cookieValue := apiTokenFromRequest(r)
+			if cookieValue == "" {
+				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
-			token, err := uuid.Parse(cookie.Value)
+			token, err := uuid.Parse(cookieValue)
 			if err != nil {
-				httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 					Message: "Agent token is invalid.",
 				})
 				return
 			}
-			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
+			agent, err := db.GetWorkspaceAgentByAuthToken(ctx, token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 						Message: "Agent token is invalid.",
 					})
 					return
 				}
 
-				httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), workspaceAgentContextKey{}, agent)
+			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, agent)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

@@ -53,13 +53,10 @@ INSERT INTO
 		startup_script,
 		directory,
 		instance_metadata,
-		resource_metadata,
-		wireguard_node_ipv6,
-		wireguard_node_public_key,
-		wireguard_disco_public_key
+		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
@@ -72,12 +69,10 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceAgentKeysByID :exec
+-- name: UpdateWorkspaceAgentVersionByID :exec
 UPDATE
 	workspace_agents
 SET
-	wireguard_node_public_key = $2,
-	wireguard_disco_public_key = $3,
-	updated_at = $4
+	version = $2
 WHERE
 	id = $1;

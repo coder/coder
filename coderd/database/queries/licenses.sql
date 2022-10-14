@@ -13,6 +13,12 @@ SELECT *
 FROM licenses
 ORDER BY (id);
 
+-- name: GetUnexpiredLicenses :many
+SELECT *
+FROM licenses
+WHERE exp > NOW()
+ORDER BY (id);
+
 -- name: DeleteLicense :one
 DELETE
 FROM licenses

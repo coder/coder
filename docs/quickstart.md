@@ -5,14 +5,12 @@ possible way to use Coder.
 
 ## Generic Quickstart
 
-Please [install Coder](../install.md) before proceeding with the steps below.
+Please [install Coder](../install) before proceeding with the steps below.
 
 ## First time owner user setup
 
 1. Run `coder login <your Access URL>` in a new terminal and follow the
    interactive instructions to create your owner user and password.
-
-> If using `coder server --tunnel`, the Access URL appears in the terminal logs.
 
 ## Templates
 
@@ -44,7 +42,7 @@ Connect to your workspace via SSH:
 coder ssh <workspaceName>
 ```
 
-To access your workspace in the Coder dashboard, navigate to the [configured access URL](./install/configure.md),
+To access your workspace in the Coder dashboard, navigate to the [configured access URL](../admin/configure#access-url),
 and log in with the owner credentials provided to you by Coder.
 
 ![Coder Web UI with code-server](./images/code-server.png)

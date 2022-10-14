@@ -15,23 +15,36 @@ const (
 )
 
 const (
-	FeatureUserLimit = "user_limit"
-	FeatureAuditLog  = "audit_log"
+	FeatureUserLimit      = "user_limit"
+	FeatureAuditLog       = "audit_log"
+	FeatureBrowserOnly    = "browser_only"
+	FeatureSCIM           = "scim"
+	FeatureWorkspaceQuota = "workspace_quota"
+	FeatureTemplateRBAC   = "template_rbac"
 )
 
-var FeatureNames = []string{FeatureUserLimit, FeatureAuditLog}
+var FeatureNames = []string{
+	FeatureUserLimit,
+	FeatureAuditLog,
+	FeatureBrowserOnly,
+	FeatureSCIM,
+	FeatureWorkspaceQuota,
+	FeatureTemplateRBAC,
+}
 
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	Limit       *int64      `json:"limit"`
-	Actual      *int64      `json:"actual"`
+	Limit       *int64      `json:"limit,omitempty"`
+	Actual      *int64      `json:"actual,omitempty"`
 }
 
 type Entitlements struct {
-	Features   map[string]Feature `json:"features"`
-	Warnings   []string           `json:"warnings"`
-	HasLicense bool               `json:"has_license"`
+	Features     map[string]Feature `json:"features"`
+	Warnings     []string           `json:"warnings"`
+	HasLicense   bool               `json:"has_license"`
+	Experimental bool               `json:"experimental"`
+	Trial        bool               `json:"trial"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {

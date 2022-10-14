@@ -1,6 +1,9 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import { userFilterQuery, workspaceFilterQuery } from "../../util/filters"
-import { SearchBarWithFilter, SearchBarWithFilterProps } from "./SearchBarWithFilter"
+import {
+  SearchBarWithFilter,
+  SearchBarWithFilterProps,
+} from "./SearchBarWithFilter"
 
 export default {
   title: "components/SearchBarWithFilter",
@@ -12,7 +15,9 @@ export default {
   },
 } as ComponentMeta<typeof SearchBarWithFilter>
 
-const Template: Story<SearchBarWithFilterProps> = (args) => <SearchBarWithFilter {...args} />
+const Template: Story<SearchBarWithFilterProps> = (args) => (
+  <SearchBarWithFilter {...args} />
+)
 
 export const WithoutPresetFilters = Template.bind({})
 

@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"net/url"
+	"net/http"
+	"net/netip"
 	"os"
 	"os/exec"
 	"os/user"
@@ -27,15 +29,14 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
-	"tailscale.com/types/key"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peer/peerwg"
-	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty"
+	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -51,55 +52,46 @@ const (
 )
 
 type Options struct {
-	EnableWireguard        bool
-	UploadWireguardKeys    UploadWireguardKeys
-	ListenWireguardPeers   ListenWireguardPeers
-	ReconnectingPTYTimeout time.Duration
-	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
+	CoordinatorDialer           CoordinatorDialer
+	FetchMetadata               FetchMetadata
+	StatsReporter               StatsReporter
+	WorkspaceAgentApps          WorkspaceAgentApps
+	PostWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
+	ReconnectingPTYTimeout      time.Duration
+	EnvironmentVariables        map[string]string
+	Logger                      slog.Logger
 }
 
-type Metadata struct {
-	WireguardAddresses   []netaddr.IPPrefix `json:"addresses"`
-	EnvironmentVariables map[string]string  `json:"environment_variables"`
-	StartupScript        string             `json:"startup_script"`
-	Directory            string             `json:"directory"`
-}
+// CoordinatorDialer is a function that constructs a new broker.
+// A dialer must be passed in to allow for reconnects.
+type CoordinatorDialer func(context.Context) (net.Conn, error)
 
-type WireguardPublicKeys struct {
-	Public key.NodePublic  `json:"public"`
-	Disco  key.DiscoPublic `json:"disco"`
-}
+// FetchMetadata is a function to obtain metadata for the agent.
+type FetchMetadata func(context.Context) (codersdk.WorkspaceAgentMetadata, error)
 
-type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
-type UploadWireguardKeys func(ctx context.Context, keys WireguardPublicKeys) error
-type ListenWireguardPeers func(ctx context.Context, logger slog.Logger) (<-chan peerwg.Handshake, func(), error)
-
-func New(dialer Dialer, options *Options) io.Closer {
-	if options == nil {
-		options = &Options{}
-	}
+func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		dialer:                 dialer,
-		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
-		logger:                 options.Logger,
-		closeCancel:            cancelFunc,
-		closed:                 make(chan struct{}),
-		envVars:                options.EnvironmentVariables,
-		enableWireguard:        options.EnableWireguard,
-		postKeys:               options.UploadWireguardKeys,
-		listenWireguardPeers:   options.ListenWireguardPeers,
+		reconnectingPTYTimeout:      options.ReconnectingPTYTimeout,
+		logger:                      options.Logger,
+		closeCancel:                 cancelFunc,
+		closed:                      make(chan struct{}),
+		envVars:                     options.EnvironmentVariables,
+		coordinatorDialer:           options.CoordinatorDialer,
+		fetchMetadata:               options.FetchMetadata,
+		stats:                       &Stats{},
+		statsReporter:               options.StatsReporter,
+		workspaceAgentApps:          options.WorkspaceAgentApps,
+		postWorkspaceAgentAppHealth: options.PostWorkspaceAgentAppHealth,
 	}
 	server.init(ctx)
 	return server
 }
 
 type agent struct {
-	dialer Dialer
 	logger slog.Logger
 
 	reconnectingPTYs       sync.Map
@@ -113,24 +105,25 @@ type agent struct {
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
 	metadata      atomic.Value
-	startupScript atomic.Bool
+	fetchMetadata FetchMetadata
 	sshServer     *ssh.Server
 
-	enableWireguard      bool
-	network              *peerwg.Network
-	postKeys             UploadWireguardKeys
-	listenWireguardPeers ListenWireguardPeers
+	network                     *tailnet.Conn
+	coordinatorDialer           CoordinatorDialer
+	stats                       *Stats
+	statsReporter               StatsReporter
+	workspaceAgentApps          WorkspaceAgentApps
+	postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
 }
 
 func (a *agent) run(ctx context.Context) {
-	var metadata Metadata
-	var peerListener *peerbroker.Listener
+	var metadata codersdk.WorkspaceAgentMetadata
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting")
-		metadata, peerListener, err = a.dialer(ctx, a.logger)
+		metadata, err = a.fetchMetadata(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -141,7 +134,7 @@ func (a *agent) run(ctx context.Context) {
 			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		a.logger.Info(context.Background(), "connected")
+		a.logger.Info(context.Background(), "fetched metadata")
 		break
 	}
 	select {
@@ -151,40 +144,204 @@ func (a *agent) run(ctx context.Context) {
 	}
 	a.metadata.Store(metadata)
 
-	if a.startupScript.CAS(false, true) {
-		// The startup script has not ran yet!
-		go func() {
-			err := a.runStartupScript(ctx, metadata.StartupScript)
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if err != nil {
-				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
-			}
-		}()
-	}
-
-	if a.enableWireguard {
-		err = a.startWireguard(ctx, metadata.WireguardAddresses)
-		if err != nil {
-			a.logger.Error(ctx, "start wireguard", slog.Error(err))
-		}
-	}
-
-	for {
-		conn, err := peerListener.Accept()
-		if err != nil {
-			if a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
-			a.run(ctx)
+	// The startup script has not ran yet!
+	go func() {
+		err := a.runStartupScript(ctx, metadata.StartupScript)
+		if errors.Is(err, context.Canceled) {
 			return
 		}
-		a.closeMutex.Lock()
-		a.connCloseWait.Add(1)
-		a.closeMutex.Unlock()
-		go a.handlePeerConn(ctx, conn)
+		if err != nil {
+			a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+		}
+	}()
+
+	if metadata.DERPMap != nil {
+		go a.runTailnet(ctx, metadata.DERPMap)
+	}
+
+	if a.workspaceAgentApps != nil && a.postWorkspaceAgentAppHealth != nil {
+		go NewWorkspaceAppHealthReporter(a.logger, a.workspaceAgentApps, a.postWorkspaceAgentAppHealth)(ctx)
+	}
+}
+
+func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.isClosed() {
+		return
+	}
+	if a.network != nil {
+		a.network.SetDERPMap(derpMap)
+		return
+	}
+	var err error
+	a.network, err = tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
+		DERPMap:   derpMap,
+		Logger:    a.logger.Named("tailnet"),
+	})
+	if err != nil {
+		a.logger.Critical(ctx, "create tailnet", slog.Error(err))
+		return
+	}
+	a.network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
+		if listenerExists {
+			// If a listener already exists, we would double-wrap the conn.
+			return conn
+		}
+		return a.stats.wrapConn(conn)
+	})
+	go a.runCoordinator(ctx)
+
+	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for ssh", slog.Error(err))
+		return
+	}
+	go func() {
+		for {
+			conn, err := sshListener.Accept()
+			if err != nil {
+				return
+			}
+			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
+		}
+	}()
+
+	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for reconnecting pty", slog.Error(err))
+		return
+	}
+	go func() {
+		for {
+			conn, err := reconnectingPTYListener.Accept()
+			if err != nil {
+				a.logger.Debug(ctx, "accept pty failed", slog.Error(err))
+				return
+			}
+			conn = a.stats.wrapConn(conn)
+			// This cannot use a JSON decoder, since that can
+			// buffer additional data that is required for the PTY.
+			rawLen := make([]byte, 2)
+			_, err = conn.Read(rawLen)
+			if err != nil {
+				continue
+			}
+			length := binary.LittleEndian.Uint16(rawLen)
+			data := make([]byte, length)
+			_, err = conn.Read(data)
+			if err != nil {
+				continue
+			}
+			var msg codersdk.ReconnectingPTYInit
+			err = json.Unmarshal(data, &msg)
+			if err != nil {
+				continue
+			}
+			go a.handleReconnectingPTY(ctx, msg, conn)
+		}
+	}()
+
+	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for speedtest", slog.Error(err))
+		return
+	}
+	go func() {
+		for {
+			conn, err := speedtestListener.Accept()
+			if err != nil {
+				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
+				return
+			}
+			a.closeMutex.Lock()
+			a.connCloseWait.Add(1)
+			a.closeMutex.Unlock()
+			go func() {
+				defer a.connCloseWait.Done()
+				_ = speedtest.ServeConn(conn)
+			}()
+		}
+	}()
+
+	statisticsListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	if err != nil {
+		a.logger.Critical(ctx, "listen for statistics", slog.Error(err))
+		return
+	}
+	go func() {
+		defer statisticsListener.Close()
+		server := &http.Server{
+			Handler:           a.statisticsHandler(),
+			ReadTimeout:       20 * time.Second,
+			ReadHeaderTimeout: 20 * time.Second,
+			WriteTimeout:      20 * time.Second,
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
+		}
+		go func() {
+			<-ctx.Done()
+			_ = server.Close()
+		}()
+
+		err = server.Serve(statisticsListener)
+		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
+			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
+		}
+	}()
+}
+
+// runCoordinator listens for nodes and updates the self-node as it changes.
+func (a *agent) runCoordinator(ctx context.Context) {
+	for {
+		reconnect := a.runCoordinatorWithRetry(ctx)
+		if !reconnect {
+			return
+		}
+	}
+}
+
+func (a *agent) runCoordinatorWithRetry(ctx context.Context) (reconnect bool) {
+	var coordinator net.Conn
+	var err error
+	// An exponential back-off occurs when the connection is failing to dial.
+	// This is to prevent server spam in case of a coderd outage.
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		coordinator, err = a.coordinatorDialer(ctx)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return false
+			}
+			if a.isClosed() {
+				return false
+			}
+			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			continue
+		}
+		//nolint:revive // Defer is ok because we're exiting this loop.
+		defer coordinator.Close()
+		a.logger.Info(context.Background(), "connected to coordination server")
+		break
+	}
+	select {
+	case <-ctx.Done():
+		return false
+	default:
+	}
+	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
+	a.network.SetNodeCallback(sendNodes)
+	select {
+	case <-ctx.Done():
+		return false
+	case err := <-errChan:
+		if a.isClosed() {
+			return false
+		}
+		if errors.Is(err, context.Canceled) {
+			return false
+		}
+		a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
+		return true
 	}
 }
 
@@ -193,7 +350,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0600)
+	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
@@ -218,41 +375,6 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	return nil
-}
-
-func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
-	go func() {
-		select {
-		case <-a.closed:
-		case <-conn.Closed():
-		}
-		_ = conn.Close()
-		a.connCloseWait.Done()
-	}()
-	for {
-		channel, err := conn.Accept(ctx)
-		if err != nil {
-			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
-				return
-			}
-			a.logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
-			return
-		}
-
-		switch channel.Protocol() {
-		case ProtocolSSH:
-			go a.sshServer.HandleConn(channel.NetConn())
-		case ProtocolReconnectingPTY:
-			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
-		case ProtocolDial:
-			go a.handleDial(ctx, channel.Label(), channel.NetConn())
-		default:
-			a.logger.Warn(ctx, "unhandled protocol from channel",
-				slog.F("protocol", channel.Protocol()),
-				slog.F("label", channel.Label()),
-			)
-		}
-	}
 }
 
 func (a *agent) init(ctx context.Context) {
@@ -323,6 +445,8 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				session.DisablePTYEmulation()
+
 				server, err := sftp.NewServer(session)
 				if err != nil {
 					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
@@ -339,6 +463,21 @@ func (a *agent) init(ctx context.Context) {
 	}
 
 	go a.run(ctx)
+	if a.statsReporter != nil {
+		cl, err := a.statsReporter(ctx, a.logger, func() *codersdk.AgentStats {
+			return a.stats.Copy()
+		})
+		if err != nil {
+			a.logger.Error(ctx, "report stats", slog.Error(err))
+			return
+		}
+		a.connCloseWait.Add(1)
+		go func() {
+			defer a.connCloseWait.Done()
+			<-a.closed
+			cl.Close()
+		}()
+	}
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
@@ -360,7 +499,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if rawMetadata == nil {
 		return nil, xerrors.Errorf("no metadata was provided: %w", err)
 	}
-	metadata, valid := rawMetadata.(Metadata)
+	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
 	if !valid {
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
@@ -432,7 +571,8 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 }
 
 func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
-	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
+	ctx := session.Context()
+	cmd, err := a.createCommand(ctx, session.RawCommand(), session.Environ())
 	if err != nil {
 		return err
 	}
@@ -449,32 +589,34 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
+		// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
+		// See https://github.com/coder/coder/issues/3371.
+		session.DisablePTYEmulation()
+
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
 		// The pty package sets `SSH_TTY` on supported platforms.
-		ptty, process, err := pty.Start(cmd)
+		ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
+			pty.WithSSHRequest(sshPty),
+			pty.WithLogger(slog.Stdlib(ctx, a.logger, slog.LevelInfo)),
+		))
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
 		defer func() {
 			closeErr := ptty.Close()
 			if closeErr != nil {
-				a.logger.Warn(context.Background(), "failed to close tty",
-					slog.Error(closeErr))
+				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
 				if retErr == nil {
 					retErr = closeErr
 				}
 			}
 		}()
-		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
-		if err != nil {
-			return xerrors.Errorf("resize ptty: %w", err)
-		}
 		go func() {
 			for win := range windowSize {
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
 				if resizeErr != nil {
-					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(resizeErr))
+					a.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()
@@ -489,8 +631,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 		// and not something to be concerned about.  But, if it's something else, we should log it.
 		if err != nil && !xerrors.As(err, &exitErr) {
-			a.logger.Warn(context.Background(), "wait error",
-				slog.Error(err))
+			a.logger.Warn(ctx, "wait error", slog.Error(err))
 		}
 		return err
 	}
@@ -514,60 +655,36 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn net.Conn) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
-	// The ID format is referenced in conn.go.
-	// <uuid>:<height>:<width>
-	idParts := strings.SplitN(rawID, ":", 4)
-	if len(idParts) != 4 {
-		a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
-		return
-	}
-	id := idParts[0]
-	// Enforce a consistent format for IDs.
-	_, err := uuid.Parse(id)
-	if err != nil {
-		a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
-		return
-	}
-	// Parse the initial terminal dimensions.
-	height, err := strconv.Atoi(idParts[1])
-	if err != nil {
-		a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
-		return
-	}
-	width, err := strconv.Atoi(idParts[2])
-	if err != nil {
-		a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
-		return
-	}
-
 	var rpty *reconnectingPTY
-	rawRPTY, ok := a.reconnectingPTYs.Load(id)
+	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
 	if ok {
 		rpty, ok = rawRPTY.(*reconnectingPTY)
 		if !ok {
-			a.logger.Warn(ctx, "found invalid type in reconnecting pty map", slog.F("id", id))
+			a.logger.Error(ctx, "found invalid type in reconnecting pty map", slog.F("id", msg.ID))
+			return
 		}
 	} else {
 		// Empty command will default to the users shell!
-		cmd, err := a.createCommand(ctx, idParts[3], nil)
+		cmd, err := a.createCommand(ctx, msg.Command, nil)
 		if err != nil {
-			a.logger.Warn(ctx, "create reconnecting pty command", slog.Error(err))
+			a.logger.Error(ctx, "create reconnecting pty command", slog.Error(err))
 			return
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-		ptty, process, err := pty.Start(cmd)
-		if err != nil {
-			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", id))
-		}
-
 		// Default to buffer 64KiB.
 		circularBuffer, err := circbuf.NewBuffer(64 << 10)
 		if err != nil {
-			a.logger.Warn(ctx, "create circular buffer", slog.Error(err))
+			a.logger.Error(ctx, "create circular buffer", slog.Error(err))
+			return
+		}
+
+		ptty, process, err := pty.Start(cmd)
+		if err != nil {
+			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID))
 			return
 		}
 
@@ -582,7 +699,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
 			circularBuffer: circularBuffer,
 		}
-		a.reconnectingPTYs.Store(id, rpty)
+		a.reconnectingPTYs.Store(msg.ID, rpty)
 		go func() {
 			// CommandContext isn't respected for Windows PTYs right now,
 			// so we need to manually track the lifecycle.
@@ -611,7 +728,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 				_, err = rpty.circularBuffer.Write(part)
 				rpty.circularBufferMutex.Unlock()
 				if err != nil {
-					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", id))
+					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", msg.ID))
 					break
 				}
 				rpty.activeConnsMutex.Lock()
@@ -625,22 +742,22 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			// ID from memory.
 			_ = process.Kill()
 			rpty.Close()
-			a.reconnectingPTYs.Delete(id)
+			a.reconnectingPTYs.Delete(msg.ID)
 			a.connCloseWait.Done()
 		}()
 	}
 	// Resize the PTY to initial height + width.
-	err = rpty.ptty.Resize(uint16(height), uint16(width))
+	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
+		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
 	_, err = conn.Write(rpty.circularBuffer.Bytes())
 	rpty.circularBufferMutex.RUnlock()
 	if err != nil {
-		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", id), slog.Error(err))
+		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", msg.ID), slog.Error(err))
 		return
 	}
 	connectionID := uuid.NewString()
@@ -679,19 +796,19 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		rpty.activeConnsMutex.Unlock()
 	}()
 	decoder := json.NewDecoder(conn)
-	var req ReconnectingPTYRequest
+	var req codersdk.ReconnectingPTYRequest
 	for {
 		err = decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
 			return
 		}
 		if err != nil {
-			a.logger.Warn(ctx, "reconnecting pty buffer read error", slog.F("id", id), slog.Error(err))
+			a.logger.Warn(ctx, "reconnecting pty buffer read error", slog.F("id", msg.ID), slog.Error(err))
 			return
 		}
 		_, err = rpty.ptty.Input().Write([]byte(req.Data))
 		if err != nil {
-			a.logger.Warn(ctx, "write to reconnecting pty", slog.F("id", id), slog.Error(err))
+			a.logger.Warn(ctx, "write to reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 			return
 		}
 		// Check if a resize needs to happen!
@@ -701,73 +818,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
+			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
 		}
 	}
-}
-
-// dialResponse is written to datachannels with protocol "dial" by the agent as
-// the first packet to signify whether the dial succeeded or failed.
-type dialResponse struct {
-	Error string `json:"error,omitempty"`
-}
-
-func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
-	defer conn.Close()
-
-	writeError := func(responseError error) error {
-		msg := ""
-		if responseError != nil {
-			msg = responseError.Error()
-			if !xerrors.Is(responseError, io.EOF) {
-				a.logger.Warn(ctx, "handle dial", slog.F("label", label), slog.Error(responseError))
-			}
-		}
-		b, err := json.Marshal(dialResponse{
-			Error: msg,
-		})
-		if err != nil {
-			a.logger.Warn(ctx, "write dial response", slog.F("label", label), slog.Error(err))
-			return xerrors.Errorf("marshal agent webrtc dial response: %w", err)
-		}
-
-		_, err = conn.Write(b)
-		return err
-	}
-
-	u, err := url.Parse(label)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("parse URL %q: %w", label, err))
-		return
-	}
-
-	network := u.Scheme
-	addr := u.Host + u.Path
-	if strings.HasPrefix(network, "unix") {
-		if runtime.GOOS == "windows" {
-			_ = writeError(xerrors.New("Unix forwarding is not supported from Windows workspaces"))
-			return
-		}
-		addr, err = ExpandRelativeHomePath(addr)
-		if err != nil {
-			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
-			return
-		}
-	}
-
-	d := net.Dialer{Timeout: 3 * time.Second}
-	nconn, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
-		return
-	}
-
-	err = writeError(nil)
-	if err != nil {
-		return
-	}
-
-	Bicopy(ctx, conn, nconn)
 }
 
 // isClosed returns whether the API is closed or not.
@@ -788,6 +841,9 @@ func (a *agent) Close() error {
 	}
 	close(a.closed)
 	a.closeCancel()
+	if a.network != nil {
+		_ = a.network.Close()
+	}
 	_ = a.sshServer.Close()
 	a.connCloseWait.Wait()
 	return nil

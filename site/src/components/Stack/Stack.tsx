@@ -6,13 +6,13 @@ import { combineClasses } from "../../util/combineClasses"
 
 type Direction = "column" | "row"
 
-export interface StackProps {
+export type StackProps = {
   className?: string
   direction?: Direction
   spacing?: number
   alignItems?: CSSProperties["alignItems"]
   justifyContent?: CSSProperties["justifyContent"]
-}
+} & React.HTMLProps<HTMLDivElement>
 
 type StyleProps = Omit<StackProps, "className">
 
@@ -37,6 +37,7 @@ export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
   spacing = 2,
   alignItems,
   justifyContent,
+  ...divProps
 }) => {
   const styles = useStyles({
     spacing,
@@ -45,5 +46,9 @@ export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
     justifyContent,
   })
 
-  return <div className={combineClasses([styles.stack, className])}>{children}</div>
+  return (
+    <div {...divProps} className={combineClasses([styles.stack, className])}>
+      {children}
+    </div>
+  )
 }

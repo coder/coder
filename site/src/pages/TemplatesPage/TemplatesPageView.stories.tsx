@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplate } from "../../testHelpers/entities"
+import { makeMockApiError, MockTemplate } from "../../testHelpers/entities"
 import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView"
 
 export default {
@@ -7,7 +7,9 @@ export default {
   component: TemplatesPageView,
 } as ComponentMeta<typeof TemplatesPageView>
 
-const Template: Story<TemplatesPageViewProps> = (args) => <TemplatesPageView {...args} />
+const Template: Story<TemplatesPageViewProps> = (args) => (
+  <TemplatesPageView {...args} />
+)
 
 export const AllStates = Template.bind({})
 AllStates.args = {
@@ -16,14 +18,20 @@ AllStates.args = {
     MockTemplate,
     {
       ...MockTemplate,
-      description: "🚀 Some magical template that does some magical things!",
+      active_user_count: -1,
+      description: "🚀 Some new template that has no activity data",
       icon: "/icon/goland.svg",
     },
     {
       ...MockTemplate,
-      workspace_owner_count: 150,
+      active_user_count: 150,
       description: "😮 Wow, this one has a bunch of usage!",
       icon: "",
+    },
+    {
+      ...MockTemplate,
+      description:
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ",
     },
   ],
 }
@@ -43,3 +51,10 @@ EmptyCanCreate.args = {
 
 export const EmptyCannotCreate = Template.bind({})
 EmptyCannotCreate.args = {}
+
+export const Error = Template.bind({})
+Error.args = {
+  getTemplatesError: makeMockApiError({
+    message: "Something went wrong fetching templates.",
+  }),
+}

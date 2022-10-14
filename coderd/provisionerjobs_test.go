@@ -18,7 +18,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 	t.Parallel()
 	t.Run("StreamAfterComplete", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -44,8 +44,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
+		defer closer.Close()
 		for {
 			log, ok := <-logs
 			t.Logf("got log: [%s] %s %s", log.Level, log.Stage, log.Output)
@@ -57,7 +58,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 
 	t.Run("StreamWhileRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -82,8 +83,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
+		defer closer.Close()
 		for {
 			_, ok := <-logs
 			if !ok {
@@ -94,7 +96,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,

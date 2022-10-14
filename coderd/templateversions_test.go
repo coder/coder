@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -32,6 +34,22 @@ func TestTemplateVersion(t *testing.T) {
 		_, err := client.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
 	})
+
+	t.Run("MemberCanRead", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		_, err := client1.TemplateVersion(ctx, version.ID)
+		require.NoError(t, err)
+	})
 }
 
 func TestPostTemplateVersionsByOrganization(t *testing.T) {
@@ -48,7 +66,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		_, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			TemplateID:    templateID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: "hash",
+			FileID:        uuid.New(),
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
@@ -66,7 +84,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		_, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: "hash",
+			FileID:        uuid.New(),
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
@@ -76,7 +94,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
 			Parse:           echo.ParseComplete,
@@ -90,9 +109,10 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "bananas",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 			ParameterValues: []codersdk.CreateParameterRequest{{
 				Name:              "example",
@@ -102,6 +122,10 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
+		require.Equal(t, "bananas", version.Name)
+
+		require.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
 }
 
@@ -109,7 +133,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("AlreadyCompleted", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -124,7 +148,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	})
 	t.Run("AlreadyCanceled", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -163,7 +187,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	// Running -> Canceling is the best we can do for now.
 	t.Run("Canceling", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -218,7 +242,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
@@ -247,7 +271,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 	})
 	t.Run("ListContains", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
@@ -298,7 +322,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
@@ -365,7 +389,7 @@ func TestTemplateVersionResources(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -396,15 +420,15 @@ func TestTemplateVersionResources(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resources)
 		require.Len(t, resources, 4)
-		require.Equal(t, "some", resources[0].Name)
-		require.Equal(t, "example", resources[0].Type)
-		require.Len(t, resources[0].Agents, 1)
+		require.Equal(t, "some", resources[2].Name)
+		require.Equal(t, "example", resources[2].Type)
+		require.Len(t, resources[2].Agents, 1)
 	})
 }
 
 func TestTemplateVersionLogs(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	before := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -441,8 +465,9 @@ func TestTemplateVersionLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
+	logs, closer, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
+	defer closer.Close()
 	for {
 		_, ok := <-logs
 		if !ok {
@@ -540,12 +565,13 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -557,6 +583,9 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 			ID: version.ID,
 		})
 		require.NoError(t, err)
+
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
 	})
 }
 
@@ -571,7 +600,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			Type: "cool_resource_type",
 		}
 
-		client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1, IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1, IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -608,8 +637,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
-		logs, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
+		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
 		require.NoError(t, err)
+		defer closer.Close()
 
 		logsDone := make(chan struct{})
 		go func() {
@@ -639,7 +669,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 	t.Run("ImportNotFinished", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		// This import job will never finish
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -701,34 +731,17 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
-				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobPending
-			}, testutil.WaitShort, testutil.IntervalFast)
-
+			require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
-				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobCanceling
-			}, testutil.WaitShort, testutil.IntervalFast)
+			job, err = client.TemplateVersionDryRun(ctx, version.ID, job.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.ProvisionerJobCanceled, job.Status)
 		})
 
 		t.Run("AlreadyCompleted", func(t *testing.T) {
 			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -809,63 +822,39 @@ func TestTemplateVersionDryRun(t *testing.T) {
 func TestPaginatedTemplateVersions(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1, IncludeProvisionerD: true})
-	// Prepare database.
+	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// This test takes longer than a long time.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-
 	// Populate database with template versions.
 	total := 9
 	eg, egCtx := errgroup.WithContext(ctx)
 	templateVersionIDs := make([]uuid.UUID, total)
+	data, err := echo.Tar(nil)
+	require.NoError(t, err)
+	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
 	for i := 0; i < total; i++ {
 		i := i
 		eg.Go(func() error {
-			data, err := echo.Tar(nil)
-			if err != nil {
-				return err
-			}
-			file, err := client.Upload(egCtx, codersdk.ContentTypeTar, data)
-			if err != nil {
-				return err
-			}
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				TemplateID:    template.ID,
-				StorageSource: file.Hash,
+				FileID:        file.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,
 				Provisioner:   codersdk.ProvisionerTypeEcho,
 			})
 			if err != nil {
 				return err
 			}
-
 			templateVersionIDs[i] = templateVersion.ID
-
 			return nil
 		})
 	}
-	err := eg.Wait()
+	err = eg.Wait()
 	require.NoError(t, err, "create templates failed")
-
-	for i := 0; i < len(templateVersionIDs); i++ {
-		// We don't use coderdtest.AwaitTemplateVersionJob here because
-		// we can't control the timeouts, the concurrent creations take
-		// a while.
-		templateVersion, err := client.TemplateVersion(ctx, templateVersionIDs[i])
-		if err == nil && templateVersion.Job.CompletedAt != nil {
-			continue
-		}
-		require.NotErrorIs(t, err, context.DeadlineExceeded, "template version %d not created in time", i)
-		// Retry.
-		time.Sleep(testutil.IntervalMedium)
-		i--
-	}
 
 	templateVersions, err := client.TemplateVersionsByTemplate(ctx,
 		codersdk.TemplateVersionsByTemplateRequest{

@@ -153,10 +153,14 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			// Special type formatting.
 			switch val := v.(type) {
 			case time.Time:
-				v = val.Format(time.Stamp)
+				v = val.Format(time.RFC3339)
 			case *time.Time:
 				if val != nil {
-					v = val.Format(time.Stamp)
+					v = val.Format(time.RFC3339)
+				}
+			case *int64:
+				if val != nil {
+					v = *val
 				}
 			case fmt.Stringer:
 				if val != nil {
@@ -304,4 +308,19 @@ func valueToTableMap(val reflect.Value) (map[string]any, error) {
 	}
 
 	return row, nil
+}
+
+// TableHeaders returns the table header names of all
+// fields in tSlice. tSlice must be a slice of some type.
+func TableHeaders(tSlice any) ([]string, error) {
+	v := reflect.Indirect(reflect.ValueOf(tSlice))
+	rawHeaders, err := typeToTableHeaders(v.Type().Elem())
+	if err != nil {
+		return nil, xerrors.Errorf("type to table headers: %w", err)
+	}
+	out := make([]string, 0, len(rawHeaders))
+	for _, hdr := range rawHeaders {
+		out = append(out, strings.Replace(hdr, " ", "_", -1))
+	}
+	return out, nil
 }

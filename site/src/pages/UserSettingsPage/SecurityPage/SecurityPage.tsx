@@ -33,3 +33,5 @@ export const SecurityPage: React.FC = () => {
     </Section>
   )
 }
+
+export default SecurityPage

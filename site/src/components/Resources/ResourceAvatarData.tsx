@@ -5,7 +5,10 @@ import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
 import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
 import { WorkspaceResource } from "api/typesGenerated"
 import { FC, useState } from "react"
-import { TableCellData, TableCellDataPrimary } from "../TableCellData/TableCellData"
+import {
+  TableCellData,
+  TableCellDataPrimary,
+} from "../TableCellData/TableCellData"
 import { ResourceAvatar } from "./ResourceAvatar"
 
 const Language = {
@@ -18,7 +21,11 @@ const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
   const styles = useStyles()
   const displayValue = shouldDisplay ? value : "••••••••"
   const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel
-  const icon = shouldDisplay ? <VisibilityOffOutlined /> : <VisibilityOutlined />
+  const icon = shouldDisplay ? (
+    <VisibilityOffOutlined />
+  ) : (
+    <VisibilityOutlined />
+  )
 
   return (
     <div className={styles.sensitiveValue}>
@@ -43,13 +50,15 @@ export interface ResourceAvatarDataProps {
   resource: WorkspaceResource
 }
 
-export const ResourceAvatarData: FC<ResourceAvatarDataProps> = ({ resource }) => {
+export const ResourceAvatarData: FC<ResourceAvatarDataProps> = ({
+  resource,
+}) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
       <div className={styles.avatarWrapper}>
-        <ResourceAvatar type={resource.type} />
+        <ResourceAvatar resource={resource} />
       </div>
 
       <TableCellData>

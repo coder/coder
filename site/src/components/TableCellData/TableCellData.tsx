@@ -6,23 +6,24 @@ interface StyleProps {
   highlight?: boolean
 }
 
-export const TableCellData: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const TableCellData: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   return <Stack spacing={0}>{children}</Stack>
 }
 
-export const TableCellDataPrimary: React.FC<React.PropsWithChildren<{ highlight?: boolean }>> = ({
-  children,
-  highlight,
-}) => {
+export const TableCellDataPrimary: React.FC<
+  React.PropsWithChildren<{ highlight?: boolean }>
+> = ({ children, highlight }) => {
   const styles = useStyles({ highlight })
 
   return <span className={styles.primary}>{children}</span>
 }
 
-export const TableCellDataSecondary: React.FC<React.PropsWithChildren<unknown>> = ({
-  children,
-}) => {
-  const styles = useStyles()
+export const TableCellDataSecondary: React.FC<
+  React.PropsWithChildren<unknown>
+> = ({ children }) => {
+  const styles = useStyles({})
 
   return <span className={styles.secondary}>{children}</span>
 }
@@ -37,5 +38,8 @@ const useStyles = makeStyles((theme) => ({
   secondary: {
     fontSize: 12,
     color: theme.palette.text.secondary,
+    lineHeight: "140%",
+    marginTop: 2,
+    maxWidth: 540,
   },
 }))

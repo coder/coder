@@ -19,18 +19,15 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
-	"inet.af/netaddr"
-	tslogger "tailscale.com/types/logger"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/peer/peerwg"
 )
 
 var (
@@ -45,12 +42,11 @@ func ssh() *cobra.Command {
 		forwardAgent   bool
 		identityAgent  string
 		wsPollInterval time.Duration
-		wireguard      bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
-		Short:       "SSH into a workspace",
+		Short:       "Start a shell into a workspace",
 		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
@@ -90,87 +86,30 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			var newSSHClient func() (*gossh.Client, error)
+			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
 
-			if !wireguard {
-				conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
+			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
+			defer stopPolling()
+
+			if stdio {
+				rawSSH, err := conn.SSH()
 				if err != nil {
 					return err
 				}
-				defer conn.Close()
+				defer rawSSH.Close()
 
-				stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
-				defer stopPolling()
-
-				if stdio {
-					rawSSH, err := conn.SSH()
-					if err != nil {
-						return err
-					}
-					defer rawSSH.Close()
-
-					go func() {
-						_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
-					}()
-					_, _ = io.Copy(rawSSH, cmd.InOrStdin())
-					return nil
-				}
-
-				newSSHClient = conn.SSHClient
-			} else {
-				// TODO: more granual control of Tailscale logging.
-				peerwg.Logf = tslogger.Discard
-
-				ipv6 := peerwg.UUIDToNetaddr(uuid.New())
-				wgn, err := peerwg.New(
-					slog.Make(sloghuman.Sink(cmd.ErrOrStderr())),
-					[]netaddr.IPPrefix{netaddr.IPPrefixFrom(ipv6, 128)},
-				)
-				if err != nil {
-					return xerrors.Errorf("create wireguard network: %w", err)
-				}
-				defer wgn.Close()
-
-				err = client.PostWireguardPeer(ctx, workspace.ID, peerwg.Handshake{
-					Recipient:      workspaceAgent.ID,
-					NodePublicKey:  wgn.NodePrivateKey.Public(),
-					DiscoPublicKey: wgn.DiscoPublicKey,
-					IPv6:           ipv6,
-				})
-				if err != nil {
-					return xerrors.Errorf("post wireguard peer: %w", err)
-				}
-
-				err = wgn.AddPeer(peerwg.Handshake{
-					Recipient:      workspaceAgent.ID,
-					DiscoPublicKey: workspaceAgent.DiscoPublicKey,
-					NodePublicKey:  workspaceAgent.WireguardPublicKey,
-					IPv6:           workspaceAgent.IPv6.IP(),
-				})
-				if err != nil {
-					return xerrors.Errorf("add workspace agent as peer: %w", err)
-				}
-
-				if stdio {
-					rawSSH, err := wgn.SSH(ctx, workspaceAgent.IPv6.IP())
-					if err != nil {
-						return err
-					}
-					defer rawSSH.Close()
-
-					go func() {
-						_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
-					}()
-					_, _ = io.Copy(rawSSH, cmd.InOrStdin())
-					return nil
-				}
-
-				newSSHClient = func() (*gossh.Client, error) {
-					return wgn.SSHClient(ctx, workspaceAgent.IPv6.IP())
-				}
+				go func() {
+					_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+				}()
+				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+				return nil
 			}
 
-			sshClient, err := newSSHClient()
+			sshClient, err := conn.SSHClient()
 			if err != nil {
 				return err
 			}
@@ -249,6 +188,13 @@ func ssh() *cobra.Command {
 			// shutdown of services.
 			defer cancel()
 
+			if validOut {
+				// Set initial window size.
+				width, height, err := term.GetSize(int(stdoutFile.Fd()))
+				if err == nil {
+					_ = sshSession.WindowChange(height, width)
+				}
+			}
 			err = sshSession.Wait()
 			if err != nil {
 				// If the connection drops unexpectedly, we get an ExitMissingError but no other
@@ -268,9 +214,6 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_SSH_WIREGUARD", false, "Whether to use Wireguard for SSH tunneling.")
-	_ = cmd.Flags().MarkHidden("wireguard")
-
 	return cmd
 }
 
@@ -318,10 +261,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
-	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("fetch workspace resources: %w", err)
-	}
+	resources := workspace.LatestBuild.Resources
 
 	agents := make([]codersdk.WorkspaceAgent, 0)
 	for _, resource := range resources {
@@ -330,34 +270,34 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	if len(agents) == 0 {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
-	var agent codersdk.WorkspaceAgent
+	var workspaceAgent codersdk.WorkspaceAgent
 	if len(workspaceParts) >= 2 {
 		for _, otherAgent := range agents {
 			if otherAgent.Name != workspaceParts[1] {
 				continue
 			}
-			agent = otherAgent
+			workspaceAgent = otherAgent
 			break
 		}
-		if agent.ID == uuid.Nil {
+		if workspaceAgent.ID == uuid.Nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
 		}
 	}
-	if agent.ID == uuid.Nil {
+	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
 			if !shuffle {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
 			}
-			agent, err = cryptorand.Element(agents)
+			workspaceAgent, err = cryptorand.Element(agents)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 			}
 		} else {
-			agent = agents[0]
+			workspaceAgent = agents[0]
 		}
 	}
 
-	return workspace, agent, nil
+	return workspace, workspaceAgent, nil
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to

@@ -1,13 +1,18 @@
 import { Story } from "@storybook/react"
 import * as Mocks from "../../testHelpers/renderHelpers"
-import { TemplateStats, TemplateStatsProps } from "../TemplateStats/TemplateStats"
+import {
+  TemplateStats,
+  TemplateStatsProps,
+} from "../TemplateStats/TemplateStats"
 
 export default {
   title: "components/TemplateStats",
   component: TemplateStats,
 }
 
-const Template: Story<TemplateStatsProps> = (args) => <TemplateStats {...args} />
+const Template: Story<TemplateStatsProps> = (args) => (
+  <TemplateStats {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {
@@ -19,7 +24,16 @@ export const UsedByMany = Template.bind({})
 UsedByMany.args = {
   template: {
     ...Mocks.MockTemplate,
-    workspace_owner_count: 15,
+    active_user_count: 15,
+  },
+  activeVersion: Mocks.MockTemplateVersion,
+}
+
+export const ActiveUsersNotLoaded = Template.bind({})
+ActiveUsersNotLoaded.args = {
+  template: {
+    ...Mocks.MockTemplate,
+    active_user_count: -1,
   },
   activeVersion: Mocks.MockTemplateVersion,
 }

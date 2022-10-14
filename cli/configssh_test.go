@@ -12,12 +12,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
@@ -61,7 +63,7 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -104,14 +106,16 @@ func TestConfigSSH(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+	agentCloser := agent.New(agent.Options{
+		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
+		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
+		Logger:            slogtest.Make(t, nil).Named("agent"),
 	})
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	agentConn, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, resources[0].Agents[0].ID)
 	require.NoError(t, err)
 	defer agentConn.Close()
 
@@ -120,17 +124,28 @@ func TestConfigSSH(t *testing.T) {
 	defer func() {
 		_ = listener.Close()
 	}()
+	copyDone := make(chan struct{})
 	go func() {
+		defer close(copyDone)
+		var wg sync.WaitGroup
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				return
+				break
 			}
 			ssh, err := agentConn.SSH()
 			assert.NoError(t, err)
-			go io.Copy(conn, ssh)
-			go io.Copy(ssh, conn)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				_, _ = io.Copy(conn, ssh)
+			}()
+			go func() {
+				defer wg.Done()
+				_, _ = io.Copy(ssh, conn)
+			}()
 		}
+		wg.Wait()
 	}()
 
 	sshConfigFile := sshConfigFileName(t)
@@ -175,6 +190,9 @@ func TestConfigSSH(t *testing.T) {
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
+
+	_ = listener.Close()
+	<-copyDone
 }
 
 func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
@@ -517,7 +535,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			t.Parallel()
 
 			var (
-				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -639,7 +657,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				},
 			}}
 
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			// authToken := uuid.NewString()
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{

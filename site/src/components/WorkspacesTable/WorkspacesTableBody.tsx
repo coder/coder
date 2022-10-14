@@ -13,7 +13,8 @@ import { WorkspacesRow } from "./WorkspacesRow"
 
 export const Language = {
   emptyCreateWorkspaceMessage: "Create your first workspace",
-  emptyCreateWorkspaceDescription: "Start editing your source code and building your software.",
+  emptyCreateWorkspaceDescription:
+    "Start editing your source code and building your software.",
   createFromTemplateButton: "Create from template",
   emptyResultsMessage: "No results matched your search",
 }
@@ -24,19 +25,18 @@ interface TableBodyProps {
   filter?: string
 }
 
-export const WorkspacesTableBody: FC<React.PropsWithChildren<TableBodyProps>> = ({
-  isLoading,
-  workspaceRefs,
-  filter,
-}) => {
+export const WorkspacesTableBody: FC<
+  React.PropsWithChildren<TableBodyProps>
+> = ({ isLoading, workspaceRefs, filter }) => {
   if (isLoading) {
     return <TableLoader />
   }
 
-  if (!workspaceRefs || !workspaceRefs.length) {
+  if (!workspaceRefs || workspaceRefs.length === 0) {
     return (
       <>
-        {filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all ? (
+        {filter === workspaceFilterQuery.me ||
+        filter === workspaceFilterQuery.all ? (
           <TableRow>
             <TableCell colSpan={999}>
               <EmptyState

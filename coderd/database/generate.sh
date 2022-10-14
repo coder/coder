@@ -14,7 +14,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	cd "$SCRIPT_DIR"
 
 	# Dump the updated schema.
-	go run dump/main.go
+	go run gen/dump/main.go
 	# The logic below depends on the exact version being correct :(
 	go run github.com/kyleconroy/sqlc/cmd/sqlc@v1.13.0 generate
 
@@ -42,11 +42,14 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	rm -f queries/*.go
 
 	# Fix struct/interface names.
-	gofmt -w -r 'Querier -> querier' -- *.go
+	gofmt -w -r 'Querier -> sqlcQuerier' -- *.go
 	gofmt -w -r 'Queries -> sqlQuerier' -- *.go
 
 	# Ensure correct imports exist. Modules must all be downloaded so we get correct
 	# suggestions.
 	go mod download
-	goimports -w queries.sql.go
+	go run golang.org/x/tools/cmd/goimports@latest -w queries.sql.go
+
+	# Generate enums (e.g. unique constraints).
+	go run gen/enum/main.go
 )

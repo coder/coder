@@ -3,25 +3,21 @@ package coderd
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -29,16 +25,17 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/examples"
 )
 
 // Returns whether the initial user has been created or not.
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
-	userCount, err := api.Database.GetUserCount(r.Context())
+	ctx := r.Context()
+	userCount, err := api.Database.GetUserCount(ctx)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
 			Detail:  err.Error(),
 		})
@@ -46,28 +43,29 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if userCount == 0 {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "The initial user has not been created!",
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "The initial user has already been created!",
 	})
 }
 
 // Creates the initial user for a Coder deployment.
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
-	if !httpapi.Read(rw, r, &createUser) {
+	if !httpapi.Read(ctx, rw, r, &createUser) {
 		return
 	}
 
 	// This should only function for the first user.
-	userCount, err := api.Database.GetUserCount(r.Context())
+	userCount, err := api.Database.GetUserCount(ctx)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
 			Detail:  err.Error(),
 		})
@@ -76,13 +74,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	// If a user already exists, the initial admin user no longer can be created.
 	if userCount != 0 {
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "The initial user has already been created.",
 		})
 		return
 	}
 
-	user, organizationID, err := api.createUser(r.Context(), api.Database, createUserRequest{
+	user, organizationID, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -93,7 +91,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		LoginType: database.LoginTypePassword,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
 			Detail:  err.Error(),
 		})
@@ -111,12 +109,12 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
-	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
+	_, err = api.Database.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user's roles.",
 			Detail:  err.Error(),
 		})
@@ -127,7 +125,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	for _, template := range api.AutoImportTemplates {
 		archive, err := examples.Archive(string(template))
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error importing template.",
 				Detail:  xerrors.Errorf("load template archive for %q: %w", template, err).Error(),
 			})
@@ -151,14 +149,14 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			}
 
 		default:
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error importing template.",
 				Detail:  fmt.Sprintf("cannot auto-import %q template", template),
 			})
 			return
 		}
 
-		tpl, err := api.autoImportTemplate(r.Context(), autoImportTemplateOpts{
+		tpl, err := api.autoImportTemplate(ctx, autoImportTemplateOpts{
 			name:    string(template),
 			archive: archive,
 			params:  parameters,
@@ -166,28 +164,29 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			orgID:   organizationID,
 		})
 		if err != nil {
-			api.Logger.Warn(r.Context(), "failed to auto-import template", slog.F("template", template), slog.F("parameters", parameters), slog.Error(err))
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			api.Logger.Warn(ctx, "failed to auto-import template", slog.F("template", template), slog.F("parameters", parameters), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error importing template.",
 				Detail:  xerrors.Errorf("failed to import template %q: %w", template, err).Error(),
 			})
 			return
 		}
 
-		api.Logger.Info(r.Context(), "auto-imported template", slog.F("id", tpl.ID), slog.F("template", template), slog.F("parameters", parameters))
+		api.Logger.Info(ctx, "auto-imported template", slog.F("id", tpl.ID), slog.F("template", template), slog.F("parameters", parameters))
 	}
 
-	httpapi.Write(rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
 		OrganizationID: organizationID,
 	})
 }
 
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	query := r.URL.Query().Get("q")
 	params, errs := userSearchQuery(query)
 	if len(errs) > 0 {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid user search query.",
 			Validations: errs,
 		})
@@ -199,7 +198,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
+	users, err := api.Database.GetUsers(ctx, database.GetUsersParams{
 		AfterID:   paginationParams.AfterID,
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
@@ -208,20 +207,20 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		RbacRole:  params.RbacRole,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
+		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.User{})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	users, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, users)
+	users, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, users)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
 			Detail:  err.Error(),
 		})
@@ -232,12 +231,12 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	for _, user := range users {
 		userIDs = append(userIDs, user.ID)
 	}
-	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, userIDs)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organizations.",
 			Detail:  err.Error(),
 		})
@@ -254,6 +253,16 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	auditor := *api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionCreate,
+	})
+	defer commitAudit()
+
 	// Create the user on the site.
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceUser) {
 		httpapi.Forbidden(rw)
@@ -261,7 +270,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var req codersdk.CreateUserRequest
-	if !httpapi.Read(rw, r, &req) {
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -274,64 +283,120 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
-	_, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+	_, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: req.Username,
 		Email:    req.Email,
 	})
 	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "User already exists.",
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	_, err = api.Database.GetOrganizationByID(r.Context(), req.OrganizationID)
+	_, err = api.Database.GetOrganizationByID(ctx, req.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organization.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	user, _, err := api.createUser(r.Context(), api.Database, createUserRequest{
+	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: req,
 		LoginType:         database.LoginTypePassword,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
+	aReq.New = user
+
 	// Report when users are added!
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
+}
+
+func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	auditor := *api.Auditor.Load()
+	user := httpmw.UserParam(r)
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionDelete,
+	})
+	aReq.Old = user
+	defer commitAudit()
+
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		OwnerID: user.ID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaces) > 0 {
+		httpapi.Write(ctx, rw, http.StatusExpectationFailed, codersdk.Response{
+			Message: "You cannot delete a user that has workspaces. Delete their workspaces and try again!",
+		})
+		return
+	}
+
+	err = api.Database.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
+		ID:      user.ID,
+		Deleted: true,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	user.Deleted = true
+	aReq.New = user
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "User has been deleted!",
+	})
 }
 
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	user := httpmw.UserParam(r)
-	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
+	organizationIDs, err := userOrganizationIDs(ctx, api, user)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
@@ -339,18 +404,30 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organizations.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(user, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, convertUser(user, organizationIDs))
 }
 
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = *api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = user
 
 	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
 		httpapi.ResourceNotFound(rw)
@@ -358,10 +435,10 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var params codersdk.UpdateUserProfileRequest
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
-	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+	existentUser, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: params.Username,
 	})
 	isDifferentUser := existentUser.ID != user.ID
@@ -374,109 +451,146 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 				Detail: "this value is already in use and should be unique",
 			})
 		}
-		httpapi.Write(rw, http.StatusConflict, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message:     "User already exists.",
 			Validations: responseErrors,
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) && isDifferentUser {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
+	updatedUserProfile, err := api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
+		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
 		UpdatedAt: database.Now(),
 	})
+	aReq.New = updatedUserProfile
 
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
+	organizationIDs, err := userOrganizationIDs(ctx, api, user)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organizations.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
 func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		user := httpmw.UserParam(r)
-		apiKey := httpmw.APIKey(r)
+		var (
+			ctx               = r.Context()
+			user              = httpmw.UserParam(r)
+			apiKey            = httpmw.APIKey(r)
+			auditor           = *api.Auditor.Load()
+			aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+				Audit:   auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionWrite,
+			})
+		)
+		defer commitAudit()
+		aReq.Old = user
 
 		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
 
-		if status == database.UserStatusSuspended && user.ID == apiKey.UserID {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
-				Message: "You cannot suspend yourself.",
-			})
-			return
+		if status == database.UserStatusSuspended {
+			// There are some manual protections when suspending a user to
+			// prevent certain situations.
+			switch {
+			case user.ID == apiKey.UserID:
+				// Suspending yourself is not allowed, as you can lock yourself
+				// out of the system.
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "You cannot suspend yourself.",
+				})
+				return
+			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
+				// You may not suspend an owner
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("You cannot suspend a user with the %q role. You must remove the role first.", rbac.RoleOwner()),
+				})
+				return
+			}
 		}
 
-		suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
+		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
 			UpdatedAt: database.Now(),
 		})
-
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: fmt.Sprintf("Internal error updating user's status to %q.", status),
 				Detail:  err.Error(),
 			})
 			return
 		}
+		aReq.New = suspendedUser
 
-		organizations, err := userOrganizationIDs(r.Context(), api, user)
+		organizations, err := userOrganizationIDs(ctx, api, user)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching user's organizations.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
+		httpapi.Write(ctx, rw, http.StatusOK, convertUser(suspendedUser, organizations))
 	}
 }
 
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
-		user   = httpmw.UserParam(r)
-		params codersdk.UpdateUserPasswordRequest
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		params            codersdk.UpdateUserPasswordRequest
+		auditor           = *api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
 	)
+	defer commitAudit()
+	aReq.Old = user
 
 	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
 	err := userpassword.Validate(params.Password)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid password.",
 			Validations: []codersdk.ValidationError{
 				{
@@ -498,14 +612,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		// if they send something let's validate it
 		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error with passwords.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 		if !ok {
-			httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Old password is incorrect.",
 				Validations: []codersdk.ValidationError{
 					{
@@ -520,28 +634,33 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	hashedPassword, err := userpassword.Hash(params.Password)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error hashing new password.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	err = api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
+	err = api.Database.UpdateUserHashedPassword(ctx, database.UpdateUserHashedPasswordParams{
 		ID:             user.ID,
 		HashedPassword: []byte(hashedPassword),
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user's password.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusNoContent, nil)
+	newUser := user
+	newUser.HashedPassword = []byte(hashedPassword)
+	aReq.New = newUser
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
@@ -554,9 +673,9 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
-	memberships, err := api.Database.GetOrganizationMembershipsByUserID(r.Context(), user.ID)
+	memberships, err := api.Database.GetOrganizationMembershipsByUserID(ctx, user.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organization memberships.",
 			Detail:  err.Error(),
 		})
@@ -564,9 +683,9 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only include ones we can read from RBAC.
-	memberships, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, memberships)
+	memberships, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, memberships)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching memberships.",
 			Detail:  err.Error(),
 		})
@@ -580,24 +699,36 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
-	// User is the user to modify.
-	user := httpmw.UserParam(r)
-	actorRoles := httpmw.AuthorizationUserRoles(r)
-	apiKey := httpmw.APIKey(r)
+	var (
+		ctx = r.Context()
+		// User is the user to modify.
+		user              = httpmw.UserParam(r)
+		actorRoles        = httpmw.UserAuthorization(r)
+		apiKey            = httpmw.APIKey(r)
+		auditor           = *api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = user
 
 	if apiKey.UserID == user.ID {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own roles.",
 		})
 		return
 	}
 
 	var params codersdk.UpdateRoles
-	if !httpapi.Read(rw, r, &params) {
+	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
 
@@ -630,27 +761,28 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updatedUser, err := api.updateSiteUserRoles(r.Context(), database.UpdateUserRolesParams{
+	updatedUser, err := api.updateSiteUserRoles(ctx, database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),
 		})
 		return
 	}
+	aReq.New = updatedUser
 
-	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
+	organizationIDs, err := userOrganizationIDs(ctx, api, user)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organizations.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUser, organizationIDs))
+	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUser, organizationIDs))
 }
 
 // updateSiteUserRoles will ensure only site wide roles are passed in as arguments.
@@ -676,15 +808,16 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 
 // Returns organizations the parameterized user has access to.
 func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
+	organizations, err := api.Database.GetOrganizationsByUserID(ctx, user.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 		organizations = []database.Organization{}
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organizations.",
 			Detail:  err.Error(),
 		})
@@ -692,9 +825,9 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations, err = AuthorizeFilter(api.httpAuth, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, organizations)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organizations.",
 			Detail:  err.Error(),
 		})
@@ -706,18 +839,19 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
 	}
 
-	httpapi.Write(rw, http.StatusOK, publicOrganizations)
+	httpapi.Write(ctx, rw, http.StatusOK, publicOrganizations)
 }
 
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
-	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
+	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organization.",
 			Detail:  err.Error(),
 		})
@@ -731,21 +865,22 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
+	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
 }
 
 // Authenticates the user with an email and password.
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var loginWithPassword codersdk.LoginWithPasswordRequest
-	if !httpapi.Read(rw, r, &loginWithPassword) {
+	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
 		return
 	}
 
-	user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+	user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
 		return
@@ -754,7 +889,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
 		return
@@ -762,14 +897,14 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether
 		// users are registered or not. Attackers still could with a timing attack.
-		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Incorrect email or password.",
 		})
 		return
 	}
 
 	if user.LoginType != database.LoginTypePassword {
-		httpapi.Write(rw, http.StatusForbidden, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
 		})
 		return
@@ -777,18 +912,19 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If the user logged into a suspended account, reject the login request.
 	if user.Status != database.UserStatusActive {
-		httpapi.Write(rw, http.StatusUnauthorized, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
 		return
 	}
 
-	cookie, err := api.createAPIKey(r, createAPIKeyParams{
-		UserID:    user.ID,
-		LoginType: database.LoginTypePassword,
+	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+		UserID:     user.ID,
+		LoginType:  database.LoginTypePassword,
+		RemoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
 		})
@@ -797,74 +933,14 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(rw, cookie)
 
-	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: cookie.Value,
 	})
 }
 
-// Creates a new session key, used for logging in via the CLI.
-func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	lifeTime := time.Hour * 24 * 7
-	cookie, err := api.createAPIKey(r, createAPIKeyParams{
-		UserID:    user.ID,
-		LoginType: database.LoginTypePassword,
-		// All api generated keys will last 1 week. Browser login tokens have
-		// a shorter life.
-		ExpiresAt:       database.Now().Add(lifeTime),
-		LifetimeSeconds: int64(lifeTime.Seconds()),
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create API key.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// We intentionally do not set the cookie on the response here.
-	// Setting the cookie will couple the browser sesion to the API
-	// key we return here, meaning logging out of the website would
-	// invalid your CLI key.
-	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
-}
-
-func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
-	)
-
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	keyID := chi.URLParam(r, "keyid")
-	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching API key.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK, convertAPIKey(key))
-}
-
 // Clear the user's session cookie.
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	// Get a blank token cookie.
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now.
@@ -872,115 +948,74 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenKey,
 		Path:   "/",
 	}
-
 	http.SetCookie(rw, cookie)
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
-	err := api.Database.DeleteAPIKeyByID(r.Context(), apiKey.ID)
+	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting API key.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.Response{
+	// Deployments should not host app tokens on the same domain as the
+	// primary deployment. But in the case they are, we should also delete this
+	// token.
+	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+		appCookieRemove := &http.Cookie{
+			// MaxAge < 0 means to delete the cookie now.
+			MaxAge: -1,
+			Name:   httpmw.DevURLSessionTokenCookie,
+			Path:   "/",
+			Domain: "." + api.AccessURL.Hostname(),
+		}
+		http.SetCookie(rw, appCookieRemove)
+
+		id, _, err := httpmw.SplitAPIToken(appCookie.Value)
+		if err == nil {
+			err = api.Database.DeleteAPIKeyByID(ctx, id)
+			if err != nil {
+				// Don't block logout, just log any errors.
+				api.Logger.Warn(r.Context(), "failed to delete devurl token on logout",
+					slog.Error(err),
+					slog.F("id", id),
+				)
+			}
+		}
+	}
+
+	// This code should be removed after Jan 1 2023.
+	// This code logs out of the old session cookie before we renamed it
+	// if it is a valid coder token. Otherwise, this old cookie hangs around
+	// and we never log out of the user.
+	oldCookie, err := r.Cookie("session_token")
+	if err == nil && oldCookie != nil {
+		_, _, err := httpmw.SplitAPIToken(oldCookie.Value)
+		if err == nil {
+			cookie := &http.Cookie{
+				// MaxAge < 0 means to delete the cookie now.
+				MaxAge: -1,
+				Name:   "session_token",
+				Path:   "/",
+			}
+			http.SetCookie(rw, cookie)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Logged out!",
 	})
 }
 
-// Generates a new ID and secret for an API key.
-func generateAPIKeyIDSecret() (id string, secret string, err error) {
-	// Length of an API Key ID.
-	id, err = cryptorand.String(10)
-	if err != nil {
-		return "", "", err
-	}
-	// Length of an API Key secret.
-	secret, err = cryptorand.String(22)
-	if err != nil {
-		return "", "", err
-	}
-	return id, secret, nil
-}
-
-type createAPIKeyParams struct {
-	UserID    uuid.UUID
-	LoginType database.LoginType
-
-	// Optional.
-	ExpiresAt       time.Time
-	LifetimeSeconds int64
-}
-
-func (api *API) createAPIKey(r *http.Request, params createAPIKeyParams) (*http.Cookie, error) {
-	keyID, keySecret, err := generateAPIKeyIDSecret()
-	if err != nil {
-		return nil, xerrors.Errorf("generate API key: %w", err)
-	}
-	hashed := sha256.Sum256([]byte(keySecret))
-
-	// Default expires at to now+lifetime, or just 24hrs if not set
-	if params.ExpiresAt.IsZero() {
-		if params.LifetimeSeconds != 0 {
-			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
-		} else {
-			params.ExpiresAt = database.Now().Add(24 * time.Hour)
-		}
-	}
-
-	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	ip := net.ParseIP(host)
-	if ip == nil {
-		ip = net.IPv4(0, 0, 0, 0)
-	}
-	bitlen := len(ip) * 8
-	key, err := api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:              keyID,
-		UserID:          params.UserID,
-		LifetimeSeconds: params.LifetimeSeconds,
-		IPAddress: pqtype.Inet{
-			IPNet: net.IPNet{
-				IP:   ip,
-				Mask: net.CIDRMask(bitlen, bitlen),
-			},
-			Valid: true,
-		},
-		// Make sure in UTC time for common time zone
-		ExpiresAt:    params.ExpiresAt.UTC(),
-		CreatedAt:    database.Now(),
-		UpdatedAt:    database.Now(),
-		HashedSecret: hashed[:],
-		LoginType:    params.LoginType,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("insert API key: %w", err)
-	}
-
-	api.Telemetry.Report(&telemetry.Snapshot{
-		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(key)},
-	})
-
-	// This format is consumed by the APIKey middleware.
-	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
-	return &http.Cookie{
-		Name:     codersdk.SessionTokenKey,
-		Value:    sessionToken,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   api.SecureAuthCookie,
-	}, nil
-}
-
-type createUserRequest struct {
+type CreateUserRequest struct {
 	codersdk.CreateUserRequest
 	LoginType database.LoginType
 }
 
-func (api *API) createUser(ctx context.Context, store database.Store, req createUserRequest) (database.User, uuid.UUID, error) {
+func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
@@ -997,6 +1032,11 @@ func (api *API) createUser(ctx context.Context, store database.Store, req create
 			}
 			req.OrganizationID = organization.ID
 			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
+
+			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
+			if err != nil {
+				return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+			}
 		}
 
 		params := database.InsertUserParams{
@@ -1058,10 +1098,12 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 		ID:              user.ID,
 		Email:           user.Email,
 		CreatedAt:       user.CreatedAt,
+		LastSeenAt:      user.LastSeenAt,
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
 		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
+		AvatarURL:       user.AvatarURL.String,
 	}
 
 	for _, roleName := range user.RBACRoles {

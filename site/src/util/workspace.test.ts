@@ -3,14 +3,16 @@ import * as TypesGen from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
   defaultWorkspaceExtension,
+  getDisplayVersionStatus,
   getDisplayWorkspaceBuildInitiatedBy,
-  isWorkspaceDeleted,
   isWorkspaceOn,
 } from "./workspace"
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
-    it.each<[TypesGen.WorkspaceTransition, TypesGen.ProvisionerJobStatus, boolean]>([
+    it.each<
+      [TypesGen.WorkspaceTransition, TypesGen.ProvisionerJobStatus, boolean]
+    >([
       ["delete", "canceled", false],
       ["delete", "canceling", false],
       ["delete", "failed", false],
@@ -31,58 +33,23 @@ describe("util > workspace", () => {
       ["start", "pending", false],
       ["start", "running", false],
       ["start", "succeeded", true],
-    ])(`transition=%p, status=%p, isWorkspaceOn=%p`, (transition, status, isOn) => {
-      const workspace: TypesGen.Workspace = {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          job: {
-            ...Mocks.MockProvisionerJob,
-            status,
+    ])(
+      `transition=%p, status=%p, isWorkspaceOn=%p`,
+      (transition, status, isOn) => {
+        const workspace: TypesGen.Workspace = {
+          ...Mocks.MockWorkspace,
+          latest_build: {
+            ...Mocks.MockWorkspaceBuild,
+            job: {
+              ...Mocks.MockProvisionerJob,
+              status,
+            },
+            transition,
           },
-          transition,
-        },
-      }
-      expect(isWorkspaceOn(workspace)).toBe(isOn)
-    })
-  })
-
-  describe("isWorkspaceDeleted", () => {
-    it.each<[TypesGen.WorkspaceTransition, TypesGen.ProvisionerJobStatus, boolean]>([
-      ["delete", "canceled", false],
-      ["delete", "canceling", false],
-      ["delete", "failed", false],
-      ["delete", "pending", false],
-      ["delete", "running", false],
-      ["delete", "succeeded", true],
-
-      ["stop", "canceled", false],
-      ["stop", "canceling", false],
-      ["stop", "failed", false],
-      ["stop", "pending", false],
-      ["stop", "running", false],
-      ["stop", "succeeded", false],
-
-      ["start", "canceled", false],
-      ["start", "canceling", false],
-      ["start", "failed", false],
-      ["start", "pending", false],
-      ["start", "running", false],
-      ["start", "succeeded", false],
-    ])(`transition=%p, status=%p, isWorkspaceDeleted=%p`, (transition, status, isDeleted) => {
-      const workspace: TypesGen.Workspace = {
-        ...Mocks.MockWorkspace,
-        latest_build: {
-          ...Mocks.MockWorkspaceBuild,
-          job: {
-            ...Mocks.MockProvisionerJob,
-            status,
-          },
-          transition,
-        },
-      }
-      expect(isWorkspaceDeleted(workspace)).toBe(isDeleted)
-    })
+        }
+        expect(isWorkspaceOn(workspace)).toBe(isOn)
+      },
+    )
   })
 
   describe("defaultWorkspaceExtension", () => {
@@ -124,8 +91,33 @@ describe("util > workspace", () => {
         },
         "system/autostop",
       ],
-    ])(`getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`, (build, initiatedBy) => {
-      expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
-    })
+    ])(
+      `getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`,
+      (build, initiatedBy) => {
+        expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
+      },
+    )
+  })
+
+  describe("getDisplayVersionStatus", () => {
+    it.each<[string, string, string, boolean]>([
+      ["", "", "(unknown)", false],
+      ["", "v1.2.3", "(unknown)", false],
+      ["v1.2.3", "", "v1.2.3", false],
+      ["v1.2.3", "v1.2.3", "v1.2.3", false],
+      ["v1.2.3", "v1.2.4", "v1.2.3 (outdated)", true],
+      ["v1.2.4", "v1.2.3", "v1.2.4", false],
+      ["foo", "bar", "foo", false],
+    ])(
+      `getDisplayVersionStatus(theme, %p, %p) returns (%p, %p)`,
+      (agentVersion, serverVersion, expectedVersion, expectedOutdated) => {
+        const { displayVersion, outdated } = getDisplayVersionStatus(
+          agentVersion,
+          serverVersion,
+        )
+        expect(displayVersion).toEqual(expectedVersion)
+        expect(expectedOutdated).toEqual(outdated)
+      },
+    )
   })
 })

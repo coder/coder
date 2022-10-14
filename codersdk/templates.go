@@ -14,24 +14,54 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID                         uuid.UUID       `json:"id"`
-	CreatedAt                  time.Time       `json:"created_at"`
-	UpdatedAt                  time.Time       `json:"updated_at"`
-	OrganizationID             uuid.UUID       `json:"organization_id"`
-	Name                       string          `json:"name"`
-	Provisioner                ProvisionerType `json:"provisioner"`
-	ActiveVersionID            uuid.UUID       `json:"active_version_id"`
-	WorkspaceOwnerCount        uint32          `json:"workspace_owner_count"`
-	Description                string          `json:"description"`
-	Icon                       string          `json:"icon"`
-	MaxTTLMillis               int64           `json:"max_ttl_ms"`
-	MinAutostartIntervalMillis int64           `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.UUID       `json:"created_by_id"`
-	CreatedByName              string          `json:"created_by_name"`
+	ID                  uuid.UUID       `json:"id"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	OrganizationID      uuid.UUID       `json:"organization_id"`
+	Name                string          `json:"name"`
+	Provisioner         ProvisionerType `json:"provisioner"`
+	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
+	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
+	// ActiveUserCount is set to -1 when loading.
+	ActiveUserCount            int       `json:"active_user_count"`
+	Description                string    `json:"description"`
+	Icon                       string    `json:"icon"`
+	MaxTTLMillis               int64     `json:"max_ttl_ms"`
+	MinAutostartIntervalMillis int64     `json:"min_autostart_interval_ms"`
+	CreatedByID                uuid.UUID `json:"created_by_id"`
+	CreatedByName              string    `json:"created_by_name"`
 }
 
 type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
+}
+
+type TemplateRole string
+
+const (
+	TemplateRoleAdmin   TemplateRole = "admin"
+	TemplateRoleUse     TemplateRole = "use"
+	TemplateRoleDeleted TemplateRole = ""
+)
+
+type TemplateACL struct {
+	Users  []TemplateUser  `json:"users"`
+	Groups []TemplateGroup `json:"group"`
+}
+
+type TemplateGroup struct {
+	Group
+	Role TemplateRole `json:"role"`
+}
+
+type TemplateUser struct {
+	User
+	Role TemplateRole `json:"role"`
+}
+
+type UpdateTemplateACL struct {
+	UserPerms  map[string]TemplateRole `json:"user_perms,omitempty"`
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty"`
 }
 
 type UpdateTemplateMeta struct {
@@ -84,6 +114,31 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
 }
 
+func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), nil)
+	if err != nil {
+		return TemplateACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateACL{}, readBodyAsError(res)
+	}
+	var acl TemplateACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.
 // The template version must be attached to the template.
 func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.UUID, req UpdateActiveTemplateVersion) error {
@@ -132,4 +187,44 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 	}
 	var templateVersion TemplateVersion
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+}
+
+type DAUEntry struct {
+	Date   time.Time `json:"date"`
+	Amount int       `json:"amount"`
+}
+
+type TemplateDAUsResponse struct {
+	Entries []DAUEntry `json:"entries"`
+}
+
+func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*TemplateDAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var resp TemplateDAUsResponse
+	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// AgentStatsReportRequest is a WebSocket request by coderd
+// to the agent for stats.
+// @typescript-ignore AgentStatsReportRequest
+type AgentStatsReportRequest struct {
+}
+
+// AgentStatsReportResponse is returned for each report
+// request by the agent.
+type AgentStatsReportResponse struct {
+	NumConns int64 `json:"num_comms"`
+	// RxBytes is the number of received bytes.
+	RxBytes int64 `json:"rx_bytes"`
+	// TxBytes is the number of received bytes.
+	TxBytes int64 `json:"tx_bytes"`
 }

@@ -23,7 +23,9 @@ export interface VersionsTableProps {
   versions?: TypesGen.TemplateVersion[]
 }
 
-export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({ versions }) => {
+export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
+  versions,
+}) => {
   const isLoading = !versions
   const theme: Theme = useTheme()
 
@@ -45,7 +47,10 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
               .reverse()
               .map((version) => {
                 return (
-                  <TableRow key={version.id} data-testid={`version-${version.id}`}>
+                  <TableRow
+                    key={version.id}
+                    data-testid={`version-${version.id}`}
+                  >
                     <TableCell>{version.name}</TableCell>
                     <TableCell>
                       <span style={{ color: theme.palette.text.secondary }}>

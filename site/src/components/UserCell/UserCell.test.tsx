@@ -1,19 +1,26 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { FC } from "react"
-import { MockUser, MockUserAgent, WrapperComponent } from "../../testHelpers/renderHelpers"
+import {
+  MockUser,
+  MockUserAgent,
+  WrapperComponent,
+} from "../../testHelpers/renderHelpers"
 import { UserCell, UserCellProps } from "./UserCell"
 
 namespace Helpers {
   export const Props: UserCellProps = {
     Avatar: {
       username: MockUser.username,
+      avatarURL: "",
     },
     caption: MockUserAgent.ip_address,
     primaryText: MockUser.username,
     onPrimaryTextSelect: jest.fn(),
   }
 
-  export const Component: FC<React.PropsWithChildren<UserCellProps>> = (props) => (
+  export const Component: FC<React.PropsWithChildren<UserCellProps>> = (
+    props,
+  ) => (
     <WrapperComponent>
       <UserCell {...props} />
     </WrapperComponent>

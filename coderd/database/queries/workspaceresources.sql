@@ -14,14 +14,22 @@ FROM
 WHERE
 	job_id = $1;
 
+-- name: GetWorkspaceResourcesByJobIDs :many
+SELECT
+	*
+FROM
+	workspace_resources
+WHERE
+	job_id = ANY(@ids :: uuid [ ]);
+
 -- name: GetWorkspaceResourcesCreatedAfter :many
 SELECT * FROM workspace_resources WHERE created_at > $1;
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (id, created_at, job_id, transition, type, name)
+	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: GetWorkspaceResourceMetadataByResourceID :many
 SELECT

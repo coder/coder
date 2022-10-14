@@ -6,7 +6,9 @@ export default {
   component: LicenseBannerView,
 }
 
-const Template: Story<LicenseBannerViewProps> = (args) => <LicenseBannerView {...args} />
+const Template: Story<LicenseBannerViewProps> = (args) => (
+  <LicenseBannerView {...args} />
+)
 
 export const OneWarning = Template.bind({})
 OneWarning.args = {

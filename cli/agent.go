@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -31,7 +32,6 @@ func workspaceAgent() *cobra.Command {
 		pprofEnabled bool
 		pprofAddress string
 		noReap       bool
-		wireguard    bool
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -73,7 +73,12 @@ func workspaceAgent() *cobra.Command {
 				return nil
 			}
 
-			logger.Info(cmd.Context(), "starting agent", slog.F("url", coderURL), slog.F("auth", auth))
+			version := buildinfo.Version()
+			logger.Info(cmd.Context(), "starting agent",
+				slog.F("url", coderURL),
+				slog.F("auth", auth),
+				slog.F("version", version),
+			)
 			client := codersdk.New(coderURL)
 
 			if pprofEnabled {
@@ -163,6 +168,18 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 
+			retryCtx, cancelRetry := context.WithTimeout(cmd.Context(), time.Hour)
+			defer cancelRetry()
+			for retrier := retry.New(100*time.Millisecond, 5*time.Second); retrier.Wait(retryCtx); {
+				err := client.PostWorkspaceAgentVersion(retryCtx, version)
+				if err != nil {
+					logger.Warn(retryCtx, "post agent version: %w", slog.Error(err), slog.F("version", version))
+					continue
+				}
+				logger.Info(retryCtx, "updated agent version", slog.F("version", version))
+				break
+			}
+
 			executablePath, err := os.Executable()
 			if err != nil {
 				return xerrors.Errorf("getting os executable: %w", err)
@@ -172,16 +189,18 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
-				Logger: logger,
+			closer := agent.New(agent.Options{
+				FetchMetadata: client.WorkspaceAgentMetadata,
+				Logger:        logger,
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
 					// shells so "gitssh" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
 				},
-				EnableWireguard:      wireguard,
-				UploadWireguardKeys:  client.UploadWorkspaceAgentKeys,
-				ListenWireguardPeers: client.WireguardPeerListener,
+				CoordinatorDialer:           client.ListenWorkspaceAgentTailnet,
+				StatsReporter:               client.AgentReportStats,
+				WorkspaceAgentApps:          client.WorkspaceAgentApps,
+				PostWorkspaceAgentAppHealth: client.PostWorkspaceAgentAppHealth,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()
@@ -192,6 +211,5 @@ func workspaceAgent() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
-	cliflag.BoolVarP(cmd.Flags(), &wireguard, "wireguard", "", "CODER_AGENT_WIREGUARD", true, "Whether to start the Wireguard interface.")
 	return cmd
 }

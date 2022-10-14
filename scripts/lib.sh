@@ -81,6 +81,21 @@ dependencies() {
 	fi
 }
 
+requiredenvs() {
+	local fail=0
+	for env in "$@"; do
+		if [[ "${!env:-}" == "" ]]; then
+			log "ERROR: The '$env' environment variable is required, but is not set."
+			fail=1
+		fi
+	done
+
+	if [[ "$fail" == 1 ]]; then
+		log
+		error "One or more required environment variables are not set, check above log output for more details."
+	fi
+}
+
 # maybedryrun prints the given program and flags, and then, if the first
 # argument is 0, executes it. The reason the first argument should be 0 is that
 # it is expected that you have a dry_run variable in your script that is set to
@@ -152,10 +167,11 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 	# old version of Make installed out of the box that doesn't support new
 	# features like ONESHELL.
 	#
-	# Piping commands directly into `head -n1` may result in ERRPIPE errors, so
-	# we capture the version output first before
-	make_version_raw="$(make --version 2>/dev/null)"
-	make_version="$(echo "$make_version_raw" | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+	# We have to disable pipefail temporarily to avoid ERRPIPE errors when
+	# piping into `head -n1`.
+	set +o pipefail
+	make_version="$(make --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+	set -o pipefail
 	if [[ ${make_version//.*/} -lt 4 ]]; then
 		libsh_bad_dependencies=1
 		log "ERROR: You need at least make 4.0 to run the scripts in the Coder repo."

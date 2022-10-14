@@ -27,8 +27,13 @@ export const isNotificationText = (msg: AdditionalMessage): msg is string => {
 export const isNotificationTextPrefixed = (
   msg: AdditionalMessage | null,
 ): msg is NotificationTextPrefixed => {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  return typeof (msg as NotificationTextPrefixed)?.prefix !== "undefined"
+  if (msg) {
+    return (
+      typeof msg !== "string" &&
+      Object.prototype.hasOwnProperty.call(msg, "prefix")
+    )
+  }
+  return false
 }
 
 export const isNotificationList = (msg: AdditionalMessage): msg is string[] => {
@@ -60,13 +65,25 @@ function dispatchNotificationEvent(
 }
 
 export const displayMsg = (msg: string, additionalMsg?: string): void => {
-  dispatchNotificationEvent(MsgType.Info, msg, additionalMsg ? [additionalMsg] : undefined)
+  dispatchNotificationEvent(
+    MsgType.Info,
+    msg,
+    additionalMsg ? [additionalMsg] : undefined,
+  )
 }
 
 export const displaySuccess = (msg: string, additionalMsg?: string): void => {
-  dispatchNotificationEvent(MsgType.Success, msg, additionalMsg ? [additionalMsg] : undefined)
+  dispatchNotificationEvent(
+    MsgType.Success,
+    msg,
+    additionalMsg ? [additionalMsg] : undefined,
+  )
 }
 
 export const displayError = (msg: string, additionalMsg?: string): void => {
-  dispatchNotificationEvent(MsgType.Error, msg, additionalMsg ? [additionalMsg] : undefined)
+  dispatchNotificationEvent(
+    MsgType.Error,
+    msg,
+    additionalMsg ? [additionalMsg] : undefined,
+  )
 }

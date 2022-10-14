@@ -1,2 +1,4 @@
 site/ @coder/frontend
-docs/ @ammario
+docs/ @coder/docs
+README.md @coder/docs
+ADOPTERS.md @coder/docs

@@ -5,7 +5,9 @@ import { LicenseBannerView } from "./LicenseBannerView"
 
 export const LicenseBanner: React.FC = () => {
   const xServices = useContext(XServiceContext)
-  const [entitlementsState, entitlementsSend] = useActor(xServices.entitlementsXService)
+  const [entitlementsState, entitlementsSend] = useActor(
+    xServices.entitlementsXService,
+  )
   const { warnings } = entitlementsState.context.entitlements
 
   /** Gets license data on app mount because LicenseBanner is mounted in App */
@@ -13,7 +15,7 @@ export const LicenseBanner: React.FC = () => {
     entitlementsSend("GET_ENTITLEMENTS")
   }, [entitlementsSend])
 
-  if (warnings.length) {
+  if (warnings.length > 0) {
     return <LicenseBannerView warnings={warnings} />
   } else {
     return null

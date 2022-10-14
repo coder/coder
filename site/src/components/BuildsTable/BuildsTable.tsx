@@ -1,5 +1,5 @@
 import Box from "@material-ui/core/Box"
-import { fade, makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -11,7 +11,10 @@ import useTheme from "@material-ui/styles/useTheme"
 import { FC } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayWorkspaceBuildDuration, getDisplayWorkspaceBuildStatus } from "../../util/workspace"
+import {
+  displayWorkspaceBuildDuration,
+  getDisplayWorkspaceBuildStatus,
+} from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { TableLoader } from "../TableLoader/TableLoader"
@@ -72,7 +75,9 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
                   }}
                   className={styles.clickableTableRow}
                 >
-                  <TableCellLink to={buildPageLink}>{build.transition}</TableCellLink>
+                  <TableCellLink to={buildPageLink}>
+                    {build.transition}
+                  </TableCellLink>
                   <TableCellLink to={buildPageLink}>
                     <span style={{ color: theme.palette.text.secondary }}>
                       {displayWorkspaceBuildDuration(build)}
@@ -84,7 +89,10 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
                     </span>
                   </TableCellLink>
                   <TableCellLink to={buildPageLink}>
-                    <span style={{ color: status.color }} className={styles.status}>
+                    <span
+                      style={{ color: status.color }}
+                      className={styles.status}
+                    >
                       {status.status}
                     </span>
                   </TableCellLink>
@@ -115,7 +123,7 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
 const useStyles = makeStyles((theme) => ({
   clickableTableRow: {
     "&:hover td": {
-      backgroundColor: fade(theme.palette.primary.dark, 0.1),
+      backgroundColor: theme.palette.action.hover,
     },
 
     "&:focus": {
@@ -127,7 +135,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   arrowRight: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
+    color: theme.palette.text.secondary,
     width: 20,
     height: 20,
   },

@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { fade } from "@material-ui/core/styles/colorManipulator"
 import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
@@ -17,7 +16,9 @@ export interface SectionProps {
   children?: React.ReactNode
 }
 
-type SectionFC = FC<React.PropsWithChildren<SectionProps>> & { Action: typeof SectionAction }
+type SectionFC = FC<React.PropsWithChildren<SectionProps>> & {
+  Action: typeof SectionAction
+}
 
 export const Section: SectionFC = ({
   title,
@@ -37,7 +38,9 @@ export const Section: SectionFC = ({
             <div>
               {title && <Typography variant="h4">{title}</Typography>}
               {description && typeof description === "string" && (
-                <Typography className={styles.description}>{description}</Typography>
+                <Typography className={styles.description}>
+                  {description}
+                </Typography>
               )}
               {description && typeof description !== "string" && (
                 <div className={styles.description}>{description}</div>
@@ -59,7 +62,7 @@ Section.Action = SectionAction
 const useStyles = makeStyles((theme) => ({
   root: {
     backgroundColor: theme.palette.background.paper,
-    boxShadow: `0px 18px 12px 6px ${fade(theme.palette.common.black, 0.02)}`,
+    boxShadow: theme.shadows[6],
     marginBottom: theme.spacing(1),
     padding: theme.spacing(6),
     borderRadius: theme.shape.borderRadius,

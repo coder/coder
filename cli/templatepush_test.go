@@ -31,7 +31,7 @@ func TestTemplatePush(t *testing.T) {
 	//	7. Asset 0 params in new version
 	t.Run("NewParameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		// Create initial template version to update
 		lastActiveVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -110,7 +110,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -122,7 +122,7 @@ func TestTemplatePush(t *testing.T) {
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
@@ -153,11 +153,12 @@ func TestTemplatePush(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, templateVersions, 2)
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+		require.Equal(t, "example", templateVersions[1].Name)
 	})
 
 	t.Run("UseWorkingDir", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

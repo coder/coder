@@ -1,12 +1,15 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
@@ -15,6 +18,8 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -39,11 +44,15 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
+  hideSSHButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
+  buildInfo?: TypesGen.BuildInfoResponse
+  applicationsHost?: string
 }
 
 /**
@@ -58,28 +67,51 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   workspace,
+  isUpdating,
   resources,
   builds,
   canUpdateWorkspace,
   workspaceErrors,
+  hideSSHButton,
+  buildInfo,
+  applicationsHost,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
+  const hasTemplateIcon =
+    workspace.template_icon && workspace.template_icon !== ""
+
+  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
+      dismissible
+    />
+  )
+
+  const cancellationError = Boolean(
+    workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
+  ) && (
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
+      dismissible
+    />
+  )
+
+  const workspaceRefreshWarning = Boolean(
+    workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR],
+  ) && (
+    <AlertBanner
+      severity="warning"
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
+      dismissible
+    />
+  )
 
   return (
     <Margins>
-      <Stack spacing={1}>
-        {workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-        ) : (
-          <></>
-        )}
-        {workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
-          <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-        ) : (
-          <></>
-        )}
-      </Stack>
       <PageHeader
         actions={
           <Stack direction="row" spacing={1} className={styles.actions}>
@@ -92,53 +124,88 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
-              workspace={workspace}
+              workspaceStatus={workspace.latest_build.status}
+              isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              isUpdating={isUpdating}
             />
           </Stack>
         }
       >
-        <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
-        <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-        <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
-      </PageHeader>
-
-      <Stack direction="row" spacing={3}>
-        <Stack direction="column" className={styles.firstColumnSpacer} spacing={3}>
-          <WorkspaceScheduleBanner
-            isLoading={bannerProps.isLoading}
-            onExtend={bannerProps.onExtend}
-            workspace={workspace}
-          />
-
-          <WorkspaceDeletedBanner
-            workspace={workspace}
-            handleClick={() => navigate(`/templates`)}
-          />
-
-          <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
-
-          {!!resources && !!resources.length && (
-            <Resources
-              resources={resources}
-              getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
-              workspace={workspace}
-              canUpdateWorkspace={canUpdateWorkspace}
+        <WorkspaceStatusBadge
+          build={workspace.latest_build}
+          className={styles.statusBadge}
+        />
+        <Stack direction="row" spacing={3} alignItems="center">
+          {hasTemplateIcon && (
+            <img
+              alt=""
+              src={workspace.template_icon}
+              className={styles.templateIcon}
             />
           )}
-
-          <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
-            {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-              <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
-            ) : (
-              <BuildsTable builds={builds} className={styles.timelineTable} />
-            )}
-          </WorkspaceSection>
+          <div>
+            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+            <PageHeaderSubtitle condensed>
+              {workspace.owner_name}
+            </PageHeaderSubtitle>
+          </div>
         </Stack>
+      </PageHeader>
+
+      <Stack
+        direction="column"
+        className={styles.firstColumnSpacer}
+        spacing={2.5}
+      >
+        {buildError}
+        {cancellationError}
+        {workspaceRefreshWarning}
+
+        <WorkspaceScheduleBanner
+          isLoading={bannerProps.isLoading}
+          onExtend={bannerProps.onExtend}
+          workspace={workspace}
+        />
+
+        <WorkspaceDeletedBanner
+          workspace={workspace}
+          handleClick={() => navigate(`/templates`)}
+        />
+
+        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {typeof resources !== "undefined" && resources.length > 0 && (
+          <Resources
+            resources={resources}
+            getResourcesError={
+              workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]
+            }
+            workspace={workspace}
+            canUpdateWorkspace={canUpdateWorkspace}
+            buildInfo={buildInfo}
+            hideSSHButton={hideSSHButton}
+            applicationsHost={applicationsHost}
+          />
+        )}
+
+        <WorkspaceSection
+          title="Logs"
+          contentsProps={{ className: styles.timelineContents }}
+        >
+          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+            <AlertBanner
+              severity="error"
+              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+            />
+          ) : (
+            <BuildsTable builds={builds} className={styles.timelineTable} />
+          )}
+        </WorkspaceSection>
       </Stack>
     </Margins>
   )
@@ -172,6 +239,11 @@ export const useStyles = makeStyles((theme) => {
 
     main: {
       width: "100%",
+    },
+
+    templateIcon: {
+      width: theme.spacing(6),
+      height: theme.spacing(6),
     },
 
     timelineContents: {

@@ -20,14 +20,16 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/cli"
-	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
 
 const fakeLicenseJWT = "test.jwt.sig"
+const testWarning = "This is a test warning"
 
 func TestLicensesAddFake(t *testing.T) {
 	t.Parallel()
@@ -122,7 +124,7 @@ func TestLicensesAddReal(t *testing.T) {
 	t.Parallel()
 	t.Run("Fails", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{APIBuilder: coderd.NewEnterprise})
+		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"licenses", "add", "-l", fakeLicenseJWT)
@@ -173,12 +175,14 @@ func TestLicensesListReal(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{APIBuilder: coderd.NewEnterprise})
+		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"licenses", "list")
 		stdout := new(bytes.Buffer)
 		cmd.SetOut(stdout)
+		stderr := new(bytes.Buffer)
+		cmd.SetErr(stderr)
 		clitest.SetupConfig(t, client, root)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -188,6 +192,49 @@ func TestLicensesListReal(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		assert.Equal(t, "[]\n", stdout.String())
+		assert.Contains(t, testWarning, stderr.String())
+	})
+}
+
+func TestLicensesDeleteFake(t *testing.T) {
+	t.Parallel()
+	// We can't check a real license into the git repo, and can't patch out the keys from here,
+	// so instead we have to fake the HTTP interaction.
+	t.Run("Mainline", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		cmd := setupFakeLicenseServerTest(t, "licenses", "delete", "55")
+		pty := attachPty(t, cmd)
+		errC := make(chan error)
+		go func() {
+			errC <- cmd.ExecuteContext(ctx)
+		}()
+		require.NoError(t, <-errC)
+		pty.ExpectMatch("License with ID 55 deleted")
+	})
+}
+
+func TestLicensesDeleteReal(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+			"licenses", "delete", "1")
+		clitest.SetupConfig(t, client, root)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		errC := make(chan error)
+		go func() {
+			errC <- cmd.ExecuteContext(ctx)
+		}()
+		err := <-errC
+		var coderError *codersdk.Error
+		require.True(t, xerrors.As(err, &coderError))
+		assert.Equal(t, 404, coderError.StatusCode())
+		assert.Contains(t, "Unknown license ID", coderError.Message)
 	})
 }
 
@@ -217,6 +264,8 @@ func newFakeLicenseAPI(t *testing.T) http.Handler {
 	r.Post("/api/v2/licenses", a.postLicense)
 	r.Get("/api/v2/licenses", a.licenses)
 	r.Get("/api/v2/buildinfo", a.noop)
+	r.Delete("/api/v2/licenses/{id}", a.deleteLicense)
+	r.Get("/api/v2/entitlements", a.entitlements)
 	return r
 }
 
@@ -281,4 +330,25 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 	err := json.NewEncoder(rw).Encode(resp)
 	assert.NoError(s.t, err)
+}
+
+func (s *fakeLicenseAPI) deleteLicense(rw http.ResponseWriter, r *http.Request) {
+	assert.Equal(s.t, "55", chi.URLParam(r, "id"))
+	rw.WriteHeader(200)
+}
+
+func (*fakeLicenseAPI) entitlements(rw http.ResponseWriter, r *http.Request) {
+	features := make(map[string]codersdk.Feature)
+	for _, f := range codersdk.FeatureNames {
+		features[f] = codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     true,
+		}
+	}
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Entitlements{
+		Features:     features,
+		Warnings:     []string{testWarning},
+		HasLicense:   true,
+		Experimental: true,
+	})
 }

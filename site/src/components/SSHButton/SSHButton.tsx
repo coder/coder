@@ -5,7 +5,11 @@ import CloudIcon from "@material-ui/icons/CloudOutlined"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"
 import { Stack } from "../Stack/Stack"
-import { HelpTooltipLink, HelpTooltipLinksGroup, HelpTooltipText } from "../Tooltips/HelpTooltip"
+import {
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
+  HelpTooltipText,
+} from "../Tooltips/HelpTooltip"
 
 export interface SSHButtonProps {
   workspaceName: string
@@ -54,16 +58,15 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
           horizontal: "left",
         }}
       >
-        <HelpTooltipText>Run the following commands to connect with SSH:</HelpTooltipText>
+        <HelpTooltipText>
+          Run the following commands to connect with SSH:
+        </HelpTooltipText>
 
         <Stack spacing={0.5} className={styles.codeExamples}>
           <div>
             <HelpTooltipText>
               <strong className={styles.codeExampleLabel}>
-                Configure ssh{" "}
-                <span className={styles.textHelper}>
-                  - only needs to be run once, or after managing workspaces
-                </span>
+                Configure SSH hosts on machine:
               </strong>
             </HelpTooltipText>
             <CodeExample code="coder config-ssh" />
@@ -71,7 +74,9 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
           <div>
             <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>Connect to the agent</strong>
+              <strong className={styles.codeExampleLabel}>
+                Connect to the agent:
+              </strong>
             </HelpTooltipText>
             <CodeExample code={`ssh coder.${workspaceName}.${agentName}`} />
           </div>
@@ -81,8 +86,11 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
             Install Coder CLI
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides/web-ides">
-            Configuring Web IDEs
+          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#vs-code-remote">
+            Connect via VS Code Remote SSH
+          </HelpTooltipLink>
+          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#jetbrains-gateway">
+            Connect via JetBrains Gateway
           </HelpTooltipLink>
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">
             SSH configuration
@@ -95,7 +103,9 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(3)}px`,
+    padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
+      3,
+    )}px`,
     width: theme.spacing(38),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),

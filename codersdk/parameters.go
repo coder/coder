@@ -54,8 +54,8 @@ type Parameter struct {
 	Scope             ParameterScope             `json:"scope" table:"scope"`
 	ScopeID           uuid.UUID                  `json:"scope_id" table:"scope id"`
 	Name              string                     `json:"name" table:"name"`
-	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme"`
-	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme"`
+	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none"`
+	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none"`
 	CreatedAt         time.Time                  `json:"created_at" table:"created at"`
 	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at"`
 }

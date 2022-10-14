@@ -53,7 +53,11 @@ export const FormSection: FC<React.PropsWithChildren<FormSectionProps>> = ({
           {title}
         </Typography>
         {description && (
-          <Typography className={styles.descriptionText} variant="body2" color="textSecondary">
+          <Typography
+            className={styles.descriptionText}
+            variant="body2"
+            color="textSecondary"
+          >
             {description}
           </Typography>
         )}

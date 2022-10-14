@@ -14,7 +14,7 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -143,7 +143,7 @@ func Open() (string, func(), error) {
 			return retryErr
 		}
 
-		err = database.MigrateUp(db)
+		err = migrations.Up(db)
 		if err != nil {
 			retryErr = xerrors.Errorf("migrate db: %w", err)
 			// Only try to migrate once.

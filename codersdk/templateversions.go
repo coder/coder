@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -99,15 +100,15 @@ func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUI
 }
 
 // TemplateVersionLogsAfter streams logs for a template version that occurred after a specific time.
-func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
+func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), after)
 }
 
 // CreateTemplateVersionDryRunRequest defines the request parameters for
 // CreateTemplateVersionDryRun.
 type CreateTemplateVersionDryRunRequest struct {
-	WorkspaceName   string
-	ParameterValues []CreateParameterRequest
+	WorkspaceName   string                   `json:"workspace_name"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
 // CreateTemplateVersionDryRun begins a dry-run provisioner job against the
@@ -166,7 +167,7 @@ func (c *Client) TemplateVersionDryRunLogsBefore(ctx context.Context, version, j
 
 // TemplateVersionDryRunLogsAfter streams logs for a template version dry-run
 // that occurred after a specific time.
-func (c *Client) TemplateVersionDryRunLogsAfter(ctx context.Context, version, job uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
+func (c *Client) TemplateVersionDryRunLogsAfter(ctx context.Context, version, job uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs", version, job), after)
 }
 
