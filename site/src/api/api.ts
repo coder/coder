@@ -303,13 +303,10 @@ export const getWorkspacesCount = async (
   if (options.q) {
     searchParams.set("q", options.q)
   }
-  // TODO
-  // const response = await axios.get(
-  //   `/api/v2/workspaces/count?${searchParams.toString()}`,
-  // )
-  // return response.data
-
-  return Promise.resolve({ count: 10 })
+  const response = await axios.get(
+    `/api/v2/workspaces/count?${searchParams.toString()}`,
+  )
+  return response.data
 }
 
 export const getWorkspaceByOwnerAndName = async (

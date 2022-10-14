@@ -17,7 +17,7 @@ const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
       page: currentPage,
-      limit: 2, //TODO
+      limit: 25,
       filter,
     },
     actions: {
