@@ -872,7 +872,13 @@ export const MockAuditLog: TypesGen.AuditLog = {
   resource_target: "bruno-dev",
   resource_icon: "",
   action: "create",
-  diff: {},
+  diff: {
+    ttl: {
+      old: 0,
+      new: 3600000000000,
+      secret: false,
+    },
+  },
   status_code: 200,
   additional_fields: "",
   description: "{user} updated workspace {target}",
