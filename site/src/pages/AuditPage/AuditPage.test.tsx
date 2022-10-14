@@ -5,14 +5,11 @@ import {
   history,
   MockAuditLog,
   MockAuditLog2,
-  MockAuditLogWithEmptyDiff,
   render,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import * as CreateDayString from "util/createDayString"
 import AuditPage from "./AuditPage"
-import { server } from "testHelpers/server"
-import { rest } from "msw"
 
 describe("AuditPage", () => {
   beforeEach(() => {
