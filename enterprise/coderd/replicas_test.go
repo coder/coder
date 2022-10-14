@@ -30,7 +30,7 @@ func TestReplicas(t *testing.T) {
 			},
 		})
 		_ = coderdtest.CreateFirstUser(t, firstClient)
-		secondClient := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _, secondAPI := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
@@ -40,6 +40,11 @@ func TestReplicas(t *testing.T) {
 		ents, err := secondClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.Len(t, ents.Warnings, 1)
+		_ = secondAPI.Close()
+
+		ents, err = firstClient.Entitlements(context.Background())
+		require.NoError(t, err)
+		require.Len(t, ents.Warnings, 0)
 	})
 	t.Run("ConnectAcrossMultiple", func(t *testing.T) {
 		t.Parallel()

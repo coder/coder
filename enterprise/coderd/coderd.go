@@ -123,7 +123,8 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
-		ID:           options.ReplicaID,
+		// Create a new replica ID for each Coder instance!
+		ID:           uuid.New(),
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
 	})
@@ -154,7 +155,6 @@ type Options struct {
 	// Used for high availability.
 	DERPServerRelayAddress string
 	DERPServerRegionID     int
-	ReplicaID              uuid.UUID
 
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -256,10 +256,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					addresses = append(addresses, replica.RelayAddress)
 				}
 				api.derpMesh.SetAddresses(addresses)
+				_ = api.updateEntitlements(ctx)
 			})
 		} else {
 			api.derpMesh.SetAddresses([]string{})
-			api.replicaManager.SetCallback(func() {})
+			api.replicaManager.SetCallback(func() {
+				// If the amount of replicas change, so should our entitlements.
+				// This is to display a warning in the UI if the user is unlicensed.
+				_ = api.updateEntitlements(ctx)
+			})
 		}
 
 		// Recheck changed in case the HA coordinator failed to set up.

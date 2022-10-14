@@ -176,7 +176,7 @@ func Entitlements(
 					"You have multiple replicas but your license is not entitled to high availability.")
 			} else {
 				entitlements.Warnings = append(entitlements.Warnings,
-					"You have multiple replicas but high availability is an Enterprise feature. Contact sales to get a license.")
+					"You have multiple replicas but high availability is an Enterprise feature.")
 			}
 		case codersdk.EntitlementGracePeriod:
 			entitlements.Warnings = append(entitlements.Warnings,
