@@ -286,7 +286,7 @@ func TestPostLogin(t *testing.T) {
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
 		// tokens have a longer life
-		token, err := client.CreateToken(ctx, codersdk.Me)
+		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
 		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
@@ -1202,7 +1202,7 @@ func TestPostTokens(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	apiKey, err := client.CreateToken(ctx, codersdk.Me)
+	apiKey, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 	require.NotNil(t, apiKey)
 	require.GreaterOrEqual(t, len(apiKey.Key), 2)
 	require.NoError(t, err)

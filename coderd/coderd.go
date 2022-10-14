@@ -206,7 +206,7 @@ func New(options *Options) *API {
 				RedirectToLogin: false,
 				Optional:        true,
 			}),
-			httpmw.ExtractUserParam(api.Database),
+			httpmw.ExtractUserParam(api.Database, false),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		),
 		// Build-Version is helpful for debugging.
@@ -223,8 +223,18 @@ func New(options *Options) *API {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
-			apiKeyMiddlewareRedirect,
-			httpmw.ExtractUserParam(api.Database),
+			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				DB:            options.Database,
+				OAuth2Configs: oauthConfigs,
+				// Optional is true to allow for public apps. If an
+				// authorization check fails and the user is not authenticated,
+				// they will be redirected to the login page by the app handler.
+				RedirectToLogin: false,
+				Optional:        true,
+			}),
+			// Redirect to the login page if the user tries to open an app with
+			// "me" as the username and they are not logged in.
+			httpmw.ExtractUserParam(api.Database, true),
 			// Extracts the <workspace.agent> from the url
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		)
@@ -289,7 +299,7 @@ func New(options *Options) *API {
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
 			)
-			r.Get("/{hash}", api.fileByHash)
+			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
 
@@ -319,7 +329,7 @@ func New(options *Options) *API {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractUserParam(options.Database),
+							httpmw.ExtractUserParam(options.Database, false),
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
@@ -398,7 +408,7 @@ func New(options *Options) *API {
 					r.Get("/", api.assignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Use(httpmw.ExtractUserParam(options.Database, false))
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
