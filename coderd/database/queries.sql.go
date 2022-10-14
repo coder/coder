@@ -815,7 +815,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 	return i, err
 }
 
-const updateGitSSHKey = `-- name: UpdateGitSSHKey :exec
+const updateGitSSHKey = `-- name: UpdateGitSSHKey :one
 UPDATE
 	gitsshkeys
 SET
@@ -824,6 +824,8 @@ SET
 	public_key = $4
 WHERE
 	user_id = $1
+RETURNING
+	user_id, created_at, updated_at, private_key, public_key
 `
 
 type UpdateGitSSHKeyParams struct {
@@ -833,14 +835,22 @@ type UpdateGitSSHKeyParams struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
-func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error {
-	_, err := q.db.ExecContext(ctx, updateGitSSHKey,
+func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error) {
+	row := q.db.QueryRowContext(ctx, updateGitSSHKey,
 		arg.UserID,
 		arg.UpdatedAt,
 		arg.PrivateKey,
 		arg.PublicKey,
 	)
-	return err
+	var i GitSSHKey
+	err := row.Scan(
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PrivateKey,
+		&i.PublicKey,
+	)
+	return i, err
 }
 
 const deleteGroupByID = `-- name: DeleteGroupByID :exec

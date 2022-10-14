@@ -221,10 +221,18 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 }
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
-	return fmt.Sprintf("{user} %s %s {target}",
+	str := fmt.Sprintf("{user} %s %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
+
+	// We don't display the name for git ssh keys. It's fairly long and doesn't
+	// make too much sense to display.
+	if alog.ResourceType != database.ResourceTypeGitSshKey {
+		str += " {target}"
+	}
+
+	return str
 }
 
 // auditSearchQuery takes a query string and returns the auditLog filter.
