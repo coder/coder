@@ -34,10 +34,12 @@ export interface WorkspaceProps {
     onExtend: () => void
   }
   scheduleProps: {
-    onDeadlinePlus: () => void
-    onDeadlineMinus: () => void
+    onDeadlinePlus: (hours: number) => void
+    onDeadlineMinus: (hours: number) => void
     deadlinePlusEnabled: () => boolean
     deadlineMinusEnabled: () => boolean
+    maxDeadlineIncrease: number
+    maxDeadlineDecrease: number
   }
   handleStart: () => void
   handleStop: () => void
@@ -121,6 +123,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
               deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
               deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
+              maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
+              maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions

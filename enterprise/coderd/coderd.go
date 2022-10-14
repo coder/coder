@@ -35,6 +35,12 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.Keys == nil {
 		options.Keys = Keys
 	}
+	if options.Options == nil {
+		options.Options = &coderd.Options{}
+	}
+	if options.Options.Authorizer == nil {
+		options.Options.Authorizer = rbac.NewAuthorizer()
+	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
 		AGPL:                   coderd.New(options.Options),
@@ -92,7 +98,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
 			})
 		})

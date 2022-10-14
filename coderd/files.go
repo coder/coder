@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -50,15 +51,20 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	}
 	hashBytes := sha256.Sum256(data)
 	hash := hex.EncodeToString(hashBytes[:])
-	file, err := api.Database.GetFileByHash(ctx, hash)
+	file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
+		Hash:      hash,
+		CreatedBy: apiKey.UserID,
+	})
 	if err == nil {
 		// The file already exists!
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.UploadResponse{
-			Hash: file.Hash,
+			ID: file.ID,
 		})
 		return
 	}
+	id := uuid.New()
 	file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
+		ID:        id,
 		Hash:      hash,
 		CreatedBy: apiKey.UserID,
 		CreatedAt: database.Now(),
@@ -74,20 +80,30 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UploadResponse{
-		Hash: file.Hash,
+		ID: file.ID,
 	})
 }
 
-func (api *API) fileByHash(rw http.ResponseWriter, r *http.Request) {
+func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	hash := chi.URLParam(r, "hash")
-	if hash == "" {
+
+	fileID := chi.URLParam(r, "fileID")
+	if fileID == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "File hash must be provided in url.",
+			Message: "File id must be provided in url.",
 		})
 		return
 	}
-	file, err := api.Database.GetFileByHash(ctx, hash)
+
+	id, err := uuid.Parse(fileID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "File id must be a valid UUID.",
+		})
+		return
+	}
+
+	file, err := api.Database.GetFileByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
 		return

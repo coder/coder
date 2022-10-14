@@ -51,7 +51,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   }
   if (appsHost && appSubdomain) {
     const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
-    href = `${window.location.protocol}//${subdomain}.${appsHost}/`
+    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
   }
 
   let canClick = true

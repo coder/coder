@@ -16,6 +16,12 @@ export default {
     canUpdateWorkspace: {
       defaultValue: true,
     },
+    deadlineMinusEnabled: {
+      defaultValue: (): boolean => false,
+    },
+    deadlinePlusEnabled: {
+      defaultValue: (): boolean => false,
+    },
   },
 }
 
@@ -64,6 +70,7 @@ WorkspaceOffShort.args = {
 
 export const WorkspaceOffLong = Template.bind({})
 WorkspaceOffLong.args = {
+  deadlinePlusEnabled: () => true,
   workspace: {
     ...Mocks.MockWorkspace,
 

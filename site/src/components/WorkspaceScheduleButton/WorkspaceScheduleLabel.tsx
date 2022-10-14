@@ -1,11 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import { Maybe } from "components/Conditionals/Maybe"
+import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import {
   autoStartDisplay,
   autoStopDisplay,
   isShuttingDown,
-  Language,
 } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
 
@@ -13,33 +15,38 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({
   workspace,
 }) => {
   const styles = useStyles()
-
-  if (isWorkspaceOn(workspace)) {
-    const stopLabel = autoStopDisplay(workspace)
-    const shouldDisplayStrongLabel = !isShuttingDown(workspace)
-
-    // If it is shutting down, we don't need to display the auto stop label
-    return (
-      <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-        {shouldDisplayStrongLabel && <strong>{Language.autoStopLabel}</strong>}{" "}
-        <span className={styles.value}>{stopLabel}</span>
-      </span>
-    )
-  }
+  const { t } = useTranslation("common")
 
   return (
-    <span className={combineClasses([styles.labelText, "chromatic-ignore"])}>
-      <strong>{Language.autoStartLabel}</strong>{" "}
-      <span className={styles.value}>
-        {autoStartDisplay(workspace.autostart_schedule)}
-      </span>
-    </span>
+    <ChooseOne>
+      <Cond condition={isWorkspaceOn(workspace)}>
+        <span
+          className={combineClasses([styles.labelText, "chromatic-ignore"])}
+        >
+          <Maybe condition={!isShuttingDown(workspace)}>
+            <strong>{t("schedule.autoStopLabel")}</strong>
+          </Maybe>{" "}
+          <span className={styles.value}>{autoStopDisplay(workspace)}</span>
+        </span>
+      </Cond>
+      <Cond>
+        <span
+          className={combineClasses([styles.labelText, "chromatic-ignore"])}
+        >
+          <strong>{t("schedule.autoStartLabel")}</strong>{" "}
+          <span className={styles.value}>
+            {autoStartDisplay(workspace.autostart_schedule)}
+          </span>
+        </span>
+      </Cond>
+    </ChooseOne>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
   labelText: {
-    marginRight: theme.spacing(2),
+    marginRight: theme.spacing(1),
+    marginLeft: theme.spacing(1),
     lineHeight: "160%",
 
     [theme.breakpoints.down("sm")]: {

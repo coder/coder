@@ -27,12 +27,33 @@ export interface PortForwardButtonProps {
   agentId: string
 }
 
+const portForwardURL = (
+  host: string,
+  port: number,
+  agentName: string,
+  workspaceName: string,
+  username: string,
+): string => {
+  const { location } = window
+
+  const subdomain = `${
+    isNaN(port) ? 3000 : port
+  }--${agentName}--${workspaceName}--${username}`
+  return `${location.protocol}//${host}`.replace("*", subdomain)
+}
+
 const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
   const { host, workspaceName, agentName, agentId, username } = props
   const styles = useStyles()
   const [port, setPort] = useState("3000")
-  const { location } = window
-  const urlExample = `${location.protocol}//${port}--${agentName}--${workspaceName}--${username}.${host}`
+  const urlExample = portForwardURL(
+    host,
+    parseInt(port),
+    agentName,
+    workspaceName,
+    username,
+  )
+
   const [state] = useMachine(portForwardMachine, {
     context: { agentId: agentId },
   })
@@ -82,7 +103,13 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
         <HelpTooltipText>
           {ports &&
             ports.map((p, i) => {
-              const url = `${location.protocol}//${p.port}--${agentName}--${workspaceName}--${username}.${host}`
+              const url = portForwardURL(
+                host,
+                p.port,
+                agentName,
+                workspaceName,
+                username,
+              )
               let label = `${p.port}`
               if (p.process_name) {
                 label = `${p.process_name} - ${p.port}`

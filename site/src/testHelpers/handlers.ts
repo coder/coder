@@ -217,7 +217,7 @@ export const handlers = [
 
   // Applications host
   rest.get("/api/v2/applications/host", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json({ host: "dev.coder.com" }))
+    return res(ctx.status(200), ctx.json({ host: "*.dev.coder.com" }))
   }),
 
   // Groups

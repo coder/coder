@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +54,7 @@ import (
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -297,13 +299,19 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
-			appHostname := strings.TrimPrefix(dflags.WildcardAccessURL.Value, "http://")
-			appHostname = strings.TrimPrefix(appHostname, "https://")
-			appHostname = strings.TrimPrefix(appHostname, "*.")
+			appHostname := strings.TrimSpace(dflags.WildcardAccessURL.Value)
+			var appHostnameRegex *regexp.Regexp
+			if appHostname != "" {
+				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
+				if err != nil {
+					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
+				}
+			}
 
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
 				AppHostname:                 appHostname,
+				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,

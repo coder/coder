@@ -39,7 +39,7 @@ type CreateTemplateVersionRequest struct {
 	TemplateID uuid.UUID `json:"template_id,omitempty"`
 
 	StorageMethod ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	StorageSource string                   `json:"storage_source" validate:"required"`
+	FileID        uuid.UUID                `json:"file_id" validate:"required"`
 	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.

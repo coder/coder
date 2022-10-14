@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -277,6 +278,22 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// we only want to create audit logs for delete builds right now
+	if action == rbac.ActionDelete {
+		var (
+			auditor           = api.Auditor.Load()
+			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+				Audit:   *auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionDelete,
+			})
+		)
+
+		defer commitAudit()
+		aReq.Old = workspace
+	}
+
 	if createBuild.TemplateVersionID == uuid.Nil {
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
@@ -458,7 +475,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {
