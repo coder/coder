@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -247,7 +246,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				coordinator = haCoordinator
 			}
 
-			fmt.Printf("HA enabled\n")
 			api.replicaManager.SetCallback(func() {
 				addresses := make([]string, 0)
 				for _, replica := range api.replicaManager.Regional() {

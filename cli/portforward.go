@@ -155,7 +155,7 @@ func portForward() *cobra.Command {
 				case <-ticker.C:
 				}
 
-				_, err = conn.Ping()
+				_, err = conn.Ping(ctx)
 				if err != nil {
 					continue
 				}

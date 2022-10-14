@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -69,7 +70,9 @@ func TestReplicas(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			_, err = conn.Ping()
+			ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancelFunc()
+			_, err = conn.Ping(ctx)
 			return err == nil
 		}, testutil.WaitLong, testutil.IntervalFast)
 		_ = conn.Close()

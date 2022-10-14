@@ -465,7 +465,7 @@ func TestAgent(t *testing.T) {
 
 				conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 				require.Eventually(t, func() bool {
-					_, err := conn.Ping()
+					_, err := conn.Ping(context.Background())
 					return err == nil
 				}, testutil.WaitMedium, testutil.IntervalFast)
 				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())

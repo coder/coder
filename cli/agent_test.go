@@ -69,7 +69,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.Eventually(t, func() bool {
-			_, err := dialer.Ping()
+			_, err := dialer.Ping(ctx)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
 		cancelFunc()
@@ -130,7 +130,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.Eventually(t, func() bool {
-			_, err := dialer.Ping()
+			_, err := dialer.Ping(ctx)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
 		cancelFunc()
@@ -191,7 +191,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.Eventually(t, func() bool {
-			_, err := dialer.Ping()
+			_, err := dialer.Ping(ctx)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
 		cancelFunc()

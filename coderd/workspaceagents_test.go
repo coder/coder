@@ -129,7 +129,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 			_ = conn.Close()
 		}()
 		require.Eventually(t, func() bool {
-			_, err := conn.Ping()
+			_, err := conn.Ping(ctx)
 			return err == nil
 		}, testutil.WaitLong, testutil.IntervalFast)
 	})
