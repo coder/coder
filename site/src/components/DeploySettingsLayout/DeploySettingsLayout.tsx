@@ -7,7 +7,7 @@ import { Sidebar } from "./Sidebar"
 import React, { PropsWithChildren } from "react"
 
 export const SettingsHeader: React.FC<{
-  title: string
+  title: string | JSX.Element
   description: string | JSX.Element
   docsHref: string
 }> = ({ title, description, docsHref }) => {
@@ -34,31 +34,6 @@ export const SettingsHeader: React.FC<{
   )
 }
 
-export const SettingsBadges: React.FC<{
-  isEnterprise?: boolean
-  isEnabled?: boolean
-}> = ({ isEnterprise, isEnabled }) => {
-  const styles = useStyles()
-
-  return (
-    <Stack
-      direction="row"
-      alignItems="center"
-      className={styles.badges}
-      spacing={1}
-    >
-      {isEnabled ? (
-        <span className={styles.enabledBadge}>Enabled</span>
-      ) : (
-        <span className={styles.disabledBadge}>Enabled</span>
-      )}
-      {isEnterprise ? (
-        <span className={styles.enterpriseBadge}>Enterprise</span>
-      ) : null}
-    </Stack>
-  )
-}
-
 export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
   children,
 }) => {
@@ -79,47 +54,6 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(6, 0),
   },
 
-  sidebar: {
-    width: 245,
-  },
-
-  sidebarNavItem: {
-    color: "inherit",
-    display: "block",
-    fontSize: 16,
-    textDecoration: "none",
-    padding: theme.spacing(1.5, 1.5, 1.5, 3),
-    borderRadius: theme.shape.borderRadius / 2,
-    transition: "background-color 0.15s ease-in-out",
-    marginBottom: 1,
-    position: "relative",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  },
-
-  sidebarNavItemActive: {
-    backgroundColor: theme.palette.action.hover,
-
-    "&:before": {
-      content: '""',
-      display: "block",
-      width: 3,
-      height: "100%",
-      position: "absolute",
-      left: 0,
-      top: 0,
-      backgroundColor: theme.palette.secondary.dark,
-      borderRadius: theme.shape.borderRadius,
-    },
-  },
-
-  sidebarNavItemIcon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-  },
-
   content: {
     maxWidth: 800,
     width: "100%",
@@ -127,63 +61,23 @@ const useStyles = makeStyles((theme) => ({
 
   headingGroup: {
     maxWidth: 420,
-    marginBottom: theme.spacing(2),
+    marginBottom: theme.spacing(3),
   },
 
   title: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: 700,
     display: "flex",
     alignItems: "center",
     lineHeight: "initial",
     margin: 0,
     marginBottom: theme.spacing(0.5),
+    gap: theme.spacing(1),
   },
 
   description: {
     fontSize: 14,
     color: theme.palette.text.secondary,
-    lineHeight: "160%",
-  },
-
-  badges: {
-    marginTop: theme.spacing(3),
-    marginBottom: theme.spacing(3),
-  },
-
-  enterpriseBadge: {
-    fontSize: 10,
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: "0.085em",
-    backgroundColor: theme.palette.info.dark,
-    padding: theme.spacing(0.5, 2),
-    borderRadius: 9999,
-    border: `1px solid ${theme.palette.info.light}`,
-    lineHeight: "160%",
-  },
-
-  enabledBadge: {
-    fontSize: 10,
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: "0.085em",
-    backgroundColor: theme.palette.success.dark,
-    padding: theme.spacing(0.5, 2),
-    borderRadius: 9999,
-    border: `1px solid ${theme.palette.success.light}`,
-    lineHeight: "160%",
-  },
-
-  disabledBadge: {
-    fontSize: 10,
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: "0.085em",
-    backgroundColor: theme.palette.background.paper,
-    padding: theme.spacing(0.5, 2),
-    borderRadius: 9999,
-    border: `1px solid ${theme.palette.divider}`,
     lineHeight: "160%",
   },
 }))

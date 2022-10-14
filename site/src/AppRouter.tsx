@@ -22,6 +22,9 @@ import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { GeneralSettingsPage } from "pages/DeploySettingsPage/GeneralSettingsPage"
+import { SecuritySettingsPage } from "pages/DeploySettingsPage/SecuritySettingsPage"
+import { MetricsSettingsPage } from "pages/DeploySettingsPage/MetricsSettingsPage"
+import { AuthSettingsPage } from "pages/DeploySettingsPage/AuthSettingsPage"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -238,16 +241,40 @@ export const AppRouter: FC = () => {
           />
         </Route>
 
-        <Route
-          path="settings/general"
-          element={
-            <RequireAuth>
+        <Route path="settings/deployment">
+          <Route
+            path="general"
+            element={
               <AuthAndFrame>
                 <GeneralSettingsPage />
               </AuthAndFrame>
-            </RequireAuth>
-          }
-        />
+            }
+          />
+          <Route
+            path="security"
+            element={
+              <AuthAndFrame>
+                <SecuritySettingsPage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="metrics"
+            element={
+              <AuthAndFrame>
+                <MetricsSettingsPage />
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="auth"
+            element={
+              <AuthAndFrame>
+                <AuthSettingsPage />
+              </AuthAndFrame>
+            }
+          />
+        </Route>
 
         <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />

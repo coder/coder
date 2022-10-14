@@ -43,25 +43,25 @@ export const Sidebar: React.FC = () => {
   return (
     <nav className={styles.sidebar}>
       <SidebarNavItem
-        href="/settings/general"
+        href="../general"
         icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
       >
         General
       </SidebarNavItem>
       <SidebarNavItem
-        href="/settings/security"
+        href="../security"
         icon={<SidebarNavItemIcon icon={LockRounded} />}
       >
         Security
       </SidebarNavItem>
       <SidebarNavItem
-        href="/settings/metrics"
+        href="../metrics"
         icon={<SidebarNavItemIcon icon={BarChartOutlined} />}
       >
         Metrics / observability
       </SidebarNavItem>
       <SidebarNavItem
-        href="/settings/auth"
+        href="../auth"
         icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
       >
         Authentication
