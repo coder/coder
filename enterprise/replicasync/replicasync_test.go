@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -66,6 +65,25 @@ func TestReplica(t *testing.T) {
 		_ = server.Close()
 		require.NoError(t, err)
 	})
+	t.Run("ErrorsWithoutRelayAddress", func(t *testing.T) {
+		// Ensures that the replica reports a successful status for
+		// accessing all of its peers.
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		_, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
+			ID:        uuid.New(),
+			CreatedAt: database.Now(),
+			StartedAt: database.Now(),
+			UpdatedAt: database.Now(),
+			Hostname:  "something",
+		})
+		require.NoError(t, err)
+		_, err = replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
+			ID: uuid.New(),
+		})
+		require.Error(t, err)
+		require.Equal(t, "a relay address must be specified when running multiple replicas in the same region", err.Error())
+	})
 	t.Run("ConnectsToPeerReplica", func(t *testing.T) {
 		// Ensures that the replica reports a successful status for
 		// accessing all of its peers.
@@ -85,7 +103,8 @@ func TestReplica(t *testing.T) {
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID: uuid.New(),
+			ID:           uuid.New(),
+			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)
@@ -96,12 +115,6 @@ func TestReplica(t *testing.T) {
 	t.Run("ConnectsToFakePeerWithError", func(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
-		var count atomic.Int32
-		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
-			count.Add(1)
-		})
-		require.NoError(t, err)
-		defer cancel()
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
@@ -113,16 +126,15 @@ func TestReplica(t *testing.T) {
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID:          uuid.New(),
-			PeerTimeout: 1 * time.Millisecond,
+			ID:           uuid.New(),
+			PeerTimeout:  1 * time.Millisecond,
+			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
 		require.True(t, server.Self().Error.Valid)
 		require.Contains(t, server.Self().Error.String, "Failed to dial peers")
-		// Once for the initial creation of a replica, and another time for the error.
-		require.Equal(t, int32(2), count.Load())
 		_ = server.Close()
 	})
 	t.Run("RefreshOnPublish", func(t *testing.T) {

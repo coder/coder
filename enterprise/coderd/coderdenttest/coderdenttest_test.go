@@ -58,6 +58,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		AssertAction: rbac.ActionRead,
 		AssertObject: rbac.ResourceLicense,
 	}
+	assertRoute["GET:/api/v2/replicas"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceReplicas,
+	}
 	assertRoute["DELETE:/api/v2/licenses/{id}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionDelete,
 		AssertObject: rbac.ResourceLicense,

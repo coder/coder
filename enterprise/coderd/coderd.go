@@ -59,6 +59,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
+		r.Route("/replicas", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.replicas)
+		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.postLicense)

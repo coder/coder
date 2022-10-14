@@ -85,7 +85,7 @@ func TestEntitlements(t *testing.T) {
 		assert.False(t, res.HasLicense)
 		al = res.Features[codersdk.FeatureAuditLog]
 		assert.Equal(t, codersdk.EntitlementNotEntitled, al.Entitlement)
-		assert.True(t, al.Enabled)
+		assert.False(t, al.Enabled)
 	})
 	t.Run("Pubsub", func(t *testing.T) {
 		t.Parallel()

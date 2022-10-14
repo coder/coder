@@ -331,6 +331,7 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
+// @typescript-ignore DialWorkspaceAgentOptions
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
 	// BlockEndpoints forced a direct connection through DERP.
@@ -338,6 +339,9 @@ type DialWorkspaceAgentOptions struct {
 }
 
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*AgentConn, error) {
+	if options == nil {
+		options = &DialWorkspaceAgentOptions{}
+	}
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
 		return nil, err

@@ -63,6 +63,10 @@ func TestReplicas(t *testing.T) {
 			},
 		})
 		secondClient.SessionToken = firstClient.SessionToken
+		replicas, err := secondClient.Replicas(context.Background())
+		require.NoError(t, err)
+		require.Len(t, replicas, 2)
+
 		agentID := setupWorkspaceAgent(t, firstClient, firstUser)
 		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agentID, &codersdk.DialWorkspaceAgentOptions{
 			BlockEndpoints: true,
@@ -76,5 +80,6 @@ func TestReplicas(t *testing.T) {
 			return err == nil
 		}, testutil.WaitLong, testutil.IntervalFast)
 		_ = conn.Close()
+
 	})
 }
