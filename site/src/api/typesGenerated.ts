@@ -9,6 +9,7 @@ export interface APIKey {
   readonly created_at: string
   readonly updated_at: string
   readonly login_type: LoginType
+  readonly scope: APIKeyScope
   readonly lifetime_seconds: number
 }
 
@@ -206,7 +207,7 @@ export interface CreateTemplateVersionRequest {
   readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
-  readonly storage_source: string
+  readonly file_id: string
   readonly provisioner: ProvisionerType
   readonly parameter_values?: CreateParameterRequest[]
 }
@@ -216,6 +217,11 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+}
+
+// From codersdk/apikey.go
+export interface CreateTokenRequest {
+  readonly scope: APIKeyScope
 }
 
 // From codersdk/users.go
@@ -345,7 +351,7 @@ export interface Feature {
   readonly actual?: number
 }
 
-// From codersdk/users.go
+// From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -505,7 +511,7 @@ export interface ProvisionerJob {
   readonly error?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
-  readonly storage_source: string
+  readonly file_id: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -794,6 +800,7 @@ export interface WorkspaceApp {
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
+  readonly sharing_level: WorkspaceAppSharingLevel
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
@@ -862,6 +869,9 @@ export interface WorkspaceResourceMetadata {
   readonly sensitive: boolean
 }
 
+// From codersdk/apikey.go
+export type APIKeyScope = "all" | "application_connect"
+
 // From codersdk/audit.go
 export type AuditAction = "create" | "delete" | "write"
 
@@ -927,7 +937,7 @@ export type ResourceType =
 export type ServerSentEventType = "data" | "error" | "ping"
 
 // From codersdk/templates.go
-export type TemplateRole = "" | "admin" | "view"
+export type TemplateRole = "" | "admin" | "use"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
@@ -941,6 +951,9 @@ export type WorkspaceAppHealth =
   | "healthy"
   | "initializing"
   | "unhealthy"
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

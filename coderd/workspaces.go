@@ -98,8 +98,13 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	page, ok := parsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr)
+	filter, errs := workspaceSearchQuery(queryStr, page)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -430,7 +435,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {
@@ -1072,11 +1077,15 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+	filter := database.GetWorkspacesParams{
+		Offset: int32(page.Offset),
+		Limit:  int32(page.Limit),
+	}
 	searchParams := make(url.Values)
 	if query == "" {
 		// No filter
-		return database.GetWorkspacesParams{}, nil
+		return filter, nil
 	}
 	query = strings.ToLower(query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
@@ -1112,13 +1121,10 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersd
 	// Using the query param parser here just returns consistent errors with
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
-	filter := database.GetWorkspacesParams{
-		Deleted:       false,
-		OwnerUsername: parser.String(searchParams, "", "owner"),
-		TemplateName:  parser.String(searchParams, "", "template"),
-		Name:          parser.String(searchParams, "", "name"),
-		Status:        parser.String(searchParams, "", "status"),
-	}
+	filter.OwnerUsername = parser.String(searchParams, "", "owner")
+	filter.TemplateName = parser.String(searchParams, "", "template")
+	filter.Name = parser.String(searchParams, "", "name")
+	filter.Status = parser.String(searchParams, "", "status")
 
 	return filter, parser.Errors
 }

@@ -43,10 +43,12 @@ resource "null_resource" "fake-disk" {
 
 resource "coder_app" "fake-app" {
   # Access :8080 in the workspace from the Coder dashboard.
-  name     = "VS Code"
-  icon     = "/icon/code.svg"
-  agent_id = "fake-compute"
-  url      = "http://localhost:8080"
+  name      = "VS Code"
+  icon      = "/icon/code.svg"
+  agent_id  = "fake-compute"
+  url       = "http://localhost:8080"
+  subdomain = false
+  share     = "owner"
 
   healthcheck {
     url       = "http://localhost:8080/healthz"

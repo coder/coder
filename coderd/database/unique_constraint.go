@@ -6,6 +6,7 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueFilesHashCreatedByKey                    UniqueConstraint = "files_hash_created_by_key"                      // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 	UniqueGroupMembersUserIDGroupIDKey             UniqueConstraint = "group_members_user_id_group_id_key"             // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
 	UniqueGroupsNameOrganizationIDKey              UniqueConstraint = "groups_name_organization_id_key"                // ALTER TABLE ONLY groups ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
 	UniqueLicensesJWTKey                           UniqueConstraint = "licenses_jwt_key"                               // ALTER TABLE ONLY licenses ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);

@@ -132,7 +132,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
-  storage_source: "asdf",
+  file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   completed_at: "2022-05-17T17:39:01.382927298Z",
 }
 
@@ -199,6 +199,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   icon: "",
   subdomain: false,
   health: "disabled",
+  sharing_level: "owner",
   healthcheck: {
     url: "",
     interval: 0,
@@ -920,10 +921,10 @@ export const MockGroup: TypesGen.Group = {
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
   group: [
-    { ...everyOneGroup(MockOrganization.id), role: "view" },
+    { ...everyOneGroup(MockOrganization.id), role: "use" },
     { ...MockGroup, role: "admin" },
   ],
-  users: [{ ...MockUser, role: "view" }],
+  users: [{ ...MockUser, role: "use" }],
 }
 
 export const MockTemplateACLEmpty: TypesGen.TemplateACL = {

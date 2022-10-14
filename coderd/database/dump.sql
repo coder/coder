@@ -5,6 +5,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'application_connect'
 );
 
+CREATE TYPE app_sharing_level AS ENUM (
+    'owner',
+    'authenticated',
+    'public'
+);
+
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
@@ -151,7 +157,8 @@ CREATE TABLE files (
     created_at timestamp with time zone NOT NULL,
     created_by uuid NOT NULL,
     mimetype character varying(64) NOT NULL,
-    data bytea NOT NULL
+    data bytea NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
 CREATE TABLE gitsshkeys (
@@ -271,10 +278,10 @@ CREATE TABLE provisioner_jobs (
     initiator_id uuid NOT NULL,
     provisioner provisioner_type NOT NULL,
     storage_method provisioner_storage_method NOT NULL,
-    storage_source text NOT NULL,
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
-    worker_id uuid
+    worker_id uuid,
+    file_id uuid NOT NULL
 );
 
 CREATE TABLE replicas (
@@ -384,7 +391,8 @@ CREATE TABLE workspace_apps (
     healthcheck_interval integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
     health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
-    subdomain boolean DEFAULT false NOT NULL
+    subdomain boolean DEFAULT false NOT NULL,
+    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL
 );
 
 CREATE TABLE workspace_builds (
@@ -446,7 +454,10 @@ ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY files
-    ADD CONSTRAINT files_pkey PRIMARY KEY (hash);
+    ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
+
+ALTER TABLE ONLY files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);

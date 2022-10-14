@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { i18n } from "i18n"
@@ -428,8 +427,7 @@ describe("UsersPage", () => {
           }),
         )
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        await updateUserRole(() => {}, MockAuditorRole)
+        await updateUserRole(() => null, MockAuditorRole)
 
         // Check if the error message is displayed
         const errorMessage = await screen.findByText("message from the backend")

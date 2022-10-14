@@ -72,8 +72,8 @@ func TestReplicas(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, replicas, 2)
 
-		agentID := setupWorkspaceAgent(t, firstClient, firstUser)
-		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agentID, &codersdk.DialWorkspaceAgentOptions{
+		_, agent := setupWorkspaceAgent(t, firstClient, firstUser, 0)
+		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agent.ID, &codersdk.DialWorkspaceAgentOptions{
 			BlockEndpoints: true,
 			Logger:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})

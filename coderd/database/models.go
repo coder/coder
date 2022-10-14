@@ -34,6 +34,26 @@ func (e *APIKeyScope) Scan(src interface{}) error {
 	return nil
 }
 
+type AppSharingLevel string
+
+const (
+	AppSharingLevelOwner         AppSharingLevel = "owner"
+	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelPublic        AppSharingLevel = "public"
+)
+
+func (e *AppSharingLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppSharingLevel(s)
+	case string:
+		*e = AppSharingLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppSharingLevel: %T", src)
+	}
+	return nil
+}
+
 type AuditAction string
 
 const (
@@ -404,6 +424,7 @@ type File struct {
 	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -502,10 +523,10 @@ type ProvisionerJob struct {
 	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource  string                   `db:"storage_source" json:"storage_source"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
+	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 }
 
 type ProvisionerJobLog struct {
@@ -639,6 +660,7 @@ type WorkspaceApp struct {
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
+	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 }
 
 type WorkspaceBuild struct {

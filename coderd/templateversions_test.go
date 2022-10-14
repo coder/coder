@@ -66,7 +66,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		_, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			TemplateID:    templateID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: "hash",
+			FileID:        uuid.New(),
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
@@ -84,7 +84,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		_, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: "hash",
+			FileID:        uuid.New(),
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
@@ -112,7 +112,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "bananas",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 			ParameterValues: []codersdk.CreateParameterRequest{{
 				Name:              "example",
@@ -842,7 +842,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				TemplateID:    template.ID,
-				StorageSource: file.Hash,
+				FileID:        file.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,
 				Provisioner:   codersdk.ProvisionerTypeEcho,
 			})

@@ -390,7 +390,7 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
-		StorageSource: file.Hash,
+		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
 		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
@@ -438,7 +438,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
-		StorageSource: file.Hash,
+		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
 		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})

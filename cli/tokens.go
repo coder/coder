@@ -55,7 +55,7 @@ func createToken() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			res, err := client.CreateToken(cmd.Context(), codersdk.Me)
+			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{})
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
 			}

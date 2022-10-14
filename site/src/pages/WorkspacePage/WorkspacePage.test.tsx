@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import EventSource from "eventsourcemock"
+import EventSourceMock from "eventsourcemock"
 import i18next from "i18next"
 import { rest } from "msw"
 import * as api from "../../api/api"
@@ -75,13 +75,20 @@ const testStatus = async (ws: Workspace, label: string) => {
   expect(status).toHaveTextContent(label)
 }
 
+let originalEventSource: typeof window.EventSource
+
+beforeAll(() => {
+  originalEventSource = window.EventSource
+  // mocking out EventSource for SSE
+  window.EventSource = EventSourceMock
+})
+
 beforeEach(() => {
   jest.resetAllMocks()
+})
 
-  // mocking out EventSource for SSE
-  Object.defineProperty(window, "EventSource", {
-    value: EventSource,
-  })
+afterAll(() => {
+  window.EventSource = originalEventSource
 })
 
 describe("WorkspacePage", () => {
