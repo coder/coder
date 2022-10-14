@@ -418,7 +418,11 @@ export const workspacesMachine =
       },
       services: {
         getWorkspaces: (context) =>
-          API.getWorkspaces(queryToFilter(context.filter)),
+          API.getWorkspaces({
+            ...queryToFilter(context.filter),
+            offset: (context.page - 1) * context.limit,
+            limit: context.limit,
+          }),
         updateWorkspaceRefs: (context, event) => {
           const refsToKeep: WorkspaceItemMachineRef[] = []
           context.workspaceRefs?.forEach((ref) => {
