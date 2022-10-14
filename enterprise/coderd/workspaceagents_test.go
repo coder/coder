@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -33,7 +32,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			BrowserOnly: true,
 		})
 		id := setupWorkspaceAgent(t, client, user)
-		_, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, id)
+		_, err := client.DialWorkspaceAgent(context.Background(), id, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -50,7 +49,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			BrowserOnly: false,
 		})
 		id := setupWorkspaceAgent(t, client, user)
-		conn, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, id)
+		conn, err := client.DialWorkspaceAgent(context.Background(), id, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
 	})

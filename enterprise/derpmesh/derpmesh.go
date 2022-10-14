@@ -2,6 +2,7 @@ package derpmesh
 
 import (
 	"context"
+	"net"
 	"net/url"
 	"sync"
 
@@ -88,11 +89,15 @@ func (m *Mesh) addAddress(address string) (bool, error) {
 	if isActive {
 		return false, nil
 	}
-	client, err := derphttp.NewClient(m.server.PrivateKey(), address, tailnet.Logger(m.logger))
+	client, err := derphttp.NewClient(m.server.PrivateKey(), address, tailnet.Logger(m.logger.Named("client")))
 	if err != nil {
 		return false, xerrors.Errorf("create derp client: %w", err)
 	}
 	client.MeshKey = m.server.MeshKey()
+	client.SetURLDialer(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, network, addr)
+	})
 	ctx, cancelFunc := context.WithCancel(m.ctx)
 	closed := make(chan struct{})
 	closeFunc := func() {
@@ -103,7 +108,7 @@ func (m *Mesh) addAddress(address string) (bool, error) {
 	m.active[address] = closeFunc
 	go func() {
 		defer close(closed)
-		client.RunWatchConnectionLoop(ctx, m.server.PublicKey(), tailnet.Logger(m.logger), func(np key.NodePublic) {
+		client.RunWatchConnectionLoop(ctx, m.server.PublicKey(), tailnet.Logger(m.logger.Named("loop")), func(np key.NodePublic) {
 			m.server.AddPacketForwarder(np, client)
 		}, func(np key.NodePublic) {
 			m.server.RemovePacketForwarder(np, client)

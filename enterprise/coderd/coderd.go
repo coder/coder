@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -126,7 +127,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
-	api.derpMesh = derpmesh.New(options.Logger, api.DERPServer)
+	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer)
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {
@@ -246,6 +247,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				coordinator = haCoordinator
 			}
 
+			fmt.Printf("HA enabled\n")
 			api.replicaManager.SetCallback(func() {
 				addresses := make([]string, 0)
 				for _, replica := range api.replicaManager.Regional() {

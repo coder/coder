@@ -344,6 +344,9 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
+		if c.blockEndpoints {
+			peerNode.Endpoints = nil
+		}
 		c.peerMap[node.ID] = peerNode
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))

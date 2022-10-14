@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/testutil"
 )
@@ -61,14 +62,16 @@ func TestReplicas(t *testing.T) {
 			},
 		})
 		secondClient.SessionToken = firstClient.SessionToken
-
 		agentID := setupWorkspaceAgent(t, firstClient, firstUser)
-		conn, err := secondClient.DialWorkspaceAgentTailnet(context.Background(), slogtest.Make(t, nil).Leveled(slog.LevelDebug), agentID)
+		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agentID, &codersdk.DialWorkspaceAgentOptions{
+			BlockEndpoints: true,
+			Logger:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			_, err = conn.Ping()
 			return err == nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.WaitLong, testutil.IntervalFast)
 		_ = conn.Close()
 	})
 }
