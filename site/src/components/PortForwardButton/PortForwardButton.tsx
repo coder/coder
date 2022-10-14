@@ -64,7 +64,8 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
       <HelpTooltipText>
         Access ports running on the agent with the{" "}
         <strong>port, agent name, workspace name</strong> and{" "}
-        <strong>your username</strong> URL schema, as shown below.
+        <strong>your username</strong> URL schema, as shown below. Port URLs are
+        only accessible by you.
       </HelpTooltipText>
 
       <CodeExample code={urlExample} className={styles.code} />
