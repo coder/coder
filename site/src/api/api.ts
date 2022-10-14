@@ -286,6 +286,23 @@ export const getWorkspaces = async (
   return response.data
 }
 
+// TODO change types
+export const getWorkspacesCount = async (
+  options: TypesGen.AuditLogCountRequest = {}
+): Promise<TypesGen.AuditLogCountResponse> => {
+  const searchParams = new URLSearchParams()
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+  // TODO
+  // const response = await axios.get(
+  //   `/api/v2/workspaces/count?${searchParams.toString()}`,
+  // )
+  // return response.data
+
+  return Promise.resolve({ count: 10 })
+}
+
 export const getWorkspaceByOwnerAndName = async (
   username = "me",
   workspaceName: string,

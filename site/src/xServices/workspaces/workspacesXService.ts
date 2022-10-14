@@ -387,7 +387,6 @@ createMachine(
       },
       assignUpdatedWorkspaceRefs: assign({
         workspaceRefs: (_, event) => {
-
           const newWorkspaceRefs = event.data.newWorkspaces.map((workspace) =>
             spawn(
               workspaceItemMachine.withContext({ data: workspace }),
@@ -440,10 +439,9 @@ createMachine(
           newWorkspaces,
         })
       },
-      getWorkspacesCount: () => {
-        //API.getWorkspacesCount()
-        return Promise.resolve({ count: 10 })
-      }
+      getWorkspacesCount: (context) => (
+        API.getWorkspacesCount({ q: context.filter })
+      )
     },
   },
 )
