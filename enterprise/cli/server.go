@@ -22,7 +22,7 @@ import (
 )
 
 func server() *cobra.Command {
-	dflags := deployment.Flags()
+	vip := deployment.DefaultViper()
 	cmd := agpl.Server(dflags, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		if dflags.DerpServerRelayAddress.Value != "" {
 			_, err := url.Parse(dflags.DerpServerRelayAddress.Value)
@@ -49,13 +49,13 @@ func server() *cobra.Command {
 		options.DERPServer.SetMeshKey(meshKey)
 
 		o := &coderd.Options{
-			AuditLogging:           dflags.AuditLogging.Value,
-			BrowserOnly:            dflags.BrowserOnly.Value,
-			SCIMAPIKey:             []byte(dflags.SCIMAuthHeader.Value),
-			UserWorkspaceQuota:     dflags.UserWorkspaceQuota.Value,
-			RBAC:                   true,
-			DERPServerRelayAddress: dflags.DerpServerRelayAddress.Value,
-			DERPServerRegionID:     dflags.DerpServerRegionID.Value,
+			AuditLogging:           options.DeploymentConfig.AuditLogging,
+			BrowserOnly:            options.DeploymentConfig.BrowserOnly,
+			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAuthHeader),
+			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota,
+			RBACEnabled:            true,
+			DERPServerRelayAddress: options.DeploymentConfig.DerpServerRelayAddress,
+			DERPServerRegionID:     options.DeploymentConfig.DerpServerRegionID,
 
 			Options: options,
 		}
@@ -66,6 +66,7 @@ func server() *cobra.Command {
 		return api.AGPL, api, nil
 	})
 
-	deployment.AttachFlags(cmd.Flags(), dflags, true)
+	deployment.AttachEnterpriseFlags(cmd.Flags(), vip)
+
 	return cmd
 }
