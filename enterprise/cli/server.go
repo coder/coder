@@ -17,6 +17,15 @@ import (
 func server() *cobra.Command {
 	dflags := deployment.Flags()
 	cmd := agpl.Server(dflags, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, error) {
+		if dflags.AuditLogging.Value {
+			options.Auditor = audit.NewAuditor(audit.DefaultFilter,
+				backends.NewPostgres(options.Database, true),
+				backends.NewSlog(options.Logger),
+			)
+		}
+
+		options.WorkspaceQuotaEnforcer = coderd.NewEnforcer(dflags.UserWorkspaceQuota.Value)
+
 		o := &coderd.Options{
 			AuditLogging:       dflags.AuditLogging.Value,
 			BrowserOnly:        dflags.BrowserOnly.Value,
@@ -25,11 +34,11 @@ func server() *cobra.Command {
 			RBACEnabled:        true,
 			Options:            options,
 		}
+
 		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, err
 		}
-		api.Auditor = audit.NewAuditor(audit.DefaultFilter, backends.NewPostgres(api.Database, true), backends.NewSlog(api.AGPL.Logger))
 		return api.AGPL, nil
 	})
 

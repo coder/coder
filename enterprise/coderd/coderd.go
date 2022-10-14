@@ -39,6 +39,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Options:                options,
 		cancelEntitlementsLoop: cancelFunc,
 	}
+
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -192,7 +193,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
 		enforcer := workspacequota.NewNop()
 		if enabled {
-			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+			enforcer = api.WorkspaceQuotaEnforcer
 		}
 		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}
