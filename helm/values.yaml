@@ -101,8 +101,10 @@ coder:
     # coder.ingress.host -- The hostname to match on.
     host: ""
     # coder.ingress.wildcardHost -- The wildcard hostname to match on. Should be
-    # in the form "*.example.com". Optional if not using applications over
-    # subdomains.
+    # in the form "*.example.com" or "*-suffix.example.com". If you are using a
+    # suffix after the wildcard, the suffix will be stripped from the created
+    # ingress to ensure that it is a legal ingress host. Optional if not using
+    # applications over subdomains.
     wildcardHost: ""
     # coder.ingress.annotations -- The ingress annotations.
     annotations: {}
