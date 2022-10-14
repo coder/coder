@@ -26,21 +26,29 @@ export const stackTraceUnavailable = {
 
 type ReportMessage = StackTraceAvailableMsg | typeof stackTraceUnavailable
 
-export const stackTraceAvailable = (stackTrace: string[]): StackTraceAvailableMsg => {
+export const stackTraceAvailable = (
+  stackTrace: string[],
+): StackTraceAvailableMsg => {
   return {
     type: "stackTraceAvailable",
     stackTrace,
   }
 }
 
-const setStackTrace = (model: ReportState, mappedStack: string[]): ReportState => {
+const setStackTrace = (
+  model: ReportState,
+  mappedStack: string[],
+): ReportState => {
   return {
     ...model,
     mappedStack,
   }
 }
 
-export const reducer = (model: ReportState, msg: ReportMessage): ReportState => {
+export const reducer = (
+  model: ReportState,
+  msg: ReportMessage,
+): ReportState => {
   switch (msg.type) {
     case "stackTraceAvailable":
       return setStackTrace(model, msg.stackTrace)
@@ -49,7 +57,10 @@ export const reducer = (model: ReportState, msg: ReportMessage): ReportState => 
   }
 }
 
-export const createFormattedStackTrace = (error: Error, mappedStack: string[] | null): string[] => {
+export const createFormattedStackTrace = (
+  error: Error,
+  mappedStack: string[] | null,
+): string[] => {
   return [
     "======================= STACK TRACE ========================",
     "",
@@ -63,11 +74,19 @@ export const createFormattedStackTrace = (error: Error, mappedStack: string[] | 
 /**
  * A code block component that contains the error stack resulting from an error boundary trigger
  */
-export const RuntimeErrorReport = ({ error, mappedStack }: ReportState): ReactElement => {
+export const RuntimeErrorReport = ({
+  error,
+  mappedStack,
+}: ReportState): ReactElement => {
   const styles = useStyles()
 
   if (!mappedStack) {
-    return <CodeBlock lines={[Language.reportLoading]} className={styles.codeBlock} />
+    return (
+      <CodeBlock
+        lines={[Language.reportLoading]}
+        className={styles.codeBlock}
+      />
+    )
   }
 
   const formattedStackTrace = createFormattedStackTrace(error, mappedStack)

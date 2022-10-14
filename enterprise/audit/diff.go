@@ -31,6 +31,10 @@ func diffValues(left, right any, table Table) audit.Map {
 	}
 
 	for i := 0; i < rightT.NumField(); i++ {
+		if !rightT.Field(i).IsExported() {
+			continue
+		}
+
 		var (
 			leftF  = leftV.Field(i)
 			rightF = rightV.Field(i)

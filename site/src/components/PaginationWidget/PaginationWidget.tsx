@@ -38,7 +38,10 @@ const NUM_PAGE_BLOCKS = PAGES_TO_DISPLAY + 2
  * Builds a list of pages based on how many pages exist and where the user is in their navigation of those pages.
  * List result is used to from the buttons that make up the Pagination Widget
  */
-export const buildPagedList = (numPages: number, activePage: number): (string | number)[] => {
+export const buildPagedList = (
+  numPages: number,
+  activePage: number,
+): (string | number)[] => {
   if (numPages > NUM_PAGE_BLOCKS) {
     let pages = []
     const leftBound = activePage - PAGE_NEIGHBORS
@@ -128,7 +131,11 @@ export const PaginationWidget = ({
             </Button>
           ),
         )}
-      <Button aria-label="Next page" disabled={lastPageActive} onClick={onNextClick}>
+      <Button
+        aria-label="Next page"
+        disabled={lastPageActive}
+        onClick={onNextClick}
+      >
         <div>{nextLabel}</div>
         <KeyboardArrowRight />
       </Button>

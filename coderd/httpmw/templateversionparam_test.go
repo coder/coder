@@ -124,7 +124,10 @@ func TestTemplateVersionParam(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil, false),
+			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				DB:              db,
+				RedirectToLogin: false,
+			}),
 			httpmw.ExtractTemplateVersionParam(db),
 			httpmw.ExtractOrganizationParam(db),
 		)

@@ -30,8 +30,6 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
           </Link>
         ),
 
-        // Adding node so the ...props don't have it
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         code: ({ node, inline, className, children, ...props }) => {
           const match = /language-(\w+)/.exec(className || "")
           return !inline && match ? (
@@ -95,7 +93,6 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
 
 const useStyles = makeStyles((theme) => ({
   codeWithoutLanguage: {
-    display: "block",
     overflowX: "auto",
     padding: "0.5em",
     background: theme.palette.background.default,

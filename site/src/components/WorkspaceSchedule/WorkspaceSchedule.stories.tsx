@@ -16,7 +16,9 @@ export default {
   },
 }
 
-const Template: Story<WorkspaceScheduleProps> = (args) => <WorkspaceSchedule {...args} />
+const Template: Story<WorkspaceScheduleProps> = (args) => (
+  <WorkspaceSchedule {...args} />
+)
 
 export const NoScheduleNoTTL = Template.bind({})
 NoScheduleNoTTL.args = {

@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/wsconncache"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/tailnet/tailnettest"
 )
@@ -35,8 +36,8 @@ func TestCache(t *testing.T) {
 	t.Parallel()
 	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
-			return setupAgent(t, agent.Metadata{}, 0), nil
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.AgentConn, error) {
+			return setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0), nil
 		}, 0)
 		defer func() {
 			_ = cache.Close()
@@ -50,9 +51,9 @@ func TestCache(t *testing.T) {
 	t.Run("Expire", func(t *testing.T) {
 		t.Parallel()
 		called := atomic.NewInt32(0)
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.AgentConn, error) {
 			called.Add(1)
-			return setupAgent(t, agent.Metadata{}, 0), nil
+			return setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -69,8 +70,8 @@ func TestCache(t *testing.T) {
 	})
 	t.Run("NoExpireWhenLocked", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
-			return setupAgent(t, agent.Metadata{}, 0), nil
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.AgentConn, error) {
+			return setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -102,8 +103,8 @@ func TestCache(t *testing.T) {
 		}()
 		go server.Serve(random)
 
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*agent.Conn, error) {
-			return setupAgent(t, agent.Metadata{}, 0), nil
+		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.AgentConn, error) {
+			return setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -139,13 +140,13 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
+func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeout time.Duration) *codersdk.AgentConn {
 	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
 	coordinator := tailnet.NewCoordinator()
 	agentID := uuid.New()
 	closer := agent.New(agent.Options{
-		FetchMetadata: func(ctx context.Context) (agent.Metadata, error) {
+		FetchMetadata: func(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error) {
 			return metadata, nil
 		},
 		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
@@ -180,7 +181,7 @@ func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration)
 		return conn.UpdateNodes(node)
 	})
 	conn.SetNodeCallback(sendNode)
-	return &agent.Conn{
+	return &codersdk.AgentConn{
 		Conn: conn,
 	}
 }

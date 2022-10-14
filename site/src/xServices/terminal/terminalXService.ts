@@ -141,16 +141,17 @@ export const terminalMachine =
           if (!context.workspaceName) {
             throw new Error("workspace name not set")
           }
-          return API.getWorkspaceByOwnerAndName(context.username, context.workspaceName)
+          return API.getWorkspaceByOwnerAndName(
+            context.username,
+            context.workspaceName,
+          )
         },
         getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
             throw new Error("workspace or workspace name is not set")
           }
 
-          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
-
-          const agent = resources
+          const agent = context.workspace.latest_build.resources
             .map((resource) => {
               if (!resource.agents || resource.agents.length === 0) {
                 return
@@ -158,7 +159,9 @@ export const terminalMachine =
               if (!context.agentName) {
                 return resource.agents[0]
               }
-              return resource.agents.find((agent) => agent.name === context.agentName)
+              return resource.agents.find(
+                (agent) => agent.name === context.agentName,
+              )
             })
             .filter((a) => a)[0]
           if (!agent) {
@@ -239,7 +242,9 @@ export const terminalMachine =
           if (!context.websocket) {
             throw new Error("websocket doesn't exist")
           }
-          context.websocket.send(new TextEncoder().encode(JSON.stringify(event.request)))
+          context.websocket.send(
+            new TextEncoder().encode(JSON.stringify(event.request)),
+          )
         },
         disconnect: (context: TerminalContext) => {
           // Code 1000 is a successful exit!

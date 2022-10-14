@@ -122,7 +122,7 @@ func TestTemplatePush(t *testing.T) {
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
@@ -153,6 +153,7 @@ func TestTemplatePush(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, templateVersions, 2)
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+		require.Equal(t, "example", templateVersions[1].Name)
 	})
 
 	t.Run("UseWorkingDir", func(t *testing.T) {

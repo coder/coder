@@ -23,6 +23,8 @@ const emptyEntitlements = {
   warnings: [],
   features: {},
   has_license: false,
+  experimental: false,
+  trial: false,
 }
 
 export const entitlementsMachine = createMachine(

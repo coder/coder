@@ -32,6 +32,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 	benchCases := []struct {
 		Name   string
 		Roles  []string
+		Groups []string
 		UserID uuid.UUID
 		Scope  rbac.Scope
 	}{
@@ -82,15 +83,12 @@ func BenchmarkRBACFilter(b *testing.B) {
 		},
 	}
 
-	authorizer, err := rbac.NewAuthorizer()
-	if err != nil {
-		require.NoError(b, err)
-	}
+	authorizer := rbac.NewAuthorizer()
 	for _, c := range benchCases {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, c.Scope, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, c.Scope, c.Groups, rbac.ActionRead, objects)
 			require.NoError(b, err)
 			var _ = allowed
 		})
@@ -99,11 +97,17 @@ func BenchmarkRBACFilter(b *testing.B) {
 
 func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int) []rbac.Object {
 	// Create a "random" but deterministic set of objects.
+	aclList := map[string][]rbac.Action{
+		uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
+		uuid.NewString(): {rbac.ActionCreate},
+	}
 	objectList := make([]rbac.Object, size)
 	for i := range objectList {
 		objectList[i] = rbac.ResourceWorkspace.
 			InOrg(orgs[i%len(orgs)]).
-			WithOwner(users[i%len(users)].String())
+			WithOwner(users[i%len(users)].String()).
+			WithACLUserList(aclList).
+			WithGroupACL(aclList)
 	}
 
 	return objectList
@@ -114,13 +118,13 @@ type authSubject struct {
 	Name   string
 	UserID string
 	Roles  []string
+	Groups []string
 }
 
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
-	auth, err := rbac.NewAuthorizer()
-	require.NoError(t, err, "new rego authorizer")
+	auth := rbac.NewAuthorizer()
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()
@@ -178,13 +182,23 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name: "MyWorkspaceInOrg",
+			Name: "ReadMyWorkspaceInOrg",
 			// When creating the WithID won't be set, but it does not change the result.
-			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgMemberMe, orgAdmin, templateAdmin},
 				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			},
+		},
+		{
+			Name: "C_RDMyWorkspaceInOrg",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
+			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgMemberMe, orgAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, templateAdmin},
 			},
 		},
 		{
@@ -221,8 +235,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceTemplate.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgMemberMe, orgAdmin, templateAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+				true:  {owner, orgAdmin, templateAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, orgMemberMe},
 			},
 		},
 		{
@@ -236,7 +250,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "MyFile",
-			Actions:  []rbac.Action{rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 			Resource: rbac.ResourceFile.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, memberMe, orgMemberMe, templateAdmin},
@@ -342,6 +356,28 @@ func TestRolePermissions(t *testing.T) {
 				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
 			},
 		},
+		{
+			Name:    "AllUsersGroupACL",
+			Actions: []rbac.Action{rbac.ActionRead},
+			Resource: rbac.ResourceTemplate.InOrg(orgID).WithGroupACL(
+				map[string][]rbac.Action{
+					orgID.String(): {rbac.ActionRead},
+				}),
+
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, orgMemberMe, templateAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			},
+		},
+		{
+			Name:     "Groups",
+			Actions:  []rbac.Action{rbac.ActionRead},
+			Resource: rbac.ResourceGroup.InOrg(orgID),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, userAdmin, orgMemberMe},
+				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
+			},
+		},
 	}
 
 	for _, c := range testCases {
@@ -359,7 +395,7 @@ func TestRolePermissions(t *testing.T) {
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
 						// TODO: scopey
-						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAll, action, c.Resource)
+						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAll, subj.Groups, action, c.Resource)
 						if result {
 							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {

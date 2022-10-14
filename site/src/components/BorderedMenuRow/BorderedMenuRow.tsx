@@ -26,15 +26,9 @@ interface BorderedMenuRowProps {
   onClick?: () => void
 }
 
-export const BorderedMenuRow: FC<React.PropsWithChildren<BorderedMenuRowProps>> = ({
-  active,
-  description,
-  Icon,
-  path,
-  title,
-  variant,
-  onClick,
-}) => {
+export const BorderedMenuRow: FC<
+  React.PropsWithChildren<BorderedMenuRowProps>
+> = ({ active, description, Icon, path, title, variant, onClick }) => {
   const styles = useStyles()
 
   return (
@@ -53,7 +47,11 @@ export const BorderedMenuRow: FC<React.PropsWithChildren<BorderedMenuRowProps>> 
           </div>
 
           {description && (
-            <Typography className={styles.description} color="textSecondary" variant="caption">
+            <Typography
+              className={styles.description}
+              color="textSecondary"
+              variant="caption"
+            >
               {ellipsizeText(description)}
             </Typography>
           )}

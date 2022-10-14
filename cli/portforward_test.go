@@ -114,9 +114,9 @@ func TestPortForward(t *testing.T) {
 	// Setup agent once to be shared between test-cases (avoid expensive
 	// non-parallel setup).
 	var (
-		client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user         = coderdtest.CreateFirstUser(t, client)
-		_, workspace = runAgent(t, client, user.UserID)
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user      = coderdtest.CreateFirstUser(t, client)
+		workspace = runAgent(t, client, user.UserID)
 	)
 
 	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
@@ -283,7 +283,7 @@ func TestPortForward(t *testing.T) {
 // runAgent creates a fake workspace and starts an agent locally for that
 // workspace. The agent will be cleaned up on test completion.
 // nolint:unused
-func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]codersdk.WorkspaceResource, codersdk.Workspace) {
+func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.Workspace {
 	ctx := context.Background()
 	user, err := client.User(ctx, userID.String())
 	require.NoError(t, err, "specified user does not exist")
@@ -336,11 +336,9 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 		errC <- cmd.ExecuteContext(agentCtx)
 	}()
 
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
-	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	return resources, workspace
+	return workspace
 }
 
 // setupTestListener starts accepting connections and echoing a single packet.

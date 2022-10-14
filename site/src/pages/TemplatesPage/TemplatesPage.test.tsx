@@ -18,10 +18,13 @@ describe("TemplatesPage", () => {
   it("renders an empty templates page", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/organizations/:organizationId/templates", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json([]))
-      }),
-      rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+      rest.get(
+        "/api/v2/organizations/:organizationId/templates",
+        (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json([]))
+        },
+      ),
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({
@@ -48,10 +51,13 @@ describe("TemplatesPage", () => {
 
   it("shows empty view without permissions to create", async () => {
     server.use(
-      rest.get("/api/v2/organizations/:organizationId/templates", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json([]))
-      }),
-      rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+      rest.get(
+        "/api/v2/organizations/:organizationId/templates",
+        (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json([]))
+        },
+      ),
+      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({

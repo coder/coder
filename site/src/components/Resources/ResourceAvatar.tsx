@@ -7,7 +7,9 @@ import { WorkspaceResource } from "../../api/typesGenerated"
 // These resources (i.e. docker_image, kubernetes_deployment) map to Terraform
 // resource types. These are the most used ones and are based on user usage.
 // We may want to update from time-to-time.
-const iconPathByResource: Record<WorkspaceResource["type"], string> = {
+const DEFAULT_ICON_PATHS: {
+  [resourceType: WorkspaceResource["type"]]: string
+} = {
   docker_volume: "/icon/folder.svg",
   docker_container: "/icon/memory.svg",
   docker_image: "/icon/image.svg",
@@ -20,15 +22,19 @@ const iconPathByResource: Record<WorkspaceResource["type"], string> = {
   null_resource: "/icon/widgets.svg",
 }
 
+const getIconPathResource = (resourceType: string): string => {
+  if (resourceType in DEFAULT_ICON_PATHS) {
+    return DEFAULT_ICON_PATHS[resourceType]
+  }
+
+  return DEFAULT_ICON_PATHS[resourceType]
+}
+
 export type ResourceAvatarProps = { resource: WorkspaceResource }
 
 export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ resource }) => {
   const hasIcon = resource.icon && resource.icon !== ""
-  const avatarSrc = hasIcon
-    ? resource.icon
-    : // resource.type is dynamic so iconPathByResource[resource.type] can be null
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      iconPathByResource[resource.type] ?? iconPathByResource["null_resource"]
+  const avatarSrc = hasIcon ? resource.icon : getIconPathResource(resource.type)
   const styles = useStyles()
 
   return <Avatar className={styles.resourceAvatar} src={avatarSrc} />

@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpmw"
@@ -37,52 +36,6 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 
 	roles := rbac.OrganizationRoles(organization.ID)
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
-}
-
-func (api *API) checkPermissions(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
-	apiKey := httpmw.APIKey(r)
-
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// use the roles of the user specified, not the person making the request.
-	roles, err := api.Database.GetAuthorizationUserRoles(ctx, user.ID)
-	if err != nil {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var params codersdk.UserAuthorizationRequest
-	if !httpapi.Read(ctx, rw, r, &params) {
-		return
-	}
-
-	response := make(codersdk.UserAuthorizationResponse)
-	for k, v := range params.Checks {
-		if v.Object.ResourceType == "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Object's \"resource_type\" field must be defined for key %q.", k),
-			})
-			return
-		}
-
-		if v.Object.OwnerID == "me" {
-			v.Object.OwnerID = roles.ID.String()
-		}
-		err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, apiKey.Scope.ToRBAC(), rbac.Action(v.Action),
-			rbac.Object{
-				Owner: v.Object.OwnerID,
-				OrgID: v.Object.OrganizationID,
-				Type:  v.Object.ResourceType,
-			})
-		response[k] = err == nil
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 func convertRole(role rbac.Role) codersdk.Role {

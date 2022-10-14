@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -64,7 +65,7 @@ func TestDownload(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, _, err := client.Download(ctx, "something")
+		_, _, err := client.Download(ctx, uuid.New())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -80,7 +81,7 @@ func TestDownload(t *testing.T) {
 
 		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 		require.NoError(t, err)
-		data, contentType, err := client.Download(ctx, resp.Hash)
+		data, contentType, err := client.Download(ctx, resp.ID)
 		require.NoError(t, err)
 		require.Len(t, data, 1024)
 		require.Equal(t, codersdk.ContentTypeTar, contentType)

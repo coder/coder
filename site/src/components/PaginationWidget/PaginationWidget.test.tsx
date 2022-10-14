@@ -13,10 +13,16 @@ describe("PaginatedList", () => {
       />,
     )
 
-    expect(await screen.findByRole("button", { name: "Previous page" })).toBeTruthy()
-    expect(await screen.findByRole("button", { name: "Next page" })).toBeTruthy()
+    expect(
+      await screen.findByRole("button", { name: "Previous page" }),
+    ).toBeTruthy()
+    expect(
+      await screen.findByRole("button", { name: "Next page" }),
+    ).toBeTruthy()
     // Shouldn't render any pages if no records are passed in
-    expect(await container.querySelectorAll(`button[name="Page button"]`)).toHaveLength(0)
+    expect(
+      await container.querySelectorAll(`button[name="Page button"]`),
+    ).toHaveLength(0)
   })
 
   it("displays the expected number of pages with one ellipsis tile", async () => {
@@ -34,7 +40,9 @@ describe("PaginatedList", () => {
     )
 
     // 7 total spaces. 6 are page numbers, one is ellipsis
-    expect(await container.querySelectorAll(`button[name="Page button"]`)).toHaveLength(6)
+    expect(
+      await container.querySelectorAll(`button[name="Page button"]`),
+    ).toHaveLength(6)
   })
 
   it("displays the expected number of pages with two ellipsis tiles", async () => {
@@ -52,6 +60,8 @@ describe("PaginatedList", () => {
     )
 
     // 7 total spaces. 2 sets of ellipsis on either side of the active page
-    expect(await container.querySelectorAll(`button[name="Page button"]`)).toHaveLength(5)
+    expect(
+      await container.querySelectorAll(`button[name="Page button"]`),
+    ).toHaveLength(5)
   })
 })

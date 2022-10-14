@@ -9,7 +9,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -21,7 +20,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,8 +47,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
@@ -65,6 +62,7 @@ import (
 )
 
 type Options struct {
+	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
@@ -82,6 +80,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
+	DeploymentFlags             *codersdk.DeploymentFlags
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -137,26 +136,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		})
 	}
 
-	// This can be hotswapped for a live database instance.
-	db := databasefake.New()
-	pubsub := database.NewPubsubInMemory()
-	if os.Getenv("DB") != "" {
-		connectionURL, closePg, err := postgres.Open()
-		require.NoError(t, err)
-		t.Cleanup(closePg)
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		db = database.New(sqlDB)
-
-		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = pubsub.Close()
-		})
-	}
+	db, pubsub := dbtestutil.NewDB(t)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
@@ -198,6 +178,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		// agents are not marked as disconnected during slow tests.
 		AgentInactiveDisconnectTimeout: testutil.WaitShort,
 		AccessURL:                      serverURL,
+		AppHostname:                    options.AppHostname,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		CacheDir:                       t.TempDir(),
 		Database:                       db,
@@ -216,9 +197,10 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		DERPMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
 				1: {
-					RegionID:   1,
-					RegionCode: "coder",
-					RegionName: "Coder",
+					EmbeddedRelay: true,
+					RegionID:      1,
+					RegionCode:    "coder",
+					RegionName:    "Coder",
 					Nodes: []*tailcfg.DERPNode{{
 						Name:             "1a",
 						RegionID:         1,
@@ -234,6 +216,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		AutoImportTemplates:         options.AutoImportTemplates,
 		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+		DeploymentFlags:             options.DeploymentFlags,
 	}
 }
 
@@ -394,12 +377,13 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
 func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.TemplateVersion {
+	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
-		StorageSource: file.Hash,
+		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
 		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
@@ -447,7 +431,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
-		StorageSource: file.Hash,
+		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
 		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
@@ -483,18 +467,22 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
 	t.Helper()
 
-	t.Logf("waiting for workspace agents (build %s)", build)
+	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
-		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
+		workspace, err := client.Workspace(context.Background(), workspaceID)
 		if !assert.NoError(t, err) {
 			return false
 		}
-		for _, resource := range resources {
+		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
+			return false
+		}
+
+		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
 					t.Logf("agent %s not connected yet", agent.Name)
@@ -502,6 +490,8 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 				}
 			}
 		}
+		resources = workspace.LatestBuild.Resources
+
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
 	return resources
@@ -521,7 +511,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 	for _, mutator := range mutators {
 		mutator(&req)
 	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, req)
+	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
 	require.NoError(t, err)
 	return workspace
 }

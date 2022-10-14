@@ -226,12 +226,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
-			OrganizationID:      job.OrganizationID,
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
 			},
-			UserID: user.ID,
 			WorkspaceID: uuid.NullUUID{
 				UUID:  workspace.ID,
 				Valid: true,
@@ -283,9 +281,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Compute parameters for the dry-run to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID:       templateVersion.JobID,
-			OrganizationID:            job.OrganizationID,
 			TemplateID:                templateVersion.TemplateID,
-			UserID:                    user.ID,
 			WorkspaceID:               uuid.NullUUID{},
 			AdditionalParameterValues: input.ParameterValues,
 		}, nil)
@@ -319,7 +315,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	}
 	switch job.StorageMethod {
 	case database.ProvisionerStorageMethodFile:
-		file, err := server.Database.GetFileByHash(ctx, job.StorageSource)
+		file, err := server.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
 		}
@@ -476,8 +472,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: job.ID,
 			TemplateID:          templateID,
-			OrganizationID:      job.OrganizationID,
-			UserID:              job.InitiatorID,
 		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("compute parameters: %w", err)
@@ -812,6 +806,14 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
+			health := database.WorkspaceAppHealthDisabled
+			if app.Healthcheck == nil {
+				app.Healthcheck = &sdkproto.Healthcheck{}
+			}
+			if app.Healthcheck.Url != "" {
+				health = database.WorkspaceAppHealthInitializing
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
@@ -826,7 +828,11 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
-				RelativePath: app.RelativePath,
+				Subdomain:            app.Subdomain,
+				HealthcheckUrl:       app.Healthcheck.Url,
+				HealthcheckInterval:  app.Healthcheck.Interval,
+				HealthcheckThreshold: app.Healthcheck.Threshold,
+				Health:               health,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

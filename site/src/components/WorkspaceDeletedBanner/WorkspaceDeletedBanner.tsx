@@ -1,53 +1,33 @@
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
-import Alert from "@material-ui/lab/Alert"
-import AlertTitle from "@material-ui/lab/AlertTitle"
 import { FC } from "react"
-import * as TypesGen from "../../api/typesGenerated"
-import { isWorkspaceDeleted } from "../../util/workspace"
-
-const Language = {
-  bannerTitle: "This workspace has been deleted and cannot be edited.",
-  createWorkspaceCta: "Create new workspace",
-}
+import * as TypesGen from "api/typesGenerated"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
+import { Maybe } from "components/Conditionals/Maybe"
 
 export interface WorkspaceDeletedBannerProps {
   workspace: TypesGen.Workspace
   handleClick: () => void
 }
 
-export const WorkspaceDeletedBanner: FC<React.PropsWithChildren<WorkspaceDeletedBannerProps>> = ({
-  workspace,
-  handleClick,
-}) => {
-  const styles = useStyles()
+export const WorkspaceDeletedBanner: FC<
+  React.PropsWithChildren<WorkspaceDeletedBannerProps>
+> = ({ workspace, handleClick }) => {
+  const { t } = useTranslation("workspacePage")
 
-  if (!isWorkspaceDeleted(workspace)) {
-    return null
-  }
+  const NewWorkspaceButton = (
+    <Button onClick={handleClick} size="small">
+      {t("ctas.createWorkspaceCta")}
+    </Button>
+  )
 
   return (
-    <Alert
-      className={styles.root}
-      action={
-        <Button color="inherit" onClick={handleClick} size="small">
-          {Language.createWorkspaceCta}
-        </Button>
-      }
-      severity="warning"
-    >
-      <AlertTitle>{Language.bannerTitle}</AlertTitle>
-    </Alert>
+    <Maybe condition={workspace.latest_build.status === "deleted"}>
+      <AlertBanner
+        text={t("warningsAndErrors.workspaceDeletedWarning")}
+        actions={[NewWorkspaceButton]}
+        severity="warning"
+      />
+    </Maybe>
   )
 }
-
-export const useStyles = makeStyles(() => {
-  return {
-    root: {
-      alignItems: "center",
-      "& .MuiAlertTitle-root": {
-        marginBottom: "0px",
-      },
-    },
-  }
-})

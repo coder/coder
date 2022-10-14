@@ -51,7 +51,7 @@ type WorkspaceOptions struct {
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (o WorkspaceOptions) asRequestOption() requestOption {
+func (o WorkspaceOptions) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		if o.IncludeDeleted {
@@ -74,7 +74,7 @@ func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace,
 	return c.getWorkspace(ctx, id, o.asRequestOption())
 }
 
-func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...RequestOption) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
@@ -90,11 +90,15 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...request
 type WorkspaceBuildsRequest struct {
 	WorkspaceID uuid.UUID
 	Pagination
+	Since time.Time
 }
 
 func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
-		nil, req.Pagination.asRequestOption())
+	res, err := c.Request(
+		ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
+		nil, req.Pagination.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -248,13 +252,19 @@ type WorkspaceFilter struct {
 	Template string `json:"template,omitempty" typescript:"-"`
 	// Name will return partial matches
 	Name string `json:"name,omitempty" typescript:"-"`
+	// Status is a workspace status, which is really the status of the latest build
+	Status string `json:"status,omitempty" typescript:"-"`
+	// Offset is the number of workspaces to skip before returning results.
+	Offset int `json:"offset,omitempty" typescript:"-"`
+	// Limit is a limit on the number of workspaces returned.
+	Limit int `json:"limit,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
-func (f WorkspaceFilter) asRequestOption() requestOption {
+func (f WorkspaceFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		var params []string
 		// Make sure all user input is quoted to ensure it's parsed as a single
@@ -267,6 +277,9 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		}
 		if f.Template != "" {
 			params = append(params, fmt.Sprintf("template:%q", f.Template))
+		}
+		if f.Status != "" {
+			params = append(params, fmt.Sprintf("status:%q", f.Status))
 		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
@@ -281,7 +294,11 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 
 // Workspaces returns all workspaces the authenticated user has access to.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+	page := Pagination{
+		Offset: filter.Offset,
+		Limit:  filter.Limit,
+	}
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption(), page.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -313,4 +330,29 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+type GetAppHostResponse struct {
+	Host string `json:"host"`
+}
+
+// GetAppHost returns the site-wide application wildcard hostname without the
+// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
+// "my-app--agent--workspace--username.apps.coder.com".
+//
+// If the app host is not set, the response will contain an empty string.
+func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
+	if err != nil {
+		return GetAppHostResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GetAppHostResponse{}, readBodyAsError(res)
+	}
+
+	var host GetAppHostResponse
+	return host, json.NewDecoder(res.Body).Decode(&host)
 }

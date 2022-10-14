@@ -24,6 +24,9 @@ func templateVersions() *cobra.Command {
 				Command:     "coder templates versions list my-template",
 			},
 		),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		templateVersionsList(),

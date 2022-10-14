@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
 )
 
@@ -120,6 +121,7 @@ const (
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
+	LoginTypeToken    LoginType = "token"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -312,6 +314,27 @@ func (e *UserStatus) Scan(src interface{}) error {
 	return nil
 }
 
+type WorkspaceAppHealth string
+
+const (
+	WorkspaceAppHealthDisabled     WorkspaceAppHealth = "disabled"
+	WorkspaceAppHealthInitializing WorkspaceAppHealth = "initializing"
+	WorkspaceAppHealthHealthy      WorkspaceAppHealth = "healthy"
+	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
+)
+
+func (e *WorkspaceAppHealth) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppHealth(s)
+	case string:
+		*e = WorkspaceAppHealth(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
+	}
+	return nil
+}
+
 type WorkspaceTransition string
 
 const (
@@ -333,7 +356,8 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 }
 
 type APIKey struct {
-	ID              string      `db:"id" json:"id"`
+	ID string `db:"id" json:"id"`
+	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
 	HashedSecret    []byte      `db:"hashed_secret" json:"hashed_secret"`
 	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
 	LastUsed        time.Time   `db:"last_used" json:"last_used"`
@@ -380,6 +404,7 @@ type File struct {
 	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -388,6 +413,17 @@ type GitSSHKey struct {
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
 	PublicKey  string    `db:"public_key" json:"public_key"`
+}
+
+type Group struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GroupMember struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
 type License struct {
@@ -466,10 +502,10 @@ type ProvisionerJob struct {
 	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource  string                   `db:"storage_source" json:"storage_source"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
+	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 }
 
 type ProvisionerJobLog struct {
@@ -501,6 +537,8 @@ type Template struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
+	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	groupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {
@@ -523,10 +561,11 @@ type User struct {
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
 	Status         UserStatus     `db:"status" json:"status"`
-	RBACRoles      []string       `db:"rbac_roles" json:"rbac_roles"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
 	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
 	Deleted        bool           `db:"deleted" json:"deleted"`
+	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
 }
 
 type UserLink struct {
@@ -575,14 +614,18 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceApp struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
-	AgentID      uuid.UUID      `db:"agent_id" json:"agent_id"`
-	Name         string         `db:"name" json:"name"`
-	Icon         string         `db:"icon" json:"icon"`
-	Command      sql.NullString `db:"command" json:"command"`
-	Url          sql.NullString `db:"url" json:"url"`
-	RelativePath bool           `db:"relative_path" json:"relative_path"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
+	Name                 string             `db:"name" json:"name"`
+	Icon                 string             `db:"icon" json:"icon"`
+	Command              sql.NullString     `db:"command" json:"command"`
+	Url                  sql.NullString     `db:"url" json:"url"`
+	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
+	HealthcheckInterval  int32              `db:"healthcheck_interval" json:"healthcheck_interval"`
+	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
+	Health               WorkspaceAppHealth `db:"health" json:"health"`
+	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 }
 
 type WorkspaceBuild struct {

@@ -77,11 +77,13 @@ export const createUserMachine = createMachine(
       createUser: (_, event) => API.createUser(event.user),
     },
     guards: {
-      hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
+      hasFieldErrors: (_, event) =>
+        isApiError(event.data) && hasApiFieldErrors(event.data),
     },
     actions: {
       assignCreateUserError: assign({
-        createUserErrorMessage: (_, event) => getErrorMessage(event.data, Language.createUserError),
+        createUserErrorMessage: (_, event) =>
+          getErrorMessage(event.data, Language.createUserError),
       }),
       assignCreateUserFormErrors: assign({
         // the guard ensures it is ApiError

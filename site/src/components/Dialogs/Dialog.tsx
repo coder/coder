@@ -1,10 +1,15 @@
-import MuiDialog, { DialogProps as MuiDialogProps } from "@material-ui/core/Dialog"
+import MuiDialog, {
+  DialogProps as MuiDialogProps,
+} from "@material-ui/core/Dialog"
 import MuiDialogTitle from "@material-ui/core/DialogTitle"
-import { darken, fade, lighten, makeStyles } from "@material-ui/core/styles"
+import { alpha, darken, lighten, makeStyles } from "@material-ui/core/styles"
 import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
-import { LoadingButton, LoadingButtonProps } from "../LoadingButton/LoadingButton"
+import {
+  LoadingButton,
+  LoadingButtonProps,
+} from "../LoadingButton/LoadingButton"
 import { ConfirmDialogType } from "./types"
 
 export interface DialogTitleProps {
@@ -19,7 +24,11 @@ export interface DialogTitleProps {
 /**
  * Override of Material UI's DialogTitle that allows for a supertitle and background icon
  */
-export const DialogTitle: React.FC<DialogTitleProps> = ({ title, icon: Icon, superTitle }) => {
+export const DialogTitle: React.FC<DialogTitleProps> = ({
+  title,
+  icon: Icon,
+  superTitle,
+}) => {
   const styles = useTitleStyles()
   return (
     <MuiDialogTitle disableTypography>
@@ -57,7 +66,7 @@ const useTitleStyles = makeStyles(
     icon: {
       height: 84,
       width: 84,
-      color: fade(theme.palette.action.disabled, 0.4),
+      color: alpha(theme.palette.action.disabled, 0.4),
     },
   }),
   { name: "CdrDialogTitle" },
@@ -155,27 +164,29 @@ const useButtonStyles = makeStyles((theme) => ({
     boxShadow: "none",
   },
   cancelButton: {
-    background: fade(theme.palette.primary.main, 0.1),
+    background: alpha(theme.palette.primary.main, 0.1),
     color: theme.palette.primary.main,
 
     "&:hover": {
-      background: fade(theme.palette.primary.main, 0.3),
+      background: alpha(theme.palette.primary.main, 0.3),
     },
   },
   confirmDialogCancelButton: (props: StyleProps) => {
     const color =
-      props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
+      props.type === "info"
+        ? theme.palette.primary.contrastText
+        : theme.palette.error.contrastText
     return {
-      background: fade(color, 0.15),
+      background: alpha(color, 0.15),
       color,
 
       "&:hover": {
-        background: fade(color, 0.3),
+        background: alpha(color, 0.3),
       },
 
       "&.Mui-disabled": {
-        background: fade(color, 0.15),
-        color: fade(color, 0.5),
+        background: alpha(color, 0.15),
+        color: alpha(color, 0.5),
       },
     }
   },
@@ -214,7 +225,7 @@ const useButtonStyles = makeStyles((theme) => ({
       },
       "&.Mui-disabled": {
         backgroundColor: theme.palette.action.disabledBackground,
-        color: fade(theme.palette.text.disabled, 0.5),
+        color: alpha(theme.palette.text.disabled, 0.5),
       },
     },
 
@@ -222,7 +233,10 @@ const useButtonStyles = makeStyles((theme) => ({
       color: theme.palette.error.main,
       borderColor: theme.palette.error.main,
       "&:hover": {
-        backgroundColor: fade(theme.palette.error.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.error.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -231,7 +245,7 @@ const useButtonStyles = makeStyles((theme) => ({
         },
       },
       "&.Mui-disabled": {
-        color: fade(theme.palette.text.disabled, 0.5),
+        color: alpha(theme.palette.text.disabled, 0.5),
         borderColor: theme.palette.action.disabled,
       },
     },
@@ -239,13 +253,16 @@ const useButtonStyles = makeStyles((theme) => ({
     "&.MuiButton-text": {
       color: theme.palette.error.main,
       "&:hover": {
-        backgroundColor: fade(theme.palette.error.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.error.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
       },
       "&.Mui-disabled": {
-        color: fade(theme.palette.text.disabled, 0.5),
+        color: alpha(theme.palette.text.disabled, 0.5),
       },
     },
   },
@@ -264,7 +281,7 @@ const useButtonStyles = makeStyles((theme) => ({
       },
       "&.Mui-disabled": {
         backgroundColor: theme.palette.action.disabledBackground,
-        color: fade(theme.palette.text.disabled, 0.5),
+        color: alpha(theme.palette.text.disabled, 0.5),
       },
     },
 
@@ -272,7 +289,10 @@ const useButtonStyles = makeStyles((theme) => ({
       color: theme.palette.success.main,
       borderColor: theme.palette.success.main,
       "&:hover": {
-        backgroundColor: fade(theme.palette.success.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.success.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
@@ -281,7 +301,7 @@ const useButtonStyles = makeStyles((theme) => ({
         },
       },
       "&.Mui-disabled": {
-        color: fade(theme.palette.text.disabled, 0.5),
+        color: alpha(theme.palette.text.disabled, 0.5),
         borderColor: theme.palette.action.disabled,
       },
     },
@@ -289,13 +309,16 @@ const useButtonStyles = makeStyles((theme) => ({
     "&.MuiButton-text": {
       color: theme.palette.success.main,
       "&:hover": {
-        backgroundColor: fade(theme.palette.success.main, theme.palette.action.hoverOpacity),
+        backgroundColor: alpha(
+          theme.palette.success.main,
+          theme.palette.action.hoverOpacity,
+        ),
         "@media (hover: none)": {
           backgroundColor: "transparent",
         },
       },
       "&.Mui-disabled": {
-        color: fade(theme.palette.text.disabled, 0.5),
+        color: alpha(theme.palette.text.disabled, 0.5),
       },
     },
   },

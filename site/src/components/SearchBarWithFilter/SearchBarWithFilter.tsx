@@ -5,7 +5,7 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import OutlinedInput from "@material-ui/core/OutlinedInput"
 import { makeStyles } from "@material-ui/core/styles"
-import { Theme } from "@material-ui/core/styles/createMuiTheme"
+import { Theme } from "@material-ui/core/styles/createTheme"
 import SearchIcon from "@material-ui/icons/Search"
 import debounce from "just-debounce-it"
 import { useCallback, useRef, useState } from "react"
@@ -30,13 +30,9 @@ export interface PresetFilter {
   query: string
 }
 
-export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWithFilterProps>> = ({
-  filter,
-  onFilter,
-  presetFilters,
-  error,
-  docs,
-}) => {
+export const SearchBarWithFilter: React.FC<
+  React.PropsWithChildren<SearchBarWithFilterProps>
+> = ({ filter, onFilter, presetFilters, error, docs }) => {
   const styles = useStyles({ error: Boolean(error) })
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -86,7 +82,8 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
             onClick={handleClick}
             className={styles.buttonRoot}
           >
-            {Language.filterName} {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
+            {Language.filterName}{" "}
+            {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
           </Button>
         )}
 
@@ -130,7 +127,10 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
             }}
           >
             {presetFilters.map((presetFilter) => (
-              <MenuItem key={presetFilter.name} onClick={setPresetFilter(presetFilter.query)}>
+              <MenuItem
+                key={presetFilter.name}
+                onClick={setPresetFilter(presetFilter.query)}
+              >
                 {presetFilter.name}
               </MenuItem>
             ))}
@@ -142,7 +142,9 @@ export const SearchBarWithFilter: React.FC<React.PropsWithChildren<SearchBarWith
           </Menu>
         ) : null}
       </Stack>
-      {errorMessage && <Stack className={styles.errorRoot}>{errorMessage}</Stack>}
+      {errorMessage && (
+        <Stack className={styles.errorRoot}>{errorMessage}</Stack>
+      )}
     </Stack>
   )
 }

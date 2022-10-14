@@ -6,6 +6,9 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueFilesHashCreatedByKey                    UniqueConstraint = "files_hash_created_by_key"                      // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
+	UniqueGroupMembersUserIDGroupIDKey             UniqueConstraint = "group_members_user_id_group_id_key"             // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
+	UniqueGroupsNameOrganizationIDKey              UniqueConstraint = "groups_name_organization_id_key"                // ALTER TABLE ONLY groups ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
 	UniqueLicensesJWTKey                           UniqueConstraint = "licenses_jwt_key"                               // ALTER TABLE ONLY licenses ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
 	UniqueParameterSchemasJobIDNameKey             UniqueConstraint = "parameter_schemas_job_id_name_key"              // ALTER TABLE ONLY parameter_schemas ADD CONSTRAINT parameter_schemas_job_id_name_key UNIQUE (job_id, name);
 	UniqueParameterValuesScopeIDNameKey            UniqueConstraint = "parameter_values_scope_id_name_key"             // ALTER TABLE ONLY parameter_values ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
@@ -20,6 +23,7 @@ const (
 	UniqueIndexUsersEmail                          UniqueConstraint = "idx_users_email"                                // CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 	UniqueIndexUsersUsername                       UniqueConstraint = "idx_users_username"                             // CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 	UniqueTemplatesOrganizationIDNameIndex         UniqueConstraint = "templates_organization_id_name_idx"             // CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
+	UniqueUsersEmailLowerIndex                     UniqueConstraint = "users_email_lower_idx"                          // CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 	UniqueUsersUsernameLowerIndex                  UniqueConstraint = "users_username_lower_idx"                       // CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 	UniqueWorkspacesOwnerIDLowerIndex              UniqueConstraint = "workspaces_owner_id_lower_idx"                  // CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 )

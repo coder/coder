@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -75,6 +76,21 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var since time.Time
+
+	sinceParam := r.URL.Query().Get("since")
+	if sinceParam != "" {
+		var err error
+		since, err = time.Parse(time.RFC3339, sinceParam)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "bad `since` format, must be RFC3339",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	var workspaceBuilds []database.WorkspaceBuild
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
@@ -97,13 +113,14 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		req := database.GetWorkspaceBuildByWorkspaceIDParams{
+		req := database.GetWorkspaceBuildsByWorkspaceIDParams{
 			WorkspaceID: workspace.ID,
 			AfterID:     paginationParams.AfterID,
 			OffsetOpt:   int32(paginationParams.Offset),
 			LimitOpt:    int32(paginationParams.Limit),
+			Since:       database.Time(since),
 		}
-		workspaceBuilds, err = store.GetWorkspaceBuildByWorkspaceID(ctx, req)
+		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
@@ -441,7 +458,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {
@@ -475,11 +492,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{
-			workspace.OwnerID,
-			workspaceBuild.InitiatorID,
-		},
+	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{
+		workspace.OwnerID,
+		workspaceBuild.InitiatorID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -551,6 +566,11 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		CanceledAt: sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
+		},
+		CompletedAt: sql.NullTime{
+			Time: database.Now(),
+			// If the job is running, don't mark it completed!
+			Valid: !job.WorkerID.Valid,
 		},
 	})
 	if err != nil {
@@ -657,9 +677,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, workspace := range workspaces {
 		userIDs = append(userIDs, workspace.OwnerID)
 	}
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: userIDs,
-	})
+	users, err := api.Database.GetUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
 	}
@@ -835,7 +853,8 @@ func (api *API) convertWorkspaceBuild(
 		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
-
+	apiJob := convertProvisionerJob(job)
+	transition := codersdk.WorkspaceTransition(build.Transition)
 	return codersdk.WorkspaceBuild{
 		ID:                 build.ID,
 		CreatedAt:          build.CreatedAt,
@@ -846,13 +865,14 @@ func (api *API) convertWorkspaceBuild(
 		WorkspaceName:      workspace.Name,
 		TemplateVersionID:  build.TemplateVersionID,
 		BuildNumber:        build.BuildNumber,
-		Transition:         codersdk.WorkspaceTransition(build.Transition),
+		Transition:         transition,
 		InitiatorID:        build.InitiatorID,
 		InitiatorUsername:  initiator.Username,
-		Job:                convertProvisionerJob(job),
+		Job:                apiJob,
 		Deadline:           codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
 		Reason:             codersdk.BuildReason(build.Reason),
 		Resources:          apiResources,
+		Status:             convertWorkspaceStatus(apiJob.Status, transition),
 	}, nil
 }
 
@@ -897,4 +917,38 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Agents:     agents,
 		Metadata:   convertedMetadata,
 	}
+}
+
+func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition codersdk.WorkspaceTransition) codersdk.WorkspaceStatus {
+	switch jobStatus {
+	case codersdk.ProvisionerJobPending:
+		return codersdk.WorkspaceStatusPending
+	case codersdk.ProvisionerJobRunning:
+		switch transition {
+		case codersdk.WorkspaceTransitionStart:
+			return codersdk.WorkspaceStatusStarting
+		case codersdk.WorkspaceTransitionStop:
+			return codersdk.WorkspaceStatusStopping
+		case codersdk.WorkspaceTransitionDelete:
+			return codersdk.WorkspaceStatusDeleting
+		}
+	case codersdk.ProvisionerJobSucceeded:
+		switch transition {
+		case codersdk.WorkspaceTransitionStart:
+			return codersdk.WorkspaceStatusRunning
+		case codersdk.WorkspaceTransitionStop:
+			return codersdk.WorkspaceStatusStopped
+		case codersdk.WorkspaceTransitionDelete:
+			return codersdk.WorkspaceStatusDeleted
+		}
+	case codersdk.ProvisionerJobCanceling:
+		return codersdk.WorkspaceStatusCanceling
+	case codersdk.ProvisionerJobCanceled:
+		return codersdk.WorkspaceStatusCanceled
+	case codersdk.ProvisionerJobFailed:
+		return codersdk.WorkspaceStatusFailed
+	}
+
+	// return error status since we should never get here
+	return codersdk.WorkspaceStatusFailed
 }

@@ -34,6 +34,22 @@ func TestTemplateVersion(t *testing.T) {
 		_, err := client.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
 	})
+
+	t.Run("MemberCanRead", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, _ := testutil.Context(t)
+
+		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+
+		_, err := client1.TemplateVersion(ctx, version.ID)
+		require.NoError(t, err)
+	})
 }
 
 func TestPostTemplateVersionsByOrganization(t *testing.T) {
@@ -50,7 +66,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		_, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			TemplateID:    templateID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: "hash",
+			FileID:        uuid.New(),
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
@@ -68,7 +84,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		_, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: "hash",
+			FileID:        uuid.New(),
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		var apiErr *codersdk.Error
@@ -93,9 +109,10 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "bananas",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 			ParameterValues: []codersdk.CreateParameterRequest{{
 				Name:              "example",
@@ -105,6 +122,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
+		require.Equal(t, "bananas", version.Name)
 
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
@@ -447,8 +465,9 @@ func TestTemplateVersionLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
+	logs, closer, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
+	defer closer.Close()
 	for {
 		_, ok := <-logs
 		if !ok {
@@ -618,8 +637,9 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
-		logs, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
+		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
 		require.NoError(t, err)
+		defer closer.Close()
 
 		logsDone := make(chan struct{})
 		go func() {
@@ -711,29 +731,12 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				ParameterValues: []codersdk.CreateParameterRequest{},
 			})
 			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
-				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobPending
-			}, testutil.WaitShort, testutil.IntervalFast)
-
+			require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			require.NoError(t, err)
-
-			require.Eventually(t, func() bool {
-				job, err := client.TemplateVersionDryRun(ctx, version.ID, job.ID)
-				if !assert.NoError(t, err) {
-					return false
-				}
-
-				t.Logf("Status: %s", job.Status)
-				return job.Status == codersdk.ProvisionerJobCanceling
-			}, testutil.WaitShort, testutil.IntervalFast)
+			job, err = client.TemplateVersionDryRun(ctx, version.ID, job.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.ProvisionerJobCanceled, job.Status)
 		})
 
 		t.Run("AlreadyCompleted", func(t *testing.T) {
@@ -839,7 +842,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				TemplateID:    template.ID,
-				StorageSource: file.Hash,
+				FileID:        file.ID,
 				StorageMethod: codersdk.ProvisionerStorageMethodFile,
 				Provisioner:   codersdk.ProvisionerTypeEcho,
 			})

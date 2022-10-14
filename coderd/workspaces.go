@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
@@ -96,8 +98,13 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	page, ok := parsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr)
+	filter, errs := workspaceSearchQuery(queryStr, page)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -111,17 +118,16 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, filter)
+	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
+			Message: "Internal error preparing sql filter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Only return workspaces the user can read
-	workspaces, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, workspaces)
+	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -222,6 +228,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		organization      = httpmw.OrganizationParam(r)
 		apiKey            = httpmw.APIKey(r)
 		auditor           = api.Auditor.Load()
+		user              = httpmw.UserParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -232,7 +239,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	defer commitAudit()
 
 	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(user.ID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -292,7 +299,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: apiKey.UserID,
+		OwnerID: user.ID,
 		Name:    createWorkspace.Name,
 	})
 	if err == nil {
@@ -310,6 +317,25 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	workspaceCount, err := api.Database.GetWorkspaceCountByUserID(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace count.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// make sure the user has not hit their quota limit
+	e := *api.WorkspaceQuotaEnforcer.Load()
+	canCreate := e.CanCreateWorkspace(int(workspaceCount))
+	if !canCreate {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("User workspace limit of %d is already reached.", e.UserWorkspaceLimit()),
 		})
 		return
 	}
@@ -349,8 +375,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var provisionerJob database.ProvisionerJob
-	var workspaceBuild database.WorkspaceBuild
+	var (
+		provisionerJob database.ProvisionerJob
+		workspaceBuild database.WorkspaceBuild
+	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
 		workspaceBuildID := uuid.New()
@@ -359,7 +387,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           apiKey.UserID,
+			OwnerID:           user.ID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              createWorkspace.Name,
@@ -407,7 +435,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {
@@ -440,9 +468,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{apiKey.UserID, workspaceBuild.InitiatorID},
-	})
+	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{user.ID, workspaceBuild.InitiatorID})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -478,7 +504,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		findUser(apiKey.UserID, users),
+		findUser(user.ID, users),
 	))
 }
 
@@ -635,6 +661,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
+	aReq.Old = workspace
 
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
@@ -796,6 +823,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Ignore all trace spans after this, they're not too useful.
+	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
 	t := time.NewTicker(time.Second * 1)
 	defer t.Stop()
@@ -1047,11 +1077,15 @@ func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+	filter := database.GetWorkspacesParams{
+		Offset: int32(page.Offset),
+		Limit:  int32(page.Limit),
+	}
 	searchParams := make(url.Values)
 	if query == "" {
 		// No filter
-		return database.GetWorkspacesParams{}, nil
+		return filter, nil
 	}
 	query = strings.ToLower(query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
@@ -1087,12 +1121,10 @@ func workspaceSearchQuery(query string) (database.GetWorkspacesParams, []codersd
 	// Using the query param parser here just returns consistent errors with
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
-	filter := database.GetWorkspacesParams{
-		Deleted:       false,
-		OwnerUsername: parser.String(searchParams, "", "owner"),
-		TemplateName:  parser.String(searchParams, "", "template"),
-		Name:          parser.String(searchParams, "", "name"),
-	}
+	filter.OwnerUsername = parser.String(searchParams, "", "owner")
+	filter.TemplateName = parser.String(searchParams, "", "template")
+	filter.Name = parser.String(searchParams, "", "name")
+	filter.Status = parser.String(searchParams, "", "status")
 
 	return filter, parser.Errors
 }

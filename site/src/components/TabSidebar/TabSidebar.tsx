@@ -16,7 +16,9 @@ export interface TabSidebarProps {
   menuItems: TabSidebarItem[]
 }
 
-export const TabSidebar: FC<React.PropsWithChildren<TabSidebarProps>> = ({ menuItems }) => {
+export const TabSidebar: FC<React.PropsWithChildren<TabSidebarProps>> = ({
+  menuItems,
+}) => {
   const styles = useStyles()
 
   return (
@@ -32,7 +34,12 @@ export const TabSidebar: FC<React.PropsWithChildren<TabSidebarProps>> = ({ menuI
                 focusRipple={false}
                 component="li"
               >
-                <span className={combineClasses({ [styles.menuItemSpan]: true, active: isActive })}>
+                <span
+                  className={combineClasses({
+                    [styles.menuItemSpan]: true,
+                    active: isActive,
+                  })}
+                >
                   {hasChanges ? `${tab.label}*` : tab.label}
                 </span>
               </ListItem>

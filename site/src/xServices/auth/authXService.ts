@@ -16,6 +16,7 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
+  createGroup: "createGroup",
 } as const
 
 export const permissionsToCheck = {
@@ -55,9 +56,15 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
+  [checks.createGroup]: {
+    object: {
+      resource_type: "group",
+    },
+    action: "create",
+  },
 } as const
 
-type Permissions = Record<keyof typeof permissionsToCheck, boolean>
+export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
   getUserError?: Error | unknown
@@ -115,7 +122,7 @@ export const authMachine =
             data: undefined
           }
           checkPermissions: {
-            data: TypesGen.UserAuthorizationResponse
+            data: TypesGen.AuthorizationResponse
           }
           getSSHKey: {
             data: TypesGen.GitSSHKey
@@ -315,7 +322,10 @@ export const authMachine =
                         src: "regenerateSSHKey",
                         onDone: [
                           {
-                            actions: ["assignSSHKey", "notifySuccessSSHKeyRegenerated"],
+                            actions: [
+                              "assignSSHKey",
+                              "notifySuccessSSHKeyRegenerated",
+                            ],
                             target: "idle",
                           },
                         ],
@@ -469,12 +479,8 @@ export const authMachine =
 
           return API.updateUserPassword(context.me.id, event.data)
         },
-        checkPermissions: async (context) => {
-          if (!context.me) {
-            throw new Error("No current user found")
-          }
-
-          return API.checkUserPermissions(context.me.id, {
+        checkPermissions: async () => {
+          return API.checkAuthorization({
             checks: permissionsToCheck,
           })
         },

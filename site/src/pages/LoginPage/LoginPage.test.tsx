@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { Route, Routes } from "react-router-dom"
 import { Language } from "../../components/SignInForm/SignInForm"
-import { history, render, waitForLoaderToBeRemoved } from "../../testHelpers/renderHelpers"
+import {
+  history,
+  render,
+  waitForLoaderToBeRemoved,
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
 
@@ -31,7 +35,10 @@ describe("LoginPage", () => {
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: Language.errorMessages.authError }))
+        return res(
+          ctx.status(500),
+          ctx.json({ message: Language.errorMessages.authError }),
+        )
       }),
     )
 
@@ -47,7 +54,9 @@ describe("LoginPage", () => {
     fireEvent.click(signInButton)
 
     // Then
-    const errorMessage = await screen.findByText(Language.errorMessages.authError)
+    const errorMessage = await screen.findByText(
+      Language.errorMessages.authError,
+    )
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })

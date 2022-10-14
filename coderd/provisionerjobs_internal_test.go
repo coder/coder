@@ -108,8 +108,9 @@ func TestProvisionerJobLogs_Unit(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, buildID, time.Now())
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, buildID, time.Now())
 		require.NoError(t, err)
+		defer closer.Close()
 
 		// when the endpoint calls subscribe, we get the listener here.
 		fPubsub.cond.L.Lock()
@@ -184,7 +185,8 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: invalidNullTimeMock,
 			},
 			expected: codersdk.ProvisionerJob{
-				Status: codersdk.ProvisionerJobCanceling,
+				CanceledAt: &validNullTimeMock.Time,
+				Status:     codersdk.ProvisionerJobCanceling,
 			},
 		},
 		{
@@ -195,6 +197,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				Error:       errorMock,
 			},
 			expected: codersdk.ProvisionerJob{
+				CanceledAt:  &validNullTimeMock.Time,
 				CompletedAt: &validNullTimeMock.Time,
 				Status:      codersdk.ProvisionerJobFailed,
 				Error:       errorMock.String,
@@ -207,6 +210,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: validNullTimeMock,
 			},
 			expected: codersdk.ProvisionerJob{
+				CanceledAt:  &validNullTimeMock.Time,
 				CompletedAt: &validNullTimeMock.Time,
 				Status:      codersdk.ProvisionerJobCanceled,
 			},

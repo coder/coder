@@ -38,14 +38,22 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
       {link ? (
         <Link to={link} underline="none" component={RouterLink}>
           <TableCellData>
-            <TableCellDataPrimary highlight={highlightTitle}>{title}</TableCellDataPrimary>
-            {subtitle && <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>}
+            <TableCellDataPrimary highlight={highlightTitle}>
+              {title}
+            </TableCellDataPrimary>
+            {subtitle && (
+              <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
+            )}
           </TableCellData>
         </Link>
       ) : (
         <TableCellData>
-          <TableCellDataPrimary highlight={highlightTitle}>{title}</TableCellDataPrimary>
-          {subtitle && <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>}
+          <TableCellDataPrimary highlight={highlightTitle}>
+            {title}
+          </TableCellDataPrimary>
+          {subtitle && (
+            <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
+          )}
         </TableCellData>
       )}
     </div>

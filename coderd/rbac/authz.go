@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	_ "embed"
+	"sync"
 
 	"github.com/open-policy-agent/opa/rego"
 	"go.opentelemetry.io/otel/attribute"
@@ -13,18 +14,19 @@ import (
 )
 
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error)
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error
+	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
+	Compile() (AuthorizeFilter, error)
 }
 
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, groups []string, action Action, objects []O) ([]O, error) {
 	ctx, span := tracing.StartSpan(ctx, trace.WithAttributes(
 		attribute.String("subject_id", subjID),
 		attribute.StringSlice("subject_roles", subjRoles),
@@ -37,9 +39,27 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 		return objects, nil
 	}
 	objectType := objects[0].RBACObject().Type
-
 	filtered := make([]O, 0)
-	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, action, objectType)
+
+	// Running benchmarks on this function, it is **always** faster to call
+	// auth.ByRoleName on <10 objects. This is because the overhead of
+	// 'PrepareByRoleName'. Once we cross 10 objects, then it starts to become
+	// faster
+	if len(objects) < 10 {
+		for _, o := range objects {
+			rbacObj := o.RBACObject()
+			if rbacObj.Type != objectType {
+				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
+			}
+			err := auth.ByRoleName(ctx, subjID, subjRoles, scope, groups, action, o.RBACObject())
+			if err == nil {
+				filtered = append(filtered, o)
+			}
+		}
+		return filtered, nil
+	}
+
+	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}
@@ -65,56 +85,53 @@ type RegoAuthorizer struct {
 
 var _ Authorizer = (*RegoAuthorizer)(nil)
 
-// Load the policy from policy.rego in this directory.
-//
-//go:embed policy.rego
-var policy string
+var (
+	// Load the policy from policy.rego in this directory.
+	//
+	//go:embed policy.rego
+	policy    string
+	queryOnce sync.Once
+	query     rego.PreparedEvalQuery
+)
 
-func NewAuthorizer() (*RegoAuthorizer, error) {
-	ctx := context.Background()
-	query, err := rego.New(
-		// allowed is the `allow` field from the prepared query. This is the field to check if authorization is
-		// granted.
-		rego.Query("data.authz.allow"),
-		rego.Module("policy.rego", policy),
-	).PrepareForEval(ctx)
-
-	if err != nil {
-		return nil, xerrors.Errorf("prepare query: %w", err)
-	}
-	return &RegoAuthorizer{query: query}, nil
+func NewAuthorizer() *RegoAuthorizer {
+	queryOnce.Do(func() {
+		var err error
+		query, err = rego.New(
+			rego.Query("data.authz.allow"),
+			rego.Module("policy.rego", policy),
+		).PrepareForEval(context.Background())
+		if err != nil {
+			panic(xerrors.Errorf("compile rego: %w", err))
+		}
+	})
+	return &RegoAuthorizer{query: query}
 }
 
 type authSubject struct {
-	ID    string `json:"id"`
-	Roles []Role `json:"roles"`
+	ID     string   `json:"id"`
+	Roles  []Role   `json:"roles"`
+	Groups []string `json:"groups"`
+	Scope  Role     `json:"scope"`
 }
 
 // ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error {
 	roles, err := RolesByNames(roleNames)
 	if err != nil {
 		return err
 	}
 
-	err = a.Authorize(ctx, subjectID, roles, action, object)
+	scopeRole, err := ScopeRole(scope)
 	if err != nil {
 		return err
 	}
 
-	// If the scope isn't "any", we need to check with the scope's role as well.
-	if scope != ScopeAll {
-		scopeRole, err := ScopeRole(scope)
-		if err != nil {
-			return err
-		}
-
-		err = a.Authorize(ctx, subjectID, []Role{scopeRole}, action, object)
-		if err != nil {
-			return err
-		}
+	err = a.Authorize(ctx, subjectID, roles, scopeRole, groups, action, object)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -122,14 +139,16 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 
 // Authorize allows passing in custom Roles.
 // This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, object Object) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:    subjectID,
-			Roles: roles,
+			ID:     subjectID,
+			Roles:  roles,
+			Groups: groups,
+			Scope:  scope,
 		},
 		"object": object,
 		"action": action,
@@ -143,17 +162,16 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 	if !results.Allowed() {
 		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
 	}
-
 	return nil
 }
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Scope, action Action, objectType string) (*PartialAuthorizer, error) {
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, action, objectType)
+	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
@@ -161,7 +179,7 @@ func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Rol
 	return auth, nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -170,5 +188,10 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		return nil, err
 	}
 
-	return a.Prepare(ctx, subjectID, roles, scope, action, objectType)
+	scopeRole, err := ScopeRole(scope)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Prepare(ctx, subjectID, roles, scopeRole, groups, action, objectType)
 }

@@ -65,6 +65,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 	var selectedMembership *github.Membership
 	for _, membership := range memberships {
+		if membership.GetState() != "active" {
+			continue
+		}
 		for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
 			if *membership.Organization.Login != allowed {
 				continue
@@ -162,7 +165,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.setAuthCookie(rw, cookie)
+	http.SetCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -258,7 +261,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		username = httpapi.UsernameFrom(username)
 	}
 	if api.OIDCConfig.EmailDomain != "" {
-		if !strings.HasSuffix(email, api.OIDCConfig.EmailDomain) {
+		if !strings.HasSuffix(strings.ToLower(email), strings.ToLower(api.OIDCConfig.EmailDomain)) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", email, api.OIDCConfig.EmailDomain),
 			})
@@ -296,7 +299,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.setAuthCookie(rw, cookie)
+	http.SetCookie(rw, cookie)
 
 	redirect := state.Redirect
 	if redirect == "" {

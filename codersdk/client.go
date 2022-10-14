@@ -16,7 +16,7 @@ import (
 
 // These cookies are Coder-specific. If a new one is added or changed, the name
 // shouldn't be likely to conflict with any user-application set cookies.
-// Be sure to strip additional cookies in httpapi.StripCoder Cookies!
+// Be sure to strip additional cookies in httpapi.StripCoderCookies!
 const (
 	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
 	SessionTokenKey = "coder_session_token"
@@ -42,11 +42,22 @@ type Client struct {
 	URL          *url.URL
 }
 
-type requestOption func(*http.Request)
+type RequestOption func(*http.Request)
+
+func WithQueryParam(key, value string) RequestOption {
+	return func(r *http.Request) {
+		if value == "" {
+			return
+		}
+		q := r.URL.Query()
+		q.Add(key, value)
+		r.URL.RawQuery = q.Encode()
+	}
+}
 
 // Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
-func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
+func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -72,13 +83,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 	req.Header.Set(SessionCustomHeader, c.SessionToken)
-
-	// Delete this custom cookie set in November 2022. This is just to remain
-	// backwards compatible with older versions of Coder.
-	req.AddCookie(&http.Cookie{
-		Name:  "session_token",
-		Value: c.SessionToken,
-	})
 
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

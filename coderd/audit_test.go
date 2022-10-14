@@ -112,9 +112,25 @@ func TestAuditLogsFilter(t *testing.T) {
 				SearchQuery:    "resource_id:" + userResourceID.String(),
 				ExpectedResult: 2,
 			},
+			{
+				Name:           "FilterInvalidSingleValue",
+				SearchQuery:    "invalid",
+				ExpectedResult: 3,
+			},
+			{
+				Name:           "FilterWithInvalidResourceType",
+				SearchQuery:    "resource_type:invalid",
+				ExpectedResult: 3,
+			},
+			{
+				Name:           "FilterWithInvalidAction",
+				SearchQuery:    "action:invalid",
+				ExpectedResult: 3,
+			},
 		}
 
 		for _, testCase := range testCases {
+			testCase := testCase
 			// Test filtering
 			t.Run(testCase.Name, func(t *testing.T) {
 				t.Parallel()

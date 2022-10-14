@@ -1,5 +1,5 @@
 import { useMachine } from "@xstate/react"
-import { FC, useEffect } from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
 import { workspaceFilterQuery } from "util/filters"
@@ -9,24 +9,14 @@ import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const filter = searchParams.get("filter")
-  const defaultFilter = filter ?? workspaceFilterQuery.me
+  const filter = searchParams.get("filter") ?? workspaceFilterQuery.me
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
-      filter: defaultFilter,
+      filter,
     },
   })
 
   const { workspaceRefs } = workspacesState.context
-
-  // On page load, populate the table with workspaces
-  useEffect(() => {
-    send({
-      type: "GET_WORKSPACES",
-      query: defaultFilter,
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   return (
     <>

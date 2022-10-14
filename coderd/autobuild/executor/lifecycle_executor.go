@@ -276,7 +276,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		Provisioner:    template.Provisioner,
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		StorageMethod:  priorJob.StorageMethod,
-		StorageSource:  priorJob.StorageSource,
+		FileID:         priorJob.FileID,
 		Input:          input,
 	})
 	if err != nil {
