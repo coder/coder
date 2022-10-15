@@ -16,5 +16,5 @@ export const formatTemplateActiveDevelopers = (num?: number): string => {
 export const formatTemplateBuildTime = (buildTimeMs: number): string => {
   return buildTimeMs < 0
     ? "Unknown"
-    : dayjs.duration(buildTimeMs, "milliseconds").humanize()
+    : `${Math.round(dayjs.duration(buildTimeMs, "milliseconds").asSeconds())}s`
 }

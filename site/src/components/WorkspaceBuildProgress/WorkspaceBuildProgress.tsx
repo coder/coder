@@ -18,18 +18,17 @@ const estimateFinish = (
   templateAverage *= 1.2
 
   const realPercentage = dayjs().diff(startedAt) / templateAverage
-  // Showing a full bar is frustrating.
-  const displayPercentage = Math.min(realPercentage, 0.95)
 
-  if (realPercentage > 1) {
-    return [displayPercentage, "Any moment now..."]
+  // Showing a full bar is frustrating.
+  if (realPercentage > 0.95) {
+    return [0.95, "Any moment now..."]
   }
 
   return [
-    displayPercentage,
-    `${dayjs
-      .duration((1 - realPercentage) * templateAverage)
-      .humanize()} remaining...`,
+    realPercentage,
+    `~${Math.ceil(
+      dayjs.duration((1 - realPercentage) * templateAverage).asSeconds(),
+    )} seconds remaining...`,
   ]
 }
 
