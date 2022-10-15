@@ -2,6 +2,8 @@ package replicasync_test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -105,6 +107,48 @@ func TestReplica(t *testing.T) {
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
 			ID:           uuid.New(),
 			RelayAddress: "http://169.254.169.254",
+		})
+		require.NoError(t, err)
+		require.Len(t, server.Regional(), 1)
+		require.Equal(t, peer.ID, server.Regional()[0].ID)
+		require.False(t, server.Self().Error.Valid)
+		_ = server.Close()
+	})
+	t.Run("ConnectsToPeerReplicaTLS", func(t *testing.T) {
+		// Ensures that the replica reports a successful status for
+		// accessing all of its peers.
+		t.Parallel()
+		rawCert := testutil.GenerateTLSCertificate(t, "hello.org")
+		certificate, err := x509.ParseCertificate(rawCert.Certificate[0])
+		require.NoError(t, err)
+		pool := x509.NewCertPool()
+		pool.AddCert(certificate)
+		// nolint:gosec
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{rawCert},
+			ServerName:   "hello.org",
+			RootCAs:      pool,
+		}
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		srv.TLS = tlsConfig
+		srv.StartTLS()
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
+			ID:           uuid.New(),
+			CreatedAt:    database.Now(),
+			StartedAt:    database.Now(),
+			UpdatedAt:    database.Now(),
+			Hostname:     "something",
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
+			ID:           uuid.New(),
+			RelayAddress: "http://169.254.169.254",
+			TLSConfig:    tlsConfig,
 		})
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)

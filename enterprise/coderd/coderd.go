@@ -146,8 +146,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	// internal IP addresses, and if TLS is configured we use the same
 	// certificates.
 	meshTLSConfig := &tls.Config{
-		ServerName: options.AccessURL.Hostname(),
-		RootCAs:    meshRootCA,
+		Certificates: options.TLSCertificates,
+		RootCAs:      meshRootCA,
+		ServerName:   options.AccessURL.Hostname(),
 	}
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
