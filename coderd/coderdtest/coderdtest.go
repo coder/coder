@@ -163,6 +163,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 	if options.TLSCertificates != nil {
 		srv.TLS = &tls.Config{
 			Certificates: options.TLSCertificates,
+			MinVersion:   tls.VersionTLS12,
 		}
 		srv.StartTLS()
 	} else {

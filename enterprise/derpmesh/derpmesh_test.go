@@ -36,6 +36,7 @@ func TestDERPMesh(t *testing.T) {
 	pool := x509.NewCertPool()
 	pool.AddCert(certificate)
 	tlsConfig := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
 		ServerName:   commonName,
 		RootCAs:      pool,
 		Certificates: []tls.Certificate{rawCert},

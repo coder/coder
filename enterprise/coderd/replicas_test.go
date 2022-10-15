@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -80,7 +79,7 @@ func TestReplicas(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalSlow)
 			defer cancelFunc()
 			_, err = conn.Ping(ctx)
 			return err == nil
