@@ -79,7 +79,7 @@ func TestReplicas(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalSlow)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancelFunc()
 			_, err = conn.Ping(ctx)
 			return err == nil
@@ -122,7 +122,7 @@ func TestReplicas(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalMedium)
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalSlow)
 			defer cancelFunc()
 			_, err = conn.Ping(ctx)
 			return err == nil
