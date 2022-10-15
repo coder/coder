@@ -219,6 +219,13 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 	m.mutex.Unlock()
 
+	client := http.Client{
+		Timeout: m.options.PeerTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: m.options.TLSConfig,
+		},
+	}
+	defer client.CloseIdleConnections()
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	failed := make([]string, 0)
@@ -231,12 +238,6 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 				m.logger.Error(ctx, "create http request for relay probe",
 					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
 				return
-			}
-			client := http.Client{
-				Timeout: m.options.PeerTimeout,
-				Transport: &http.Transport{
-					TLSClientConfig: m.options.TLSConfig,
-				},
 			}
 			res, err := client.Do(req)
 			if err != nil {
