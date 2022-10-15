@@ -310,7 +310,6 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 		c.mutex.Unlock()
 		return nil
 	}
-	c.mutex.Unlock()
 	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
 		return xerrors.Errorf("marshal nodes: %w", err)
@@ -328,6 +327,7 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 		}()
 	}
 
+	c.mutex.Unlock()
 	wg.Wait()
 	return nil
 }
