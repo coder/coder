@@ -13,9 +13,9 @@ INSERT INTO replicas (
     hostname,
     region_id,
     relay_address,
-    version
-
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+    version,
+    database_latency
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: UpdateReplica :one
 UPDATE replicas SET
@@ -26,7 +26,8 @@ UPDATE replicas SET
     region_id = $6,
     hostname = $7,
     version = $8,
-    error = $9
+    error = $9,
+    database_latency = $10
 WHERE id = $1 RETURNING *;
 
 -- name: DeleteReplicasUpdatedBefore :exec

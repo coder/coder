@@ -48,6 +48,10 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("get hostname: %w", err)
 	}
+	databaseLatency, err := db.Ping(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("ping database: %w", err)
+	}
 	var replica database.Replica
 	_, err = db.GetReplicaByID(ctx, options.ID)
 	if err != nil {
@@ -55,29 +59,31 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 			return nil, xerrors.Errorf("get replica: %w", err)
 		}
 		replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
-			ID:           options.ID,
-			CreatedAt:    database.Now(),
-			StartedAt:    database.Now(),
-			UpdatedAt:    database.Now(),
-			Hostname:     hostname,
-			RegionID:     options.RegionID,
-			RelayAddress: options.RelayAddress,
-			Version:      buildinfo.Version(),
+			ID:              options.ID,
+			CreatedAt:       database.Now(),
+			StartedAt:       database.Now(),
+			UpdatedAt:       database.Now(),
+			Hostname:        hostname,
+			RegionID:        options.RegionID,
+			RelayAddress:    options.RelayAddress,
+			Version:         buildinfo.Version(),
+			DatabaseLatency: int32(databaseLatency.Microseconds()),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("insert replica: %w", err)
 		}
 	} else {
 		replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
-			ID:           options.ID,
-			UpdatedAt:    database.Now(),
-			StartedAt:    database.Now(),
-			StoppedAt:    sql.NullTime{},
-			RelayAddress: options.RelayAddress,
-			RegionID:     options.RegionID,
-			Hostname:     hostname,
-			Version:      buildinfo.Version(),
-			Error:        sql.NullString{},
+			ID:              options.ID,
+			UpdatedAt:       database.Now(),
+			StartedAt:       database.Now(),
+			StoppedAt:       sql.NullTime{},
+			RelayAddress:    options.RelayAddress,
+			RegionID:        options.RegionID,
+			Hostname:        hostname,
+			Version:         buildinfo.Version(),
+			Error:           sql.NullString{},
+			DatabaseLatency: int32(databaseLatency.Microseconds()),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update replica: %w", err)
@@ -268,16 +274,22 @@ func (m *Manager) run(ctx context.Context) error {
 		}
 	}
 
+	databaseLatency, err := m.db.Ping(ctx)
+	if err != nil {
+		return xerrors.Errorf("ping database: %w", err)
+	}
+
 	replica, err := m.db.UpdateReplica(ctx, database.UpdateReplicaParams{
-		ID:           m.self.ID,
-		UpdatedAt:    database.Now(),
-		StartedAt:    m.self.StartedAt,
-		StoppedAt:    m.self.StoppedAt,
-		RelayAddress: m.self.RelayAddress,
-		RegionID:     m.self.RegionID,
-		Hostname:     m.self.Hostname,
-		Version:      m.self.Version,
-		Error:        replicaError,
+		ID:              m.self.ID,
+		UpdatedAt:       database.Now(),
+		StartedAt:       m.self.StartedAt,
+		StoppedAt:       m.self.StoppedAt,
+		RelayAddress:    m.self.RelayAddress,
+		RegionID:        m.self.RegionID,
+		Hostname:        m.self.Hostname,
+		Version:         m.self.Version,
+		Error:           replicaError,
+		DatabaseLatency: int32(databaseLatency.Microseconds()),
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)

@@ -338,6 +338,7 @@ export interface DurationFlag {
 export interface Entitlements {
   readonly features: Record<string, Feature>
   readonly warnings: string[]
+  readonly errors: string[]
   readonly has_license: boolean
   readonly experimental: boolean
   readonly trial: boolean

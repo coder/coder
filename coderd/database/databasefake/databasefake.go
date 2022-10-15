@@ -113,6 +113,10 @@ type data struct {
 	lastLicenseID int32
 }
 
+func (q *fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
+	return 0, nil
+}
+
 // InTx doesn't rollback data properly for in-memory yet.
 func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	q.mutex.Lock()
@@ -3170,14 +3174,15 @@ func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	defer q.mutex.Unlock()
 
 	replica := database.Replica{
-		ID:           arg.ID,
-		CreatedAt:    arg.CreatedAt,
-		StartedAt:    arg.StartedAt,
-		UpdatedAt:    arg.UpdatedAt,
-		Hostname:     arg.Hostname,
-		RegionID:     arg.RegionID,
-		RelayAddress: arg.RelayAddress,
-		Version:      arg.Version,
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		StartedAt:       arg.StartedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		Hostname:        arg.Hostname,
+		RegionID:        arg.RegionID,
+		RelayAddress:    arg.RelayAddress,
+		Version:         arg.Version,
+		DatabaseLatency: arg.DatabaseLatency,
 	}
 	q.replicas = append(q.replicas, replica)
 	return replica, nil
@@ -3199,6 +3204,7 @@ func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 		replica.RegionID = arg.RegionID
 		replica.Version = arg.Version
 		replica.Error = arg.Error
+		replica.DatabaseLatency = arg.DatabaseLatency
 		q.replicas[index] = replica
 		return replica, nil
 	}

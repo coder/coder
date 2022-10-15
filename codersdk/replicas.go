@@ -23,6 +23,8 @@ type Replica struct {
 	RegionID int32 `json:"region_id"`
 	// Error is the error.
 	Error string `json:"error"`
+	// DatabaseLatency is the latency in microseconds to the database.
+	DatabaseLatency int32 `json:"database_latency"`
 }
 
 // Replicas fetches the list of replicas.

@@ -293,6 +293,7 @@ CREATE TABLE replicas (
     hostname text NOT NULL,
     region_id integer NOT NULL,
     relay_address text NOT NULL,
+    database_latency integer NOT NULL,
     version text NOT NULL,
     error text
 );

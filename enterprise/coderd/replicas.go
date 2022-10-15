@@ -26,11 +26,12 @@ func (api *API) replicas(rw http.ResponseWriter, r *http.Request) {
 
 func convertReplica(replica database.Replica) codersdk.Replica {
 	return codersdk.Replica{
-		ID:           replica.ID,
-		Hostname:     replica.Hostname,
-		CreatedAt:    replica.CreatedAt,
-		RelayAddress: replica.RelayAddress,
-		RegionID:     replica.RegionID,
-		Error:        replica.Error.String,
+		ID:              replica.ID,
+		Hostname:        replica.Hostname,
+		CreatedAt:       replica.CreatedAt,
+		RelayAddress:    replica.RelayAddress,
+		RegionID:        replica.RegionID,
+		Error:           replica.Error.String,
+		DatabaseLatency: replica.DatabaseLatency,
 	}
 }

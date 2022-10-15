@@ -2580,7 +2580,7 @@ func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt 
 }
 
 const getReplicaByID = `-- name: GetReplicaByID :one
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error FROM replicas WHERE id = $1
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE id = $1
 `
 
 func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
@@ -2595,6 +2595,7 @@ func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica,
 		&i.Hostname,
 		&i.RegionID,
 		&i.RelayAddress,
+		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
 	)
@@ -2602,7 +2603,7 @@ func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica,
 }
 
 const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
 `
 
 func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
@@ -2623,6 +2624,7 @@ func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time
 			&i.Hostname,
 			&i.RegionID,
 			&i.RelayAddress,
+			&i.DatabaseLatency,
 			&i.Version,
 			&i.Error,
 		); err != nil {
@@ -2648,20 +2650,21 @@ INSERT INTO replicas (
     hostname,
     region_id,
     relay_address,
-    version
-
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error
+    version,
+    database_latency
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
 `
 
 type InsertReplicaParams struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	StartedAt    time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt    time.Time `db:"updated_at" json:"updated_at"`
-	Hostname     string    `db:"hostname" json:"hostname"`
-	RegionID     int32     `db:"region_id" json:"region_id"`
-	RelayAddress string    `db:"relay_address" json:"relay_address"`
-	Version      string    `db:"version" json:"version"`
+	ID              uuid.UUID `db:"id" json:"id"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	StartedAt       time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	Hostname        string    `db:"hostname" json:"hostname"`
+	RegionID        int32     `db:"region_id" json:"region_id"`
+	RelayAddress    string    `db:"relay_address" json:"relay_address"`
+	Version         string    `db:"version" json:"version"`
+	DatabaseLatency int32     `db:"database_latency" json:"database_latency"`
 }
 
 func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
@@ -2674,6 +2677,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		arg.RegionID,
 		arg.RelayAddress,
 		arg.Version,
+		arg.DatabaseLatency,
 	)
 	var i Replica
 	err := row.Scan(
@@ -2685,6 +2689,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		&i.Hostname,
 		&i.RegionID,
 		&i.RelayAddress,
+		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
 	)
@@ -2700,20 +2705,22 @@ UPDATE replicas SET
     region_id = $6,
     hostname = $7,
     version = $8,
-    error = $9
-WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, version, error
+    error = $9,
+    database_latency = $10
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
 `
 
 type UpdateReplicaParams struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
-	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
-	StartedAt    time.Time      `db:"started_at" json:"started_at"`
-	StoppedAt    sql.NullTime   `db:"stopped_at" json:"stopped_at"`
-	RelayAddress string         `db:"relay_address" json:"relay_address"`
-	RegionID     int32          `db:"region_id" json:"region_id"`
-	Hostname     string         `db:"hostname" json:"hostname"`
-	Version      string         `db:"version" json:"version"`
-	Error        sql.NullString `db:"error" json:"error"`
+	ID              uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	StartedAt       time.Time      `db:"started_at" json:"started_at"`
+	StoppedAt       sql.NullTime   `db:"stopped_at" json:"stopped_at"`
+	RelayAddress    string         `db:"relay_address" json:"relay_address"`
+	RegionID        int32          `db:"region_id" json:"region_id"`
+	Hostname        string         `db:"hostname" json:"hostname"`
+	Version         string         `db:"version" json:"version"`
+	Error           sql.NullString `db:"error" json:"error"`
+	DatabaseLatency int32          `db:"database_latency" json:"database_latency"`
 }
 
 func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
@@ -2727,6 +2734,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		arg.Hostname,
 		arg.Version,
 		arg.Error,
+		arg.DatabaseLatency,
 	)
 	var i Replica
 	err := row.Scan(
@@ -2738,6 +2746,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		&i.Hostname,
 		&i.RegionID,
 		&i.RelayAddress,
+		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
 	)

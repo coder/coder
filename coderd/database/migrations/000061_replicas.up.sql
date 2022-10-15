@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS replicas (
     region_id integer NOT NULL,
     -- An address that should be accessible to other replicas.
     relay_address text NOT NULL,
+    -- The latency of the replica to the database in microseconds.
+    database_latency int NOT NULL,
     -- Version is the Coder version of the replica.
     version text NOT NULL,
     error text
