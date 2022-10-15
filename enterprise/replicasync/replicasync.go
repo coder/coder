@@ -73,7 +73,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 		return nil, xerrors.Errorf("publish new replica: %w", err)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
-	server := &Manager{
+	manager := &Manager{
 		id:          id,
 		options:     options,
 		db:          db,
@@ -83,25 +83,25 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 		closed:      make(chan struct{}),
 		closeCancel: cancelFunc,
 	}
-	err = server.run(ctx)
+	err = manager.syncReplicas(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("run replica: %w", err)
 	}
-	peers := server.Regional()
+	peers := manager.Regional()
 	if len(peers) > 0 {
-		self := server.Self()
+		self := manager.Self()
 		if self.RelayAddress == "" {
 			return nil, xerrors.Errorf("a relay address must be specified when running multiple replicas in the same region")
 		}
 	}
 
-	err = server.subscribe(ctx)
+	err = manager.subscribe(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("subscribe: %w", err)
 	}
-	server.closeWait.Add(1)
-	go server.loop(ctx)
-	return server, nil
+	manager.closeWait.Add(1)
+	go manager.loop(ctx)
+	return manager, nil
 }
 
 // Manager keeps the replica up to date and in sync with other replicas.
@@ -134,7 +134,7 @@ func (m *Manager) loop(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
-		err := m.run(ctx)
+		err := m.syncReplicas(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			m.logger.Warn(ctx, "run replica update loop", slog.Error(err))
 		}
@@ -155,7 +155,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	// it will reprocess afterwards.
 	var update func()
 	update = func() {
-		err := m.run(ctx)
+		err := m.syncReplicas(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			m.logger.Error(ctx, "run replica from subscribe", slog.Error(err))
 		}
@@ -197,7 +197,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) run(ctx context.Context) error {
+func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.closeMutex.Lock()
 	m.closeWait.Add(1)
 	m.closeMutex.Unlock()
