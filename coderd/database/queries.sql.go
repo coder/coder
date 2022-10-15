@@ -815,7 +815,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 	return i, err
 }
 
-const updateGitSSHKey = `-- name: UpdateGitSSHKey :exec
+const updateGitSSHKey = `-- name: UpdateGitSSHKey :one
 UPDATE
 	gitsshkeys
 SET
@@ -824,6 +824,8 @@ SET
 	public_key = $4
 WHERE
 	user_id = $1
+RETURNING
+	user_id, created_at, updated_at, private_key, public_key
 `
 
 type UpdateGitSSHKeyParams struct {
@@ -833,14 +835,22 @@ type UpdateGitSSHKeyParams struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
-func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error {
-	_, err := q.db.ExecContext(ctx, updateGitSSHKey,
+func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error) {
+	row := q.db.QueryRowContext(ctx, updateGitSSHKey,
 		arg.UserID,
 		arg.UpdatedAt,
 		arg.PrivateKey,
 		arg.PublicKey,
 	)
-	return err
+	var i GitSSHKey
+	err := row.Scan(
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PrivateKey,
+		&i.PublicKey,
+	)
+	return i, err
 }
 
 const deleteGroupByID = `-- name: DeleteGroupByID :exec
@@ -2768,6 +2778,42 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
 	return err
+}
+
+const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
+WITH build_times AS (
+SELECT
+	EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at))::FLOAT AS exec_time_sec
+FROM
+	workspace_builds
+JOIN template_versions ON
+	workspace_builds.template_version_id = template_versions.id
+JOIN provisioner_jobs pj ON
+	workspace_builds.job_id = pj.id
+WHERE
+	template_versions.template_id = $1 AND
+		(workspace_builds.transition = 'start') AND
+		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
+		(pj.started_at > $2) AND
+		(pj.canceled_at IS NULL) AND
+		((pj.error IS NULL) OR (pj.error = ''))
+ORDER BY
+	workspace_builds.created_at DESC
+)
+SELECT coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec)), -1)::FLOAT
+FROM build_times
+`
+
+type GetTemplateAverageBuildTimeParams struct {
+	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
+	StartTime  sql.NullTime  `db:"start_time" json:"start_time"`
+}
+
+func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (float64, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const getTemplateByID = `-- name: GetTemplateByID :one

@@ -241,6 +241,35 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	return rs, nil
 }
 
+func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (float64, error) {
+	var times []float64
+	for _, wb := range q.workspaceBuilds {
+		if wb.Transition != database.WorkspaceTransitionStart {
+			continue
+		}
+		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return -1, err
+		}
+		if version.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
+		if err != nil {
+			return -1, err
+		}
+		if job.CompletedAt.Valid {
+			times = append(times, job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds())
+		}
+	}
+	sort.Float64s(times)
+	if len(times) == 0 {
+		return -1, nil
+	}
+	return times[len(times)/2], nil
+}
+
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2682,7 +2711,7 @@ func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (databas
 	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) error {
+func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -2694,9 +2723,9 @@ func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitS
 		key.PrivateKey = arg.PrivateKey
 		key.PublicKey = arg.PublicKey
 		q.gitSSHKey[index] = key
-		return nil
+		return key, nil
 	}
-	return sql.ErrNoRows
+	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGroupMemberParams) error {

@@ -185,6 +185,7 @@ export const MockTemplate: TypesGen.Template = {
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 2,
   active_user_count: 1,
+  average_build_time_ms: 123,
   description: "This is a test description.",
   max_ttl_ms: 24 * 60 * 60 * 1000,
   min_autostart_interval_ms: 60 * 60 * 1000,
@@ -875,7 +876,13 @@ export const MockAuditLog: TypesGen.AuditLog = {
   resource_target: "bruno-dev",
   resource_icon: "",
   action: "create",
-  diff: {},
+  diff: {
+    ttl: {
+      old: 0,
+      new: 3600000000000,
+      secret: false,
+    },
+  },
   status_code: 200,
   additional_fields: "",
   description: "{user} updated workspace {target}",

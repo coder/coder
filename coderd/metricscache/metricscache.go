@@ -2,6 +2,7 @@ package metricscache
 
 import (
 	"context"
+	"database/sql"
 	"sync/atomic"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/coder/retry"
 )
 
-// Cache holds the template DAU cache.
+// Cache holds the template metrics.
 // The aggregation queries responsible for these values can take up to a minute
 // on large deployments. Even in small deployments, aggregation queries can
 // take a few hundred milliseconds, which would ruin page load times and
@@ -26,8 +27,9 @@ type Cache struct {
 	database database.Store
 	log      slog.Logger
 
-	templateDAUResponses atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
-	templateUniqueUsers  atomic.Pointer[map[uuid.UUID]int]
+	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
+	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
+	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]time.Duration]
 
 	done   chan struct{}
 	cancel func()
@@ -128,8 +130,9 @@ func (c *Cache) refresh(ctx context.Context) error {
 	}
 
 	var (
-		templateDAUs        = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
-		templateUniqueUsers = make(map[uuid.UUID]int)
+		templateDAUs                = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
+		templateUniqueUsers         = make(map[uuid.UUID]int)
+		templateAverageBuildTimeSec = make(map[uuid.UUID]time.Duration)
 	)
 	for _, template := range templates {
 		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
@@ -138,9 +141,24 @@ func (c *Cache) refresh(ctx context.Context) error {
 		}
 		templateDAUs[template.ID] = convertDAUResponse(rows)
 		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
+		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			StartTime: sql.NullTime{
+				Time:  database.Time(time.Now().AddDate(0, -30, 0)),
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		templateAverageBuildTimeSec[template.ID] = time.Duration(float64(time.Second) * templateAvgBuildTime)
 	}
 	c.templateDAUResponses.Store(&templateDAUs)
 	c.templateUniqueUsers.Store(&templateUniqueUsers)
+	c.templateAverageBuildTime.Store(&templateAverageBuildTimeSec)
 
 	return nil
 }
@@ -216,6 +234,21 @@ func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
 	resp, ok := (*m)[id]
 	if !ok {
 		// Probably no data.
+		return -1, false
+	}
+	return resp, true
+}
+
+func (c *Cache) TemplateAverageBuildTime(id uuid.UUID) (time.Duration, bool) {
+	m := c.templateAverageBuildTime.Load()
+	if m == nil {
+		// Data loading.
+		return -1, false
+	}
+
+	resp, ok := (*m)[id]
+	if !ok || resp <= 0 {
+		// No data or not enough builds.
 		return -1, false
 	}
 	return resp, true

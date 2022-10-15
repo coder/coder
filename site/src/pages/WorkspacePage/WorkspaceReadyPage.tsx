@@ -132,6 +132,7 @@ export const WorkspaceReadyPage = ({
         }}
         buildInfo={buildInfoState.context.buildInfo}
         applicationsHost={applicationsHost}
+        template={template}
       />
       <DeleteDialog
         entity="workspace"

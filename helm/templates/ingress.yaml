@@ -26,8 +26,9 @@ spec:
                 name: coder
                 port:
                   name: {{ include "coder.portName" . | quote }}
+
     {{- if .Values.coder.ingress.wildcardHost }}
-    - host: {{ .Values.coder.ingress.wildcardHost | quote }}
+    - host: {{ include "coder.ingressWildcardHost" . | quote }}
       http:
         paths:
           - path: /
@@ -46,7 +47,7 @@ spec:
       secretName: {{ .Values.coder.ingress.tls.secretName | quote}}
     {{- if .Values.coder.ingress.tls.wildcardSecretName }}
     - hosts:
-        - {{ .Values.coder.ingress.wildcardHost | quote }}
+        - {{ include "coder.ingressWildcardHost" . | quote }}
       secretName: {{ .Values.coder.ingress.tls.wildcardSecretName | quote}}
     {{- end }}
   {{- end }}
