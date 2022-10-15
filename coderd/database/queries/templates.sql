@@ -105,3 +105,27 @@ WHERE
 	id = $1
 RETURNING
 	*;
+
+-- name: GetTemplateAverageBuildTime :one
+WITH build_times AS (
+SELECT
+	EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at))::FLOAT AS exec_time_sec
+FROM
+	workspace_builds
+JOIN template_versions ON
+	workspace_builds.template_version_id = template_versions.id
+JOIN provisioner_jobs pj ON
+	workspace_builds.job_id = pj.id
+WHERE
+	template_versions.template_id = @template_id AND
+		(workspace_builds.transition = 'start') AND
+		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
+		(pj.started_at > @start_time) AND
+		(pj.canceled_at IS NULL) AND
+		((pj.error IS NULL) OR (pj.error = ''))
+ORDER BY
+	workspace_builds.created_at DESC
+)
+SELECT coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec)), -1)::FLOAT
+FROM build_times
+;

@@ -15,7 +15,10 @@ import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { createDayString } from "util/createDayString"
-import { formatTemplateActiveDevelopers } from "util/templates"
+import {
+  formatTemplateBuildTime,
+  formatTemplateActiveDevelopers,
+} from "util/templates"
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
@@ -44,6 +47,7 @@ export const Language = {
     }`
   },
   nameLabel: "Name",
+  buildTimeLabel: "Build time",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
   emptyViewNoPerms:
@@ -155,8 +159,9 @@ export const TemplatesPageView: FC<
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell width="50%">{Language.nameLabel}</TableCell>
+                  <TableCell width="34%">{Language.nameLabel}</TableCell>
                   <TableCell width="16%">{Language.usedByLabel}</TableCell>
+                  <TableCell width="16%">{Language.buildTimeLabel}</TableCell>
                   <TableCell width="16%">{Language.lastUpdatedLabel}</TableCell>
                   <TableCell width="16%">{Language.createdByLabel}</TableCell>
                   <TableCell width="1%"></TableCell>
@@ -223,6 +228,16 @@ export const TemplatesPageView: FC<
                             >
                               {Language.developerCount(
                                 template.active_user_count,
+                              )}
+                            </span>
+                          </TableCellLink>
+
+                          <TableCellLink to={templatePageLink}>
+                            <span
+                              style={{ color: theme.palette.text.secondary }}
+                            >
+                              {formatTemplateBuildTime(
+                                template.average_build_time_ms,
                               )}
                             </span>
                           </TableCellLink>

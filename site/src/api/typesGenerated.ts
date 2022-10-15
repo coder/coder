@@ -586,6 +586,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly active_user_count: number
+  readonly average_build_time_ms: number
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
