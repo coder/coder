@@ -322,6 +322,9 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				Experimental:                ExperimentalEnabled(cmd),
 				DeploymentFlags:             dflags,
 			}
+			if tlsConfig != nil {
+				options.TLSCertificates = tlsConfig.Certificates
+			}
 
 			if dflags.OAuth2GithubClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,

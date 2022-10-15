@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"net/http"
 	"sync"
 	"time"
@@ -137,7 +138,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
-	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, nil)
+	// nolint:gosec
+	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, &tls.Config{
+		Certificates: options.TLSCertificates,
+		ServerName:   options.AccessURL.Host,
+	})
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {

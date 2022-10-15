@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"io"
 	"net/http"
@@ -76,6 +77,8 @@ type Options struct {
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
 
+	// TLSCertificates is used to mesh DERP servers securely.
+	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
