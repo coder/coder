@@ -2753,6 +2753,17 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
+const getDERPMeshKey = `-- name: GetDERPMeshKey :one
+SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
+`
+
+func (q *sqlQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDERPMeshKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getDeploymentID = `-- name: GetDeploymentID :one
 SELECT value FROM site_configs WHERE key = 'deployment_id'
 `
@@ -2762,6 +2773,15 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	var value string
 	err := row.Scan(&value)
 	return value, err
+}
+
+const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
+INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
+`
+
+func (q *sqlQuerier) InsertDERPMeshKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertDERPMeshKey, value)
+	return err
 }
 
 const insertDeploymentID = `-- name: InsertDeploymentID :exec

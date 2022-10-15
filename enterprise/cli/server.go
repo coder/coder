@@ -2,14 +2,20 @@ package cli
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"io"
 	"net/url"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"tailscale.com/derp"
+	"tailscale.com/types/key"
 
 	"github.com/coder/coder/cli/deployment"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/tailnet"
 
 	agpl "github.com/coder/coder/cli"
 	agplcoderd "github.com/coder/coder/coderd"
@@ -24,6 +30,23 @@ func server() *cobra.Command {
 				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
 			}
 		}
+
+		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
+		meshKey, err := options.Database.GetDERPMeshKey(ctx)
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, nil, xerrors.Errorf("get mesh key: %w", err)
+			}
+			meshKey, err = cryptorand.String(32)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("generate mesh key: %w", err)
+			}
+			err = options.Database.InsertDERPMeshKey(ctx, meshKey)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("insert mesh key: %w", err)
+			}
+		}
+		options.DERPServer.SetMeshKey(meshKey)
 
 		o := &coderd.Options{
 			AuditLogging:           dflags.AuditLogging.Value,

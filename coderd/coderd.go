@@ -127,7 +127,6 @@ func New(options *Options) *API {
 	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
-		options.DERPServer.SetMeshKey("todo-kyle-change-this")
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()

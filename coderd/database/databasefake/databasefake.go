@@ -110,10 +110,11 @@ type data struct {
 	replicas                       []database.Replica
 
 	deploymentID  string
+	derpMeshKey   string
 	lastLicenseID int32
 }
 
-func (q *fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
+func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
@@ -2890,6 +2891,21 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	return q.deploymentID, nil
 }
 
+func (q *fakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.derpMeshKey = id
+	return nil
+}
+
+func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.derpMeshKey, nil
+}
+
 func (q *fakeQuerier) InsertLicense(
 	_ context.Context, arg database.InsertLicenseParams,
 ) (database.License, error) {
@@ -3156,7 +3172,7 @@ func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, before time.Time) error {
+func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
