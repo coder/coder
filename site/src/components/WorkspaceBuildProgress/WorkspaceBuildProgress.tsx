@@ -58,7 +58,7 @@ export const WorkspaceBuildProgress: FC<{
             )[0] * 100) ||
           0
         }
-        variant="determinate"
+        variant={status === "running" ? "determinate" : "indeterminate"}
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Job ${status}`}</div>
