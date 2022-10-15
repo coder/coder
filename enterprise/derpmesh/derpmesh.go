@@ -45,6 +45,7 @@ type Mesh struct {
 //
 // Connect is only used for testing to ensure DERPs are meshed before
 // exchanging messages.
+// nolint:revive
 func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 	total := make(map[string]struct{}, 0)
 	for _, address := range addresses {
@@ -88,6 +89,7 @@ func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 // addAddress begins meshing with a new address. It returns false if the address is already being meshed with.
 // It's expected that this is a full HTTP address with a path.
 // e.g. http://127.0.0.1:8080/derp
+// nolint:revive
 func (m *Mesh) addAddress(address string, connect bool) (bool, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
