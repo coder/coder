@@ -26,7 +26,6 @@ var (
 )
 
 type Options struct {
-	ID             uuid.UUID
 	UpdateInterval time.Duration
 	PeerTimeout    time.Duration
 	RelayAddress   string
@@ -36,9 +35,9 @@ type Options struct {
 
 // New registers the replica with the database and periodically updates to ensure
 // it's healthy. It contacts all other alive replicas to ensure they are reachable.
-func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub, options Options) (*Manager, error) {
-	if options.ID == uuid.Nil {
-		panic("An ID must be provided!")
+func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub, options *Options) (*Manager, error) {
+	if options == nil {
+		options = &Options{}
 	}
 	if options.PeerTimeout == 0 {
 		options.PeerTimeout = 3 * time.Second
@@ -54,50 +53,29 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
 	}
-	var replica database.Replica
-	_, err = db.GetReplicaByID(ctx, options.ID)
+	id := uuid.New()
+	replica, err := db.InsertReplica(ctx, database.InsertReplicaParams{
+		ID:              id,
+		CreatedAt:       database.Now(),
+		StartedAt:       database.Now(),
+		UpdatedAt:       database.Now(),
+		Hostname:        hostname,
+		RegionID:        options.RegionID,
+		RelayAddress:    options.RelayAddress,
+		Version:         buildinfo.Version(),
+		DatabaseLatency: int32(databaseLatency.Microseconds()),
+	})
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get replica: %w", err)
-		}
-		replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
-			ID:              options.ID,
-			CreatedAt:       database.Now(),
-			StartedAt:       database.Now(),
-			UpdatedAt:       database.Now(),
-			Hostname:        hostname,
-			RegionID:        options.RegionID,
-			RelayAddress:    options.RelayAddress,
-			Version:         buildinfo.Version(),
-			DatabaseLatency: int32(databaseLatency.Microseconds()),
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("insert replica: %w", err)
-		}
-	} else {
-		replica, err = db.UpdateReplica(ctx, database.UpdateReplicaParams{
-			ID:              options.ID,
-			UpdatedAt:       database.Now(),
-			StartedAt:       database.Now(),
-			StoppedAt:       sql.NullTime{},
-			RelayAddress:    options.RelayAddress,
-			RegionID:        options.RegionID,
-			Hostname:        hostname,
-			Version:         buildinfo.Version(),
-			Error:           sql.NullString{},
-			DatabaseLatency: int32(databaseLatency.Microseconds()),
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("update replica: %w", err)
-		}
+		return nil, xerrors.Errorf("insert replica: %w", err)
 	}
-	err = pubsub.Publish(PubsubEvent, []byte(options.ID.String()))
+	err = pubsub.Publish(PubsubEvent, []byte(id.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("publish new replica: %w", err)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	server := &Manager{
-		options:     &options,
+		id:          id,
+		options:     options,
 		db:          db,
 		pubsub:      pubsub,
 		self:        replica,
@@ -128,6 +106,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 
 // Manager keeps the replica up to date and in sync with other replicas.
 type Manager struct {
+	id      uuid.UUID
 	options *Options
 	db      database.Store
 	pubsub  database.Pubsub
@@ -196,7 +175,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 			return
 		}
 		// Don't process updates for ourself!
-		if id == m.options.ID {
+		if id == m.id {
 			return
 		}
 		if updating {
@@ -233,7 +212,7 @@ func (m *Manager) run(ctx context.Context) error {
 	m.mutex.Lock()
 	m.peers = make([]database.Replica, 0, len(replicas))
 	for _, replica := range replicas {
-		if replica.ID == m.options.ID {
+		if replica.ID == m.id {
 			continue
 		}
 		m.peers = append(m.peers, replica)

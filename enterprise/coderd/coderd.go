@@ -13,7 +13,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
@@ -146,14 +145,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	// internal IP addresses, and if TLS is configured we use the same
 	// certificates.
 	meshTLSConfig := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
 		Certificates: options.TLSCertificates,
 		RootCAs:      meshRootCA,
 		ServerName:   options.AccessURL.Hostname(),
 	}
 	var err error
-	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
-		// Create a new replica ID for each Coder instance!
-		ID:           uuid.New(),
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
 		TLSConfig:    meshTLSConfig,

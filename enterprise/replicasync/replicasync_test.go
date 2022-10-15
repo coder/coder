@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -32,38 +31,15 @@ func TestReplica(t *testing.T) {
 		// This ensures that a new replica is created on New.
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
-		id := uuid.New()
+		closeChan := make(chan struct{}, 1)
 		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
-			assert.Equal(t, []byte(id.String()), message)
+			closeChan <- struct{}{}
 		})
 		require.NoError(t, err)
 		defer cancel()
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID: id,
-		})
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, nil)
 		require.NoError(t, err)
-		_ = server.Close()
-		require.NoError(t, err)
-	})
-	t.Run("UpdatesOnNew", func(t *testing.T) {
-		// This ensures that a replica is updated when it initially connects
-		// and immediately publishes it's existence!
-		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
-		id := uuid.New()
-		_, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
-			ID: id,
-		})
-		require.NoError(t, err)
-		cancel, err := pubsub.Subscribe(replicasync.PubsubEvent, func(ctx context.Context, message []byte) {
-			assert.Equal(t, []byte(id.String()), message)
-		})
-		require.NoError(t, err)
-		defer cancel()
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID: id,
-		})
-		require.NoError(t, err)
+		<-closeChan
 		_ = server.Close()
 		require.NoError(t, err)
 	})
@@ -80,9 +56,7 @@ func TestReplica(t *testing.T) {
 			Hostname:  "something",
 		})
 		require.NoError(t, err)
-		_, err = replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID: uuid.New(),
-		})
+		_, err = replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, nil)
 		require.Error(t, err)
 		require.Equal(t, "a relay address must be specified when running multiple replicas in the same region", err.Error())
 	})
@@ -104,8 +78,7 @@ func TestReplica(t *testing.T) {
 			RelayAddress: srv.URL,
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID:           uuid.New(),
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
@@ -145,8 +118,7 @@ func TestReplica(t *testing.T) {
 			RelayAddress: srv.URL,
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID:           uuid.New(),
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 			TLSConfig:    tlsConfig,
 		})
@@ -169,8 +141,7 @@ func TestReplica(t *testing.T) {
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID:           uuid.New(),
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			PeerTimeout:  1 * time.Millisecond,
 			RelayAddress: "http://169.254.169.254",
 		})
@@ -185,10 +156,7 @@ func TestReplica(t *testing.T) {
 		// Refresh when a new replica appears!
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
-		id := uuid.New()
-		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, replicasync.Options{
-			ID: id,
-		})
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, nil)
 		require.NoError(t, err)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -224,8 +192,7 @@ func TestReplica(t *testing.T) {
 		count := 20
 		wg.Add(count)
 		for i := 0; i < count; i++ {
-			server, err := replicasync.New(context.Background(), logger, db, pubsub, replicasync.Options{
-				ID:           uuid.New(),
+			server, err := replicasync.New(context.Background(), logger, db, pubsub, &replicasync.Options{
 				RelayAddress: srv.URL,
 			})
 			require.NoError(t, err)
