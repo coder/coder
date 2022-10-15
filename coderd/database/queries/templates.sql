@@ -109,7 +109,7 @@ RETURNING
 -- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT
-	EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at)) AS exec_time_sec
+	EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at))::FLOAT AS exec_time_sec
 FROM
 	workspace_builds
 JOIN template_versions ON
@@ -126,5 +126,6 @@ WHERE
 ORDER BY
 	workspace_builds.created_at DESC
 )
-SELECT CAST(PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) AS FLOAT) FROM build_times
+SELECT coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec)), -1)::FLOAT
+FROM build_times
 ;
