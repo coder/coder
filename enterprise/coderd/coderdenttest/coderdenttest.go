@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/tls"
 	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -85,7 +87,16 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	client := codersdk.New(coderAPI.AccessURL)
+	client.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	return client, provisionerCloser, coderAPI
 }
 
 type LicenseOptions struct {

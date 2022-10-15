@@ -315,7 +315,8 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
@@ -380,7 +381,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	closed := make(chan struct{})

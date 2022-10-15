@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -75,6 +76,7 @@ type Options struct {
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 	Auditor              audit.Auditor
+	TLSCertificates      []tls.Certificate
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
@@ -158,7 +160,14 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
-	srv.Start()
+	if options.TLSCertificates != nil {
+		srv.TLS = &tls.Config{
+			Certificates: options.TLSCertificates,
+		}
+		srv.StartTLS()
+	} else {
+		srv.Start()
+	}
 	t.Cleanup(srv.Close)
 
 	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
@@ -201,6 +210,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 		Telemetry:            telemetry.NewNoop(),
+		TLSCertificates:      options.TLSCertificates,
 		DERPMap: &tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
 				1: {
@@ -215,7 +225,7 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 						DERPPort:         derpPort,
 						STUNPort:         stunAddr.Port,
 						InsecureForTests: true,
-						ForceHTTP:        true,
+						ForceHTTP:        options.TLSCertificates == nil,
 					}},
 				},
 			},

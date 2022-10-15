@@ -150,10 +150,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			rootCA.AddCert(certificate)
 		}
 	}
-
 	// nolint:gosec
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, &tls.Config{
-		ServerName: options.AccessURL.Host,
+		ServerName: options.AccessURL.Hostname(),
 		RootCAs:    rootCA,
 	})
 

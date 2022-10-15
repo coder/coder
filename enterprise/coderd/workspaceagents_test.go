@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"testing"
@@ -108,6 +109,14 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
+	agentClient.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
