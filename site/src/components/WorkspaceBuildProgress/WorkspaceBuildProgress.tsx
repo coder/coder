@@ -61,7 +61,7 @@ export const WorkspaceBuildProgress: FC<{
         variant={status === "running" ? "determinate" : "indeterminate"}
       />
       <div className={styles.barHelpers}>
-        <div className={styles.label}>{`Job ${status}`}</div>
+        <div className={styles.label}>{`Build ${status}`}</div>
         <div className={styles.label}>
           {status === "running" &&
             estimateFinish(
