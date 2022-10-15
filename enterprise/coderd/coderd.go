@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"sync"
 	"time"
@@ -138,10 +139,22 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
+
+	rootCA := x509.NewCertPool()
+	for _, certificate := range options.TLSCertificates {
+		for _, certificatePart := range certificate.Certificate {
+			certificate, err := x509.ParseCertificate(certificatePart)
+			if err != nil {
+				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
+			}
+			rootCA.AddCert(certificate)
+		}
+	}
+
 	// nolint:gosec
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, &tls.Config{
-		Certificates: options.TLSCertificates,
-		ServerName:   options.AccessURL.Host,
+		ServerName: options.AccessURL.Host,
+		RootCAs:    rootCA,
 	})
 
 	err = api.updateEntitlements(ctx)

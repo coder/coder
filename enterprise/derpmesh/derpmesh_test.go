@@ -37,15 +37,27 @@ func TestMain(m *testing.M) {
 
 func TestDERPMesh(t *testing.T) {
 	t.Parallel()
+	commonName := "something.org"
+	rawCert := generateTLSCertificate(t, commonName)
+	certificate, err := x509.ParseCertificate(rawCert.Certificate[0])
+	require.NoError(t, err)
+	pool := x509.NewCertPool()
+	pool.AddCert(certificate)
+	tlsConfig := &tls.Config{
+		ServerName:   commonName,
+		RootCAs:      pool,
+		Certificates: []tls.Certificate{rawCert},
+	}
+
 	t.Run("ExchangeMessages", func(t *testing.T) {
 		// This tests messages passing through multiple DERP servers.
 		t.Parallel()
-		firstServer, firstServerURL, firstTLSName := startDERP(t)
+		firstServer, firstServerURL := startDERP(t, tlsConfig)
 		defer firstServer.Close()
-		secondServer, secondServerURL, secondTLSName := startDERP(t)
-		firstMesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), firstServer, firstTLSName)
+		secondServer, secondServerURL := startDERP(t, tlsConfig)
+		firstMesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), firstServer, tlsConfig)
 		firstMesh.SetAddresses([]string{secondServerURL})
-		secondMesh := derpmesh.New(slogtest.Make(t, nil).Named("second").Leveled(slog.LevelDebug), secondServer, secondTLSName)
+		secondMesh := derpmesh.New(slogtest.Make(t, nil).Named("second").Leveled(slog.LevelDebug), secondServer, tlsConfig)
 		secondMesh.SetAddresses([]string{firstServerURL})
 		defer firstMesh.Close()
 		defer secondMesh.Close()
@@ -54,37 +66,10 @@ func TestDERPMesh(t *testing.T) {
 		second := key.NewNode()
 		firstClient, err := derphttp.NewClient(first, secondServerURL, tailnet.Logger(slogtest.Make(t, nil)))
 		require.NoError(t, err)
+		firstClient.TLSConfig = tlsConfig
 		secondClient, err := derphttp.NewClient(second, firstServerURL, tailnet.Logger(slogtest.Make(t, nil)))
 		require.NoError(t, err)
-		err = secondClient.Connect(context.Background())
-		require.NoError(t, err)
-
-		sent := []byte("hello world")
-		err = firstClient.Send(second.Public(), sent)
-		require.NoError(t, err)
-
-		got := recvData(t, secondClient)
-		require.Equal(t, sent, got)
-	})
-	t.Run("ExchangeMessages", func(t *testing.T) {
-		// This tests messages passing through multiple DERP servers.
-		t.Parallel()
-		firstServer, firstServerURL, firstTLSName := startDERP(t)
-		defer firstServer.Close()
-		secondServer, secondServerURL, secondTLSName := startDERP(t)
-		firstMesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), firstServer, firstTLSName)
-		firstMesh.SetAddresses([]string{secondServerURL})
-		secondMesh := derpmesh.New(slogtest.Make(t, nil).Named("second").Leveled(slog.LevelDebug), secondServer, secondTLSName)
-		secondMesh.SetAddresses([]string{firstServerURL})
-		defer firstMesh.Close()
-		defer secondMesh.Close()
-
-		first := key.NewNode()
-		second := key.NewNode()
-		firstClient, err := derphttp.NewClient(first, secondServerURL, tailnet.Logger(slogtest.Make(t, nil)))
-		require.NoError(t, err)
-		secondClient, err := derphttp.NewClient(second, firstServerURL, tailnet.Logger(slogtest.Make(t, nil)))
-		require.NoError(t, err)
+		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
 		require.NoError(t, err)
 
@@ -98,8 +83,8 @@ func TestDERPMesh(t *testing.T) {
 	t.Run("RemoveAddress", func(t *testing.T) {
 		// This tests messages passing through multiple DERP servers.
 		t.Parallel()
-		server, serverURL, tlsName := startDERP(t)
-		mesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), server, tlsName)
+		server, serverURL := startDERP(t, tlsConfig)
+		mesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), server, tlsConfig)
 		mesh.SetAddresses([]string{"http://fake.com"})
 		// This should trigger a removal...
 		mesh.SetAddresses([]string{})
@@ -109,8 +94,10 @@ func TestDERPMesh(t *testing.T) {
 		second := key.NewNode()
 		firstClient, err := derphttp.NewClient(first, serverURL, tailnet.Logger(slogtest.Make(t, nil)))
 		require.NoError(t, err)
+		firstClient.TLSConfig = tlsConfig
 		secondClient, err := derphttp.NewClient(second, serverURL, tailnet.Logger(slogtest.Make(t, nil)))
 		require.NoError(t, err)
+		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
 		require.NoError(t, err)
 		sent := []byte("hello world")
@@ -124,8 +111,8 @@ func TestDERPMesh(t *testing.T) {
 		meshes := make([]*derpmesh.Mesh, 0, 20)
 		serverURLs := make([]string, 0, 20)
 		for i := 0; i < 20; i++ {
-			server, url, tlsName := startDERP(t)
-			mesh := derpmesh.New(slogtest.Make(t, nil).Named("mesh").Leveled(slog.LevelDebug), server, tlsName)
+			server, url := startDERP(t, tlsConfig)
+			mesh := derpmesh.New(slogtest.Make(t, nil).Named("mesh").Leveled(slog.LevelDebug), server, tlsConfig)
 			t.Cleanup(func() {
 				_ = server.Close()
 				_ = mesh.Close()
@@ -141,8 +128,10 @@ func TestDERPMesh(t *testing.T) {
 		second := key.NewNode()
 		firstClient, err := derphttp.NewClient(first, serverURLs[9], tailnet.Logger(slogtest.Make(t, nil)))
 		require.NoError(t, err)
+		firstClient.TLSConfig = tlsConfig
 		secondClient, err := derphttp.NewClient(second, serverURLs[16], tailnet.Logger(slogtest.Make(t, nil)))
 		require.NoError(t, err)
+		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
 		require.NoError(t, err)
 
@@ -172,21 +161,18 @@ func recvData(t *testing.T, client *derphttp.Client) []byte {
 	}
 }
 
-func startDERP(t *testing.T) (*derp.Server, string, *tls.Config) {
+func startDERP(t *testing.T, tlsConfig *tls.Config) (*derp.Server, string) {
 	logf := tailnet.Logger(slogtest.Make(t, nil))
 	d := derp.NewServer(key.NewNode(), logf)
 	d.SetMeshKey("some-key")
 	server := httptest.NewUnstartedServer(derphttp.Handler(d))
-	commonName := "something.org"
-	server.TLS = &tls.Config{
-		Certificates: []tls.Certificate{generateTLSCertificate(t, commonName)},
-	}
-	server.Start()
+	server.TLS = tlsConfig
+	server.StartTLS()
 	t.Cleanup(func() {
 		_ = d.Close()
 	})
 	t.Cleanup(server.Close)
-	return d, server.URL, server.TLS
+	return d, server.URL
 }
 
 func generateTLSCertificate(t testing.TB, commonName string) tls.Certificate {

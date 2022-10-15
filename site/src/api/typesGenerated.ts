@@ -538,6 +538,7 @@ export interface Replica {
   readonly relay_address: string
   readonly region_id: number
   readonly error: string
+  readonly database_latency: number
 }
 
 // From codersdk/error.go

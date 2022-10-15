@@ -294,7 +294,11 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 func (c *haCoordinator) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
+	select {
+	case <-c.close:
+		return nil
+	default:
+	}
 	close(c.close)
 
 	wg := sync.WaitGroup{}
