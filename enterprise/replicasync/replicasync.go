@@ -2,6 +2,7 @@ package replicasync
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ type Options struct {
 	PeerTimeout    time.Duration
 	RelayAddress   string
 	RegionID       int32
+	TLSConfig      *tls.Config
 }
 
 // New registers the replica with the database and periodically updates to ensure
@@ -254,6 +256,9 @@ func (m *Manager) run(ctx context.Context) error {
 			}
 			client := http.Client{
 				Timeout: m.options.PeerTimeout,
+				Transport: &http.Transport{
+					TLSClientConfig: m.options.TLSConfig,
+				},
 			}
 			res, err := client.Do(req)
 			if err != nil {

@@ -129,32 +129,38 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 	}
 
-	var err error
-	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
-		// Create a new replica ID for each Coder instance!
-		ID:           uuid.New(),
-		RelayAddress: options.DERPServerRelayAddress,
-		RegionID:     int32(options.DERPServerRegionID),
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("initialize replica: %w", err)
-	}
-
-	rootCA := x509.NewCertPool()
+	meshRootCA := x509.NewCertPool()
 	for _, certificate := range options.TLSCertificates {
 		for _, certificatePart := range certificate.Certificate {
 			certificate, err := x509.ParseCertificate(certificatePart)
 			if err != nil {
 				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
 			}
-			rootCA.AddCert(certificate)
+			meshRootCA.AddCert(certificate)
 		}
 	}
-	// nolint:gosec
-	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, &tls.Config{
+	// This TLS configuration spoofs access from the access URL hostname
+	// assuming that the certificates provided will cover that hostname.
+	//
+	// Replica sync and DERP meshing require accessing replicas via their
+	// internal IP addresses, and if TLS is configured we use the same
+	// certificates.
+	meshTLSConfig := &tls.Config{
 		ServerName: options.AccessURL.Hostname(),
-		RootCAs:    rootCA,
+		RootCAs:    meshRootCA,
+	}
+	var err error
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, replicasync.Options{
+		// Create a new replica ID for each Coder instance!
+		ID:           uuid.New(),
+		RelayAddress: options.DERPServerRelayAddress,
+		RegionID:     int32(options.DERPServerRegionID),
+		TLSConfig:    meshTLSConfig,
 	})
+	if err != nil {
+		return nil, xerrors.Errorf("initialize replica: %w", err)
+	}
+	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {
