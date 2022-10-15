@@ -2579,29 +2579,6 @@ func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt 
 	return err
 }
 
-const getReplicaByID = `-- name: GetReplicaByID :one
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE id = $1
-`
-
-func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
-	row := q.db.QueryRowContext(ctx, getReplicaByID, id)
-	var i Replica
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.StartedAt,
-		&i.StoppedAt,
-		&i.UpdatedAt,
-		&i.Hostname,
-		&i.RegionID,
-		&i.RelayAddress,
-		&i.DatabaseLatency,
-		&i.Version,
-		&i.Error,
-	)
-	return i, err
-}
-
 const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
 SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
 `

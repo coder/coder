@@ -3238,15 +3238,3 @@ func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	}
 	return replicas, nil
 }
-
-func (q *fakeQuerier) GetReplicaByID(_ context.Context, id uuid.UUID) (database.Replica, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, replica := range q.replicas {
-		if replica.ID == id {
-			return replica, nil
-		}
-	}
-	return database.Replica{}, sql.ErrNoRows
-}

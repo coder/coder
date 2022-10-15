@@ -1,9 +1,6 @@
 -- name: GetReplicasUpdatedAfter :many
 SELECT * FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL;
 
--- name: GetReplicaByID :one
-SELECT * FROM replicas WHERE id = $1;
-
 -- name: InsertReplica :one
 INSERT INTO replicas (
     id,

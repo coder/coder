@@ -178,6 +178,24 @@ func TestReplica(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast)
 		_ = server.Close()
 	})
+	t.Run("DeletesOld", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		_, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
+			ID:        uuid.New(),
+			UpdatedAt: database.Now().Add(-time.Hour),
+		})
+		require.NoError(t, err)
+		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+			RelayAddress:    "google.com",
+			CleanupInterval: time.Millisecond,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+		require.Eventually(t, func() bool {
+			return len(server.Regional()) == 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
 		// discover each other in parallel!

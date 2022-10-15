@@ -26,11 +26,12 @@ var (
 )
 
 type Options struct {
-	UpdateInterval time.Duration
-	PeerTimeout    time.Duration
-	RelayAddress   string
-	RegionID       int32
-	TLSConfig      *tls.Config
+	CleanupInterval time.Duration
+	UpdateInterval  time.Duration
+	PeerTimeout     time.Duration
+	RelayAddress    string
+	RegionID        int32
+	TLSConfig       *tls.Config
 }
 
 // New registers the replica with the database and periodically updates to ensure
@@ -44,6 +45,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	}
 	if options.UpdateInterval == 0 {
 		options.UpdateInterval = 5 * time.Second
+	}
+	if options.CleanupInterval == 0 {
+		// The cleanup interval can be quite long, because it's
+		// primary purpose is to clean up dead replicas.
+		options.CleanupInterval = 30 * time.Minute
 	}
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -123,16 +129,31 @@ type Manager struct {
 	callback func()
 }
 
+// updateInterval is used to determine a replicas state.
+// If the replica was updated > the time, it's considered healthy.
+// If the replica was updated < the time, it's considered stale.
+func (m *Manager) updateInterval() time.Time {
+	return database.Now().Add(-3 * m.options.UpdateInterval)
+}
+
 // loop runs the replica update sequence on an update interval.
 func (m *Manager) loop(ctx context.Context) {
 	defer m.closeWait.Done()
-	ticker := time.NewTicker(m.options.UpdateInterval)
-	defer ticker.Stop()
+	updateTicker := time.NewTicker(m.options.UpdateInterval)
+	defer updateTicker.Stop()
+	deleteTicker := time.NewTicker(m.options.CleanupInterval)
+	defer deleteTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-deleteTicker.C:
+			err := m.db.DeleteReplicasUpdatedBefore(ctx, m.updateInterval())
+			if err != nil {
+				m.logger.Warn(ctx, "delete old replicas", slog.Error(err))
+			}
+			continue
+		case <-updateTicker.C:
 		}
 		err := m.syncReplicas(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
@@ -204,7 +225,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	defer m.closeWait.Done()
 	// Expect replicas to update once every three times the interval...
 	// If they don't, assume death!
-	replicas, err := m.db.GetReplicasUpdatedAfter(ctx, database.Now().Add(-3*m.options.UpdateInterval))
+	replicas, err := m.db.GetReplicasUpdatedAfter(ctx, m.updateInterval())
 	if err != nil {
 		return xerrors.Errorf("get replicas: %w", err)
 	}
