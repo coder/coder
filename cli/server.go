@@ -929,6 +929,7 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	if err != nil {
 		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
+	tlsConfig.Certificates = certs
 	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		// If there's only one certificate, return it.
 		if len(certs) == 1 {
