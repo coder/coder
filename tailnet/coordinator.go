@@ -127,25 +127,26 @@ type coordinator struct {
 }
 
 // Node returns an in-memory node by ID.
+// If the node does not exist, nil is returned.
 func (c *coordinator) Node(id uuid.UUID) *Node {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	node := c.nodes[id]
-	return node
+	return c.nodes[id]
 }
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
 func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	c.mutex.Lock()
-
 	if c.closed {
+		c.mutex.Unlock()
 		return xerrors.New("coordinator is closed")
 	}
 
 	// When a new connection is requested, we update it with the latest
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
+	c.mutex.Unlock()
 	if ok {
 		data, err := json.Marshal([]*Node{node})
 		if err != nil {
@@ -158,6 +159,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
+	c.mutex.Lock()
 	connectionSockets, ok := c.agentToConnectionSockets[agent]
 	if !ok {
 		connectionSockets = map[uuid.UUID]net.Conn{}
@@ -203,7 +205,6 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 	}
 
 	c.mutex.Lock()
-
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
@@ -237,12 +238,13 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 // listens to incoming connections and publishes node updates.
 func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	c.mutex.Lock()
-
 	if c.closed {
+		c.mutex.Unlock()
 		return xerrors.New("coordinator is closed")
 	}
 
 	sockets, ok := c.agentToConnectionSockets[id]
+	c.mutex.Unlock()
 	if ok {
 		// Publish all nodes that want to connect to the
 		// desired agent ID.
@@ -269,6 +271,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	// If an old agent socket is connected, we close it
 	// to avoid any leaks. This shouldn't ever occur because
 	// we expect one agent to be running.
+	c.mutex.Lock()
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
 		_ = oldAgentSocket.Close()
@@ -302,17 +305,15 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	}
 
 	c.mutex.Lock()
-
 	c.nodes[id] = &node
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
 		c.mutex.Unlock()
 		return nil
 	}
-
+	c.mutex.Unlock()
 	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
-		c.mutex.Unlock()
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
 
@@ -328,7 +329,6 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 		}()
 	}
 
-	c.mutex.Unlock()
 	wg.Wait()
 	return nil
 }
@@ -337,9 +337,11 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 // coordinator from accepting new connections.
 func (c *coordinator) Close() error {
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
+	if c.closed {
+		return nil
+	}
 	c.closed = true
+	c.mutex.Unlock()
 
 	wg := sync.WaitGroup{}
 

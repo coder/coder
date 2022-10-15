@@ -143,9 +143,11 @@ func (m *Manager) loop(ctx context.Context) {
 
 // subscribe listens for new replica information!
 func (m *Manager) subscribe(ctx context.Context) error {
-	needsUpdate := false
-	updating := false
-	updateMutex := sync.Mutex{}
+	var (
+		needsUpdate = false
+		updating    = false
+		updateMutex = sync.Mutex{}
+	)
 
 	// This loop will continually update nodes as updates are processed.
 	// The intent is to always be up to date without spamming the run
@@ -199,9 +201,7 @@ func (m *Manager) run(ctx context.Context) error {
 	m.closeMutex.Lock()
 	m.closeWait.Add(1)
 	m.closeMutex.Unlock()
-	go func() {
-		m.closeWait.Done()
-	}()
+	defer m.closeWait.Done()
 	// Expect replicas to update once every three times the interval...
 	// If they don't, assume death!
 	replicas, err := m.db.GetReplicasUpdatedAfter(ctx, database.Now().Add(-3*m.options.UpdateInterval))
@@ -224,8 +224,7 @@ func (m *Manager) run(ctx context.Context) error {
 	failed := make([]string, 0)
 	for _, peer := range m.Regional() {
 		wg.Add(1)
-		peer := peer
-		go func() {
+		go func(peer database.Replica) {
 			defer wg.Done()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, peer.RelayAddress, nil)
 			if err != nil {
@@ -247,7 +246,7 @@ func (m *Manager) run(ctx context.Context) error {
 				return
 			}
 			_ = res.Body.Close()
-		}()
+		}(peer)
 	}
 	wg.Wait()
 	replicaError := sql.NullString{}
@@ -279,11 +278,11 @@ func (m *Manager) run(ctx context.Context) error {
 		return xerrors.Errorf("update replica: %w", err)
 	}
 	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if m.self.Error.String != replica.Error.String {
 		// Publish an update occurred!
 		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 		if err != nil {
-			m.mutex.Unlock()
 			return xerrors.Errorf("publish replica update: %w", err)
 		}
 	}
@@ -291,7 +290,6 @@ func (m *Manager) run(ctx context.Context) error {
 	if m.callback != nil {
 		go m.callback()
 	}
-	m.mutex.Unlock()
 	return nil
 }
 
@@ -306,7 +304,7 @@ func (m *Manager) Self() database.Replica {
 func (m *Manager) All() []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	return append(m.peers, m.self)
+	return append(m.peers[:], m.self)
 }
 
 // Regional returns all replicas in the same region excluding itself.

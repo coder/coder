@@ -69,19 +69,19 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 	// When a new connection is requested, we update it with the latest
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
+	c.mutex.Unlock()
 	if ok {
 		data, err := json.Marshal([]*agpl.Node{node})
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("marshal node: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
 
+	c.mutex.Lock()
 	connectionSockets, ok := c.agentToConnectionSockets[agent]
 	if !ok {
 		connectionSockets = map[uuid.UUID]net.Conn{}
@@ -129,28 +129,17 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 	}
 
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
 	c.nodes[id] = &node
-
 	// Write the new node from this client to the actively connected agent.
-	err = c.writeNodeToAgent(agent, &node)
-	if err != nil {
-		return xerrors.Errorf("write node to agent: %w", err)
-	}
-
-	return nil
-}
-
-func (c *haCoordinator) writeNodeToAgent(agent uuid.UUID, node *agpl.Node) error {
 	agentSocket, ok := c.agentSockets[agent]
+	c.mutex.Unlock()
 	if !ok {
 		// If we don't own the agent locally, send it over pubsub to a node that
 		// owns the agent.
-		err := c.publishNodesToAgent(agent, []*agpl.Node{node})
+		err := c.publishNodesToAgent(agent, []*agpl.Node{&node})
 		if err != nil {
 			return xerrors.Errorf("publish node to agent")
 		}
@@ -159,7 +148,7 @@ func (c *haCoordinator) writeNodeToAgent(agent uuid.UUID, node *agpl.Node) error
 
 	// Write the new node from this client to the actively
 	// connected agent.
-	data, err := json.Marshal([]*agpl.Node{node})
+	data, err := json.Marshal([]*agpl.Node{&node})
 	if err != nil {
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
@@ -171,14 +160,13 @@ func (c *haCoordinator) writeNodeToAgent(agent uuid.UUID, node *agpl.Node) error
 		}
 		return xerrors.Errorf("write json: %w", err)
 	}
+
 	return nil
 }
 
 // ServeAgent accepts a WebSocket connection to an agent that listens to
 // incoming connections and publishes node updates.
 func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
-	c.mutex.Lock()
-
 	// Tell clients on other instances to send a callmemaybe to us.
 	err := c.publishAgentHello(id)
 	if err != nil {
@@ -203,6 +191,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	// If an old agent socket is connected, we close it
 	// to avoid any leaks. This shouldn't ever occur because
 	// we expect one agent to be running.
+	c.mutex.Lock()
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
 		_ = oldAgentSocket.Close()
@@ -234,6 +223,8 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 }
 
 func (c *haCoordinator) nodesSubscribedToAgent(agentID uuid.UUID) []*agpl.Node {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	sockets, ok := c.agentToConnectionSockets[agentID]
 	if !ok {
 		return nil
@@ -279,12 +270,11 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	for _, connectionSocket := range connectionSockets {
 		connectionSocket := connectionSocket
 		go func() {
+			defer wg.Done()
 			_ = connectionSocket.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			_, _ = connectionSocket.Write(data)
-			wg.Done()
 		}()
 	}
-
 	wg.Wait()
 	return &node, nil
 }
@@ -428,9 +418,7 @@ func (c *haCoordinator) runPubsub() error {
 				return
 			}
 
-			c.mutex.Lock()
 			nodes := c.nodesSubscribedToAgent(agentUUID)
-			c.mutex.Unlock()
 			if len(nodes) > 0 {
 				err := c.publishNodesToAgent(agentUUID, nodes)
 				if err != nil {
