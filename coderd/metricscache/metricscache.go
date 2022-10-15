@@ -141,7 +141,7 @@ func (c *Cache) refresh(ctx context.Context) error {
 		}
 		templateDAUs[template.ID] = convertDAUResponse(rows)
 		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
-		avgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
+		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
@@ -154,7 +154,7 @@ func (c *Cache) refresh(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		templateAverageBuildTimeSec[template.ID] = time.Duration(float64(time.Second) * avgBuildTime)
+		templateAverageBuildTimeSec[template.ID] = time.Duration(float64(time.Second) * templateAvgBuildTime)
 	}
 	c.templateDAUResponses.Store(&templateDAUs)
 	c.templateUniqueUsers.Store(&templateUniqueUsers)
