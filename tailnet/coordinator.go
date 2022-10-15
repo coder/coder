@@ -263,7 +263,6 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
