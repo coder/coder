@@ -2698,16 +2698,16 @@ WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, host
 `
 
 type UpdateReplicaParams struct {
-	ID              uuid.UUID      `db:"id" json:"id"`
-	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
-	StartedAt       time.Time      `db:"started_at" json:"started_at"`
-	StoppedAt       sql.NullTime   `db:"stopped_at" json:"stopped_at"`
-	RelayAddress    string         `db:"relay_address" json:"relay_address"`
-	RegionID        int32          `db:"region_id" json:"region_id"`
-	Hostname        string         `db:"hostname" json:"hostname"`
-	Version         string         `db:"version" json:"version"`
-	Error           sql.NullString `db:"error" json:"error"`
-	DatabaseLatency int32          `db:"database_latency" json:"database_latency"`
+	ID              uuid.UUID    `db:"id" json:"id"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	StartedAt       time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	RelayAddress    string       `db:"relay_address" json:"relay_address"`
+	RegionID        int32        `db:"region_id" json:"region_id"`
+	Hostname        string       `db:"hostname" json:"hostname"`
+	Version         string       `db:"version" json:"version"`
+	Error           string       `db:"error" json:"error"`
+	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
 }
 
 func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {

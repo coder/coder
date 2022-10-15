@@ -31,7 +31,7 @@ func convertReplica(replica database.Replica) codersdk.Replica {
 		CreatedAt:       replica.CreatedAt,
 		RelayAddress:    replica.RelayAddress,
 		RegionID:        replica.RegionID,
-		Error:           replica.Error.String,
+		Error:           replica.Error,
 		DatabaseLatency: replica.DatabaseLatency,
 	}
 }

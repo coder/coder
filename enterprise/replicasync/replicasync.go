@@ -271,12 +271,9 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}(peer)
 	}
 	wg.Wait()
-	replicaError := sql.NullString{}
+	replicaError := ""
 	if len(failed) > 0 {
-		replicaError = sql.NullString{
-			Valid:  true,
-			String: fmt.Sprintf("Failed to dial peers: %s", strings.Join(failed, ", ")),
-		}
+		replicaError = fmt.Sprintf("Failed to dial peers: %s", strings.Join(failed, ", "))
 	}
 
 	databaseLatency, err := m.db.Ping(ctx)
@@ -301,7 +298,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	if m.self.Error.String != replica.Error.String {
+	if m.self.Error != replica.Error {
 		// Publish an update occurred!
 		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 		if err != nil {

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS replicas (
     database_latency int NOT NULL,
     -- Version is the Coder version of the replica.
     version text NOT NULL,
-    error text
+    error text NOT NULL DEFAULT ''
 );
 
 -- Associates a provisioner daemon with a replica.

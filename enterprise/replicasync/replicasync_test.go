@@ -84,7 +84,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
-		require.False(t, server.Self().Error.Valid)
+		require.Empty(t, server.Self().Error)
 		_ = server.Close()
 	})
 	t.Run("ConnectsToPeerReplicaTLS", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
-		require.False(t, server.Self().Error.Valid)
+		require.Empty(t, server.Self().Error)
 		_ = server.Close()
 	})
 	t.Run("ConnectsToFakePeerWithError", func(t *testing.T) {
@@ -148,8 +148,8 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)
 		require.Equal(t, peer.ID, server.Regional()[0].ID)
-		require.True(t, server.Self().Error.Valid)
-		require.Contains(t, server.Self().Error.String, "Failed to dial peers")
+		require.NotEmpty(t, server.Self().Error)
+		require.Contains(t, server.Self().Error, "Failed to dial peers")
 		_ = server.Close()
 	})
 	t.Run("RefreshOnPublish", func(t *testing.T) {
