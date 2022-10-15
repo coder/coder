@@ -283,11 +283,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				for _, replica := range api.replicaManager.Regional() {
 					addresses = append(addresses, replica.RelayAddress)
 				}
-				api.derpMesh.SetAddresses(addresses)
+				api.derpMesh.SetAddresses(addresses, false)
 				_ = api.updateEntitlements(ctx)
 			})
 		} else {
-			api.derpMesh.SetAddresses([]string{})
+			api.derpMesh.SetAddresses([]string{}, false)
 			api.replicaManager.SetCallback(func() {
 				// If the amount of replicas change, so should our entitlements.
 				// This is to display a warning in the UI if the user is unlicensed.

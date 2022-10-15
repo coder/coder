@@ -49,9 +49,9 @@ func TestDERPMesh(t *testing.T) {
 		defer firstServer.Close()
 		secondServer, secondServerURL := startDERP(t, tlsConfig)
 		firstMesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), firstServer, tlsConfig)
-		firstMesh.SetAddresses([]string{secondServerURL})
+		firstMesh.SetAddresses([]string{secondServerURL}, true)
 		secondMesh := derpmesh.New(slogtest.Make(t, nil).Named("second").Leveled(slog.LevelDebug), secondServer, tlsConfig)
-		secondMesh.SetAddresses([]string{firstServerURL})
+		secondMesh.SetAddresses([]string{firstServerURL}, true)
 		defer firstMesh.Close()
 		defer secondMesh.Close()
 
@@ -78,9 +78,9 @@ func TestDERPMesh(t *testing.T) {
 		t.Parallel()
 		server, serverURL := startDERP(t, tlsConfig)
 		mesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), server, tlsConfig)
-		mesh.SetAddresses([]string{"http://fake.com"})
+		mesh.SetAddresses([]string{"http://fake.com"}, false)
 		// This should trigger a removal...
-		mesh.SetAddresses([]string{})
+		mesh.SetAddresses([]string{}, false)
 		defer mesh.Close()
 
 		first := key.NewNode()
@@ -114,7 +114,7 @@ func TestDERPMesh(t *testing.T) {
 			meshes = append(meshes, mesh)
 		}
 		for _, mesh := range meshes {
-			mesh.SetAddresses(serverURLs)
+			mesh.SetAddresses(serverURLs, true)
 		}
 
 		first := key.NewNode()
