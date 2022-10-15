@@ -82,7 +82,7 @@ func (m *Mesh) SetAddresses(addresses []string) {
 	m.mutex.Unlock()
 }
 
-// addAddress begins meshing with a new address.
+// addAddress begins meshing with a new address. It returns false if the address is already being meshed with.
 // It's expected that this is a full HTTP address with a path.
 // e.g. http://127.0.0.1:8080/derp
 func (m *Mesh) addAddress(address string) (bool, error) {
