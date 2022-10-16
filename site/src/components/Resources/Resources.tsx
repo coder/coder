@@ -200,6 +200,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                       key={app.name}
                                       appsHost={applicationsHost}
                                       appIcon={app.icon}
+                                      appSlug={app.slug}
                                       appName={app.name}
                                       appCommand={app.command}
                                       appSubdomain={app.subdomain}

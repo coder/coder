@@ -23,7 +23,9 @@ const (
 
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id"`
-	// Name is a unique identifier attached to an agent.
+	// Slug is a unique identifier within the agent..
+	Slug string `json:"slug"`
+	// Name is a friendly name for the app.
 	Name    string `json:"name"`
 	Command string `json:"command,omitempty"`
 	// Icon is a relative path or external URL that specifies

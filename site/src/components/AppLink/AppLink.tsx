@@ -22,6 +22,7 @@ export interface AppLinkProps {
   username: TypesGen.User["username"]
   workspaceName: TypesGen.Workspace["name"]
   agentName: TypesGen.WorkspaceAgent["name"]
+  appSlug: TypesGen.WorkspaceApp["slug"]
   appName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
@@ -35,6 +36,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   username,
   workspaceName,
   agentName,
+  appSlug,
   appName,
   appIcon,
   appCommand,
@@ -43,11 +45,17 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   health,
 }) => {
   const styles = useStyles()
+  if (appSlug === "") {
+    appSlug = appName
+  }
+  if (appName === "") {
+    appName = appSlug
+  }
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
   let href = `/@${username}/${workspaceName}.${agentName}/apps/${encodeURIComponent(
-    appName,
+    appSlug,
   )}/`
   if (appCommand) {
     href = `/@${username}/${workspaceName}.${agentName}/terminal?command=${encodeURIComponent(
@@ -55,7 +63,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
     )}`
   }
   if (appsHost && appSubdomain) {
-    const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
+    const subdomain = `${appSlug}--${agentName}--${workspaceName}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
   }
 

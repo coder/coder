@@ -647,6 +647,7 @@ type WorkspaceApp struct {
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
+	Slug                 string             `db:"slug" json:"slug"`
 }
 
 type WorkspaceBuild struct {

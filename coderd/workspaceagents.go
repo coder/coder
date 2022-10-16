@@ -595,6 +595,7 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:           dbApp.ID,
+			Slug:         dbApp.Slug,
 			Name:         dbApp.Name,
 			Command:      dbApp.Command.String,
 			Icon:         dbApp.Icon,

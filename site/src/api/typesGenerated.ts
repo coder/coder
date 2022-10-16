@@ -786,6 +786,7 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
+  readonly slug: string
   readonly name: string
   readonly command?: string
   readonly icon?: string

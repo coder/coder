@@ -110,11 +110,13 @@ func TestConvertResources(t *testing.T) {
 				Architecture:    "amd64",
 				Apps: []*proto.App{
 					{
+						Slug: "app1",
 						Name: "app1",
 						// Subdomain defaults to false if unspecified.
 						Subdomain: false,
 					},
 					{
+						Slug:      "app2",
 						Name:      "app2",
 						Subdomain: true,
 						Healthcheck: &proto.Healthcheck{
@@ -124,6 +126,7 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					{
+						Slug:      "app3",
 						Name:      "app3",
 						Subdomain: false,
 					},

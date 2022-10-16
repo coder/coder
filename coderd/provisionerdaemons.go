@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -806,6 +807,17 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
+			slug := app.Slug
+			if slug == "" {
+				slug = app.Name
+			}
+			if slug == "" {
+				return xerrors.Errorf("app must have a slug or name set")
+			}
+			if !provisioner.ValidAppNameRegex.MatchString(slug) {
+				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.ValidAppNameRegex.String())
+			}
+
 			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
 				app.Healthcheck = &sdkproto.Healthcheck{}
@@ -826,6 +838,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
 				AgentID:   dbAgent.ID,
+				Slug:      slug,
 				Name:      app.Name,
 				Icon:      app.Icon,
 				Command: sql.NullString{

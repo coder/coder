@@ -13,7 +13,8 @@ export const WithIcon = Template.bind({})
 WithIcon.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
-  appName: "code-server",
+  appSlug: "code-server",
+  appName: "Code Server",
   appIcon: "/icon/code.svg",
   appSharingLevel: "owner",
   health: "healthy",
@@ -23,7 +24,8 @@ export const WithoutIcon = Template.bind({})
 WithoutIcon.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
-  appName: "code-server",
+  appSlug: "code-server",
+  appName: "Code Server",
   appSharingLevel: "owner",
   health: "healthy",
 }
@@ -32,7 +34,8 @@ export const HealthDisabled = Template.bind({})
 HealthDisabled.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
-  appName: "code-server",
+  appSlug: "code-server",
+  appName: "Code Server",
   appSharingLevel: "owner",
   health: "disabled",
 }
@@ -41,7 +44,8 @@ export const HealthInitializing = Template.bind({})
 HealthInitializing.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
-  appName: "code-server",
+  appSlug: "code-server",
+  appName: "Code Server",
   health: "initializing",
 }
 
@@ -49,6 +53,7 @@ export const HealthUnhealthy = Template.bind({})
 HealthUnhealthy.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
-  appName: "code-server",
+  appSlug: "code-server",
+  appName: "Code Server",
   health: "unhealthy",
 }

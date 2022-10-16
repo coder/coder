@@ -378,7 +378,8 @@ CREATE TABLE workspace_apps (
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
     health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
     subdomain boolean DEFAULT false NOT NULL,
-    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL
+    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL,
+    slug text NOT NULL
 );
 
 CREATE TABLE workspace_builds (

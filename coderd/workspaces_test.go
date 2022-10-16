@@ -1408,12 +1408,14 @@ func TestWorkspaceResource(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		apps := []*proto.App{
 			{
+				Slug:    "code-server",
 				Name:    "code-server",
 				Command: "some-command",
 				Url:     "http://localhost:3000",
 				Icon:    "/code.svg",
 			},
 			{
+				Slug:    "code-server-2",
 				Name:    "code-server-2",
 				Command: "some-command",
 				Url:     "http://localhost:3000",

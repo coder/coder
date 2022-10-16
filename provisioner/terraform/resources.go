@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -218,6 +219,12 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if resource.Type != "coder_app" {
 			continue
 		}
+
+		slug := resource.Name
+		if !provisioner.ValidAppNameRegex.MatchString(slug) {
+			return nil, xerrors.Errorf("invalid app name, must be a valid hostname (%q, cannot contain two consecutive hyphens or start/end with a hyphen): %q", provisioner.ValidAppNameRegex.String(), slug)
+		}
+
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
@@ -253,6 +260,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
+					Slug:         slug,
 					Name:         attrs.Name,
 					Command:      attrs.Command,
 					Url:          attrs.URL,
