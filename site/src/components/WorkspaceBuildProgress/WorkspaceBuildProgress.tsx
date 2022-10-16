@@ -6,7 +6,6 @@ import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
-import { Transition } from "xstate"
 
 dayjs.extend(duration)
 
