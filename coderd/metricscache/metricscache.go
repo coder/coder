@@ -241,22 +241,32 @@ func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
 	return resp, true
 }
 
-func (c *Cache) TemplateAverageBuildTime(id uuid.UUID) (*codersdk.TemplateBuildTimeStats, bool) {
+func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeStats {
+	var unknown codersdk.TemplateBuildTimeStats
+
 	m := c.templateAverageBuildTime.Load()
 	if m == nil {
 		// Data loading.
-		return nil, false
+		return unknown
 	}
 
 	resp, ok := (*m)[id]
-	if !ok || resp.StartMedian <= 0 || resp.StopMedian <= 0 {
+	if !ok {
 		// No data or not enough builds.
-		return nil, false
+		return unknown
 	}
 
-	return &codersdk.TemplateBuildTimeStats{
-		StartMillis:  int64(resp.StartMedian * 1000),
-		StopMillis:   int64(resp.StopMedian * 1000),
-		DeleteMillis: int64(resp.DeleteMedian * 1000),
-	}, true
+	convertMedian := func(m float64) *int64 {
+		if m < 1 {
+			return nil
+		}
+		i := int64(m * 1000)
+		return &i
+	}
+
+	return codersdk.TemplateBuildTimeStats{
+		StartMillis:  convertMedian(resp.StartMedian),
+		StopMillis:   convertMedian(resp.StopMedian),
+		DeleteMillis: convertMedian(resp.DeleteMedian),
+	}
 }

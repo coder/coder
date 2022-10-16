@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -214,27 +215,30 @@ func TestCache_BuildTime(t *testing.T) {
 	}
 
 	type args struct {
-		rows []jobParams
+		rows       []jobParams
+		transition database.WorkspaceTransition
 	}
 	type want struct {
-		buildTime time.Duration
+		buildTimeMs int64
+		loads       bool
 	}
 	tests := []struct {
 		name string
 		args args
 		want want
 	}{
-		{"empty", args{}, want{-1}},
-		{"one", args{
+		{"empty", args{}, want{-1, false}},
+		{"one/start", args{
 			rows: []jobParams{
 				{
 					startedAt:   clockTime(someDay, 10, 1, 0),
 					completedAt: clockTime(someDay, 10, 1, 10),
 				},
 			},
-		}, want{time.Second * 10},
+			transition: database.WorkspaceTransitionStart,
+		}, want{10 * 1000, true},
 		},
-		{"two", args{
+		{"two/stop", args{
 			rows: []jobParams{
 				{
 					startedAt:   clockTime(someDay, 10, 1, 0),
@@ -245,9 +249,10 @@ func TestCache_BuildTime(t *testing.T) {
 					completedAt: clockTime(someDay, 10, 1, 50),
 				},
 			},
-		}, want{time.Second * 50},
+			transition: database.WorkspaceTransitionStop,
+		}, want{50 * 1000, true},
 		},
-		{"three", args{
+		{"three/delete", args{
 			rows: []jobParams{
 				{
 					startedAt:   clockTime(someDay, 10, 1, 0),
@@ -261,7 +266,8 @@ func TestCache_BuildTime(t *testing.T) {
 					completedAt: clockTime(someDay, 10, 1, 20),
 				},
 			},
-		}, want{time.Second * 20},
+			transition: database.WorkspaceTransitionDelete,
+		}, want{20 * 1000, true},
 		},
 	}
 
@@ -289,9 +295,8 @@ func TestCache_BuildTime(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			gotBuildTime, ok := cache.TemplateAverageBuildTime(template.ID)
-			require.False(t, ok, "template shouldn't have loaded yet")
-			require.EqualValues(t, -1, gotBuildTime)
+			gotStats := cache.TemplateBuildTimeStats(template.ID)
+			require.Empty(t, gotStats, "should not have loaded yet")
 
 			for _, row := range tt.args.rows {
 				_, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -311,7 +316,7 @@ func TestCache_BuildTime(t *testing.T) {
 				_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 					TemplateVersionID: templateVersion.ID,
 					JobID:             job.ID,
-					Transition:        database.WorkspaceTransitionStart,
+					Transition:        tt.args.transition,
 				})
 				require.NoError(t, err)
 
@@ -322,28 +327,38 @@ func TestCache_BuildTime(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			if tt.want.buildTime > 0 {
+			if tt.want.loads {
 				require.Eventuallyf(t, func() bool {
-					_, ok := cache.TemplateAverageBuildTime(template.ID)
-					return ok
+					stats := cache.TemplateBuildTimeStats(template.ID)
+					return assert.NotEmpty(t, stats)
 				}, testutil.WaitShort, testutil.IntervalMedium,
-					"TemplateDAUs never populated",
+					"BuildTime never populated",
 				)
 
-				gotBuildTime, ok = cache.TemplateAverageBuildTime(template.ID)
-				require.True(t, ok)
-				require.Equal(t, tt.want.buildTime, gotBuildTime)
+				gotStats = cache.TemplateBuildTimeStats(template.ID)
+
+				if tt.args.transition == database.WorkspaceTransitionDelete {
+					require.Nil(t, gotStats.StopMillis)
+					require.Nil(t, gotStats.StartMillis)
+					require.Equal(t, tt.want.buildTimeMs, *gotStats.DeleteMillis)
+				}
+				if tt.args.transition == database.WorkspaceTransitionStart {
+					require.Nil(t, gotStats.StopMillis)
+					require.Nil(t, gotStats.DeleteMillis)
+					require.Equal(t, tt.want.buildTimeMs, *gotStats.StartMillis)
+				}
+				if tt.args.transition == database.WorkspaceTransitionStop {
+					require.Nil(t, gotStats.StartMillis)
+					require.Nil(t, gotStats.DeleteMillis)
+					require.Equal(t, tt.want.buildTimeMs, *gotStats.StopMillis)
+				}
 			} else {
 				require.Never(t, func() bool {
-					_, ok := cache.TemplateAverageBuildTime(template.ID)
-					return ok
+					stats := cache.TemplateBuildTimeStats(template.ID)
+					return !assert.Empty(t, stats)
 				}, testutil.WaitShort/2, testutil.IntervalMedium,
-					"TemplateDAUs never populated",
+					"BuildTimeStats populated",
 				)
-
-				gotBuildTime, ok = cache.TemplateAverageBuildTime(template.ID)
-				require.False(t, ok)
-				require.Less(t, gotBuildTime, time.Duration(0))
 			}
 		})
 	}

@@ -586,7 +586,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly active_user_count: number
-  readonly average_build_time_ms: number
+  readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
@@ -599,6 +599,13 @@ export interface Template {
 export interface TemplateACL {
   readonly users: TemplateUser[]
   readonly group: TemplateGroup[]
+}
+
+// From codersdk/templates.go
+export interface TemplateBuildTimeStats {
+  readonly start_ms?: number
+  readonly stop_ms?: number
+  readonly delete_ms?: number
 }
 
 // From codersdk/templates.go

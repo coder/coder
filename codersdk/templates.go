@@ -34,9 +34,9 @@ type Template struct {
 }
 
 type TemplateBuildTimeStats struct {
-	StartMillis  int64 `json:"start_ms"`
-	StopMillis   int64 `json:"stop_ms"`
-	DeleteMillis int64 `json:"delete_ms"`
+	StartMillis  *int64 `json:"start_ms"`
+	StopMillis   *int64 `json:"stop_ms"`
+	DeleteMillis *int64 `json:"delete_ms"`
 }
 
 type UpdateActiveTemplateVersion struct {

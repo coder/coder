@@ -272,7 +272,7 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 			return -1
 		}
 		sort.Float64s(fs)
-		return fs[len(startTimes)/2]
+		return fs[len(fs)/2]
 	}
 	var row database.GetTemplateAverageBuildTimeRow
 	row.DeleteMedian = tryMedian(deleteTimes)
