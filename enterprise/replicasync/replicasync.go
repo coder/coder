@@ -362,7 +362,8 @@ func (m *Manager) Close() error {
 	m.closeCancel()
 	m.closeWait.Wait()
 	m.closeMutex.Unlock()
-
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
 	_, err := m.db.UpdateReplica(ctx, database.UpdateReplicaParams{
