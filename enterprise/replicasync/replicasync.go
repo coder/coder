@@ -178,7 +178,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 	update = func() {
 		err := m.syncReplicas(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			m.logger.Error(ctx, "run replica from subscribe", slog.Error(err))
+			m.logger.Warn(ctx, "run replica from subscribe", slog.Error(err))
 		}
 		updateMutex.Lock()
 		if needsUpdate {
@@ -256,7 +256,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			defer wg.Done()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, peer.RelayAddress, nil)
 			if err != nil {
-				m.logger.Error(ctx, "create http request for relay probe",
+				m.logger.Warn(ctx, "create http request for relay probe",
 					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
 				return
 			}
