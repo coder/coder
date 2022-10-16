@@ -6,7 +6,7 @@ MacOS = "macOS"
 
 [default.extend-words]
 # do as sudo replacement
-doas=doas
+doas = "doas"
 
 [files]
 extend-exclude = [
