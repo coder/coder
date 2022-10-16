@@ -201,6 +201,9 @@ func TestReplica(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
 		// discover each other in parallel!
 		t.Parallel()
+		// This doesn't use the database fake because creating
+		// this many PostgreSQL connections takes some
+		// configuration tweaking.
 		db := databasefake.New()
 		pubsub := database.NewPubsubInMemory()
 		logger := slogtest.Make(t, nil)
