@@ -4,7 +4,6 @@ import {
   MockProvisionerJob,
   MockStartingWorkspace,
   MockTemplate,
-  MockWorkspace,
   MockWorkspaceBuild,
 } from "../../testHelpers/renderHelpers"
 import {
