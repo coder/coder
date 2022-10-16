@@ -93,6 +93,9 @@ func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 func (m *Mesh) addAddress(address string, connect bool) (bool, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+	if m.isClosed() {
+		return false, nil
+	}
 	_, isActive := m.active[address]
 	if isActive {
 		return false, nil
@@ -142,14 +145,21 @@ func (m *Mesh) removeAddress(address string) bool {
 func (m *Mesh) Close() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	select {
-	case <-m.closed:
+	if m.isClosed() {
 		return nil
-	default:
 	}
 	close(m.closed)
 	for _, cancelFunc := range m.active {
 		cancelFunc()
 	}
 	return nil
+}
+
+func (m *Mesh) isClosed() bool {
+	select {
+	case <-m.closed:
+		return true
+	default:
+	}
+	return false
 }
