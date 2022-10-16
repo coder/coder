@@ -483,9 +483,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("Speedtest", func(t *testing.T) {
 		t.Parallel()
-		if testing.Short() {
-			t.Skip("The minimum duration for a speedtest is hardcoded in Tailscale to 5s!")
-		}
+		t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
 		derpMap := tailnettest.RunDERPAndSTUN(t)
 		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
 			DERPMap: derpMap,
