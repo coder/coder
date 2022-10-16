@@ -62,7 +62,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
-	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
+	setHandler, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,
@@ -76,7 +76,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		Keys:                       Keys,
 	})
 	assert.NoError(t, err)
-	srv.Config.Handler = coderAPI.AGPL.RootHandler
+	setHandler(coderAPI.AGPL.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)

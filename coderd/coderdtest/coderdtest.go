@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -127,7 +128,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.CancelFunc, *coderd.Options) {
+func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -161,7 +162,15 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
-	srv := httptest.NewUnstartedServer(nil)
+	var mutex sync.RWMutex
+	var handler http.Handler
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.RLock()
+		defer mutex.RUnlock()
+		if handler != nil {
+			handler.ServeHTTP(w, r)
+		}
+	}))
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -204,55 +213,59 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		require.NoError(t, err)
 	}
 
-	return srv, cancelFunc, &coderd.Options{
-		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
-		// Force a long disconnection timeout to ensure
-		// agents are not marked as disconnected during slow tests.
-		AgentInactiveDisconnectTimeout: testutil.WaitShort,
-		AccessURL:                      serverURL,
-		AppHostname:                    options.AppHostname,
-		AppHostnameRegex:               appHostnameRegex,
-		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		CacheDir:                       t.TempDir(),
-		Database:                       options.Database,
-		Pubsub:                         options.Pubsub,
+	return func(h http.Handler) {
+			mutex.Lock()
+			handler = h
+			mutex.Unlock()
+		}, cancelFunc, &coderd.Options{
+			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+			// Force a long disconnection timeout to ensure
+			// agents are not marked as disconnected during slow tests.
+			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			AccessURL:                      serverURL,
+			AppHostname:                    options.AppHostname,
+			AppHostnameRegex:               appHostnameRegex,
+			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			CacheDir:                       t.TempDir(),
+			Database:                       options.Database,
+			Pubsub:                         options.Pubsub,
 
-		Auditor:              options.Auditor,
-		AWSCertificates:      options.AWSCertificates,
-		AzureCertificates:    options.AzureCertificates,
-		GithubOAuth2Config:   options.GithubOAuth2Config,
-		OIDCConfig:           options.OIDCConfig,
-		GoogleTokenValidator: options.GoogleTokenValidator,
-		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-		DERPServer:           derpServer,
-		APIRateLimit:         options.APIRateLimit,
-		Authorizer:           options.Authorizer,
-		Telemetry:            telemetry.NewNoop(),
-		TLSCertificates:      options.TLSCertificates,
-		DERPMap: &tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{
-				1: {
-					EmbeddedRelay: true,
-					RegionID:      1,
-					RegionCode:    "coder",
-					RegionName:    "Coder",
-					Nodes: []*tailcfg.DERPNode{{
-						Name:             "1a",
-						RegionID:         1,
-						IPv4:             "127.0.0.1",
-						DERPPort:         derpPort,
-						STUNPort:         stunAddr.Port,
-						InsecureForTests: true,
-						ForceHTTP:        options.TLSCertificates == nil,
-					}},
+			Auditor:              options.Auditor,
+			AWSCertificates:      options.AWSCertificates,
+			AzureCertificates:    options.AzureCertificates,
+			GithubOAuth2Config:   options.GithubOAuth2Config,
+			OIDCConfig:           options.OIDCConfig,
+			GoogleTokenValidator: options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
+			DERPServer:           derpServer,
+			APIRateLimit:         options.APIRateLimit,
+			Authorizer:           options.Authorizer,
+			Telemetry:            telemetry.NewNoop(),
+			TLSCertificates:      options.TLSCertificates,
+			DERPMap: &tailcfg.DERPMap{
+				Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      1,
+						RegionCode:    "coder",
+						RegionName:    "Coder",
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "1a",
+							RegionID:         1,
+							IPv4:             "127.0.0.1",
+							DERPPort:         derpPort,
+							STUNPort:         stunAddr.Port,
+							InsecureForTests: true,
+							ForceHTTP:        options.TLSCertificates == nil,
+						}},
+					},
 				},
 			},
-		},
-		AutoImportTemplates:         options.AutoImportTemplates,
-		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
-		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-		DeploymentFlags:             options.DeploymentFlags,
-	}
+			AutoImportTemplates:         options.AutoImportTemplates,
+			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
+			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+			DeploymentFlags:             options.DeploymentFlags,
+		}
 }
 
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
@@ -262,10 +275,10 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options == nil {
 		options = &Options{}
 	}
-	srv, cancelFunc, newOptions := NewOptions(t, options)
+	setHandler, cancelFunc, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
-	srv.Config.Handler = coderAPI.RootHandler
+	setHandler(coderAPI.APIHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
