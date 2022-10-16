@@ -170,6 +170,9 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 			Certificates: options.TLSCertificates,
 			MinVersion:   tls.VersionTLS12,
 		}
+		srv.StartTLS()
+	} else {
+		srv.Start()
 	}
 	t.Cleanup(srv.Close)
 
@@ -263,11 +266,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
 	srv.Config.Handler = coderAPI.RootHandler
-	if newOptions.TLSCertificates != nil {
-		srv.StartTLS()
-	} else {
-		srv.Start()
-	}
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
