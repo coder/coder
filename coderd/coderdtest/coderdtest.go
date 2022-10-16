@@ -497,7 +497,7 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitMedium, testutil.IntervalFast)
 	return templateVersion
 }
 
