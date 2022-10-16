@@ -215,8 +215,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 
 	return func(h http.Handler) {
 			mutex.Lock()
+			defer mutex.Unlock()
 			handler = h
-			mutex.Unlock()
 		}, cancelFunc, &coderd.Options{
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 			// Force a long disconnection timeout to ensure
@@ -278,7 +278,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	setHandler, cancelFunc, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
-	setHandler(coderAPI.APIHandler)
+	setHandler(coderAPI.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
