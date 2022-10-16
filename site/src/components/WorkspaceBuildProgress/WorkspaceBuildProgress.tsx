@@ -2,17 +2,21 @@ import LinearProgress from "@material-ui/core/LinearProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
-import { FC } from "react"
+import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
+import { Transition } from "xstate"
 
 dayjs.extend(duration)
 
 const estimateFinish = (
   startedAt: Dayjs,
-  templateAverage: number,
+  templateAverage?: number,
 ): [number, string] => {
+  if (templateAverage === undefined) {
+    return [0, "Unknown"]
+  }
   const realPercentage = dayjs().diff(startedAt) / templateAverage
 
   // Showing a full bar is frustrating.
@@ -30,37 +34,49 @@ const estimateFinish = (
 
 export interface WorkspaceBuildProgressProps {
   workspace: Workspace
-  template?: Template
+  buildEstimate?: number
+}
+
+// EstimateTransitionTime gets the build estimate for the workspace,
+// if it is in a transition state.
+export const EstimateTransitionTime = (
+  template: Template,
+  workspace: Workspace,
+): [number | undefined, boolean] => {
+  switch (workspace.latest_build.status) {
+    case "starting":
+      return [template.build_time_stats.start_ms, true]
+    case "stopping":
+      return [template.build_time_stats.stop_ms, true]
+    case "deleting":
+      return [template.build_time_stats.delete_ms, true]
+    default:
+      // Not in a transition state
+      return [undefined, false]
+  }
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
-  template,
+  buildEstimate,
 }) => {
   const styles = useStyles()
 
-  // Template stats not loaded or non-existent
-  if (!template) {
-    return <></>
-  }
-
-  let buildEstimate: number | undefined = 0
-  switch (workspace.latest_build.status) {
-    case "starting":
-      buildEstimate = template.build_time_stats.start_ms
-      break
-    case "stopping":
-      buildEstimate = template.build_time_stats.stop_ms
-      break
-    case "deleting":
-      buildEstimate = template.build_time_stats.delete_ms
-      break
-    default:
-      // Not in a transition state
-      return <></>
-  }
-
   const job = workspace.latest_build.job
+
+  const [progressValue, setProgressValue] = useState(0)
+  // By default workspace is updated every second, which can cause visual stutter
+  // when the build estimate is a few seconds. The timer ensures no observable
+  // stutter in all cases.
+  useEffect(() => {
+    const updateProgress = () => {
+      setProgressValue(
+        estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100,
+      )
+    }
+    setTimeout(updateProgress, 100)
+  }, [progressValue, job.started_at, buildEstimate])
+
   if (buildEstimate === undefined) {
     return (
       <div className={styles.stack}>
@@ -76,11 +92,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   return (
     <div className={styles.stack}>
       <LinearProgress
-        value={
-          (job.status === "running" &&
-            estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100) ||
-          0
-        }
+        value={(job.status === "running" && progressValue) || 0}
         variant={job.status === "running" ? "determinate" : "indeterminate"}
       />
       <div className={styles.barHelpers}>

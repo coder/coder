@@ -3,7 +3,6 @@ import dayjs from "dayjs"
 import {
   MockProvisionerJob,
   MockStartingWorkspace,
-  MockTemplate,
   MockWorkspaceBuild,
 } from "../../testHelpers/renderHelpers"
 import {
@@ -22,12 +21,7 @@ const Template: Story<WorkspaceBuildProgressProps> = (args) => (
 
 export const Starting = Template.bind({})
 Starting.args = {
-  template: {
-    ...MockTemplate,
-    build_time_stats: {
-      start_ms: 10000,
-    },
-  },
+  buildEstimate: 10000,
   workspace: {
     ...MockStartingWorkspace,
     latest_build: {
@@ -45,21 +39,11 @@ Starting.args = {
 export const StartingUnknown = Template.bind({})
 StartingUnknown.args = {
   ...Starting.args,
-  template: {
-    ...MockTemplate,
-    build_time_stats: {
-      start_ms: undefined,
-    },
-  },
+  buildEstimate: undefined,
 }
 
 export const StartingPassedEstimate = Template.bind({})
 StartingPassedEstimate.args = {
   ...Starting.args,
-  template: {
-    ...MockTemplate,
-    build_time_stats: {
-      start_ms: 1000,
-    },
-  },
+  buildEstimate: 1000,
 }
