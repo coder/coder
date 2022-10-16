@@ -186,9 +186,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
-        {workspace.latest_build.status === "starting" && (
-          <WorkspaceBuildProgress workspace={workspace} template={template} />
-        )}
+        <WorkspaceBuildProgress workspace={workspace} template={template} />
 
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources

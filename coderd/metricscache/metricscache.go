@@ -257,7 +257,7 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 	}
 
 	convertMedian := func(m float64) *int64 {
-		if m < 1 {
+		if m <= 0 {
 			return nil
 		}
 		i := int64(m * 1000)
