@@ -190,14 +190,27 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       "accessModes" = ["ReadWriteOnce"]
                       "resources" = {
                         "requests" = {
-                          "storage" = "50Gi"
+                          "storage" = "10Gi"
                         }
                       }
                     }
                     "source" = {
-                      "http" = {
-                        "url" = "https://www.talos.pair.sharing.io/ubuntu-2004-kube-v1.23.10.gz"
+                      # https://github.com/kubevirt/containerized-data-importer/blob/main/doc/datavolumes.md#https3registry-source
+                      #  kubectl explain DataVolume.spec.source.registry.url
+                      # KIND:     DataVolume
+                      # VERSION:  cdi.kubevirt.io/v1beta1
+
+                      # FIELD:    url <string>
+
+                      # DESCRIPTION:
+                      #      URL is the url of the registry source (starting with the scheme: docker,
+                      #      oci-archive)
+                      "registry" = {
+                        "url" = "docker://quay.io/capk/ubuntu-2004-container-disk:v1.23.10"
                       }
+                      # "http" = {
+                      #   "url" = "https://www.talos.pair.sharing.io/ubuntu-2004-kube-v1.23.10.gz"
+                      # }
                     }
                   }
                 },
@@ -318,9 +331,13 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       }
                     }
                     "source" = {
-                      "http" = {
-                        "url" = "https://www.talos.pair.sharing.io/ubuntu-2004-kube-v1.23.10.gz"
+                      "registry" = {
+                        "url" = "docker://quay.io/capk/ubuntu-2004-container-disk:v1.23.10"
                       }
+                      # "http" = {
+                      #   # https://quay.io/repository/capk/ubuntu-2004-container-disk?tab=tags&tag=latest
+                      #   "url" = "quay.io/capk/ubuntu-2004-container-disk:v1.23.10"
+                      # }
                     }
                   }
                 },
