@@ -792,7 +792,7 @@ func (api *API) convertTemplate(
 		ActiveVersionID:            template.ActiveVersionID,
 		WorkspaceOwnerCount:        workspaceOwnerCount,
 		ActiveUserCount:            activeCount,
-		AverageBuildTimeMillis:     averageBuildTimeMillis,
+		BuildTimeStats:             averageBuildTimeMillis,
 		Description:                template.Description,
 		Icon:                       template.Icon,
 		MaxTTLMillis:               time.Duration(template.MaxTtl).Milliseconds(),
