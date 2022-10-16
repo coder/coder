@@ -118,7 +118,7 @@ func TestReplicas(t *testing.T) {
 		_, agent := setupWorkspaceAgent(t, firstClient, firstUser, 0)
 		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agent.ID, &codersdk.DialWorkspaceAgentOptions{
 			BlockEndpoints: true,
-			Logger:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			Logger:         slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
