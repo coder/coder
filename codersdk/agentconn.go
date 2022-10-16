@@ -135,7 +135,7 @@ type AgentConn struct {
 func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
 	errCh := make(chan error, 1)
 	durCh := make(chan time.Duration, 1)
-	c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
+	go c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
 			errCh <- xerrors.New(pr.Err)
 			return
