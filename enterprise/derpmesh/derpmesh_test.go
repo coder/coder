@@ -67,12 +67,28 @@ func TestDERPMesh(t *testing.T) {
 		err = secondClient.Connect(context.Background())
 		require.NoError(t, err)
 
+		closed := make(chan struct{})
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 		sent := []byte("hello world")
-		err = firstClient.Send(second.Public(), sent)
-		require.NoError(t, err)
+		go func() {
+			defer close(closed)
+			ticker := time.NewTicker(50 * time.Millisecond)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+				err = firstClient.Send(second.Public(), sent)
+				require.NoError(t, err)
+			}
+		}()
 
 		got := recvData(t, secondClient)
 		require.Equal(t, sent, got)
+		cancelFunc()
+		<-closed
 	})
 	t.Run("RemoveAddress", func(t *testing.T) {
 		// This tests messages passing through multiple DERP servers.
