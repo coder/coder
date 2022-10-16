@@ -20,8 +20,9 @@ const estimateFinish = (
   const realPercentage = dayjs().diff(startedAt) / templateAverage
 
   // Showing a full bar is frustrating.
-  if (realPercentage > 0.95) {
-    return [0.95, "Any moment now..."]
+  const maxPercentage = 0.99
+  if (realPercentage > maxPercentage) {
+    return [maxPercentage, "Any moment now..."]
   }
 
   return [
@@ -61,22 +62,27 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   buildEstimate,
 }) => {
   const styles = useStyles()
-
   const job = workspace.latest_build.job
-
   const [progressValue, setProgressValue] = useState(0)
+
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
   // stutter in all cases.
   useEffect(() => {
     const updateProgress = () => {
+      if (job.status !== "running") {
+        setProgressValue(0)
+        return
+      }
       setProgressValue(
         estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100,
       )
     }
     setTimeout(updateProgress, 100)
-  }, [progressValue, job.started_at, buildEstimate])
+  }, [progressValue, job, buildEstimate])
 
+  // buildEstimate may be undefined if the template is new or coderd hasn't
+  // finished initial metrics collection.
   if (buildEstimate === undefined) {
     return (
       <div className={styles.stack}>
