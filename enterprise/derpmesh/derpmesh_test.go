@@ -7,8 +7,8 @@ import (
 	"errors"
 	"io"
 	"net/http/httptest"
-	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,9 +102,6 @@ func TestDERPMesh(t *testing.T) {
 	})
 	t.Run("TwentyMeshes", func(t *testing.T) {
 		t.Parallel()
-		if runtime.GOOS == "windows" {
-			t.Skip("This test is races on Windows... I think because it's too slow.")
-		}
 		meshes := make([]*derpmesh.Mesh, 0, 20)
 		serverURLs := make([]string, 0, 20)
 		for i := 0; i < 20; i++ {
@@ -132,12 +129,28 @@ func TestDERPMesh(t *testing.T) {
 		err = secondClient.Connect(context.Background())
 		require.NoError(t, err)
 
+		closed := make(chan struct{})
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
 		sent := []byte("hello world")
-		err = firstClient.Send(second.Public(), sent)
-		require.NoError(t, err)
+		go func() {
+			defer close(closed)
+			ticker := time.NewTicker(time.Second)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+				err = firstClient.Send(second.Public(), sent)
+				require.NoError(t, err)
+			}
+		}()
 
 		got := recvData(t, secondClient)
 		require.Equal(t, sent, got)
+		cancelFunc()
+		<-closed
 	})
 }
 
