@@ -6,7 +6,6 @@ import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
-import { Running } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge.stories"
 
 dayjs.extend(duration)
 
@@ -14,10 +13,6 @@ const estimateFinish = (
   startedAt: Dayjs,
   templateAverage: number,
 ): [number, string] => {
-  // Buffer the template average to prevent the progress bar from waiting at end.
-  // Over-promise, under-deliver.
-  templateAverage *= 1.2
-
   const realPercentage = dayjs().diff(startedAt) / templateAverage
 
   // Showing a full bar is frustrating.
@@ -33,10 +28,15 @@ const estimateFinish = (
   ]
 }
 
-export const WorkspaceBuildProgress: FC<{
+export interface WorkspaceBuildProgressProps {
   workspace: Workspace
   template?: Template
-}> = ({ workspace, template }) => {
+}
+
+export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
+  workspace,
+  template,
+}) => {
   const styles = useStyles()
 
   // Template stats not loaded or non-existent
