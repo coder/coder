@@ -77,6 +77,11 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	})
 	assert.NoError(t, err)
 	srv.Config.Handler = coderAPI.AGPL.RootHandler
+	if oop.TLSCertificates != nil {
+		srv.StartTLS()
+	} else {
+		srv.Start()
+	}
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
