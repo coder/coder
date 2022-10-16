@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/testutil"
@@ -200,7 +201,8 @@ func TestReplica(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
 		// discover each other in parallel!
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
+		db := databasefake.New()
+		pubsub := database.NewPubsubInMemory()
 		logger := slogtest.Make(t, nil)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
