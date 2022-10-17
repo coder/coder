@@ -153,12 +153,10 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	if ok {
 		data, err := json.Marshal([]*Node{node})
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("marshal node: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
