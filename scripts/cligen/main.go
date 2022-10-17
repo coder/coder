@@ -49,6 +49,7 @@ type Field struct {
 	Enterprise bool
 	Hidden     bool
 	Type       string
+	ViperType  string
 }
 
 func GenerateData(ctx context.Context, log slog.Logger, dir string) (*Data, error) {
@@ -123,6 +124,7 @@ func (g *Generator) generateAll() (*Data, error) {
 				if !ok {
 					return nil, xerrors.Errorf("expected struct type, found %T", spec.Type)
 				}
+
 				for _, field := range t.Fields.List {
 					key := reflect.StructTag(strings.Trim(field.Tag.Value, "`")).Get("mapstructure")
 					if key == "" {
@@ -132,24 +134,37 @@ func (g *Generator) generateAll() (*Data, error) {
 						Key: key,
 						Env: "CODER_" + strings.ReplaceAll(strings.ToUpper(key), "-", "_"),
 					}
-					ft, ok := field.Type.(*ast.Ident)
-					if !ok {
-						// return nil, xerrors.Errorf("expected Ident type, found %T", field.Type)
-						continue
-					}
-					switch ft.Name {
-					case "string":
-						f.Type = "String"
-					case "int":
-						f.Type = "Int"
-					case "bool":
-						f.Type = "Bool"
-					case "[]string":
-						f.Type = "StringArray"
-					case "time.Duration":
+					switch ft := field.Type.(type) {
+					case *ast.Ident:
+						switch ft.Name {
+						case "string":
+							f.Type = "String"
+							f.ViperType = "String"
+						case "int":
+							f.Type = "Int"
+							f.ViperType = "Int"
+						case "bool":
+							f.Type = "Bool"
+							f.ViperType = "Bool"
+						default:
+							continue
+						}
+					case *ast.SelectorExpr:
+						if ft.Sel.Name != "Duration" {
+							continue
+						}
 						f.Type = "Duration"
-					default:
-						continue
+						f.ViperType = "Duration"
+					case *ast.ArrayType:
+						i, ok := ft.Elt.(*ast.Ident)
+						if !ok {
+							continue
+						}
+						if i.Name != "string" {
+							continue
+						}
+						f.Type = "StringArray"
+						f.ViperType = "StringSlice"
 					}
 
 					for _, line := range field.Doc.List {
@@ -225,6 +240,7 @@ package deployment
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -254,7 +270,7 @@ func DefaultViper() *viper.Viper {
 func AttachFlags(flagset *pflag.FlagSet, vip *viper.Viper) {
 	{{- range .Fields }}
 	{{- if and (.Flag) (not .Enterprise) }}
-	_ = flagset.{{ .Type }}P("{{ .Flag }}", "{{ .Shorthand }}", vip.Get{{ .Type }}("{{ .Key }}"), ` + "`{{ .Usage }}`" + `+"\n"+cliui.Styles.Placeholder.Render("Consumes ${{ .Env }}"))
+	_ = flagset.{{ .Type }}P("{{ .Flag }}", "{{ .Shorthand }}", vip.Get{{ .ViperType }}("{{ .Key }}"), ` + "`{{ .Usage }}`" + `+"\n"+cliui.Styles.Placeholder.Render("Consumes ${{ .Env }}"))
 	_ = vip.BindPFlag("{{ .Key }}", flagset.Lookup("{{ .Flag }}"))
 	{{- if and .Hidden }}
 	_ = flagset.MarkHidden("{{ .Flag }}")
@@ -266,7 +282,7 @@ func AttachFlags(flagset *pflag.FlagSet, vip *viper.Viper) {
 func AttachEnterpriseFlags(flagset *pflag.FlagSet, vip *viper.Viper) {
 	{{- range .Fields }}
 	{{- if and (.Flag) (.Enterprise) }}
-	_ = flagset.{{ .Type }}P("{{ .Flag }}", "{{ .Shorthand }}", vip.Get{{ .Type }}("{{ .Key }}"), ` + "`{{ .Usage }}`" + `)
+	_ = flagset.{{ .Type }}P("{{ .Flag }}", "{{ .Shorthand }}", vip.Get{{ .ViperType }}("{{ .Key }}"), ` + "`{{ .Usage }}`" + `)
 	_ = vip.BindPFlag("{{ .Key }}", flagset.Lookup("{{ .Flag }}"))
 	{{- if and .Hidden }}
 	_ = flagset.MarkHidden("{{ .Flag }}")
