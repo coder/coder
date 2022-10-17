@@ -426,6 +426,15 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups: true,
 		StatusCode:   http.StatusTemporaryRedirect,
 	}, {
+		// See: https://github.com/coder/coder/issues/4472
+		Name: "UsernameIsEmail",
+		Claims: jwt.MapClaims{
+			"preferred_username": "kyle@kwc.io",
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
 		Name: "WithPicture",
 		Claims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
