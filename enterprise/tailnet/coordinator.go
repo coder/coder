@@ -21,17 +21,19 @@ import (
 // NewCoordinator creates a new high availability coordinator
 // that uses PostgreSQL pubsub to exchange handshakes.
 func NewCoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinator, error) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	coord := &haCoordinator{
 		id:                       uuid.New(),
 		log:                      logger,
 		pubsub:                   pubsub,
+		closeFunc:                cancelFunc,
 		close:                    make(chan struct{}),
 		nodes:                    map[uuid.UUID]*agpl.Node{},
 		agentSockets:             map[uuid.UUID]net.Conn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]net.Conn{},
 	}
 
-	if err := coord.runPubsub(); err != nil {
+	if err := coord.runPubsub(ctx); err != nil {
 		return nil, xerrors.Errorf("run coordinator pubsub: %w", err)
 	}
 
@@ -39,11 +41,12 @@ func NewCoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinato
 }
 
 type haCoordinator struct {
-	id     uuid.UUID
-	log    slog.Logger
-	mutex  sync.RWMutex
-	pubsub database.Pubsub
-	close  chan struct{}
+	id        uuid.UUID
+	log       slog.Logger
+	mutex     sync.RWMutex
+	pubsub    database.Pubsub
+	close     chan struct{}
+	closeFunc context.CancelFunc
 
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*agpl.Node
@@ -303,6 +306,7 @@ func (c *haCoordinator) Close() error {
 	default:
 	}
 	close(c.close)
+	c.closeFunc()
 
 	wg := sync.WaitGroup{}
 
@@ -384,104 +388,29 @@ func (c *haCoordinator) publishAgentToNodes(id uuid.UUID, node *agpl.Node) error
 	return nil
 }
 
-func (c *haCoordinator) runPubsub() error {
+func (c *haCoordinator) runPubsub(ctx context.Context) error {
+	messageQueue := make(chan []byte, 64)
 	cancelSub, err := c.pubsub.Subscribe("wireguard_peers", func(ctx context.Context, message []byte) {
-		sp := bytes.Split(message, []byte("|"))
-		if len(sp) != 4 {
-			c.log.Error(ctx, "invalid wireguard peer message", slog.F("msg", string(message)))
+		select {
+		case messageQueue <- message:
+		case <-ctx.Done():
 			return
-		}
-
-		var (
-			coordinatorID = sp[0]
-			eventType     = sp[1]
-			agentID       = sp[2]
-			nodeJSON      = sp[3]
-		)
-
-		sender, err := uuid.ParseBytes(coordinatorID)
-		if err != nil {
-			c.log.Error(ctx, "invalid sender id", slog.F("id", string(coordinatorID)), slog.F("msg", string(message)))
-			return
-		}
-
-		// We sent this message!
-		if sender == c.id {
-			return
-		}
-
-		switch string(eventType) {
-		case "callmemaybe":
-			agentUUID, err := uuid.ParseBytes(agentID)
-			if err != nil {
-				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
-				return
-			}
-
-			c.mutex.Lock()
-			agentSocket, ok := c.agentSockets[agentUUID]
-			if !ok {
-				c.mutex.Unlock()
-				return
-			}
-			c.mutex.Unlock()
-
-			// We get a single node over pubsub, so turn into an array.
-			_, err = agentSocket.Write(nodeJSON)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
-				return
-			}
-		case "clienthello":
-			agentUUID, err := uuid.ParseBytes(agentID)
-			if err != nil {
-				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
-				return
-			}
-
-			err = c.handleClientHello(agentUUID)
-			if err != nil {
-				c.log.Error(ctx, "handle agent request node", slog.Error(err))
-				return
-			}
-		case "agenthello":
-			agentUUID, err := uuid.ParseBytes(agentID)
-			if err != nil {
-				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
-				return
-			}
-
-			nodes := c.nodesSubscribedToAgent(agentUUID)
-			if len(nodes) > 0 {
-				err := c.publishNodesToAgent(agentUUID, nodes)
-				if err != nil {
-					c.log.Error(ctx, "publish nodes to agent", slog.Error(err))
-					return
-				}
-			}
-		case "agentupdate":
-			agentUUID, err := uuid.ParseBytes(agentID)
-			if err != nil {
-				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
-				return
-			}
-
-			decoder := json.NewDecoder(bytes.NewReader(nodeJSON))
-			_, err = c.handleAgentUpdate(agentUUID, decoder)
-			if err != nil {
-				c.log.Error(ctx, "handle agent update", slog.Error(err))
-				return
-			}
-		default:
-			c.log.Error(ctx, "unknown peer event", slog.F("name", string(eventType)))
 		}
 	})
 	if err != nil {
 		return xerrors.Errorf("subscribe wireguard peers")
 	}
+	go func() {
+		for {
+			var message []byte
+			select {
+			case <-ctx.Done():
+				return
+			case message = <-messageQueue:
+			}
+			c.handlePubsubMessage(ctx, message)
+		}
+	}()
 
 	go func() {
 		defer cancelSub()
@@ -489,6 +418,101 @@ func (c *haCoordinator) runPubsub() error {
 	}()
 
 	return nil
+}
+
+func (c *haCoordinator) handlePubsubMessage(ctx context.Context, message []byte) {
+	sp := bytes.Split(message, []byte("|"))
+	if len(sp) != 4 {
+		c.log.Error(ctx, "invalid wireguard peer message", slog.F("msg", string(message)))
+		return
+	}
+
+	var (
+		coordinatorID = sp[0]
+		eventType     = sp[1]
+		agentID       = sp[2]
+		nodeJSON      = sp[3]
+	)
+
+	sender, err := uuid.ParseBytes(coordinatorID)
+	if err != nil {
+		c.log.Error(ctx, "invalid sender id", slog.F("id", string(coordinatorID)), slog.F("msg", string(message)))
+		return
+	}
+
+	// We sent this message!
+	if sender == c.id {
+		return
+	}
+
+	switch string(eventType) {
+	case "callmemaybe":
+		agentUUID, err := uuid.ParseBytes(agentID)
+		if err != nil {
+			c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+			return
+		}
+
+		c.mutex.Lock()
+		agentSocket, ok := c.agentSockets[agentUUID]
+		if !ok {
+			c.mutex.Unlock()
+			return
+		}
+		c.mutex.Unlock()
+
+		// We get a single node over pubsub, so turn into an array.
+		_, err = agentSocket.Write(nodeJSON)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
+			return
+		}
+	case "clienthello":
+		agentUUID, err := uuid.ParseBytes(agentID)
+		if err != nil {
+			c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+			return
+		}
+
+		err = c.handleClientHello(agentUUID)
+		if err != nil {
+			c.log.Error(ctx, "handle agent request node", slog.Error(err))
+			return
+		}
+	case "agenthello":
+		agentUUID, err := uuid.ParseBytes(agentID)
+		if err != nil {
+			c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+			return
+		}
+
+		nodes := c.nodesSubscribedToAgent(agentUUID)
+		if len(nodes) > 0 {
+			err := c.publishNodesToAgent(agentUUID, nodes)
+			if err != nil {
+				c.log.Error(ctx, "publish nodes to agent", slog.Error(err))
+				return
+			}
+		}
+	case "agentupdate":
+		agentUUID, err := uuid.ParseBytes(agentID)
+		if err != nil {
+			c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+			return
+		}
+
+		decoder := json.NewDecoder(bytes.NewReader(nodeJSON))
+		_, err = c.handleAgentUpdate(agentUUID, decoder)
+		if err != nil {
+			c.log.Error(ctx, "handle agent update", slog.Error(err))
+			return
+		}
+	default:
+		c.log.Error(ctx, "unknown peer event", slog.F("name", string(eventType)))
+	}
 }
 
 // format: <coordinator id>|callmemaybe|<recipient id>|<node json>
