@@ -93,14 +93,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("run replica: %w", err)
 	}
-	peers := manager.Regional()
-	if len(peers) > 0 {
-		self := manager.Self()
-		if self.RelayAddress == "" {
-			return nil, xerrors.Errorf("a relay address must be specified when running multiple replicas in the same region")
-		}
-	}
-
 	err = manager.subscribe(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("subscribe: %w", err)
