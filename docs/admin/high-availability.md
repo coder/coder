@@ -18,13 +18,13 @@ workspace <-> coder and user <-> coder connections.
 Coder automatically enters HA mode when multiple instances simultaneously connect
 to the same Postgres endpoint.
 
-HA has one required configuration variable that you must set for each Coder
+HA brings one configuration variable to set in each Coder
 node: `CODER_DERP_SERVER_RELAY_URL`. The HA nodes use these URLs to communicate
 with each other. Inter-node communication is only required while using the
-embedded relay (default). If you're using [custom relays](../networking.md#custom-relays), Coder ignores `CODER_DERP_SERVER_RELAY_URL`, since Postgres is the sole rendezvous for the Coder nodes.
+embedded relay (default). If you're using [custom relays](../networking.md#custom-relays), Coder ignores `CODER_DERP_SERVER_RELAY_URL` since Postgres is the sole rendezvous for the Coder nodes.
 
-Since `CODER_ACCESS_URL` is a load balancer to all Coder nodes,
-`CODER_DERP_SERVER_RELAY_URL` will never be `CODER_ACCESS_URL`.
+`CODER_DERP_SERVER_RELAY_URL` will never be `CODER_ACCESS_URL` because
+`CODER_ACCESS_URL` is a load balancer to all Coder nodes.
 
 Here's an example 3-node network configuration setup:
 
@@ -42,8 +42,8 @@ If you installed Coder via
 increase `coder.replicaCount` in `values.yaml`.
 
 
-If you installed Coder by some other means, insert the relay URL via the
-environment like so:
+If you installed Coder into Kubernetes by some other means, insert the relay URL
+via the environment like so:
 
 ```yaml
   env:
