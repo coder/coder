@@ -266,6 +266,13 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	}
 
 	c.mutex.Lock()
+	oldNode := c.nodes[id]
+	if oldNode != nil {
+		if oldNode.AsOf.After(node.AsOf) {
+			c.mutex.Unlock()
+			return oldNode, nil
+		}
+	}
 	c.nodes[id] = &node
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {

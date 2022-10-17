@@ -37,6 +37,8 @@ type Coordinator interface {
 type Node struct {
 	// ID is used to identify the connection.
 	ID tailcfg.NodeID `json:"id"`
+	// AsOf is the time the node was created.
+	AsOf time.Time `json:"as_of"`
 	// Key is the Wireguard public key of the node.
 	Key key.NodePublic `json:"key"`
 	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.

@@ -435,6 +435,7 @@ func (c *Conn) sendNode() {
 	}
 	node := &Node{
 		ID:            c.netMap.SelfNode.ID,
+		AsOf:          c.lastStatus,
 		Key:           c.netMap.SelfNode.Key,
 		Addresses:     c.netMap.SelfNode.Addresses,
 		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
