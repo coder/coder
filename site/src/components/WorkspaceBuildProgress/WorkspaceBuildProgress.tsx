@@ -12,12 +12,12 @@ dayjs.extend(duration)
 const estimateFinish = (
   startedAt: Dayjs,
   buildEstimate: number,
-): [number | undefined, string] => {
+): [number, string] => {
   const realPercentage = dayjs().diff(startedAt) / buildEstimate
 
   const maxPercentage = 1
   if (realPercentage > maxPercentage) {
-    return [undefined, "Any moment now..."]
+    return [maxPercentage * 100, "Any moment now..."]
   }
 
   return [
@@ -58,9 +58,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 }) => {
   const styles = useStyles()
   const job = workspace.latest_build.job
-  const [progressValue, setProgressValue] = useState<number | undefined>(
-    undefined,
-  )
+  const [progressValue, setProgressValue] = useState<number | undefined>(0)
 
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
@@ -74,7 +72,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       const est = estimateFinish(dayjs(job.started_at), buildEstimate)[0]
       setProgressValue(est)
     }
-    setTimeout(updateProgress, 100)
+    setTimeout(updateProgress, 5)
   }, [progressValue, job, buildEstimate])
 
   return (
@@ -86,14 +84,16 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
           // (e.g. the build isn't yet running). If we flicker from the
           // indeterminate bar to the determinate bar, the vigilant user
           // perceives the bar jumping from 100% to 0%.
-          progressValue !== undefined || dayjs(job.started_at).diff() > 500
+          progressValue !== undefined &&
+          progressValue < 100 &&
+          buildEstimate !== undefined
             ? "determinate"
             : "indeterminate"
         }
         // If a transition is set, there is a moment on new load where the
         // bar accelerates to progressValue and then rapidly decelerates, which
         // is not indicative of true progress.
-        className={styles.noTransition}
+        classes={{ bar: styles.noTransition }}
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
