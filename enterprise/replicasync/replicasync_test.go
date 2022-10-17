@@ -44,23 +44,6 @@ func TestReplica(t *testing.T) {
 		_ = server.Close()
 		require.NoError(t, err)
 	})
-	t.Run("ErrorsWithoutRelayAddress", func(t *testing.T) {
-		// Ensures that the replica reports a successful status for
-		// accessing all of its peers.
-		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
-		_, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-			StartedAt: database.Now(),
-			UpdatedAt: database.Now(),
-			Hostname:  "something",
-		})
-		require.NoError(t, err)
-		_, err = replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, nil)
-		require.Error(t, err)
-		require.Equal(t, "a relay address must be specified when running multiple replicas in the same region", err.Error())
-	})
 	t.Run("ConnectsToPeerReplica", func(t *testing.T) {
 		// Ensures that the replica reports a successful status for
 		// accessing all of its peers.
