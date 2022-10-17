@@ -6,6 +6,7 @@ package deployment
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -24,9 +25,12 @@ func DefaultViper() *viper.Viper {
 	v.SetEnvPrefix("coder")
 	v.AutomaticEnv()
 	v.SetDefault("address", "127.0.0.1:3000")
+	v.SetDefault("autobuild_poll_interval", time.Minute)
 	v.SetDefault("cache_dir", defaultCacheDir())
 	v.SetDefault("provisioner_daemon_count", 3)
 	v.SetDefault("ssh_keygen_algorithm", "ed25519")
+	v.SetDefault("metrics_cache_refresh_interval", time.Hour)
+	v.SetDefault("agent_stat_refresh_interval", 10 * time.Minute)
 	v.SetDefault("audit_logging", true)
 
 	return v
@@ -39,6 +43,9 @@ func AttachFlags(flagset *pflag.FlagSet, vip *viper.Viper) {
 	_ = vip.BindPFlag("wildcard_access_url", flagset.Lookup("wildcard-access-url"))
 	_ = flagset.StringP("address", "a", vip.GetString("address"), `Bind address of the server.`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_ADDRESS"))
 	_ = vip.BindPFlag("address", flagset.Lookup("address"))
+	_ = flagset.DurationP("autobuild-poll-interval", "", vip.GetDuration("autobuild_poll_interval"), `Interval to poll for scheduled workspace builds.`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_AUTOBUILD_POLL_INTERVAL"))
+	_ = vip.BindPFlag("autobuild_poll_interval", flagset.Lookup("autobuild-poll-interval"))
+	_ = flagset.MarkHidden("autobuild-poll-interval")
 	_ = flagset.StringP("cache-dir", "", vip.GetString("cache_dir"), `The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_CACHE_DIR"))
 	_ = vip.BindPFlag("cache_dir", flagset.Lookup("cache-dir"))
 	_ = flagset.BoolP("in-memory", "", vip.GetBool("in_memory_database"), `Controls whether data will be stored in an in-memory database.`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_IN_MEMORY_DATABASE"))
@@ -54,6 +61,15 @@ func AttachFlags(flagset *pflag.FlagSet, vip *viper.Viper) {
 	_ = vip.BindPFlag("secure_auth_cookie", flagset.Lookup("secure-auth-cookie"))
 	_ = flagset.StringP("ssh-keygen-algorithm", "", vip.GetString("ssh_keygen_algorithm"), `The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_SSH_KEYGEN_ALGORITHM"))
 	_ = vip.BindPFlag("ssh_keygen_algorithm", flagset.Lookup("ssh-keygen-algorithm"))
+	_ = flagset.StringArrayP("auto-import-template", "", vip.GetStringSlice("auto_import_templates"), `Templates to auto-import. Available auto-importable templates are: kubernetes`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_AUTO_IMPORT_TEMPLATES"))
+	_ = vip.BindPFlag("auto_import_templates", flagset.Lookup("auto-import-template"))
+	_ = flagset.MarkHidden("auto-import-template")
+	_ = flagset.DurationP("metrics-cache-refresh-interval", "", vip.GetDuration("metrics_cache_refresh_interval"), `How frequently metrics are refreshed`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_METRICS_CACHE_REFRESH_INTERVAL"))
+	_ = vip.BindPFlag("metrics_cache_refresh_interval", flagset.Lookup("metrics-cache-refresh-interval"))
+	_ = flagset.MarkHidden("metrics-cache-refresh-interval")
+	_ = flagset.DurationP("agent-stats-refresh-interval", "", vip.GetDuration("agent_stat_refresh_interval"), `How frequently agent stats are recorded`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_AGENT_STAT_REFRESH_INTERVAL"))
+	_ = vip.BindPFlag("agent_stat_refresh_interval", flagset.Lookup("agent-stats-refresh-interval"))
+	_ = flagset.MarkHidden("agent-stats-refresh-interval")
 	_ = flagset.BoolP("verbose", "v", vip.GetBool("verbose"), `Enables verbose logging.`+"\n"+cliui.Styles.Placeholder.Render("Consumes $CODER_VERBOSE"))
 	_ = vip.BindPFlag("verbose", flagset.Lookup("verbose"))
 }
