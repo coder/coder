@@ -121,7 +121,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 	for {
 		err := c.handleNextClientMessage(id, agent, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
 			return xerrors.Errorf("handle next client message: %w", err)
@@ -163,7 +163,7 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 
 	_, err = agentSocket.Write(data)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		}
 		return xerrors.Errorf("write json: %w", err)
@@ -215,7 +215,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	for {
 		node, err := c.handleAgentUpdate(id, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)
@@ -471,7 +471,7 @@ func (c *haCoordinator) handlePubsubMessage(ctx context.Context, message []byte)
 		// We get a single node over pubsub, so turn into an array.
 		_, err = agentSocket.Write(nodeJSON)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 				return
 			}
 			c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
