@@ -138,8 +138,7 @@ func portForward() *cobra.Command {
 				case <-ctx.Done():
 					closeErr = ctx.Err()
 				case <-sigs:
-					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
-					closeErr = xerrors.New("signal received")
+					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "\nReceived signal, closing all listeners and active connections")
 				}
 
 				cancel()
@@ -213,7 +212,11 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 		for {
 			netConn, err := l.Accept()
 			if err != nil {
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %+v\n", spec.listenNetwork, spec.listenAddress, err)
+				// Silently ignore net.ErrClosed errors.
+				if xerrors.Is(err, net.ErrClosed) {
+					return
+				}
+				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
 				return
 			}
