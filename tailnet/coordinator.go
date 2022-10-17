@@ -246,7 +246,6 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	}
 
 	sockets, ok := c.agentToConnectionSockets[id]
-	c.mutex.Unlock()
 	if ok {
 		// Publish all nodes that want to connect to the
 		// desired agent ID.
@@ -258,21 +257,21 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 			}
 			nodes = append(nodes, node)
 		}
+		c.mutex.Unlock()
 		data, err := json.Marshal(nodes)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("marshal json: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
 			return xerrors.Errorf("write nodes: %w", err)
 		}
+		c.mutex.Lock()
 	}
 
 	// If an old agent socket is connected, we close it
 	// to avoid any leaks. This shouldn't ever occur because
 	// we expect one agent to be running.
-	c.mutex.Lock()
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
 		_ = oldAgentSocket.Close()
