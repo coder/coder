@@ -338,10 +338,10 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 func (c *coordinator) Close() error {
 	c.mutex.Lock()
 	if c.closed {
+		c.mutex.Unlock()
 		return nil
 	}
 	c.closed = true
-	c.mutex.Unlock()
 
 	wg := sync.WaitGroup{}
 
@@ -364,6 +364,8 @@ func (c *coordinator) Close() error {
 			}()
 		}
 	}
+
+	c.mutex.Unlock()
 
 	wg.Wait()
 	return nil
