@@ -1,13 +1,8 @@
-import { makeStyles, Theme, useTheme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import { Skeleton } from "@material-ui/lab"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { FC, useState } from "react"
-import {
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentStatus,
-  WorkspaceResource,
-} from "../../api/typesGenerated"
+import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
@@ -24,23 +19,7 @@ import IconButton from "@material-ui/core/IconButton"
 import Tooltip from "@material-ui/core/Tooltip"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CopyableValue } from "components/CopyableValue/CopyableValue"
-
-const getAgentStatusColor = (theme: Theme, agent: WorkspaceAgent) => {
-  switch (agent.status) {
-    case "connected":
-      return theme.palette.success.light
-    case "connecting":
-      return theme.palette.info.light
-    case "disconnected":
-      return theme.palette.text.secondary
-  }
-}
-
-const agentStatusLabels: Record<WorkspaceAgentStatus, string> = {
-  connected: "Connected",
-  connecting: "Connecting...",
-  disconnected: "Disconnected",
-}
+import { AgentStatus } from "./AgentStatus"
 
 export interface ResourceCardProps {
   resource: WorkspaceResource
@@ -59,7 +38,6 @@ export const ResourceCard: FC<ResourceCardProps> = ({
   hideSSHButton,
   serverVersion,
 }) => {
-  const theme = useTheme<Theme>()
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false)
   const styles = useStyles()
@@ -136,9 +114,6 @@ export const ResourceCard: FC<ResourceCardProps> = ({
 
       <div>
         {resource.agents?.map((agent) => {
-          const statusColor = getAgentStatusColor(theme, agent)
-          const statusLabel = agentStatusLabels[agent.status]
-
           return (
             <Stack
               key={agent.id}
@@ -148,13 +123,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({
               className={styles.agentRow}
             >
               <Stack direction="row" alignItems="baseline">
-                <Tooltip title={statusLabel}>
-                  <div
-                    role="status"
-                    className={styles.agentStatus}
-                    style={{ backgroundColor: statusColor }}
-                  />
-                </Tooltip>
+                <AgentStatus agent={agent} />
                 <div>
                   <div className={styles.agentName}>{agent.name}</div>
                   <Stack
@@ -277,12 +246,6 @@ const useStyles = makeStyles((theme) => ({
     "&:not(:last-child)": {
       borderBottom: `1px solid ${theme.palette.divider}`,
     },
-  },
-
-  agentStatus: {
-    width: theme.spacing(1),
-    height: theme.spacing(1),
-    borderRadius: "100%",
   },
 
   agentName: {
