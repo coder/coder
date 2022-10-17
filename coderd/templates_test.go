@@ -663,8 +663,16 @@ func TestTemplateMetrics(t *testing.T) {
 	template, err = client.Template(ctx, template.ID)
 	require.NoError(t, err)
 	require.Equal(t, 1, template.ActiveUserCount)
-	require.NotNil(t, template.BuildTimeStats.StartMillis, template.BuildTimeStats)
-	require.Greater(t, *template.BuildTimeStats.StartMillis, int64(1))
+
+	require.Eventuallyf(t, func() bool {
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		startMs := template.BuildTimeStats.StartMillis
+		return startMs != nil && *startMs > 1
+	},
+		testutil.WaitShort, testutil.IntervalFast,
+		"BuildTimeStats never loaded",
+	)
 
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
