@@ -215,7 +215,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	for {
 		node, err := c.handleAgentUpdate(id, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)
