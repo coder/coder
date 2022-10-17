@@ -132,10 +132,10 @@ type AgentConn struct {
 	CloseFunc func()
 }
 
-func (c *AgentConn) Ping() (time.Duration, error) {
+func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
 	errCh := make(chan error, 1)
 	durCh := make(chan time.Duration, 1)
-	c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
+	go c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
 			errCh <- xerrors.New(pr.Err)
 			return
@@ -145,6 +145,8 @@ func (c *AgentConn) Ping() (time.Duration, error) {
 	select {
 	case err := <-errCh:
 		return 0, err
+	case <-ctx.Done():
+		return 0, ctx.Err()
 	case dur := <-durCh:
 		return dur, nil
 	}

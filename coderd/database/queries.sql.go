@@ -2031,7 +2031,7 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-	id, created_at, updated_at, name, provisioners
+	id, created_at, updated_at, name, provisioners, replica_id
 FROM
 	provisioner_daemons
 WHERE
@@ -2047,13 +2047,14 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.UpdatedAt,
 		&i.Name,
 		pq.Array(&i.Provisioners),
+		&i.ReplicaID,
 	)
 	return i, err
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners
+	id, created_at, updated_at, name, provisioners, replica_id
 FROM
 	provisioner_daemons
 `
@@ -2073,6 +2074,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.UpdatedAt,
 			&i.Name,
 			pq.Array(&i.Provisioners),
+			&i.ReplicaID,
 		); err != nil {
 			return nil, err
 		}
@@ -2096,7 +2098,7 @@ INSERT INTO
 		provisioners
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners
+	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners, replica_id
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -2120,6 +2122,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.UpdatedAt,
 		&i.Name,
 		pq.Array(&i.Provisioners),
+		&i.ReplicaID,
 	)
 	return i, err
 }
@@ -2577,6 +2580,177 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 	return err
 }
 
+const deleteReplicasUpdatedBefore = `-- name: DeleteReplicasUpdatedBefore :exec
+DELETE FROM replicas WHERE updated_at < $1
+`
+
+func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteReplicasUpdatedBefore, updatedAt)
+	return err
+}
+
+const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+`
+
+func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
+	rows, err := q.db.QueryContext(ctx, getReplicasUpdatedAfter, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Replica
+	for rows.Next() {
+		var i Replica
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.StoppedAt,
+			&i.UpdatedAt,
+			&i.Hostname,
+			&i.RegionID,
+			&i.RelayAddress,
+			&i.DatabaseLatency,
+			&i.Version,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertReplica = `-- name: InsertReplica :one
+INSERT INTO replicas (
+    id,
+    created_at,
+    started_at,
+    updated_at,
+    hostname,
+    region_id,
+    relay_address,
+    version,
+    database_latency
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+`
+
+type InsertReplicaParams struct {
+	ID              uuid.UUID `db:"id" json:"id"`
+	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	StartedAt       time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	Hostname        string    `db:"hostname" json:"hostname"`
+	RegionID        int32     `db:"region_id" json:"region_id"`
+	RelayAddress    string    `db:"relay_address" json:"relay_address"`
+	Version         string    `db:"version" json:"version"`
+	DatabaseLatency int32     `db:"database_latency" json:"database_latency"`
+}
+
+func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, insertReplica,
+		arg.ID,
+		arg.CreatedAt,
+		arg.StartedAt,
+		arg.UpdatedAt,
+		arg.Hostname,
+		arg.RegionID,
+		arg.RelayAddress,
+		arg.Version,
+		arg.DatabaseLatency,
+	)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.DatabaseLatency,
+		&i.Version,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateReplica = `-- name: UpdateReplica :one
+UPDATE replicas SET
+    updated_at = $2,
+    started_at = $3,
+    stopped_at = $4,
+    relay_address = $5,
+    region_id = $6,
+    hostname = $7,
+    version = $8,
+    error = $9,
+    database_latency = $10
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+`
+
+type UpdateReplicaParams struct {
+	ID              uuid.UUID    `db:"id" json:"id"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	StartedAt       time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	RelayAddress    string       `db:"relay_address" json:"relay_address"`
+	RegionID        int32        `db:"region_id" json:"region_id"`
+	Hostname        string       `db:"hostname" json:"hostname"`
+	Version         string       `db:"version" json:"version"`
+	Error           string       `db:"error" json:"error"`
+	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
+}
+
+func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, updateReplica,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.StartedAt,
+		arg.StoppedAt,
+		arg.RelayAddress,
+		arg.RegionID,
+		arg.Hostname,
+		arg.Version,
+		arg.Error,
+		arg.DatabaseLatency,
+	)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.DatabaseLatency,
+		&i.Version,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getDERPMeshKey = `-- name: GetDERPMeshKey :one
+SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
+`
+
+func (q *sqlQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDERPMeshKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getDeploymentID = `-- name: GetDeploymentID :one
 SELECT value FROM site_configs WHERE key = 'deployment_id'
 `
@@ -2586,6 +2760,15 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	var value string
 	err := row.Scan(&value)
 	return value, err
+}
+
+const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
+INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
+`
+
+func (q *sqlQuerier) InsertDERPMeshKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertDERPMeshKey, value)
+	return err
 }
 
 const insertDeploymentID = `-- name: InsertDeploymentID :exec

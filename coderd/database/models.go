@@ -508,6 +508,7 @@ type ProvisionerDaemon struct {
 	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
 }
 
 type ProvisionerJob struct {
@@ -536,6 +537,20 @@ type ProvisionerJobLog struct {
 	Level     LogLevel  `db:"level" json:"level"`
 	Stage     string    `db:"stage" json:"stage"`
 	Output    string    `db:"output" json:"output"`
+}
+
+type Replica struct {
+	ID              uuid.UUID    `db:"id" json:"id"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	StartedAt       time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	Hostname        string       `db:"hostname" json:"hostname"`
+	RegionID        int32        `db:"region_id" json:"region_id"`
+	RelayAddress    string       `db:"relay_address" json:"relay_address"`
+	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
+	Version         string       `db:"version" json:"version"`
+	Error           string       `db:"error" json:"error"`
 }
 
 type SiteConfig struct {

@@ -107,9 +107,15 @@ type data struct {
 	workspaceApps                  []database.WorkspaceApp
 	workspaces                     []database.Workspace
 	licenses                       []database.License
+	replicas                       []database.Replica
 
 	deploymentID  string
+	derpMeshKey   string
 	lastLicenseID int32
+}
+
+func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
+	return 0, nil
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -2931,6 +2937,21 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	return q.deploymentID, nil
 }
 
+func (q *fakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.derpMeshKey = id
+	return nil
+}
+
+func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.derpMeshKey, nil
+}
+
 func (q *fakeQuerier) InsertLicense(
 	_ context.Context, arg database.InsertLicenseParams,
 ) (database.License, error) {
@@ -3195,4 +3216,71 @@ func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, replica := range q.replicas {
+		if replica.UpdatedAt.Before(before) {
+			q.replicas = append(q.replicas[:i], q.replicas[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
+func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	replica := database.Replica{
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		StartedAt:       arg.StartedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		Hostname:        arg.Hostname,
+		RegionID:        arg.RegionID,
+		RelayAddress:    arg.RelayAddress,
+		Version:         arg.Version,
+		DatabaseLatency: arg.DatabaseLatency,
+	}
+	q.replicas = append(q.replicas, replica)
+	return replica, nil
+}
+
+func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, replica := range q.replicas {
+		if replica.ID != arg.ID {
+			continue
+		}
+		replica.Hostname = arg.Hostname
+		replica.StartedAt = arg.StartedAt
+		replica.StoppedAt = arg.StoppedAt
+		replica.UpdatedAt = arg.UpdatedAt
+		replica.RelayAddress = arg.RelayAddress
+		replica.RegionID = arg.RegionID
+		replica.Version = arg.Version
+		replica.Error = arg.Error
+		replica.DatabaseLatency = arg.DatabaseLatency
+		q.replicas[index] = replica
+		return replica, nil
+	}
+	return database.Replica{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	replicas := make([]database.Replica, 0)
+	for _, replica := range q.replicas {
+		if replica.UpdatedAt.After(updatedAt) && !replica.StoppedAt.Valid {
+			replicas = append(replicas, replica)
+		}
+	}
+	return replicas, nil
 }

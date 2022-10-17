@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -23,6 +24,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,8 +39,10 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"tailscale.com/derp"
 	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
@@ -60,6 +64,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
 
@@ -77,12 +82,19 @@ type Options struct {
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 	Auditor              audit.Auditor
+	TLSCertificates      []tls.Certificate
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentFlags             *codersdk.DeploymentFlags
+
+	// Overriding the database is heavily discouraged.
+	// It should only be used in cases where multiple Coder
+	// test instances are running against the same database.
+	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -116,7 +128,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.CancelFunc, *coderd.Options) {
+func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -137,23 +149,40 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 			close(options.AutobuildStats)
 		})
 	}
-
-	db, pubsub := dbtestutil.NewDB(t)
+	if options.Database == nil {
+		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
 		ctx,
-		db,
+		options.Database,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
-	srv := httptest.NewUnstartedServer(nil)
+	var mutex sync.RWMutex
+	var handler http.Handler
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.RLock()
+		defer mutex.RUnlock()
+		if handler != nil {
+			handler.ServeHTTP(w, r)
+		}
+	}))
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
-	srv.Start()
+	if options.TLSCertificates != nil {
+		srv.TLS = &tls.Config{
+			Certificates: options.TLSCertificates,
+			MinVersion:   tls.VersionTLS12,
+		}
+		srv.StartTLS()
+	} else {
+		srv.Start()
+	}
 	t.Cleanup(srv.Close)
 
 	tcpAddr, ok := srv.Listener.Addr().(*net.TCPAddr)
@@ -169,6 +198,9 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp")))
+	derpServer.SetMeshKey("test-key")
+
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
@@ -181,53 +213,59 @@ func NewOptions(t *testing.T, options *Options) (*httptest.Server, context.Cance
 		require.NoError(t, err)
 	}
 
-	return srv, cancelFunc, &coderd.Options{
-		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
-		// Force a long disconnection timeout to ensure
-		// agents are not marked as disconnected during slow tests.
-		AgentInactiveDisconnectTimeout: testutil.WaitShort,
-		AccessURL:                      serverURL,
-		AppHostname:                    options.AppHostname,
-		AppHostnameRegex:               appHostnameRegex,
-		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		CacheDir:                       t.TempDir(),
-		Database:                       db,
-		Pubsub:                         pubsub,
+	return func(h http.Handler) {
+			mutex.Lock()
+			defer mutex.Unlock()
+			handler = h
+		}, cancelFunc, &coderd.Options{
+			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
+			// Force a long disconnection timeout to ensure
+			// agents are not marked as disconnected during slow tests.
+			AgentInactiveDisconnectTimeout: testutil.WaitShort,
+			AccessURL:                      serverURL,
+			AppHostname:                    options.AppHostname,
+			AppHostnameRegex:               appHostnameRegex,
+			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			CacheDir:                       t.TempDir(),
+			Database:                       options.Database,
+			Pubsub:                         options.Pubsub,
 
-		Auditor:              options.Auditor,
-		AWSCertificates:      options.AWSCertificates,
-		AzureCertificates:    options.AzureCertificates,
-		GithubOAuth2Config:   options.GithubOAuth2Config,
-		OIDCConfig:           options.OIDCConfig,
-		GoogleTokenValidator: options.GoogleTokenValidator,
-		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-		APIRateLimit:         options.APIRateLimit,
-		Authorizer:           options.Authorizer,
-		Telemetry:            telemetry.NewNoop(),
-		DERPMap: &tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{
-				1: {
-					EmbeddedRelay: true,
-					RegionID:      1,
-					RegionCode:    "coder",
-					RegionName:    "Coder",
-					Nodes: []*tailcfg.DERPNode{{
-						Name:             "1a",
-						RegionID:         1,
-						IPv4:             "127.0.0.1",
-						DERPPort:         derpPort,
-						STUNPort:         stunAddr.Port,
-						InsecureForTests: true,
-						ForceHTTP:        true,
-					}},
+			Auditor:              options.Auditor,
+			AWSCertificates:      options.AWSCertificates,
+			AzureCertificates:    options.AzureCertificates,
+			GithubOAuth2Config:   options.GithubOAuth2Config,
+			OIDCConfig:           options.OIDCConfig,
+			GoogleTokenValidator: options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
+			DERPServer:           derpServer,
+			APIRateLimit:         options.APIRateLimit,
+			Authorizer:           options.Authorizer,
+			Telemetry:            telemetry.NewNoop(),
+			TLSCertificates:      options.TLSCertificates,
+			DERPMap: &tailcfg.DERPMap{
+				Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      1,
+						RegionCode:    "coder",
+						RegionName:    "Coder",
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "1a",
+							RegionID:         1,
+							IPv4:             "127.0.0.1",
+							DERPPort:         derpPort,
+							STUNPort:         stunAddr.Port,
+							InsecureForTests: true,
+							ForceHTTP:        options.TLSCertificates == nil,
+						}},
+					},
 				},
 			},
-		},
-		AutoImportTemplates:         options.AutoImportTemplates,
-		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
-		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-		DeploymentFlags:             options.DeploymentFlags,
-	}
+			AutoImportTemplates:         options.AutoImportTemplates,
+			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
+			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
+			DeploymentFlags:             options.DeploymentFlags,
+		}
 }
 
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
@@ -237,10 +275,10 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options == nil {
 		options = &Options{}
 	}
-	srv, cancelFunc, newOptions := NewOptions(t, options)
+	setHandler, cancelFunc, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
-	srv.Config.Handler = coderAPI.RootHandler
+	setHandler(coderAPI.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
@@ -459,7 +497,7 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 		var err error
 		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitMedium, testutil.IntervalFast)
 	return templateVersion
 }
 

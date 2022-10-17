@@ -256,7 +256,8 @@ CREATE TABLE provisioner_daemons (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
-    provisioners provisioner_type[] NOT NULL
+    provisioners provisioner_type[] NOT NULL,
+    replica_id uuid
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -285,6 +286,20 @@ CREATE TABLE provisioner_jobs (
     input jsonb NOT NULL,
     worker_id uuid,
     file_id uuid NOT NULL
+);
+
+CREATE TABLE replicas (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    stopped_at timestamp with time zone,
+    updated_at timestamp with time zone NOT NULL,
+    hostname text NOT NULL,
+    region_id integer NOT NULL,
+    relay_address text NOT NULL,
+    database_latency integer NOT NULL,
+    version text NOT NULL,
+    error text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE site_configs (

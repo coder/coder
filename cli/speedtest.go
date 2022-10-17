@@ -55,7 +55,9 @@ func speedtest() *cobra.Command {
 			if cliflag.IsSetBool(cmd, varVerbose) {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, logger, workspaceAgent.ID)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
+				Logger: logger,
+			})
 			if err != nil {
 				return err
 			}
@@ -68,7 +70,7 @@ func speedtest() *cobra.Command {
 					return ctx.Err()
 				case <-ticker.C:
 				}
-				dur, err := conn.Ping()
+				dur, err := conn.Ping(ctx)
 				if err != nil {
 					continue
 				}

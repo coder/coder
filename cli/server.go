@@ -69,7 +69,7 @@ import (
 )
 
 // nolint:gocyclo
-func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, error)) *cobra.Command {
+func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
@@ -167,9 +167,10 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			}
 			defer listener.Close()
 
+			var tlsConfig *tls.Config
 			if dflags.TLSEnable.Value {
-				listener, err = configureServerTLS(
-					listener, dflags.TLSMinVersion.Value,
+				tlsConfig, err = configureTLS(
+					dflags.TLSMinVersion.Value,
 					dflags.TLSClientAuth.Value,
 					dflags.TLSCertFiles.Value,
 					dflags.TLSKeyFiles.Value,
@@ -178,6 +179,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
+				listener = tls.NewListener(listener, tlsConfig)
 			}
 
 			tcpAddr, valid := listener.Addr().(*net.TCPAddr)
@@ -328,6 +330,9 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				Experimental:                ExperimentalEnabled(cmd),
 				DeploymentFlags:             dflags,
 			}
+			if tlsConfig != nil {
+				options.TLSCertificates = tlsConfig.Certificates
+			}
 
 			if dflags.OAuth2GithubClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
@@ -471,11 +476,14 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				), dflags.PromAddress.Value, "prometheus")()
 			}
 
-			coderAPI, err := newAPI(ctx, options)
+			// We use a separate closer so the Enterprise API
+			// can have it's own close functions. This is cleaner
+			// than abstracting the Coder API itself.
+			coderAPI, closer, err := newAPI(ctx, options)
 			if err != nil {
 				return err
 			}
-			defer coderAPI.Close()
+			defer closer.Close()
 
 			client := codersdk.New(localURL)
 			if dflags.TLSEnable.Value {
@@ -893,7 +901,7 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 	return certs, nil
 }
 
-func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (net.Listener, error) {
+func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
@@ -929,6 +937,7 @@ func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth stri
 	if err != nil {
 		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
+	tlsConfig.Certificates = certs
 	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		// If there's only one certificate, return it.
 		if len(certs) == 1 {
@@ -963,7 +972,7 @@ func configureServerTLS(listener net.Listener, tlsMinVersion, tlsClientAuth stri
 		tlsConfig.ClientCAs = caPool
 	}
 
-	return tls.NewListener(listener, tlsConfig), nil
+	return tlsConfig, nil
 }
 
 func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {

@@ -170,6 +170,7 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 	if a.isClosed() {
 		return
 	}
+	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", derpMap))
 	if a.network != nil {
 		a.network.SetDERPMap(derpMap)
 		return

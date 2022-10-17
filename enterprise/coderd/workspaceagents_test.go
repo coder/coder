@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -42,7 +42,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			BrowserOnly: true,
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
-		_, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, agent.ID)
+		_, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -59,7 +59,7 @@ func TestBlockNonBrowser(t *testing.T) {
 			BrowserOnly: false,
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
-		conn, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, agent.ID)
+		conn, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
 	})
@@ -109,6 +109,14 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
+	agentClient.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
 		FetchMetadata:     agentClient.WorkspaceAgentMetadata,

@@ -20,8 +20,6 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -86,7 +84,7 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 			if err != nil {
 				return err
 			}

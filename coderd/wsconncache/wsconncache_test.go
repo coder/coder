@@ -128,7 +128,9 @@ func TestCache(t *testing.T) {
 					return
 				}
 				defer release()
-				proxy.Transport = conn.HTTPTransport()
+				transport := conn.HTTPTransport()
+				defer transport.CloseIdleConnections()
+				proxy.Transport = transport
 				res := httptest.NewRecorder()
 				proxy.ServeHTTP(res, req)
 				resp := res.Result()

@@ -20,17 +20,18 @@ import (
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	all := map[string]bool{
-		codersdk.FeatureAuditLog:       true,
-		codersdk.FeatureBrowserOnly:    true,
-		codersdk.FeatureSCIM:           true,
-		codersdk.FeatureWorkspaceQuota: true,
-		codersdk.FeatureTemplateRBAC:   true,
+		codersdk.FeatureAuditLog:         true,
+		codersdk.FeatureBrowserOnly:      true,
+		codersdk.FeatureSCIM:             true,
+		codersdk.FeatureWorkspaceQuota:   true,
+		codersdk.FeatureHighAvailability: true,
+		codersdk.FeatureTemplateRBAC:     true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -46,7 +47,7 @@ func TestEntitlements(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, map[string]bool{})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -60,16 +61,17 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:           100,
-				AuditLog:            true,
-				BrowserOnly:         true,
-				SCIM:                true,
-				WorkspaceQuota:      true,
-				TemplateRBACEnabled: true,
+				UserLimit:        100,
+				AuditLog:         true,
+				BrowserOnly:      true,
+				SCIM:             true,
+				WorkspaceQuota:   true,
+				HighAvailability: true,
+				TemplateRBAC:     true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, map[string]bool{})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -82,23 +84,27 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:           100,
-				AuditLog:            true,
-				BrowserOnly:         true,
-				SCIM:                true,
-				WorkspaceQuota:      true,
-				TemplateRBACEnabled: true,
-				GraceAt:             time.Now().Add(-time.Hour),
-				ExpiresAt:           time.Now().Add(time.Hour),
+				UserLimit:        100,
+				AuditLog:         true,
+				BrowserOnly:      true,
+				SCIM:             true,
+				WorkspaceQuota:   true,
+				HighAvailability: true,
+				TemplateRBAC:     true,
+				GraceAt:          time.Now().Add(-time.Hour),
+				ExpiresAt:        time.Now().Add(time.Hour),
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, all)
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if featureName == codersdk.FeatureHighAvailability {
 				continue
 			}
 			niceName := strings.Title(strings.ReplaceAll(featureName, "_", " "))
@@ -113,12 +119,15 @@ func TestEntitlements(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, all)
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if featureName == codersdk.FeatureHighAvailability {
 				continue
 			}
 			niceName := strings.Title(strings.ReplaceAll(featureName, "_", " "))
@@ -139,7 +148,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, map[string]bool{})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Contains(t, entitlements.Warnings, "Your deployment has 2 active users but is only licensed for 1.")
@@ -161,7 +170,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, map[string]bool{})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Empty(t, entitlements.Warnings)
@@ -184,7 +193,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 		})
 
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, map[string]bool{})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -199,7 +208,7 @@ func TestEntitlements(t *testing.T) {
 				AllFeatures: true,
 			}),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, coderdenttest.Keys, all)
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -210,5 +219,53 @@ func TestEntitlements(t *testing.T) {
 			require.True(t, entitlements.Features[featureName].Enabled)
 			require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
 		}
+	})
+
+	t.Run("MultipleReplicasNoLicense", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.False(t, entitlements.HasLicense)
+		require.Len(t, entitlements.Errors, 1)
+		require.Equal(t, "You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.", entitlements.Errors[0])
+	})
+
+	t.Run("MultipleReplicasNotEntitled", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			Exp: time.Now().Add(time.Hour),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				AuditLog: true,
+			}),
+		})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, coderdenttest.Keys, map[string]bool{
+			codersdk.FeatureHighAvailability: true,
+		})
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Len(t, entitlements.Errors, 1)
+		require.Equal(t, "You have multiple replicas but your license is not entitled to high availability. You will be unable to connect to workspaces.", entitlements.Errors[0])
+	})
+
+	t.Run("MultipleReplicasGrace", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				HighAvailability: true,
+				GraceAt:          time.Now().Add(-time.Hour),
+				ExpiresAt:        time.Now().Add(time.Hour),
+			}),
+			Exp: time.Now().Add(time.Hour),
+		})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, coderdenttest.Keys, map[string]bool{
+			codersdk.FeatureHighAvailability: true,
+		})
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.Len(t, entitlements.Warnings, 1)
+		require.Equal(t, "You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.", entitlements.Warnings[0])
 	})
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/tls"
 	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -60,19 +62,21 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
-	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
+	setHandler, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		RBACEnabled:                true,
+		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		DERPServerRelayAddress:     oop.AccessURL.String(),
+		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
 		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,
 	})
 	assert.NoError(t, err)
-	srv.Config.Handler = coderAPI.AGPL.RootHandler
+	setHandler(coderAPI.AGPL.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
@@ -83,22 +87,32 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	client := codersdk.New(coderAPI.AccessURL)
+	client.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	return client, provisionerCloser, coderAPI
 }
 
 type LicenseOptions struct {
-	AccountType         string
-	AccountID           string
-	Trial               bool
-	AllFeatures         bool
-	GraceAt             time.Time
-	ExpiresAt           time.Time
-	UserLimit           int64
-	AuditLog            bool
-	BrowserOnly         bool
-	SCIM                bool
-	WorkspaceQuota      bool
-	TemplateRBACEnabled bool
+	AccountType      string
+	AccountID        string
+	Trial            bool
+	AllFeatures      bool
+	GraceAt          time.Time
+	ExpiresAt        time.Time
+	UserLimit        int64
+	AuditLog         bool
+	BrowserOnly      bool
+	SCIM             bool
+	WorkspaceQuota   bool
+	TemplateRBAC     bool
+	HighAvailability bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -134,9 +148,13 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.WorkspaceQuota {
 		workspaceQuota = 1
 	}
+	highAvailability := int64(0)
+	if options.HighAvailability {
+		highAvailability = 1
+	}
 
 	rbacEnabled := int64(0)
-	if options.TemplateRBACEnabled {
+	if options.TemplateRBAC {
 		rbacEnabled = 1
 	}
 
@@ -154,12 +172,13 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
 		Features: license.Features{
-			UserLimit:      options.UserLimit,
-			AuditLog:       auditLog,
-			BrowserOnly:    browserOnly,
-			SCIM:           scim,
-			WorkspaceQuota: workspaceQuota,
-			TemplateRBAC:   rbacEnabled,
+			UserLimit:        options.UserLimit,
+			AuditLog:         auditLog,
+			BrowserOnly:      browserOnly,
+			SCIM:             scim,
+			WorkspaceQuota:   workspaceQuota,
+			HighAvailability: highAvailability,
+			TemplateRBAC:     rbacEnabled,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

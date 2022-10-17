@@ -274,6 +274,7 @@ export interface DeploymentFlags {
   readonly derp_server_region_code: StringFlag
   readonly derp_server_region_name: StringFlag
   readonly derp_server_stun_address: StringArrayFlag
+  readonly derp_server_relay_address: StringFlag
   readonly derp_config_url: StringFlag
   readonly derp_config_path: StringFlag
   readonly prom_enabled: BoolFlag
@@ -337,6 +338,7 @@ export interface DurationFlag {
 export interface Entitlements {
   readonly features: Record<string, Feature>
   readonly warnings: string[]
+  readonly errors: string[]
   readonly has_license: boolean
   readonly experimental: boolean
   readonly trial: boolean
@@ -526,6 +528,17 @@ export interface ProvisionerJobLog {
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
+}
+
+// From codersdk/replicas.go
+export interface Replica {
+  readonly id: string
+  readonly hostname: string
+  readonly created_at: string
+  readonly relay_address: string
+  readonly region_id: number
+  readonly error: string
+  readonly database_latency: number
 }
 
 // From codersdk/error.go

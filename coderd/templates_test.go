@@ -627,7 +627,9 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("tailnet"), resources[0].Agents[0].ID)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: slogtest.Make(t, nil).Named("tailnet"),
+	})
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()

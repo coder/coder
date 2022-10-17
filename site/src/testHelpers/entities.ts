@@ -821,6 +821,7 @@ export const makeMockApiError = ({
 })
 
 export const MockEntitlements: TypesGen.Entitlements = {
+  errors: [],
   warnings: [],
   has_license: false,
   features: {},
@@ -829,6 +830,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 }
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  errors: [],
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
   experimental: false,
@@ -852,6 +854,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 }
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
+  errors: [],
   warnings: [],
   has_license: true,
   experimental: false,
