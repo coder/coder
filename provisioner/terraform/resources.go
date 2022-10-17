@@ -221,8 +221,8 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		slug := resource.Name
-		if !provisioner.ValidAppNameRegex.MatchString(slug) {
-			return nil, xerrors.Errorf("invalid app name, must be a valid hostname (%q, cannot contain two consecutive hyphens or start/end with a hyphen): %q", provisioner.ValidAppNameRegex.String(), slug)
+		if !provisioner.ValidAppSlugRegex.MatchString(slug) {
+			return nil, xerrors.Errorf("invalid app slug, must be a valid hostname (%q, cannot contain two consecutive hyphens or start/end with a hyphen): %q", provisioner.ValidAppSlugRegex.String(), slug)
 		}
 
 		var attrs agentAppAttributes

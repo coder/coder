@@ -814,8 +814,8 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			if slug == "" {
 				return xerrors.Errorf("app must have a slug or name set")
 			}
-			if !provisioner.ValidAppNameRegex.MatchString(slug) {
-				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.ValidAppNameRegex.String())
+			if !provisioner.ValidAppSlugRegex.MatchString(slug) {
+				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.ValidAppSlugRegex.String())
 			}
 
 			health := database.WorkspaceAppHealthDisabled

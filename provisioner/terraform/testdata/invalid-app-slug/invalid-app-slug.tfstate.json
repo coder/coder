@@ -1,0 +1,68 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.2.8",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "arch": "amd64",
+            "auth": "token",
+            "dir": null,
+            "env": null,
+            "id": "4df45b21-c841-46d3-b3e3-d1efd3a9657e",
+            "init_script": "",
+            "os": "linux",
+            "startup_script": null,
+            "token": "4bddad38-b622-4963-b353-249171359be8"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "coder_app.invalid_app_name",
+          "mode": "managed",
+          "type": "coder_app",
+          "name": "invalid_app_name",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "agent_id": "4df45b21-c841-46d3-b3e3-d1efd3a9657e",
+            "command": null,
+            "healthcheck": [],
+            "icon": null,
+            "id": "d2b5d94a-4c47-484e-862f-4eb700290dbb",
+            "name": null,
+            "relative_path": null,
+            "share": "owner",
+            "subdomain": null,
+            "url": null
+          },
+          "sensitive_values": {
+            "healthcheck": []
+          },
+          "depends_on": ["coder_agent.dev"]
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "6380390816158464544",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": ["coder_agent.dev"]
+        }
+      ]
+    }
+  }
+}

@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/provisioner"
 )
 
-func TestValidAppNameRegex(t *testing.T) {
+func TestValidAppSlugRegex(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Valid", func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestValidAppNameRegex(t *testing.T) {
 		}
 
 		for _, s := range validStrings {
-			require.True(t, provisioner.ValidAppNameRegex.MatchString(s), s)
+			require.True(t, provisioner.ValidAppSlugRegex.MatchString(s), s)
 		}
 	})
 
@@ -58,7 +58,7 @@ func TestValidAppNameRegex(t *testing.T) {
 		}
 
 		for _, s := range invalidStrings {
-			require.False(t, provisioner.ValidAppNameRegex.MatchString(s), s)
+			require.False(t, provisioner.ValidAppSlugRegex.MatchString(s), s)
 		}
 	})
 }
