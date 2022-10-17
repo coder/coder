@@ -185,7 +185,17 @@ func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := api.Database.GetAuthorizedWorkspaceCount(ctx, filter, sqlFilter)
+	countFilter := database.GetWorkspaceCountParams{
+		Deleted:       filter.Deleted,
+		OwnerUsername: filter.OwnerUsername,
+		OwnerID:       filter.OwnerID,
+		Name:          filter.Name,
+		Status:        filter.Status,
+		TemplateIds:   filter.TemplateIds,
+		TemplateName:  filter.TemplateName,
+	}
+
+	count, err := api.Database.GetAuthorizedWorkspaceCount(ctx, countFilter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace count.",

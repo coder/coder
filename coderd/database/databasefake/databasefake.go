@@ -717,7 +717,7 @@ func (q *fakeQuerier) GetWorkspaceCount(ctx context.Context, arg database.GetWor
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg database.GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
