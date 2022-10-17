@@ -24,7 +24,7 @@ interface ResourcesProps {
   workspace: Workspace
   canUpdateWorkspace: boolean
   buildInfo?: BuildInfoResponse | undefined
-  hideSSHButton: boolean
+  hideSSHButton?: boolean
   applicationsHost?: string
 }
 

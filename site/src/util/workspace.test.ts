@@ -101,8 +101,8 @@ describe("util > workspace", () => {
 
   describe("getDisplayVersionStatus", () => {
     it.each<[string, string, string, boolean]>([
-      ["", "", "unknown", false],
-      ["", "v1.2.3", "unknown", false],
+      ["", "", "Unknown", false],
+      ["", "v1.2.3", "Unknown", false],
       ["v1.2.3", "", "v1.2.3", false],
       ["v1.2.3", "v1.2.3", "v1.2.3", false],
       ["v1.2.3", "v1.2.4", "v1.2.3", true],

@@ -26,7 +26,7 @@ export interface ResourceCardProps {
   workspace: Workspace
   applicationsHost: string | undefined
   showApps: boolean
-  hideSSHButton: boolean
+  hideSSHButton?: boolean
   serverVersion: string
 }
 
