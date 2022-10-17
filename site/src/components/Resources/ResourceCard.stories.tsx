@@ -71,6 +71,11 @@ BunchOfMetadata.args = {
         sensitive: false,
       },
       { key: "volume", value: "/home/coder", sensitive: false },
+      {
+        key: "secret",
+        value: "3XqfNW0b1bvsGsqud8O6OW6VabH3fwzI",
+        sensitive: true,
+      },
     ],
   },
 }

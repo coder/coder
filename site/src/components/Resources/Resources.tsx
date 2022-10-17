@@ -206,6 +206,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                               workspaceName={workspace.name}
                               agentName={agent.name}
                               health={app.health}
+                              appSharingLevel={app.sharing_level}
                             />
                           ))}
                         </>

@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Skeleton } from "@material-ui/lab"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
-import { FC } from "react"
+import { FC, useState } from "react"
 import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
@@ -11,6 +11,13 @@ import { ResourceAvatar } from "./ResourceAvatar"
 import { SensitiveValue } from "./SensitiveValue"
 import { AgentLatency } from "./AgentLatency"
 import { AgentVersion } from "./AgentVersion"
+import {
+  OpenDropdown,
+  CloseDropdown,
+} from "components/DropdownArrows/DropdownArrows"
+import IconButton from "@material-ui/core/IconButton"
+import Tooltip from "@material-ui/core/Tooltip"
+import { Maybe } from "components/Conditionals/Maybe"
 
 export interface ResourceCardProps {
   resource: WorkspaceResource
@@ -29,43 +36,76 @@ export const ResourceCard: FC<ResourceCardProps> = ({
   hideSSHButton,
   serverVersion,
 }) => {
+  const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
+    useState(false)
   const styles = useStyles()
-
   const metadataToDisplay =
+    // Type is already displayed in the header
     resource.metadata?.filter((data) => data.key !== "type") ?? []
+  const visibleMetadata = shouldDisplayAllMetadata
+    ? metadataToDisplay
+    : metadataToDisplay.slice(0, 4)
 
   return (
     <div key={resource.id} className={styles.resourceCard}>
       <Stack
         direction="row"
-        alignItems="center"
+        alignItems="flex-start"
         className={styles.resourceCardHeader}
+        spacing={10}
       >
-        <div>
-          <ResourceAvatar resource={resource} />
-        </div>
-        <div className={styles.resourceHeader}>
-          <div className={styles.resourceHeaderLabel}>{resource.type}</div>
-          <div>{resource.name}</div>
-        </div>
-      </Stack>
-
-      <Stack
-        direction="row"
-        alignItems="baseline"
-        wrap="wrap"
-        className={styles.resourceMetadata}
-      >
-        {metadataToDisplay.map((data) => (
-          <div key={data.key} className={styles.resourceData}>
-            <span className={styles.resourceDataLabel}>{data.key}:</span>
-            {data.sensitive ? (
-              <SensitiveValue value={data.value} />
-            ) : (
-              <span>{data.value}</span>
-            )}
+        <Stack
+          direction="row"
+          alignItems="center"
+          className={styles.resourceCardProfile}
+        >
+          <div>
+            <ResourceAvatar resource={resource} />
           </div>
-        ))}
+          <div className={styles.metadata}>
+            <div className={styles.metadataLabel}>{resource.type}</div>
+            <div className={styles.metadataValue}>{resource.name}</div>
+          </div>
+        </Stack>
+
+        <Stack alignItems="flex-start" direction="row" spacing={5}>
+          <div className={styles.metadataHeader}>
+            {visibleMetadata.map((meta) => {
+              return (
+                <div className={styles.metadata} key={meta.key}>
+                  <div className={styles.metadataLabel}>{meta.key}</div>
+                  <div className={styles.metadataValue}>
+                    {meta.sensitive ? (
+                      <SensitiveValue value={meta.value} />
+                    ) : (
+                      meta.value
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <Maybe condition={metadataToDisplay.length > 4}>
+            <Tooltip
+              title={
+                shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"
+              }
+            >
+              <IconButton
+                onClick={() => {
+                  setShouldDisplayAllMetadata((value) => !value)
+                }}
+              >
+                {shouldDisplayAllMetadata ? (
+                  <CloseDropdown margin={false} />
+                ) : (
+                  <OpenDropdown margin={false} />
+                )}
+              </IconButton>
+            </Tooltip>
+          </Maybe>
+        </Stack>
       </Stack>
 
       <div>
@@ -132,14 +172,15 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                         workspaceName={workspace.name}
                         agentName={agent.name}
                         health={app.health}
+                        appSharingLevel={app.sharing_level}
                       />
                     ))}
                   </>
                 )}
                 {showApps && agent.status === "connecting" && (
                   <>
-                    <Skeleton width={80} height={60} />
-                    <Skeleton width={120} height={60} />
+                    <Skeleton width={80} height={36} variant="rect" />
+                    <Skeleton width={120} height={36} variant="rect" />
                   </>
                 )}
               </Stack>
@@ -158,35 +199,40 @@ const useStyles = makeStyles((theme) => ({
     border: `1px solid ${theme.palette.divider}`,
   },
 
+  resourceCardProfile: {
+    flexShrink: 0,
+    width: "fit-content",
+  },
+
   resourceCardHeader: {
     padding: theme.spacing(3, 4),
     borderBottom: `1px solid ${theme.palette.divider}`,
   },
 
-  resourceMetadata: {
-    padding: theme.spacing(2, 4),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    gap: theme.spacing(0.5, 2),
+  metadataHeader: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: theme.spacing(5),
+    rowGap: theme.spacing(3),
   },
 
-  resourceHeader: {
+  metadata: {
     fontSize: 16,
   },
 
-  resourceHeaderLabel: {
+  metadataLabel: {
     fontSize: 12,
     color: theme.palette.text.secondary,
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
   },
 
-  resourceData: {
-    fontSize: 12,
-    flexShrink: 0,
-  },
-
-  resourceDataLabel: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginRight: theme.spacing(0.75),
+  metadataValue: {
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    userSelect: "all",
   },
 
   agentRow: {

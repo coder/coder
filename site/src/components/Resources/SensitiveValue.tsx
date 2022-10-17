@@ -23,7 +23,7 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
 
   return (
     <div className={styles.sensitiveValue}>
-      {displayValue}
+      <div className={styles.value}>{displayValue}</div>
       <Tooltip title={buttonLabel}>
         <IconButton
           className={styles.button}
@@ -41,13 +41,21 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
 }
 
 const useStyles = makeStyles((theme) => ({
+  value: {
+    // 22px is the button width
+    width: "calc(100% - 22px)",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+  },
+
   sensitiveValue: {
     display: "flex",
     alignItems: "center",
+    gap: theme.spacing(0.5),
   },
 
   button: {
-    marginLeft: theme.spacing(0.5),
     color: "inherit",
 
     "& .MuiSvgIcon-root": {

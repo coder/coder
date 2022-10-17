@@ -2,7 +2,7 @@ import IconButton from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import Check from "@material-ui/icons/Check"
-import React, { useState } from "react"
+import { useClipboard } from "hooks/useClipboard"
 import { combineClasses } from "../../util/combineClasses"
 import { FileCopyIcon } from "../Icons/FileCopyIcon"
 
@@ -30,39 +30,7 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
   tooltipTitle = Language.tooltipTitle,
 }) => {
   const styles = useStyles()
-  const [isCopied, setIsCopied] = useState<boolean>(false)
-
-  const copyToClipboard = async (): Promise<void> => {
-    try {
-      await window.navigator.clipboard.writeText(text)
-      setIsCopied(true)
-      window.setTimeout(() => {
-        setIsCopied(false)
-      }, 1000)
-    } catch (err) {
-      const input = document.createElement("input")
-      input.value = text
-      document.body.appendChild(input)
-      input.focus()
-      input.select()
-      const result = document.execCommand("copy")
-      document.body.removeChild(input)
-      if (result) {
-        setIsCopied(true)
-        window.setTimeout(() => {
-          setIsCopied(false)
-        }, 1000)
-      } else {
-        const wrappedErr = new Error(
-          "copyToClipboard: failed to copy text to clipboard",
-        )
-        if (err instanceof Error) {
-          wrappedErr.stack = err.stack
-        }
-        console.error(wrappedErr)
-      }
-    }
-  }
+  const { isCopied, copy: copyToClipboard } = useClipboard(text)
 
   return (
     <Tooltip title={tooltipTitle} placement="top">
