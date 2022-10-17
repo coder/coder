@@ -1743,8 +1743,8 @@ github.com/tomarrell/wrapcheck/v2 v2.4.0/go.mod h1:68bQ/eJg55BROaRTbMjC7vuhL2Ogf
 github.com/tomasen/realip v0.0.0-20180522021738-f0c99a92ddce/go.mod h1:o8v6yHRoik09Xen7gje4m9ERNah1d1PPsVq1VEx9vE4=
 github.com/tommy-muehle/go-mnd/v2 v2.4.0/go.mod h1:WsUAkMJMYww6l/ufffCD3m+P7LEvr8TnZn9lwVDlgzw=
 github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c/go.mod h1:hzIxponao9Kjc7aWznkXaL4U4TWaDSs8zcsY4Ka08nM=
-github.com/u-root/u-root v0.9.0 h1:1dpUzrE0FyKrNEjxpKFOkyveuV1f3T0Ko5CQg4gTkCg=
-github.com/u-root/u-root v0.9.0/go.mod h1:ewc9w6JF1ayZCVC9Y5wsrUiCBw3nMmPC3QItvrEwmew=
+github.com/u-root/u-root v0.10.0 h1:nz3jSORXAxTl6bNXhRh5s9HT5oRo5hmCJXUJ0q/BK7s=
+github.com/u-root/u-root v0.10.0/go.mod h1:lqAiThZZ0/yg0rj49gxpSCK8hfv86NSc+wPhGp5idb4=
 github.com/u-root/uio v0.0.0-20210528114334-82958018845c/go.mod h1:LpEX5FO/cB+WF4TYGY1V5qktpaZLkKkSegbr0V4eYXA=
 github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4 h1:hl6sK6aFgTLISijk6xIzeqnPzQcsLqqvL6vEfTPinME=
 github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4/go.mod h1:LpEX5FO/cB+WF4TYGY1V5qktpaZLkKkSegbr0V4eYXA=
