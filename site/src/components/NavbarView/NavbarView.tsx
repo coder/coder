@@ -192,7 +192,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 16,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
     textDecoration: "none",
-    transition: "background-color 0.3s ease",
+    transition: "background-color 0.15s ease-in-out",
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,

@@ -21,6 +21,11 @@ import { XServiceContext } from "xServices/StateContext"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
+import { GeneralSettingsPage } from "pages/DeploySettingsPage/GeneralSettingsPage"
+import { SecuritySettingsPage } from "pages/DeploySettingsPage/SecuritySettingsPage"
+import { MetricsSettingsPage } from "pages/DeploySettingsPage/MetricsSettingsPage"
+import { AuthSettingsPage } from "pages/DeploySettingsPage/AuthSettingsPage"
+import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -232,6 +237,49 @@ export const AppRouter: FC = () => {
                 >
                   <AuditPage />
                 </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+        </Route>
+
+        <Route path="settings/deployment">
+          <Route
+            path="general"
+            element={
+              <AuthAndFrame>
+                <DeploySettingsLayout>
+                  <GeneralSettingsPage />
+                </DeploySettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="security"
+            element={
+              <AuthAndFrame>
+                <DeploySettingsLayout>
+                  <SecuritySettingsPage />
+                </DeploySettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="metrics"
+            element={
+              <AuthAndFrame>
+                <DeploySettingsLayout>
+                  <MetricsSettingsPage />
+                </DeploySettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="auth"
+            element={
+              <AuthAndFrame>
+                <DeploySettingsLayout>
+                  <AuthSettingsPage />
+                </DeploySettingsLayout>
               </AuthAndFrame>
             }
           />
