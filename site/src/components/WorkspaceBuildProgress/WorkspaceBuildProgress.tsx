@@ -6,28 +6,24 @@ import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 
 dayjs.extend(duration)
 
 const estimateFinish = (
   startedAt: Dayjs,
-  templateAverage?: number,
-): [number, string] => {
-  if (templateAverage === undefined) {
-    return [0, "Unknown"]
-  }
-  const realPercentage = dayjs().diff(startedAt) / templateAverage
+  buildEstimate: number,
+): [number | undefined, string] => {
+  const realPercentage = dayjs().diff(startedAt) / buildEstimate
 
   const maxPercentage = 1
   if (realPercentage > maxPercentage) {
-    return [1, "Any moment now..."]
+    return [undefined, "Any moment now..."]
   }
 
   return [
-    realPercentage,
+    realPercentage * 100,
     `~${Math.ceil(
-      dayjs.duration((1 - realPercentage) * templateAverage).asSeconds(),
+      dayjs.duration((1 - realPercentage) * buildEstimate).asSeconds(),
     )} seconds remaining...`,
   ]
 }
@@ -71,14 +67,13 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   // stutter in all cases.
   useEffect(() => {
     const updateProgress = () => {
-      if (job.status !== "running") {
+      if (job.status !== "running" || buildEstimate === undefined) {
         setProgressValue(undefined)
         return
       }
-      const est = estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100
+      const est = estimateFinish(dayjs(job.started_at), buildEstimate)[0]
       setProgressValue(est)
     }
-    // Perform initial update
     setTimeout(updateProgress, 100)
   }, [progressValue, job, buildEstimate])
 
@@ -91,7 +86,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
           // (e.g. the build isn't yet running). If we flicker from the
           // indeterminate bar to the determinate bar, the vigilant user
           // perceives the bar jumping from 100% to 0%.
-          progressValue !== undefined || dayjs(job.started_at).diff() < 500
+          progressValue !== undefined || dayjs(job.started_at).diff() > 500
             ? "determinate"
             : "indeterminate"
         }
@@ -103,12 +98,15 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
         <div className={styles.label}>
-          <ChooseOne>
-            <Cond condition={job.status === "running"}>
-              {estimateFinish(dayjs(job.started_at), buildEstimate)[1]}
-            </Cond>
-            <Cond>Unknown ETA</Cond>
-          </ChooseOne>
+          {(() => {
+            if (job.status !== "running") {
+              return ""
+            } else if (buildEstimate !== undefined) {
+              return estimateFinish(dayjs(job.started_at), buildEstimate)[1]
+            } else {
+              return "Unknown ETA"
+            }
+          })()}
         </div>
       </div>
     </div>
