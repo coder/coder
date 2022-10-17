@@ -12,6 +12,7 @@ import * as Yup from "yup"
 
 type FormData = {
   name: string
+  avatar_url: string
 }
 
 const validationSchema = Yup.object({
@@ -28,6 +29,7 @@ const UpdateGroupForm: React.FC<{
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
+      avatar_url: group.avatar_url,
     },
     validationSchema,
     onSubmit,
@@ -44,6 +46,14 @@ const UpdateGroupForm: React.FC<{
           autoFocus
           fullWidth
           label="Name"
+          variant="outlined"
+        />
+        <TextField
+          {...getFieldHelpers("avatar_url")}
+          onChange={onChangeTrimmed(form)}
+          autoFocus
+          fullWidth
+          label="Avatar URL"
           variant="outlined"
         />
         <FormFooter onCancel={onCancel} isLoading={isLoading} />

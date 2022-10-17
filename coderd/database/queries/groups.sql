@@ -74,10 +74,11 @@ AND
 INSERT INTO groups (
 	id,
 	name,
-	organization_id
+	organization_id,
+	avatar_url
 )
 VALUES
-	( $1, $2, $3) RETURNING *;
+	( $1, $2, $3, $4) RETURNING *;
 
 -- We use the organization_id as the id
 -- for simplicity since all users is 
@@ -95,9 +96,10 @@ VALUES
 UPDATE
 	groups
 SET
-	name = $1
+	name = $1,
+	avatar_url = $2
 WHERE
-	id = $2
+	id = $3
 RETURNING *;
 
 -- name: InsertGroupMember :exec

@@ -181,7 +181,8 @@ CREATE TABLE group_members (
 CREATE TABLE groups (
     id uuid NOT NULL,
     name text NOT NULL,
-    organization_id uuid NOT NULL
+    organization_id uuid NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE licenses (

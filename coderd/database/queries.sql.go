@@ -928,7 +928,7 @@ func (q *sqlQuerier) GetAllOrganizationMembers(ctx context.Context, organization
 
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT
-	id, name, organization_id
+	id, name, organization_id, avatar_url
 FROM
 	groups
 WHERE
@@ -940,13 +940,18 @@ LIMIT
 func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error) {
 	row := q.db.QueryRowContext(ctx, getGroupByID, id)
 	var i Group
-	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OrganizationID,
+		&i.AvatarURL,
+	)
 	return i, err
 }
 
 const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
 SELECT
-	id, name, organization_id
+	id, name, organization_id, avatar_url
 FROM
 	groups
 WHERE
@@ -965,7 +970,12 @@ type GetGroupByOrgAndNameParams struct {
 func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error) {
 	row := q.db.QueryRowContext(ctx, getGroupByOrgAndName, arg.OrganizationID, arg.Name)
 	var i Group
-	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OrganizationID,
+		&i.AvatarURL,
+	)
 	return i, err
 }
 
@@ -1024,7 +1034,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 
 const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
 SELECT
-	id, name, organization_id
+	id, name, organization_id, avatar_url
 FROM
 	groups
 WHERE
@@ -1042,7 +1052,12 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 	var items []Group
 	for rows.Next() {
 		var i Group
-		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1058,7 +1073,7 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 
 const getUserGroups = `-- name: GetUserGroups :many
 SELECT
-	groups.id, groups.name, groups.organization_id
+	groups.id, groups.name, groups.organization_id, groups.avatar_url
 FROM
 	groups
 JOIN
@@ -1078,7 +1093,12 @@ func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Gro
 	var items []Group
 	for rows.Next() {
 		var i Group
-		if err := rows.Scan(&i.ID, &i.Name, &i.OrganizationID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1099,7 +1119,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	( $1, 'Everyone', $1) RETURNING id, name, organization_id
+	( $1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url
 `
 
 // We use the organization_id as the id
@@ -1108,7 +1128,12 @@ VALUES
 func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error) {
 	row := q.db.QueryRowContext(ctx, insertAllUsersGroup, organizationID)
 	var i Group
-	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OrganizationID,
+		&i.AvatarURL,
+	)
 	return i, err
 }
 
@@ -1116,22 +1141,34 @@ const insertGroup = `-- name: InsertGroup :one
 INSERT INTO groups (
 	id,
 	name,
-	organization_id
+	organization_id,
+	avatar_url
 )
 VALUES
-	( $1, $2, $3) RETURNING id, name, organization_id
+	( $1, $2, $3, $4) RETURNING id, name, organization_id, avatar_url
 `
 
 type InsertGroupParams struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Name           string    `db:"name" json:"name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 }
 
 func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error) {
-	row := q.db.QueryRowContext(ctx, insertGroup, arg.ID, arg.Name, arg.OrganizationID)
+	row := q.db.QueryRowContext(ctx, insertGroup,
+		arg.ID,
+		arg.Name,
+		arg.OrganizationID,
+		arg.AvatarURL,
+	)
 	var i Group
-	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OrganizationID,
+		&i.AvatarURL,
+	)
 	return i, err
 }
 
@@ -1157,21 +1194,28 @@ const updateGroupByID = `-- name: UpdateGroupByID :one
 UPDATE
 	groups
 SET
-	name = $1
+	name = $1,
+	avatar_url = $2
 WHERE
-	id = $2
-RETURNING id, name, organization_id
+	id = $3
+RETURNING id, name, organization_id, avatar_url
 `
 
 type UpdateGroupByIDParams struct {
-	Name string    `db:"name" json:"name"`
-	ID   uuid.UUID `db:"id" json:"id"`
+	Name      string    `db:"name" json:"name"`
+	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error) {
-	row := q.db.QueryRowContext(ctx, updateGroupByID, arg.Name, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateGroupByID, arg.Name, arg.AvatarURL, arg.ID)
 	var i Group
-	err := row.Scan(&i.ID, &i.Name, &i.OrganizationID)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OrganizationID,
+		&i.AvatarURL,
+	)
 	return i, err
 }
 

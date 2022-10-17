@@ -43,6 +43,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		ID:             uuid.New(),
 		Name:           req.Name,
 		OrganizationID: org.ID,
+		AvatarURL:      req.AvatarURL,
 	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -81,6 +82,12 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If the name matches the existing group name pretend we aren't
+	// updating the name at all.
+	if req.Name == group.Name {
+		req.Name = ""
+	}
+
 	users := make([]string, 0, len(req.AddUsers)+len(req.RemoveUsers))
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
@@ -109,7 +116,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.Name != "" {
+	if req.Name != "" && req.Name != group.Name {
 		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
 			Name:           req.Name,
@@ -123,16 +130,29 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		if req.Name != "" {
-			var err error
-			group, err = tx.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
-				ID:   group.ID,
-				Name: req.Name,
-			})
-			if err != nil {
-				return xerrors.Errorf("update group by ID: %w", err)
-			}
+		var err error
+		group, err = tx.GetGroupByID(ctx, group.ID)
+		if err != nil {
+			return xerrors.Errorf("get group by ID: %w", err)
 		}
+
+		// TODO: Do we care about validating this?
+		if req.AvatarURL != nil {
+			group.AvatarURL = *req.AvatarURL
+		}
+		if req.Name != "" {
+			group.Name = req.Name
+		}
+
+		group, err = tx.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
+			ID:        group.ID,
+			Name:      group.Name,
+			AvatarURL: group.AvatarURL,
+		})
+		if err != nil {
+			return xerrors.Errorf("update group by ID: %w", err)
+		}
+
 		for _, id := range req.AddUsers {
 			err := tx.InsertGroupMember(ctx, database.InsertGroupMemberParams{
 				GroupID: group.ID,
@@ -276,6 +296,7 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 		ID:             g.ID,
 		Name:           g.Name,
 		OrganizationID: g.OrganizationID,
+		AvatarURL:      g.AvatarURL,
 		Members:        convertUsers(users, orgs),
 	}
 }

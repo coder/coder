@@ -439,6 +439,7 @@ type Group struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Name           string    `db:"name" json:"name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 }
 
 type GroupMember struct {
