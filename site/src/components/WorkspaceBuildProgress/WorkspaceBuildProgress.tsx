@@ -2,7 +2,7 @@ import LinearProgress from "@material-ui/core/LinearProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
-import { FC } from "react"
+import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
@@ -11,17 +11,17 @@ dayjs.extend(duration)
 
 const estimateFinish = (
   startedAt: Dayjs,
-  templateAverage: number,
+  templateAverage?: number,
 ): [number, string] => {
-  // Buffer the template average to prevent the progress bar from waiting at end.
-  // Over-promise, under-deliver.
-  templateAverage *= 1.2
-
+  if (templateAverage === undefined) {
+    return [0, "Unknown"]
+  }
   const realPercentage = dayjs().diff(startedAt) / templateAverage
 
   // Showing a full bar is frustrating.
-  if (realPercentage > 0.95) {
-    return [0.95, "Any moment now..."]
+  const maxPercentage = 0.99
+  if (realPercentage > maxPercentage) {
+    return [maxPercentage, "Any moment now..."]
   }
 
   return [
@@ -32,41 +32,79 @@ const estimateFinish = (
   ]
 }
 
-export const WorkspaceBuildProgress: FC<{
+export interface WorkspaceBuildProgressProps {
   workspace: Workspace
-  template?: Template
-}> = ({ workspace, template }) => {
-  const styles = useStyles()
+  buildEstimate?: number
+}
 
-  // Template stats not loaded or non-existent
-  if (!template || template.average_build_time_ms <= 0) {
-    return <></>
+// EstimateTransitionTime gets the build estimate for the workspace,
+// if it is in a transition state.
+export const EstimateTransitionTime = (
+  template: Template,
+  workspace: Workspace,
+): [number | undefined, boolean] => {
+  switch (workspace.latest_build.status) {
+    case "starting":
+      return [template.build_time_stats.start_ms, true]
+    case "stopping":
+      return [template.build_time_stats.stop_ms, true]
+    case "deleting":
+      return [template.build_time_stats.delete_ms, true]
+    default:
+      // Not in a transition state
+      return [undefined, false]
   }
+}
 
+export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
+  workspace,
+  buildEstimate,
+}) => {
+  const styles = useStyles()
   const job = workspace.latest_build.job
-  const status = job.status
+  const [progressValue, setProgressValue] = useState(0)
+
+  // By default workspace is updated every second, which can cause visual stutter
+  // when the build estimate is a few seconds. The timer ensures no observable
+  // stutter in all cases.
+  useEffect(() => {
+    const updateProgress = () => {
+      if (job.status !== "running") {
+        setProgressValue(0)
+        return
+      }
+      setProgressValue(
+        estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100,
+      )
+    }
+    setTimeout(updateProgress, 100)
+  }, [progressValue, job, buildEstimate])
+
+  // buildEstimate may be undefined if the template is new or coderd hasn't
+  // finished initial metrics collection.
+  if (buildEstimate === undefined) {
+    return (
+      <div className={styles.stack}>
+        <LinearProgress value={0} variant="indeterminate" />
+        <div className={styles.barHelpers}>
+          <div className={styles.label}>{`Build ${job.status}`}</div>
+          <div className={styles.label}>Unknown ETA</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.stack}>
       <LinearProgress
-        value={
-          (status === "running" &&
-            estimateFinish(
-              dayjs(job.started_at),
-              template.average_build_time_ms,
-            )[0] * 100) ||
-          0
-        }
-        variant={status === "running" ? "determinate" : "indeterminate"}
+        value={(job.status === "running" && progressValue) || 0}
+        variant={job.status === "running" ? "determinate" : "indeterminate"}
       />
       <div className={styles.barHelpers}>
-        <div className={styles.label}>{`Build ${status}`}</div>
+        <div className={styles.label}>{`Build ${job.status}`}</div>
         <div className={styles.label}>
-          {status === "running" &&
-            estimateFinish(
-              dayjs(job.started_at),
-              template.average_build_time_ms,
-            )[1]}
+          {job.status === "running" &&
+            estimateFinish(dayjs(job.started_at), buildEstimate)[1]}
         </div>
       </div>
     </div>

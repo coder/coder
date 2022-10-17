@@ -235,15 +235,17 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	return rs, nil
 }
 
-func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (float64, error) {
-	var times []float64
+func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+	var emptyRow database.GetTemplateAverageBuildTimeRow
+	var (
+		startTimes  []float64
+		stopTimes   []float64
+		deleteTimes []float64
+	)
 	for _, wb := range q.workspaceBuilds {
-		if wb.Transition != database.WorkspaceTransitionStart {
-			continue
-		}
 		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
 		if err != nil {
-			return -1, err
+			return emptyRow, err
 		}
 		if version.TemplateID != arg.TemplateID {
 			continue
@@ -251,17 +253,32 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 
 		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
 		if err != nil {
-			return -1, err
+			return emptyRow, err
 		}
 		if job.CompletedAt.Valid {
-			times = append(times, job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds())
+			took := job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds()
+			if wb.Transition == database.WorkspaceTransitionStart {
+				startTimes = append(startTimes, took)
+			} else if wb.Transition == database.WorkspaceTransitionStop {
+				stopTimes = append(stopTimes, took)
+			} else if wb.Transition == database.WorkspaceTransitionDelete {
+				deleteTimes = append(deleteTimes, took)
+			}
 		}
 	}
-	sort.Float64s(times)
-	if len(times) == 0 {
-		return -1, nil
+
+	tryMedian := func(fs []float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[len(fs)/2]
 	}
-	return times[len(times)/2], nil
+	var row database.GetTemplateAverageBuildTimeRow
+	row.DeleteMedian = tryMedian(deleteTimes)
+	row.StopMedian = tryMedian(stopTimes)
+	row.StartMedian = tryMedian(startTimes)
+	return row, nil
 }
 
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {

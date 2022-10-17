@@ -29,7 +29,7 @@ type Cache struct {
 
 	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
-	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]time.Duration]
+	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
 
 	done   chan struct{}
 	cancel func()
@@ -130,9 +130,9 @@ func (c *Cache) refresh(ctx context.Context) error {
 	}
 
 	var (
-		templateDAUs                = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
-		templateUniqueUsers         = make(map[uuid.UUID]int)
-		templateAverageBuildTimeSec = make(map[uuid.UUID]time.Duration)
+		templateDAUs              = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
+		templateUniqueUsers       = make(map[uuid.UUID]int)
+		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 	for _, template := range templates {
 		rows, err := c.database.GetTemplateDAUs(ctx, template.ID)
@@ -141,6 +141,7 @@ func (c *Cache) refresh(ctx context.Context) error {
 		}
 		templateDAUs[template.ID] = convertDAUResponse(rows)
 		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
+
 		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(ctx, database.GetTemplateAverageBuildTimeParams{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
@@ -151,14 +152,15 @@ func (c *Cache) refresh(ctx context.Context) error {
 				Valid: true,
 			},
 		})
+
 		if err != nil {
 			return err
 		}
-		templateAverageBuildTimeSec[template.ID] = time.Duration(float64(time.Second) * templateAvgBuildTime)
+		templateAverageBuildTimes[template.ID] = templateAvgBuildTime
 	}
 	c.templateDAUResponses.Store(&templateDAUs)
 	c.templateUniqueUsers.Store(&templateUniqueUsers)
-	c.templateAverageBuildTime.Store(&templateAverageBuildTimeSec)
+	c.templateAverageBuildTime.Store(&templateAverageBuildTimes)
 
 	return nil
 }
@@ -239,17 +241,32 @@ func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
 	return resp, true
 }
 
-func (c *Cache) TemplateAverageBuildTime(id uuid.UUID) (time.Duration, bool) {
+func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeStats {
+	var unknown codersdk.TemplateBuildTimeStats
+
 	m := c.templateAverageBuildTime.Load()
 	if m == nil {
 		// Data loading.
-		return -1, false
+		return unknown
 	}
 
 	resp, ok := (*m)[id]
-	if !ok || resp <= 0 {
+	if !ok {
 		// No data or not enough builds.
-		return -1, false
+		return unknown
 	}
-	return resp, true
+
+	convertMedian := func(m float64) *int64 {
+		if m <= 0 {
+			return nil
+		}
+		i := int64(m * 1000)
+		return &i
+	}
+
+	return codersdk.TemplateBuildTimeStats{
+		StartMillis:  convertMedian(resp.StartMedian),
+		StopMillis:   convertMedian(resp.StopMedian),
+		DeleteMillis: convertMedian(resp.DeleteMedian),
+	}
 }
