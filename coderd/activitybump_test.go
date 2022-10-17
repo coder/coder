@@ -72,7 +72,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				"deadline %v never updated", firstDeadline,
 			)
 
-			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Second)
+			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, 3*time.Second)
 		}
 	}
 
