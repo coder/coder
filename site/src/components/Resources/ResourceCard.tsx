@@ -114,7 +114,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({
 
       {resource.agents && resource.agents.length > 0 && (
         <div>
-          {resource.agents?.map((agent) => {
+          {resource.agents.map((agent) => {
             return (
               <Stack
                 key={agent.id}
