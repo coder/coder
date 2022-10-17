@@ -293,7 +293,7 @@ export interface DeploymentFlags {
   readonly oauth2_github_enterprise_base_url: StringFlag
   readonly oidc_allow_signups: BoolFlag
   readonly oidc_client_id: StringFlag
-  readonly oidc_cliet_secret: StringFlag
+  readonly oidc_client_secret: StringFlag
   readonly oidc_email_domain: StringFlag
   readonly oidc_issuer_url: StringFlag
   readonly oidc_scopes: StringArrayFlag
@@ -304,7 +304,7 @@ export interface DeploymentFlags {
   readonly tls_cert_files: StringArrayFlag
   readonly tls_client_ca_file: StringFlag
   readonly tls_client_auth: StringFlag
-  readonly tls_key_tiles: StringArrayFlag
+  readonly tls_key_files: StringArrayFlag
   readonly tls_min_version: StringFlag
   readonly trace_enable: BoolFlag
   readonly secure_auth_cookie: BoolFlag
