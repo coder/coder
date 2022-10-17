@@ -17,7 +17,7 @@ import {
 } from "components/DeploySettingsLayout/Option"
 import React from "react"
 
-export const MetricsSettingsPage: React.FC = () => {
+const MetricsSettingsPage: React.FC = () => {
   const { deploymentFlags } = useDeploySettings()
 
   return (
@@ -61,3 +61,5 @@ export const MetricsSettingsPage: React.FC = () => {
     </>
   )
 }
+
+export default MetricsSettingsPage

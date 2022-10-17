@@ -17,7 +17,7 @@ import {
 } from "components/DeploySettingsLayout/Option"
 import React from "react"
 
-export const SecuritySettingsPage: React.FC = () => {
+const SecuritySettingsPage: React.FC = () => {
   const { deploymentFlags } = useDeploySettings()
 
   return (
@@ -77,3 +77,5 @@ export const SecuritySettingsPage: React.FC = () => {
     </>
   )
 }
+
+export default SecuritySettingsPage

@@ -20,7 +20,7 @@ import {
 import { Stack } from "components/Stack/Stack"
 import React from "react"
 
-export const AuthSettingsPage: React.FC = () => {
+const AuthSettingsPage: React.FC = () => {
   const { deploymentFlags } = useDeploySettings()
 
   return (
@@ -154,3 +154,5 @@ export const AuthSettingsPage: React.FC = () => {
     </>
   )
 }
+
+export default AuthSettingsPage

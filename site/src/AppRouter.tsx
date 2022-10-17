@@ -21,10 +21,6 @@ import { XServiceContext } from "xServices/StateContext"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
-import { GeneralSettingsPage } from "pages/DeploySettingsPage/GeneralSettingsPage"
-import { SecuritySettingsPage } from "pages/DeploySettingsPage/SecuritySettingsPage"
-import { MetricsSettingsPage } from "pages/DeploySettingsPage/MetricsSettingsPage"
-import { AuthSettingsPage } from "pages/DeploySettingsPage/AuthSettingsPage"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 
 // Lazy load pages
@@ -71,6 +67,18 @@ const CreateGroupPage = lazy(() => import("./pages/GroupsPage/CreateGroupPage"))
 const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"))
 const SettingsGroupPage = lazy(
   () => import("./pages/GroupsPage/SettingsGroupPage"),
+)
+const GeneralSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/GeneralSettingsPage"),
+)
+const SecuritySettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
+)
+const MetricsSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/MetricsSettingsPage"),
+)
+const AuthSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/AuthSettingsPage"),
 )
 
 export const AppRouter: FC = () => {
@@ -242,14 +250,18 @@ export const AppRouter: FC = () => {
           />
         </Route>
 
-        <Route path="settings/deployment">
+        <Route path="/settings/deployment">
           <Route
             path="general"
             element={
               <AuthAndFrame>
-                <DeploySettingsLayout>
-                  <GeneralSettingsPage />
-                </DeploySettingsLayout>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <GeneralSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
               </AuthAndFrame>
             }
           />
@@ -257,9 +269,13 @@ export const AppRouter: FC = () => {
             path="security"
             element={
               <AuthAndFrame>
-                <DeploySettingsLayout>
-                  <SecuritySettingsPage />
-                </DeploySettingsLayout>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <SecuritySettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
               </AuthAndFrame>
             }
           />
@@ -267,9 +283,13 @@ export const AppRouter: FC = () => {
             path="metrics"
             element={
               <AuthAndFrame>
-                <DeploySettingsLayout>
-                  <MetricsSettingsPage />
-                </DeploySettingsLayout>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <MetricsSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
               </AuthAndFrame>
             }
           />
@@ -277,9 +297,13 @@ export const AppRouter: FC = () => {
             path="auth"
             element={
               <AuthAndFrame>
-                <DeploySettingsLayout>
-                  <AuthSettingsPage />
-                </DeploySettingsLayout>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <AuthSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
               </AuthAndFrame>
             }
           />

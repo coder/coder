@@ -13,7 +13,7 @@ import {
 } from "components/DeploySettingsLayout/Option"
 import React from "react"
 
-export const GeneralSettingsPage: React.FC = () => {
+const GeneralSettingsPage: React.FC = () => {
   const { deploymentFlags } = useDeploySettings()
 
   return (
@@ -49,6 +49,23 @@ export const GeneralSettingsPage: React.FC = () => {
             <TableRow>
               <TableCell>
                 <OptionName>
+                  {deploymentFlags.address.name}
+                </OptionName>
+                <OptionDescription>
+                  {deploymentFlags.address.description}
+                </OptionDescription>
+              </TableCell>
+
+              <TableCell>
+                <OptionValue>
+                  {deploymentFlags.address.value}
+                </OptionValue>
+              </TableCell>
+            </TableRow>
+
+            <TableRow>
+              <TableCell>
+                <OptionName>
                   {deploymentFlags.wildcard_access_url.name}
                 </OptionName>
                 <OptionDescription>
@@ -68,3 +85,5 @@ export const GeneralSettingsPage: React.FC = () => {
     </>
   )
 }
+
+export default GeneralSettingsPage
