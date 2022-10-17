@@ -285,7 +285,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		InitiatorID:    apiKey.UserID,
 		Provisioner:    job.Provisioner,
 		StorageMethod:  job.StorageMethod,
-		StorageSource:  job.StorageSource,
+		FileID:         job.FileID,
 		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
 		Input:          input,
 	})
@@ -420,6 +420,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		httpapi.Forbidden(rw)
 		return database.ProvisionerJob{}, false
 	}
+
 	// Do a workspace resource check since it's basically a workspace dry-run .
 	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
@@ -716,7 +717,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	file, err := api.Database.GetFileByHash(ctx, req.StorageSource)
+	file, err := api.Database.GetFileByID(ctx, req.FileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "File not found.",
@@ -731,12 +732,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	// TODO(JonA): Readd this check once we update the unique constraint
-	// on files to be owner + hash.
-	// if !api.Authorize(r, rbac.ActionRead, file) {
-	// 	httpapi.ResourceNotFound(rw)
-	// 	return
-	// }
+	if !api.Authorize(r, rbac.ActionRead, file) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
@@ -813,7 +812,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			InitiatorID:    apiKey.UserID,
 			Provisioner:    database.ProvisionerType(req.Provisioner),
 			StorageMethod:  database.ProvisionerStorageMethodFile,
-			StorageSource:  file.Hash,
+			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          []byte{'{', '}'},
 		})

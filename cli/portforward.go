@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -96,7 +95,7 @@ func portForward() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 			if err != nil {
 				return err
 			}
@@ -156,7 +155,7 @@ func portForward() *cobra.Command {
 				case <-ticker.C:
 				}
 
-				_, err = conn.Ping()
+				_, err = conn.Ping(ctx)
 				if err != nil {
 					continue
 				}

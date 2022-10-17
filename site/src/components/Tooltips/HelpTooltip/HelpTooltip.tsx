@@ -89,6 +89,9 @@ export const HelpTooltip: React.FC<
         onMouseEnter={() => {
           setIsOpen(true)
         }}
+        onMouseLeave={() => {
+          setIsOpen(false)
+        }}
         aria-label={Language.ariaLabel}
       >
         <HelpIcon className={styles.icon} />

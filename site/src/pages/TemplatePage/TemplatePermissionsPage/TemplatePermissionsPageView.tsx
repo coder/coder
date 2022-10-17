@@ -1,5 +1,5 @@
 import MenuItem from "@material-ui/core/MenuItem"
-import Select from "@material-ui/core/Select"
+import Select, { SelectProps } from "@material-ui/core/Select"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
@@ -29,6 +29,7 @@ import {
 import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
+import { getGroupSubtitle } from "util/groups"
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string
@@ -50,14 +51,14 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   const styles = useStyles()
   const [selectedOption, setSelectedOption] =
     useState<UserOrGroupAutocompleteValue>(null)
-  const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
+  const [selectedRole, setSelectedRole] = useState<TemplateRole>("use")
   const excludeFromAutocomplete = templateACL
     ? [...templateACL.group, ...templateACL.users]
     : []
 
   const resetValues = () => {
     setSelectedOption(null)
-    setSelectedRole("view")
+    setSelectedRole("use")
   }
 
   return (
@@ -88,7 +89,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         />
 
         <Select
-          defaultValue="view"
+          defaultValue="use"
           variant="outlined"
           className={styles.select}
           disabled={isLoading}
@@ -96,8 +97,8 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
             setSelectedRole(event.target.value as TemplateRole)
           }}
         >
-          <MenuItem key="view" value="view">
-            View
+          <MenuItem key="use" value="use">
+            Use
           </MenuItem>
           <MenuItem key="admin" value="admin">
             Admin
@@ -115,6 +116,37 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         </LoadingButton>
       </Stack>
     </form>
+  )
+}
+
+const RoleSelect: FC<SelectProps> = (props) => {
+  const styles = useStyles()
+
+  return (
+    <Select
+      renderValue={(value) => <div className={styles.role}>{`${value}`}</div>}
+      variant="outlined"
+      className={styles.updateSelect}
+      {...props}
+    >
+      <MenuItem key="use" value="use" className={styles.menuItem}>
+        <div>
+          <div>Use</div>
+          <div className={styles.menuItemSecondary}>
+            Can read and use this template to create workspaces.
+          </div>
+        </div>
+      </MenuItem>
+      <MenuItem key="admin" value="admin" className={styles.menuItem}>
+        <div>
+          <div>Admin</div>
+          <div className={styles.menuItemSecondary}>
+            Can modify all aspects of this template including permissions,
+            metadata, and template versions.
+          </div>
+        </div>
+      </MenuItem>
+    </Select>
   )
 }
 
@@ -211,17 +243,15 @@ export const TemplatePermissionsPageView: FC<
                       <AvatarData
                         avatar={<GroupAvatar name={group.name} />}
                         title={group.name}
-                        subtitle={`${group.members.length} members`}
+                        subtitle={getGroupSubtitle(group)}
                         highlightTitle
                       />
                     </TableCell>
                     <TableCell>
                       <ChooseOne>
                         <Cond condition={canUpdatePermissions}>
-                          <Select
+                          <RoleSelect
                             value={group.role}
-                            variant="outlined"
-                            className={styles.updateSelect}
                             disabled={
                               updatingGroup && updatingGroup.id === group.id
                             }
@@ -231,14 +261,7 @@ export const TemplatePermissionsPageView: FC<
                                 event.target.value as TemplateRole,
                               )
                             }}
-                          >
-                            <MenuItem key="view" value="view">
-                              View
-                            </MenuItem>
-                            <MenuItem key="admin" value="admin">
-                              Admin
-                            </MenuItem>
-                          </Select>
+                          />
                         </Cond>
                         <Cond>
                           <div className={styles.role}>{group.role}</div>
@@ -283,10 +306,8 @@ export const TemplatePermissionsPageView: FC<
                     <TableCell>
                       <ChooseOne>
                         <Cond condition={canUpdatePermissions}>
-                          <Select
+                          <RoleSelect
                             value={user.role}
-                            variant="outlined"
-                            className={styles.updateSelect}
                             disabled={
                               updatingUser && updatingUser.id === user.id
                             }
@@ -296,14 +317,7 @@ export const TemplatePermissionsPageView: FC<
                                 event.target.value as TemplateRole,
                               )
                             }}
-                          >
-                            <MenuItem key="view" value="view">
-                              View
-                            </MenuItem>
-                            <MenuItem key="admin" value="admin">
-                              Admin
-                            </MenuItem>
-                          </Select>
+                          />
                         </Cond>
                         <Cond>
                           <div className={styles.role}>{user.role}</div>
@@ -355,15 +369,33 @@ export const useStyles = makeStyles((theme) => {
       // Set a fixed width for the select. It avoids selects having different sizes
       // depending on how many roles they have selected.
       width: theme.spacing(25),
+
       "& .MuiSelect-root": {
         // Adjusting padding because it does not have label
         paddingTop: theme.spacing(1.5),
         paddingBottom: theme.spacing(1.5),
+
+        ".secondary": {
+          display: "none",
+        },
       },
     },
 
     role: {
       textTransform: "capitalize",
+    },
+
+    menuItem: {
+      lineHeight: "140%",
+      paddingTop: theme.spacing(1.5),
+      paddingBottom: theme.spacing(1.5),
+      whiteSpace: "normal",
+      inlineSize: "250px",
+    },
+
+    menuItemSecondary: {
+      fontSize: 14,
+      color: theme.palette.text.secondary,
     },
   }
 })

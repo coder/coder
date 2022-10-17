@@ -1,4 +1,5 @@
 import { FieldError } from "api/errors"
+import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 
@@ -131,7 +132,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
-  storage_source: "asdf",
+  file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   completed_at: "2022-05-17T17:39:01.382927298Z",
 }
 
@@ -184,6 +185,11 @@ export const MockTemplate: TypesGen.Template = {
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 2,
   active_user_count: 1,
+  build_time_stats: {
+    start_ms: 1000,
+    stop_ms: 2000,
+    delete_ms: 3000,
+  },
   description: "This is a test description.",
   max_ttl_ms: 24 * 60 * 60 * 1000,
   min_autostart_interval_ms: 60 * 60 * 1000,
@@ -198,6 +204,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   icon: "",
   subdomain: false,
   health: "disabled",
+  sharing_level: "owner",
   healthcheck: {
     url: "",
     interval: 0,
@@ -814,6 +821,7 @@ export const makeMockApiError = ({
 })
 
 export const MockEntitlements: TypesGen.Entitlements = {
+  errors: [],
   warnings: [],
   has_license: false,
   features: {},
@@ -822,6 +830,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 }
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  errors: [],
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
   experimental: false,
@@ -845,6 +854,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 }
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
+  errors: [],
   warnings: [],
   has_license: true,
   experimental: false,
@@ -870,7 +880,13 @@ export const MockAuditLog: TypesGen.AuditLog = {
   resource_target: "bruno-dev",
   resource_icon: "",
   action: "create",
-  diff: {},
+  diff: {
+    ttl: {
+      old: 0,
+      new: 3600000000000,
+      secret: false,
+    },
+  },
   status_code: 200,
   additional_fields: "",
   description: "{user} updated workspace {target}",
@@ -918,8 +934,11 @@ export const MockGroup: TypesGen.Group = {
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
-  group: [{ ...MockGroup, role: "admin" }],
-  users: [{ ...MockUser, role: "view" }],
+  group: [
+    { ...everyOneGroup(MockOrganization.id), role: "use" },
+    { ...MockGroup, role: "admin" },
+  ],
+  users: [{ ...MockUser, role: "use" }],
 }
 
 export const MockTemplateACLEmpty: TypesGen.TemplateACL = {

@@ -19,6 +19,10 @@
     "confirmLabel": "Name of {{entity}} to delete",
     "incorrectName": "Incorrect {{entity}} name."
   },
+  "schedule": {
+    "autoStartLabel": "Starts at",
+    "autoStopLabel": "Stops at"
+  },
   "ctas": {
     "dismissCta": "Dismiss",
     "expand": "Click here to learn more",

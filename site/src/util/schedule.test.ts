@@ -9,6 +9,7 @@ import {
   deadlineExtensionMin,
   extractTimezone,
   getMaxDeadline,
+  getMaxDeadlineChange,
   getMinDeadline,
   stripTimezone,
 } from "./schedule"
@@ -122,5 +123,21 @@ describe("canReduceDeadline", () => {
   it("should be truthy if the deadline is 30 minutes or more in the future", () => {
     expect(canReduceDeadline(dayjs().add(31, "minutes"))).toBeTruthy()
     expect(canReduceDeadline(dayjs().add(100, "years"))).toBeTruthy()
+  })
+})
+
+describe("getMaxDeadlineChange", () => {
+  it("should return the number of hours you can add before hitting the max deadline", () => {
+    const deadline = dayjs()
+    const maxDeadline = dayjs().add(1, "hour").add(40, "minutes")
+    // you can only add one hour even though the max is 1:40 away
+    expect(getMaxDeadlineChange(deadline, maxDeadline)).toEqual(1)
+  })
+
+  it("should return the number of hours you can subtract before hitting the min deadline", () => {
+    const deadline = dayjs().add(2, "hours").add(40, "minutes")
+    const minDeadline = dayjs()
+    // you can only subtract 2 hours even though the min is 2:40 less
+    expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2)
   })
 })

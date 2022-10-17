@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/lib/pq"
 
@@ -164,15 +165,21 @@ type workspaceQuerier interface {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
+	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
+	// authorizedFilter between the end of the where clause and those statements.
+	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s AND %s", getWorkspaces, authorizedFilter.SQLString(rbac.NoACLConfig()))
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filter)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
+		arg.Status,
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
 		arg.Name,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)

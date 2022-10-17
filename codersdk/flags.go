@@ -19,6 +19,7 @@ type DeploymentFlags struct {
 	DerpServerRegionCode             *StringFlag      `json:"derp_server_region_code" typescript:",notnull"`
 	DerpServerRegionName             *StringFlag      `json:"derp_server_region_name" typescript:",notnull"`
 	DerpServerSTUNAddresses          *StringArrayFlag `json:"derp_server_stun_address" typescript:",notnull"`
+	DerpServerRelayAddress           *StringFlag      `json:"derp_server_relay_address" typescript:",notnull"`
 	DerpConfigURL                    *StringFlag      `json:"derp_config_url" typescript:",notnull"`
 	DerpConfigPath                   *StringFlag      `json:"derp_config_path" typescript:",notnull"`
 	PromEnabled                      *BoolFlag        `json:"prom_enabled" typescript:",notnull"`

@@ -48,7 +48,10 @@ type Options struct {
 	Addresses []netip.Prefix
 	DERPMap   *tailcfg.DERPMap
 
-	Logger slog.Logger
+	// BlockEndpoints specifies whether P2P endpoints are blocked.
+	// If so, only DERPs can establish connections.
+	BlockEndpoints bool
+	Logger         slog.Logger
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -175,6 +178,7 @@ func NewConn(options *Options) (*Conn, error) {
 	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
+		blockEndpoints:   options.BlockEndpoints,
 		dialContext:      dialContext,
 		dialCancel:       dialCancel,
 		closed:           make(chan struct{}),
@@ -240,11 +244,12 @@ func IP() netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	dialContext context.Context
-	dialCancel  context.CancelFunc
-	mutex       sync.Mutex
-	closed      chan struct{}
-	logger      slog.Logger
+	dialContext    context.Context
+	dialCancel     context.CancelFunc
+	mutex          sync.Mutex
+	closed         chan struct{}
+	logger         slog.Logger
+	blockEndpoints bool
 
 	dialer             *tsdial.Dialer
 	tunDevice          *tstun.Wrapper
@@ -323,6 +328,8 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		delete(c.peerMap, peer.ID)
 	}
 	for _, node := range nodes {
+		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
+
 		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
@@ -338,6 +345,13 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// of a connection cause it to hang for an unknown
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
+		}
+		// If no preferred DERP is provided, don't set an IP!
+		if node.PreferredDERP == 0 {
+			peerNode.DERP = ""
+		}
+		if c.blockEndpoints {
+			peerNode.Endpoints = nil
 		}
 		c.peerMap[node.ID] = peerNode
 	}
@@ -421,6 +435,7 @@ func (c *Conn) sendNode() {
 	}
 	node := &Node{
 		ID:            c.netMap.SelfNode.ID,
+		AsOf:          c.lastStatus,
 		Key:           c.netMap.SelfNode.Key,
 		Addresses:     c.netMap.SelfNode.Addresses,
 		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
@@ -428,6 +443,9 @@ func (c *Conn) sendNode() {
 		Endpoints:     c.lastEndpoints,
 		PreferredDERP: c.lastPreferredDERP,
 		DERPLatency:   c.lastDERPLatency,
+	}
+	if c.blockEndpoints {
+		node.Endpoints = nil
 	}
 	nodeCallback := c.nodeCallback
 	if nodeCallback == nil {

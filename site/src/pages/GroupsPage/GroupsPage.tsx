@@ -17,7 +17,7 @@ export const GroupsPage: React.FC = () => {
   })
   const { groups } = state.context
   const { createGroup: canCreateGroup } = usePermissions()
-  const { rbac: isRBACEnabled } = useFeatureVisibility()
+  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
 
   return (
     <>
@@ -28,7 +28,7 @@ export const GroupsPage: React.FC = () => {
       <GroupsPageView
         groups={groups}
         canCreateGroup={canCreateGroup}
-        isRBACEnabled={isRBACEnabled}
+        isTemplateRBACEnabled={isTemplateRBACEnabled}
       />
     </>
   )

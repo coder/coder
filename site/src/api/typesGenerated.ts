@@ -9,6 +9,7 @@ export interface APIKey {
   readonly created_at: string
   readonly updated_at: string
   readonly login_type: LoginType
+  readonly scope: APIKeyScope
   readonly lifetime_seconds: number
 }
 
@@ -206,7 +207,7 @@ export interface CreateTemplateVersionRequest {
   readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
-  readonly storage_source: string
+  readonly file_id: string
   readonly provisioner: ProvisionerType
   readonly parameter_values?: CreateParameterRequest[]
 }
@@ -216,6 +217,11 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+}
+
+// From codersdk/apikey.go
+export interface CreateTokenRequest {
+  readonly scope: APIKeyScope
 }
 
 // From codersdk/users.go
@@ -268,6 +274,7 @@ export interface DeploymentFlags {
   readonly derp_server_region_code: StringFlag
   readonly derp_server_region_name: StringFlag
   readonly derp_server_stun_address: StringArrayFlag
+  readonly derp_server_relay_address: StringFlag
   readonly derp_config_url: StringFlag
   readonly derp_config_path: StringFlag
   readonly prom_enabled: BoolFlag
@@ -331,6 +338,7 @@ export interface DurationFlag {
 export interface Entitlements {
   readonly features: Record<string, Feature>
   readonly warnings: string[]
+  readonly errors: string[]
   readonly has_license: boolean
   readonly experimental: boolean
   readonly trial: boolean
@@ -344,7 +352,7 @@ export interface Feature {
   readonly actual?: number
 }
 
-// From codersdk/users.go
+// From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -500,10 +508,11 @@ export interface ProvisionerJob {
   readonly created_at: string
   readonly started_at?: string
   readonly completed_at?: string
+  readonly canceled_at?: string
   readonly error?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
-  readonly storage_source: string
+  readonly file_id: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -519,6 +528,17 @@ export interface ProvisionerJobLog {
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
+}
+
+// From codersdk/replicas.go
+export interface Replica {
+  readonly id: string
+  readonly hostname: string
+  readonly created_at: string
+  readonly relay_address: string
+  readonly region_id: number
+  readonly error: string
+  readonly database_latency: number
 }
 
 // From codersdk/error.go
@@ -579,6 +599,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly active_user_count: number
+  readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
@@ -591,6 +612,13 @@ export interface Template {
 export interface TemplateACL {
   readonly users: TemplateUser[]
   readonly group: TemplateGroup[]
+}
+
+// From codersdk/templates.go
+export interface TemplateBuildTimeStats {
+  readonly start_ms?: number
+  readonly stop_ms?: number
+  readonly delete_ms?: number
 }
 
 // From codersdk/templates.go
@@ -782,6 +810,7 @@ export interface WorkspaceApp {
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
+  readonly sharing_level: WorkspaceAppSharingLevel
   readonly healthcheck: Healthcheck
   readonly health: WorkspaceAppHealth
 }
@@ -850,6 +879,9 @@ export interface WorkspaceResourceMetadata {
   readonly sensitive: boolean
 }
 
+// From codersdk/apikey.go
+export type APIKeyScope = "all" | "application_connect"
+
 // From codersdk/audit.go
 export type AuditAction = "create" | "delete" | "write"
 
@@ -915,7 +947,7 @@ export type ResourceType =
 export type ServerSentEventType = "data" | "error" | "ping"
 
 // From codersdk/templates.go
-export type TemplateRole = "" | "admin" | "view"
+export type TemplateRole = "" | "admin" | "use"
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
@@ -929,6 +961,9 @@ export type WorkspaceAppHealth =
   | "healthy"
   | "initializing"
   | "unhealthy"
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =

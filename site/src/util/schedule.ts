@@ -167,3 +167,15 @@ export function canReduceDeadline(deadline: dayjs.Dayjs): boolean {
 
 export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
   dayjs(workspace.latest_build.deadline).utc()
+
+/**
+ * Get number of hours you can add or subtract to the current deadline before hitting the max or min deadline.
+ * @param deadline
+ * @param workspace
+ * @param template
+ * @returns number, in hours
+ */
+export const getMaxDeadlineChange = (
+  deadline: dayjs.Dayjs,
+  extremeDeadline: dayjs.Dayjs,
+): number => Math.abs(deadline.diff(extremeDeadline, "hours"))
