@@ -162,7 +162,7 @@ func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr)
+	filter, errs := workspaceSearchQuery(queryStr, codersdk.Pagination{})
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -185,7 +185,7 @@ func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := api.Database.GetWorkspaceCount(ctx, filter, sqlFilter)
+	count, err := api.Database.GetAuthorizedWorkspaceCount(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace count.",
