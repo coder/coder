@@ -159,6 +159,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
+	GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -212,4 +213,54 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, err
 	}
 	return items, nil
+}
+
+func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
+	// authorizedFilter between the end of the where clause and those statements.
+	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filter)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.Deleted,
+		arg.Status,
+		arg.OwnerID,
+		arg.OwnerUsername,
+		arg.TemplateName,
+		pq.Array(arg.TemplateIds),
+		arg.Name,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return 0, xerrors.Errorf("get authorized workspaces: %w", err)
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.Ttl,
+			&i.LastUsedAt,
+		); err != nil {
+			return 0, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return int64(len(items)), nil
 }
