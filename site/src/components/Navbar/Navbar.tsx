@@ -14,10 +14,15 @@ export const Navbar: React.FC = () => {
     selectFeatureVisibility,
     shallowEqual,
   )
+  const experimental = useSelector(
+    xServices.entitlementsXService,
+    (state) => state.context.entitlements.experimental,
+  )
   const canViewAuditLog =
     featureVisibility[FeatureNames.AuditLog] &&
     Boolean(permissions?.viewAuditLog)
-  const canViewDeployment = Boolean(permissions?.viewDeploymentFlags)
+  const canViewDeployment =
+    experimental && Boolean(permissions?.viewDeploymentFlags)
   const onSignOut = () => authSend("SIGN_OUT")
 
   return (
