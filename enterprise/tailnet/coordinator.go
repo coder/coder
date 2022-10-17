@@ -178,12 +178,10 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	if len(nodes) > 0 {
 		data, err := json.Marshal(nodes)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("marshal json: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
@@ -250,17 +248,16 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	}
 
 	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
 	c.nodes[id] = &node
-
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
+		c.mutex.Unlock()
 		return &node, nil
 	}
 
 	data, err := json.Marshal([]*agpl.Node{&node})
 	if err != nil {
+		c.mutex.Unlock()
 		return nil, xerrors.Errorf("marshal nodes: %w", err)
 	}
 
@@ -275,6 +272,7 @@ func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 			_, _ = connectionSocket.Write(data)
 		}()
 	}
+	c.mutex.Unlock()
 	wg.Wait()
 	return &node, nil
 }
@@ -394,12 +392,12 @@ func (c *haCoordinator) runPubsub() error {
 			}
 
 			c.mutex.Lock()
-			defer c.mutex.Unlock()
-
 			agentSocket, ok := c.agentSockets[agentUUID]
 			if !ok {
+				c.mutex.Unlock()
 				return
 			}
+			c.mutex.Unlock()
 
 			// We get a single node over pubsub, so turn into an array.
 			_, err = agentSocket.Write(nodeJSON)
@@ -410,7 +408,6 @@ func (c *haCoordinator) runPubsub() error {
 				c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
 				return
 			}
-
 		case "agenthello":
 			agentUUID, err := uuid.ParseBytes(agentID)
 			if err != nil {
@@ -426,7 +423,6 @@ func (c *haCoordinator) runPubsub() error {
 					return
 				}
 			}
-
 		case "agentupdate":
 			agentUUID, err := uuid.ParseBytes(agentID)
 			if err != nil {
@@ -440,7 +436,6 @@ func (c *haCoordinator) runPubsub() error {
 				c.log.Error(ctx, "handle agent update", slog.Error(err))
 				return
 			}
-
 		default:
 			c.log.Error(ctx, "unknown peer event", slog.F("name", string(eventType)))
 		}
