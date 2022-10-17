@@ -88,7 +88,7 @@ func Flags() *codersdk.DeploymentFlags {
 		DerpServerRelayAddress: &codersdk.StringFlag{
 			Name:        "DERP Server Relay Address",
 			Flag:        "derp-server-relay-address",
-			EnvVar:      "CODER_DERP_SERVER_RELAY_ADDRESS",
+			EnvVar:      "CODER_DERP_SERVER_RELAY_URL",
 			Description: "An HTTP address that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Enterprise:  true,
 		},
