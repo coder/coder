@@ -56,8 +56,8 @@ type haCoordinator struct {
 
 // Node returns an in-memory node by ID.
 func (c *haCoordinator) Node(id uuid.UUID) *agpl.Node {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	node := c.nodes[id]
 	return node
 }
@@ -78,6 +78,11 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 		_, err = conn.Write(data)
 		if err != nil {
 			return xerrors.Errorf("write nodes: %w", err)
+		}
+	} else {
+		err := c.publishClientHello(agent)
+		if err != nil {
+			return xerrors.Errorf("publish client hello: %w", err)
 		}
 	}
 
@@ -205,7 +210,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 
 	decoder := json.NewDecoder(conn)
 	for {
-		node, err := c.hangleAgentUpdate(id, decoder)
+		node, err := c.handleAgentUpdate(id, decoder)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -240,7 +245,17 @@ func (c *haCoordinator) nodesSubscribedToAgent(agentID uuid.UUID) []*agpl.Node {
 	return nodes
 }
 
-func (c *haCoordinator) hangleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (*agpl.Node, error) {
+func (c *haCoordinator) handleClientHello(id uuid.UUID) error {
+	c.mutex.Lock()
+	node, ok := c.nodes[id]
+	c.mutex.Unlock()
+	if !ok {
+		return nil
+	}
+	return c.publishAgentToNodes(id, node)
+}
+
+func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (*agpl.Node, error) {
 	var node agpl.Node
 	err := decoder.Decode(&node)
 	if err != nil {
@@ -343,6 +358,18 @@ func (c *haCoordinator) publishAgentHello(id uuid.UUID) error {
 	return nil
 }
 
+func (c *haCoordinator) publishClientHello(id uuid.UUID) error {
+	msg, err := c.formatClientHello(id)
+	if err != nil {
+		return xerrors.Errorf("format client hello: %w", err)
+	}
+	err = c.pubsub.Publish("wireguard_peers", msg)
+	if err != nil {
+		return xerrors.Errorf("publish client hello: %w", err)
+	}
+	return nil
+}
+
 func (c *haCoordinator) publishAgentToNodes(id uuid.UUID, node *agpl.Node) error {
 	msg, err := c.formatAgentUpdate(id, node)
 	if err != nil {
@@ -408,6 +435,18 @@ func (c *haCoordinator) runPubsub() error {
 				c.log.Error(ctx, "send callmemaybe to agent", slog.Error(err))
 				return
 			}
+		case "clienthello":
+			agentUUID, err := uuid.ParseBytes(agentID)
+			if err != nil {
+				c.log.Error(ctx, "invalid agent id", slog.F("id", string(agentID)))
+				return
+			}
+
+			err = c.handleClientHello(agentUUID)
+			if err != nil {
+				c.log.Error(ctx, "handle agent request node", slog.Error(err))
+				return
+			}
 		case "agenthello":
 			agentUUID, err := uuid.ParseBytes(agentID)
 			if err != nil {
@@ -431,7 +470,7 @@ func (c *haCoordinator) runPubsub() error {
 			}
 
 			decoder := json.NewDecoder(bytes.NewReader(nodeJSON))
-			_, err = c.hangleAgentUpdate(agentUUID, decoder)
+			_, err = c.handleAgentUpdate(agentUUID, decoder)
 			if err != nil {
 				c.log.Error(ctx, "handle agent update", slog.Error(err))
 				return
@@ -473,6 +512,17 @@ func (c *haCoordinator) formatAgentHello(id uuid.UUID) ([]byte, error) {
 
 	buf.WriteString(c.id.String() + "|")
 	buf.WriteString("agenthello|")
+	buf.WriteString(id.String() + "|")
+
+	return buf.Bytes(), nil
+}
+
+// format: <coordinator id>|clienthello|<agent id>|
+func (c *haCoordinator) formatClientHello(id uuid.UUID) ([]byte, error) {
+	buf := bytes.Buffer{}
+
+	buf.WriteString(c.id.String() + "|")
+	buf.WriteString("clienthello|")
 	buf.WriteString(id.String() + "|")
 
 	return buf.Bytes(), nil
