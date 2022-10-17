@@ -112,86 +112,91 @@ export const ResourceCard: FC<ResourceCardProps> = ({
         </Stack>
       </Stack>
 
-      <div>
-        {resource.agents?.map((agent) => {
-          return (
-            <Stack
-              key={agent.id}
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              className={styles.agentRow}
-            >
-              <Stack direction="row" alignItems="baseline">
-                <AgentStatus agent={agent} />
-                <div>
-                  <div className={styles.agentName}>{agent.name}</div>
-                  <Stack
-                    direction="row"
-                    alignItems="baseline"
-                    className={styles.agentData}
-                    spacing={1}
-                  >
-                    <span className={styles.agentOS}>
-                      {agent.operating_system}
-                    </span>
-                    <AgentVersion agent={agent} serverVersion={serverVersion} />
-                    <AgentLatency agent={agent} />
-                  </Stack>
-                </div>
-              </Stack>
+      {resource.agents && resource.agents.length > 0 && (
+        <div>
+          {resource.agents?.map((agent) => {
+            return (
+              <Stack
+                key={agent.id}
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                className={styles.agentRow}
+              >
+                <Stack direction="row" alignItems="baseline">
+                  <AgentStatus agent={agent} />
+                  <div>
+                    <div className={styles.agentName}>{agent.name}</div>
+                    <Stack
+                      direction="row"
+                      alignItems="baseline"
+                      className={styles.agentData}
+                      spacing={1}
+                    >
+                      <span className={styles.agentOS}>
+                        {agent.operating_system}
+                      </span>
+                      <AgentVersion
+                        agent={agent}
+                        serverVersion={serverVersion}
+                      />
+                      <AgentLatency agent={agent} />
+                    </Stack>
+                  </div>
+                </Stack>
 
-              <Stack direction="row" alignItems="center" spacing={0.5}>
-                {showApps && agent.status === "connected" && (
-                  <>
-                    {applicationsHost !== undefined && (
-                      <PortForwardButton
-                        host={applicationsHost}
-                        workspaceName={workspace.name}
-                        agentId={agent.id}
-                        agentName={agent.name}
-                        username={workspace.owner_name}
-                      />
-                    )}
-                    {!hideSSHButton && (
-                      <SSHButton
-                        workspaceName={workspace.name}
-                        agentName={agent.name}
-                      />
-                    )}
-                    <TerminalLink
-                      workspaceName={workspace.name}
-                      agentName={agent.name}
-                      userName={workspace.owner_name}
-                    />
-                    {agent.apps.map((app) => (
-                      <AppLink
-                        key={app.name}
-                        appsHost={applicationsHost}
-                        appIcon={app.icon}
-                        appName={app.name}
-                        appCommand={app.command}
-                        appSubdomain={app.subdomain}
-                        username={workspace.owner_name}
+                <Stack direction="row" alignItems="center" spacing={0.5}>
+                  {showApps && agent.status === "connected" && (
+                    <>
+                      {applicationsHost !== undefined && (
+                        <PortForwardButton
+                          host={applicationsHost}
+                          workspaceName={workspace.name}
+                          agentId={agent.id}
+                          agentName={agent.name}
+                          username={workspace.owner_name}
+                        />
+                      )}
+                      {!hideSSHButton && (
+                        <SSHButton
+                          workspaceName={workspace.name}
+                          agentName={agent.name}
+                        />
+                      )}
+                      <TerminalLink
                         workspaceName={workspace.name}
                         agentName={agent.name}
-                        health={app.health}
-                        appSharingLevel={app.sharing_level}
+                        userName={workspace.owner_name}
                       />
-                    ))}
-                  </>
-                )}
-                {showApps && agent.status === "connecting" && (
-                  <>
-                    <Skeleton width={80} height={36} variant="rect" />
-                    <Skeleton width={120} height={36} variant="rect" />
-                  </>
-                )}
+                      {agent.apps.map((app) => (
+                        <AppLink
+                          key={app.name}
+                          appsHost={applicationsHost}
+                          appIcon={app.icon}
+                          appName={app.name}
+                          appCommand={app.command}
+                          appSubdomain={app.subdomain}
+                          username={workspace.owner_name}
+                          workspaceName={workspace.name}
+                          agentName={agent.name}
+                          health={app.health}
+                          appSharingLevel={app.sharing_level}
+                        />
+                      ))}
+                    </>
+                  )}
+                  {showApps && agent.status === "connecting" && (
+                    <>
+                      <Skeleton width={80} height={36} variant="rect" />
+                      <Skeleton width={120} height={36} variant="rect" />
+                    </>
+                  )}
+                </Stack>
               </Stack>
-            </Stack>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -211,6 +216,10 @@ const useStyles = makeStyles((theme) => ({
   resourceCardHeader: {
     padding: theme.spacing(3, 4),
     borderBottom: `1px solid ${theme.palette.divider}`,
+
+    "&:last-child": {
+      borderBottom: 0,
+    },
   },
 
   metadataHeader: {
