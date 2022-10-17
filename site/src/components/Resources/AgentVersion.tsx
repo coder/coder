@@ -34,7 +34,7 @@ export const AgentVersion: FC<{
         onMouseEnter={() => setIsOpen(true)}
         className={styles.trigger}
       >
-        {displayVersion}
+        Agent Outdated
       </span>
       <HelpPopover
         id={id}
@@ -54,9 +54,8 @@ export const AgentVersion: FC<{
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   trigger: {
     cursor: "pointer",
-    color: theme.palette.warning.light,
   },
 }))

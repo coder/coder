@@ -23,6 +23,7 @@ import {
 import IconButton from "@material-ui/core/IconButton"
 import Tooltip from "@material-ui/core/Tooltip"
 import { Maybe } from "components/Conditionals/Maybe"
+import { CopyableValue } from "components/CopyableValue/CopyableValue"
 
 const getAgentStatusColor = (theme: Theme, agent: WorkspaceAgent) => {
   switch (agent.status) {
@@ -101,7 +102,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                     {meta.sensitive ? (
                       <SensitiveValue value={meta.value} />
                     ) : (
-                      meta.value
+                      <CopyableValue value={meta.value}>
+                        {meta.value}
+                      </CopyableValue>
                     )}
                   </div>
                 </div>
@@ -264,7 +267,6 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    userSelect: "all",
   },
 
   agentRow: {

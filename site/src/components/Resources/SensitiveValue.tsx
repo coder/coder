@@ -3,6 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
 import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
+import { CopyableValue } from "components/CopyableValue/CopyableValue"
 import { useState } from "react"
 
 const Language = {
@@ -23,7 +24,9 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
 
   return (
     <div className={styles.sensitiveValue}>
-      <div className={styles.value}>{displayValue}</div>
+      <CopyableValue value={value} className={styles.value}>
+        {displayValue}
+      </CopyableValue>
       <Tooltip title={buttonLabel}>
         <IconButton
           className={styles.button}
