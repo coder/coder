@@ -879,12 +879,22 @@ func (r *reconnectingPTY) Close() {
 // after one or both of them are done writing. If the context is canceled, both
 // of the connections will be closed.
 func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
-	defer c1.Close()
-	defer c2.Close()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	defer func() {
+		_ = c1.Close()
+		_ = c2.Close()
+	}()
 
 	var wg sync.WaitGroup
 	copyFunc := func(dst io.WriteCloser, src io.Reader) {
-		defer wg.Done()
+		defer func() {
+			wg.Done()
+			// If one side of the copy fails, ensure the other one exits as
+			// well.
+			cancel()
+		}()
 		_, _ = io.Copy(dst, src)
 	}
 
