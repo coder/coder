@@ -315,7 +315,14 @@ func (m *Manager) Self() database.Replica {
 func (m *Manager) All() []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	return append(m.peers[:], m.self)
+	replicas := make([]database.Replica, 0, len(m.peers))
+	for _, replica := range append(m.peers, m.self) {
+		// When we assign the non-pointer to a
+		// variable it loses the reference.
+		replica := replica
+		replicas = append(replicas, replica)
+	}
+	return replicas
 }
 
 // Regional returns all replicas in the same region excluding itself.
