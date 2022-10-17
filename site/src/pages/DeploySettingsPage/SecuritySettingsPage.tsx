@@ -4,6 +4,8 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { useActor } from "@xstate/react"
+import { FeatureNames } from "api/types"
 import {
   Badges,
   DisabledBadge,
@@ -18,10 +20,13 @@ import {
   OptionValue,
 } from "components/DeploySettingsLayout/Option"
 import { Stack } from "components/Stack/Stack"
-import React from "react"
+import React, { useContext } from "react"
+import { XServiceContext } from "xServices/StateContext"
 
 const SecuritySettingsPage: React.FC = () => {
   const { deploymentFlags } = useDeploySettings()
+  const xServices = useContext(XServiceContext)
+  const [entitlementsState] = useActor(xServices.entitlementsXService)
 
   return (
     <Stack direction="column" spacing={6}>
@@ -91,7 +96,9 @@ const SecuritySettingsPage: React.FC = () => {
         />
 
         <Badges>
-          {deploymentFlags.audit_logging.value ? (
+          {entitlementsState.context.entitlements.features[
+            FeatureNames.AuditLog
+          ].enabled ? (
             <EnabledBadge />
           ) : (
             <DisabledBadge />
@@ -109,7 +116,9 @@ const SecuritySettingsPage: React.FC = () => {
         />
 
         <Badges>
-          {deploymentFlags.browser_only.value ? (
+          {entitlementsState.context.entitlements.features[
+            FeatureNames.BrowserOnly
+          ].enabled ? (
             <EnabledBadge />
           ) : (
             <DisabledBadge />

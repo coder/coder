@@ -26,7 +26,7 @@ const NetworkSettingsPage: React.FC = () => {
       <div>
         <Header
           title="Network"
-          description="Deployment and networking settings"
+          description="Configure your deployment connectivity."
           docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
         />
 

@@ -27,9 +27,9 @@ const AuthSettingsPage: React.FC = () => {
       <Stack direction="column" spacing={6}>
         <div>
           <Header
-            title="OpenID Connect"
+            title="Login with OpenID Connect"
             secondary
-            description="Set up authentication to log in with OpenID Connect."
+            description="Set up authentication to login with OpenID Connect."
             docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
           />
 
@@ -160,9 +160,9 @@ const AuthSettingsPage: React.FC = () => {
 
         <div>
           <Header
-            title="GitHub"
+            title="Login with GitHub"
             secondary
-            description="Set up authentication settings to log in with GitHub."
+            description="Set up authentication to login with GitHub."
             docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#github"
           />
 
