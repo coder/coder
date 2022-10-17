@@ -3,14 +3,16 @@ import { makeStyles } from "@material-ui/core/styles"
 import { combineClasses } from "util/combineClasses"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import { DisplayAgentStatusLanguage } from "util/workspace"
 
 const ConnectedStatus: React.FC = () => {
   const styles = useStyles()
 
   return (
-    <Tooltip title="Connected">
+    <Tooltip title={DisplayAgentStatusLanguage.connected}>
       <div
         role="status"
+        aria-label={DisplayAgentStatusLanguage.connected}
         className={combineClasses([styles.status, styles.connected])}
       />
     </Tooltip>
@@ -21,9 +23,10 @@ const DisconnectedStatus: React.FC = () => {
   const styles = useStyles()
 
   return (
-    <Tooltip title="Disconnected">
+    <Tooltip title={DisplayAgentStatusLanguage.disconnected}>
       <div
         role="status"
+        aria-label={DisplayAgentStatusLanguage.disconnected}
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
@@ -34,9 +37,10 @@ const ConnectingStatus: React.FC = () => {
   const styles = useStyles()
 
   return (
-    <Tooltip title="Connecting...">
+    <Tooltip title={DisplayAgentStatusLanguage.connecting}>
       <div
         role="status"
+        aria-label={DisplayAgentStatusLanguage.connecting}
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>

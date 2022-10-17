@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
 import i18next from "i18next"
@@ -71,7 +71,8 @@ const testStatus = async (ws: Workspace, label: string) => {
     ),
   )
   await renderWorkspacePage()
-  const status = await screen.findByRole("status")
+  const header = screen.getByTestId("header")
+  const status = await within(header).findByRole("status")
   expect(status).toHaveTextContent(label)
 }
 
@@ -96,7 +97,8 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
     const workspaceName = await screen.findByText(MockWorkspace.name)
     expect(workspaceName).toBeDefined()
-    const status = await screen.findByRole("status")
+    const header = screen.getByTestId("header")
+    const status = await within(header).findByRole("status")
     expect(status).toHaveTextContent("Running")
     // wait for workspace page to finish loading
     await screen.findByText("stop")
@@ -335,15 +337,15 @@ describe("WorkspacePage", () => {
         MockWorkspaceAgentDisconnected.name,
       )
       expect(agent2Names.length).toEqual(2)
-      const agent1Status = await screen.findAllByText(
+      const agent1Status = await screen.findAllByLabelText(
         DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
       )
       expect(agent1Status.length).toEqual(1)
-      const agentDisconnected = await screen.findAllByText(
+      const agentDisconnected = await screen.findAllByLabelText(
         DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
       )
       expect(agentDisconnected.length).toEqual(1)
-      const agentConnecting = await screen.findAllByText(
+      const agentConnecting = await screen.findAllByLabelText(
         DisplayAgentStatusLanguage[MockWorkspaceAgentConnecting.status],
       )
       expect(agentConnecting.length).toEqual(1)

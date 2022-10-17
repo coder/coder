@@ -105,10 +105,9 @@ export const displayWorkspaceBuildDuration = (
 }
 
 export const DisplayAgentStatusLanguage = {
-  loading: "Loading...",
-  connected: "⦿ Connected",
-  connecting: "⦿ Connecting",
-  disconnected: "◍ Disconnected",
+  connected: "Connected",
+  connecting: "Connecting...",
+  disconnected: "Disconnected",
 }
 
 export const getDisplayAgentStatus = (
@@ -119,11 +118,6 @@ export const getDisplayAgentStatus = (
   status: string
 } => {
   switch (agent.status) {
-    case undefined:
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayAgentStatusLanguage.loading,
-      }
     case "connected":
       return {
         color: theme.palette.success.main,
