@@ -22,26 +22,54 @@ describe("NavbarView", () => {
 
   it("renders content", async () => {
     // When
-    render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
+    render(
+      <NavbarView
+        user={MockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
 
     // Then
     await screen.findAllByText("Coder", { exact: false })
   })
 
   it("workspaces nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
+    render(
+      <NavbarView
+        user={MockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
     const workspacesLink = await screen.findByText(navLanguage.workspaces)
     expect((workspacesLink as HTMLAnchorElement).href).toContain("/workspaces")
   })
 
   it("templates nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
+    render(
+      <NavbarView
+        user={MockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
     const templatesLink = await screen.findByText(navLanguage.templates)
     expect((templatesLink as HTMLAnchorElement).href).toContain("/templates")
   })
 
   it("users nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
+    render(
+      <NavbarView
+        user={MockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
     const userLink = await screen.findByText(navLanguage.users)
     expect((userLink as HTMLAnchorElement).href).toContain("/users")
   })
@@ -55,7 +83,14 @@ describe("NavbarView", () => {
     }
 
     // When
-    render(<NavbarView user={mockUser} onSignOut={noop} canViewAuditLog />)
+    render(
+      <NavbarView
+        user={mockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
 
     // Then
     // There should be a 'B' avatar!
@@ -64,16 +99,56 @@ describe("NavbarView", () => {
   })
 
   it("audit nav link has the correct href", async () => {
-    render(<NavbarView user={MockUser} onSignOut={noop} canViewAuditLog />)
+    render(
+      <NavbarView
+        user={MockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
     const auditLink = await screen.findByText(navLanguage.audit)
     expect((auditLink as HTMLAnchorElement).href).toContain("/audit")
   })
 
   it("audit nav link is hidden for members", async () => {
     render(
-      <NavbarView user={MockUser2} onSignOut={noop} canViewAuditLog={false} />,
+      <NavbarView
+        user={MockUser2}
+        onSignOut={noop}
+        canViewAuditLog={false}
+        canViewDeployment
+      />,
     )
     const auditLink = screen.queryByText(navLanguage.audit)
+    expect(auditLink).not.toBeInTheDocument()
+  })
+
+  it("deployment nav link has the correct href", async () => {
+    render(
+      <NavbarView
+        user={MockUser}
+        onSignOut={noop}
+        canViewAuditLog
+        canViewDeployment
+      />,
+    )
+    const auditLink = await screen.findByText(navLanguage.deployment)
+    expect((auditLink as HTMLAnchorElement).href).toContain(
+      "/settings/deployment/general",
+    )
+  })
+
+  it("deployment nav link is hidden for members", async () => {
+    render(
+      <NavbarView
+        user={MockUser2}
+        onSignOut={noop}
+        canViewAuditLog={false}
+        canViewDeployment={false}
+      />,
+    )
+    const auditLink = screen.queryByText(navLanguage.deployment)
     expect(auditLink).not.toBeInTheDocument()
   })
 })

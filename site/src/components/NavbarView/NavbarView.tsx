@@ -73,7 +73,7 @@ const NavItems: React.FC<
       )}
       {canViewDeployment && (
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/settings/deployment">
+          <NavLink className={styles.link} to="/settings/deployment/general">
             {Language.deployment}
           </NavLink>
         </ListItem>
