@@ -344,9 +344,14 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
+		// If no preferred DERP is provided, don't set an IP!
+		if node.PreferredDERP == 0 {
+			peerNode.DERP = ""
+		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
 		}
+		c.logger.Debug(context.Background(), "adding node", slog.F("node", peerNode))
 		c.peerMap[node.ID] = peerNode
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
