@@ -4,6 +4,9 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import ComputerIcon from "@material-ui/icons/Computer"
+import PublicOutlinedIcon from "@material-ui/icons/PublicOutlined"
+import LockOutlinedIcon from "@material-ui/icons/LockOutlined"
+import GroupOutlinedIcon from "@material-ui/icons/GroupOutlined"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import { FC, PropsWithChildren } from "react"
 import * as TypesGen from "../../api/typesGenerated"
@@ -23,6 +26,7 @@ export interface AppLinkProps {
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
   appSubdomain: TypesGen.WorkspaceApp["subdomain"]
+  appSharingLevel: TypesGen.WorkspaceApp["sharing_level"]
   health: TypesGen.WorkspaceApp["health"]
 }
 
@@ -35,6 +39,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   appIcon,
   appCommand,
   appSubdomain,
+  appSharingLevel,
   health,
 }) => {
   const styles = useStyles()
@@ -51,7 +56,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   }
   if (appsHost && appSubdomain) {
     const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
-    href = `${window.location.protocol}//${subdomain}.${appsHost}/`
+    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
   }
 
   let canClick = true
@@ -60,36 +65,50 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   ) : (
     <ComputerIcon />
   )
-  let tooltip = ""
+
+  let shareIcon = <LockOutlinedIcon />
+  let shareTooltip = "Private, only accessible by you"
+  if (appSharingLevel === "authenticated") {
+    shareIcon = <GroupOutlinedIcon />
+    shareTooltip = "Shared with all authenticated users"
+  }
+  if (appSharingLevel === "public") {
+    shareIcon = <PublicOutlinedIcon />
+    shareTooltip = "Shared publicly"
+  }
+
+  let primaryTooltip = ""
   if (health === "initializing") {
     canClick = false
     icon = <CircularProgress size={16} />
-    tooltip = "Initializing..."
+    primaryTooltip = "Initializing..."
   }
   if (health === "unhealthy") {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
-    tooltip = "Unhealthy"
+    primaryTooltip = "Unhealthy"
   }
   if (!appsHost && appSubdomain) {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />
-    tooltip = "Your admin has not configured subdomain application access"
+    primaryTooltip =
+      "Your admin has not configured subdomain application access"
   }
 
   const button = (
     <Button
       size="small"
       startIcon={icon}
+      endIcon={<Tooltip title={shareTooltip}>{shareIcon}</Tooltip>}
       className={styles.button}
       disabled={!canClick}
     >
-      {appName}
+      <span className={styles.appName}>{appName}</span>
     </Button>
   )
 
   return (
-    <Tooltip title={tooltip}>
+    <Tooltip title={primaryTooltip}>
       <span>
         <Link
           href={href}
@@ -135,5 +154,9 @@ const useStyles = makeStyles((theme) => ({
 
   notConfiguredIcon: {
     color: theme.palette.grey[300],
+  },
+
+  appName: {
+    marginRight: theme.spacing(1),
   },
 }))

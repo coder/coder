@@ -73,6 +73,7 @@ func FindClosestNode() (Node, error) {
 			}
 
 			pinger.Count = 5
+			pinger.Timeout = 5 * time.Second
 			err = pinger.Run()
 			if err != nil {
 				return err

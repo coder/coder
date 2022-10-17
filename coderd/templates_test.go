@@ -561,7 +561,7 @@ func TestDeleteTemplate(t *testing.T) {
 	})
 }
 
-func TestTemplateDAUs(t *testing.T) {
+func TestTemplateMetrics(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -594,6 +594,7 @@ func TestTemplateDAUs(t *testing.T) {
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Equal(t, -1, template.ActiveUserCount)
+	require.Empty(t, template.BuildTimeStats)
 
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -626,7 +627,9 @@ func TestTemplateDAUs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("tailnet"), resources[0].Agents[0].ID)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: slogtest.Make(t, nil).Named("tailnet"),
+	})
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()
@@ -660,6 +663,16 @@ func TestTemplateDAUs(t *testing.T) {
 	template, err = client.Template(ctx, template.ID)
 	require.NoError(t, err)
 	require.Equal(t, 1, template.ActiveUserCount)
+
+	require.Eventuallyf(t, func() bool {
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		startMs := template.BuildTimeStats.StartMillis
+		return startMs != nil && *startMs > 1
+	},
+		testutil.WaitShort, testutil.IntervalFast,
+		"BuildTimeStats never loaded",
+	)
 
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)

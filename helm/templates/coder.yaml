@@ -14,10 +14,7 @@ metadata:
     {{- include "coder.labels" . | nindent 4 }}
   annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
-  # NOTE: this is currently not used as coder v2 does not support high
-  #       availability yet.
-  # replicas: {{ .Values.coder.replicaCount }}
-  replicas: 1
+  replicas: {{ .Values.coder.replicaCount }}
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
@@ -38,6 +35,13 @@ spec:
           env:
             - name: CODER_ADDRESS
               value: "0.0.0.0:{{ include "coder.port" . }}"
+            # Used for inter-pod communication with high-availability.
+            - name: KUBE_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CODER_DERP_SERVER_RELAY_URL
+              value: "{{ include "coder.portName" . }}://$(KUBE_POD_IP):{{ include "coder.port" . }}"
             {{- include "coder.tlsEnv" . | nindent 12 }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}

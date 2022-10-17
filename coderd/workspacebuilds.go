@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -275,6 +276,22 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, action, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+
+	// we only want to create audit logs for delete builds right now
+	if action == rbac.ActionDelete {
+		var (
+			auditor           = api.Auditor.Load()
+			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+				Audit:   *auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionDelete,
+			})
+		)
+
+		defer commitAudit()
+		aReq.Old = workspace
 	}
 
 	if createBuild.TemplateVersionID == uuid.Nil {
@@ -844,7 +861,7 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
 			}

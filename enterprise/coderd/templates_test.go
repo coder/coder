@@ -23,7 +23,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -64,7 +64,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -88,7 +88,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -138,7 +138,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -176,7 +176,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -214,7 +214,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -262,7 +262,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -318,7 +318,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -361,7 +361,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -422,7 +422,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -447,7 +447,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -472,7 +472,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -498,7 +498,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -533,7 +533,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -575,7 +575,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -597,7 +597,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -662,7 +662,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)

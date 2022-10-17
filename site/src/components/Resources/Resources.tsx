@@ -203,6 +203,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                       appName={app.name}
                                       appCommand={app.command}
                                       appSubdomain={app.subdomain}
+                                      appSharingLevel={app.sharing_level}
                                       username={workspace.owner_name}
                                       workspaceName={workspace.name}
                                       agentName={agent.name}

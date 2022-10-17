@@ -20,6 +20,10 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
+import {
+  EstimateTransitionTime,
+  WorkspaceBuildProgress,
+} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -34,10 +38,12 @@ export interface WorkspaceProps {
     onExtend: () => void
   }
   scheduleProps: {
-    onDeadlinePlus: () => void
-    onDeadlineMinus: () => void
+    onDeadlinePlus: (hours: number) => void
+    onDeadlineMinus: (hours: number) => void
     deadlinePlusEnabled: () => boolean
     deadlineMinusEnabled: () => boolean
+    maxDeadlineIncrease: number
+    maxDeadlineDecrease: number
   }
   handleStart: () => void
   handleStop: () => void
@@ -53,6 +59,7 @@ export interface WorkspaceProps {
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
+  template?: TypesGen.Template
 }
 
 /**
@@ -75,6 +82,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hideSSHButton,
   buildInfo,
   applicationsHost,
+  template,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -110,6 +118,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
+  let buildTimeEstimate: number | undefined = undefined
+  let isTransitioning: boolean | undefined = undefined
+  if (template !== undefined) {
+    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
+      template,
+      workspace,
+    )
+  }
+
   return (
     <Margins>
       <PageHeader
@@ -121,6 +138,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
               deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
               deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
+              maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
+              maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
@@ -178,6 +197,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         />
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {isTransitioning !== undefined && isTransitioning && (
+          <WorkspaceBuildProgress
+            workspace={workspace}
+            buildEstimate={buildTimeEstimate}
+          />
+        )}
 
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources

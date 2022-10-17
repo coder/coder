@@ -146,6 +146,10 @@ var (
 	ResourceDeploymentFlags = Object{
 		Type: "deployment_flags",
 	}
+
+	ResourceReplicas = Object{
+		Type: "replicas",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in

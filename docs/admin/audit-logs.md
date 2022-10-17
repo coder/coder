@@ -7,6 +7,7 @@ their deployment.
 
 We track **create, update and delete** events for the following resources:
 
+- GitSSHKey
 - Template
 - TemplateVersion
 - Workspace

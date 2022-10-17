@@ -21,6 +21,7 @@ import { XServiceContext } from "xServices/StateContext"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
+import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -66,6 +67,18 @@ const CreateGroupPage = lazy(() => import("./pages/GroupsPage/CreateGroupPage"))
 const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"))
 const SettingsGroupPage = lazy(
   () => import("./pages/GroupsPage/SettingsGroupPage"),
+)
+const GeneralSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/GeneralSettingsPage"),
+)
+const SecuritySettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
+)
+const AuthSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/AuthSettingsPage"),
+)
+const NetworkSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
 )
 
 export const AppRouter: FC = () => {
@@ -231,6 +244,65 @@ export const AppRouter: FC = () => {
                   }
                 >
                   <AuditPage />
+                </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+        </Route>
+
+        <Route path="/settings/deployment">
+          <Route
+            path="general"
+            element={
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <GeneralSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="security"
+            element={
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <SecuritySettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="network"
+            element={
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <NetworkSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="auth"
+            element={
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                >
+                  <DeploySettingsLayout>
+                    <AuthSettingsPage />
+                  </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>
             }

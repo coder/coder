@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
@@ -24,6 +25,7 @@ type Store interface {
 	// customQuerier contains custom queries that are not generated.
 	customQuerier
 
+	Ping(ctx context.Context) (time.Duration, error)
 	InTx(func(Store) error) error
 }
 
@@ -56,6 +58,13 @@ type querier interface {
 type sqlQuerier struct {
 	sdb *sqlx.DB
 	db  DBTX
+}
+
+// Ping returns the time it takes to ping the database.
+func (q *sqlQuerier) Ping(ctx context.Context) (time.Duration, error) {
+	start := time.Now()
+	err := q.sdb.PingContext(ctx)
+	return time.Since(start), err
 }
 
 // InTx performs database operations inside a transaction.

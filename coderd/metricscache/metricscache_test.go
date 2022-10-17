@@ -2,10 +2,12 @@ package metricscache_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -20,7 +22,7 @@ func date(year, month, day int) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
 
-func TestCache(t *testing.T) {
+func TestCache_TemplateUsers(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -194,6 +196,170 @@ func TestCache(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, tt.want.entries, gotEntries.Entries)
 			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
+		})
+	}
+}
+
+func clockTime(t time.Time, hour, minute, sec int) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, sec, t.Nanosecond(), t.Location())
+}
+
+func TestCache_BuildTime(t *testing.T) {
+	t.Parallel()
+
+	someDay := date(2022, 10, 1)
+
+	type jobParams struct {
+		startedAt   time.Time
+		completedAt time.Time
+	}
+
+	type args struct {
+		rows       []jobParams
+		transition database.WorkspaceTransition
+	}
+	type want struct {
+		buildTimeMs int64
+		loads       bool
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{"empty", args{}, want{-1, false}},
+		{"one/start", args{
+			rows: []jobParams{
+				{
+					startedAt:   clockTime(someDay, 10, 1, 0),
+					completedAt: clockTime(someDay, 10, 1, 10),
+				},
+			},
+			transition: database.WorkspaceTransitionStart,
+		}, want{10 * 1000, true},
+		},
+		{"two/stop", args{
+			rows: []jobParams{
+				{
+					startedAt:   clockTime(someDay, 10, 1, 0),
+					completedAt: clockTime(someDay, 10, 1, 10),
+				},
+				{
+					startedAt:   clockTime(someDay, 10, 1, 0),
+					completedAt: clockTime(someDay, 10, 1, 50),
+				},
+			},
+			transition: database.WorkspaceTransitionStop,
+		}, want{50 * 1000, true},
+		},
+		{"three/delete", args{
+			rows: []jobParams{
+				{
+					startedAt:   clockTime(someDay, 10, 1, 0),
+					completedAt: clockTime(someDay, 10, 1, 10),
+				},
+				{
+					startedAt:   clockTime(someDay, 10, 1, 0),
+					completedAt: clockTime(someDay, 10, 1, 50),
+				}, {
+					startedAt:   clockTime(someDay, 10, 1, 0),
+					completedAt: clockTime(someDay, 10, 1, 20),
+				},
+			},
+			transition: database.WorkspaceTransitionDelete,
+		}, want{20 * 1000, true},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			var (
+				db    = databasefake.New()
+				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+			)
+
+			defer cache.Close()
+
+			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
+				ID: uuid.New(),
+			})
+			require.NoError(t, err)
+
+			templateVersion, err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:         uuid.New(),
+				TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true},
+			})
+			require.NoError(t, err)
+
+			gotStats := cache.TemplateBuildTimeStats(template.ID)
+			require.Empty(t, gotStats, "should not have loaded yet")
+
+			for _, row := range tt.args.rows {
+				_, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+					ID:          uuid.New(),
+					Provisioner: database.ProvisionerTypeEcho,
+				})
+				require.NoError(t, err)
+
+				job, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					StartedAt: sql.NullTime{Time: row.startedAt, Valid: true},
+					Types: []database.ProvisionerType{
+						database.ProvisionerTypeEcho,
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+					TemplateVersionID: templateVersion.ID,
+					JobID:             job.ID,
+					Transition:        tt.args.transition,
+				})
+				require.NoError(t, err)
+
+				err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+					ID:          job.ID,
+					CompletedAt: sql.NullTime{Time: row.completedAt, Valid: true},
+				})
+				require.NoError(t, err)
+			}
+
+			if tt.want.loads {
+				require.Eventuallyf(t, func() bool {
+					stats := cache.TemplateBuildTimeStats(template.ID)
+					return assert.NotEmpty(t, stats)
+				}, testutil.WaitShort, testutil.IntervalMedium,
+					"BuildTime never populated",
+				)
+
+				gotStats = cache.TemplateBuildTimeStats(template.ID)
+
+				if tt.args.transition == database.WorkspaceTransitionDelete {
+					require.Nil(t, gotStats.StopMillis)
+					require.Nil(t, gotStats.StartMillis)
+					require.Equal(t, tt.want.buildTimeMs, *gotStats.DeleteMillis)
+				}
+				if tt.args.transition == database.WorkspaceTransitionStart {
+					require.Nil(t, gotStats.StopMillis)
+					require.Nil(t, gotStats.DeleteMillis)
+					require.Equal(t, tt.want.buildTimeMs, *gotStats.StartMillis)
+				}
+				if tt.args.transition == database.WorkspaceTransitionStop {
+					require.Nil(t, gotStats.StartMillis)
+					require.Nil(t, gotStats.DeleteMillis)
+					require.Equal(t, tt.want.buildTimeMs, *gotStats.StopMillis)
+				}
+			} else {
+				require.Never(t, func() bool {
+					stats := cache.TemplateBuildTimeStats(template.ID)
+					return !assert.Empty(t, stats)
+				}, testutil.WaitShort/2, testutil.IntervalMedium,
+					"BuildTimeStats populated",
+				)
+			}
 		})
 	}
 }

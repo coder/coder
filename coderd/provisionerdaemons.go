@@ -814,6 +814,14 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				health = database.WorkspaceAppHealthInitializing
 			}
 
+			sharingLevel := database.AppSharingLevelOwner
+			switch app.SharingLevel {
+			case sdkproto.AppSharingLevel_AUTHENTICATED:
+				sharingLevel = database.AppSharingLevelAuthenticated
+			case sdkproto.AppSharingLevel_PUBLIC:
+				sharingLevel = database.AppSharingLevelPublic
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
@@ -829,6 +837,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					Valid:  app.Url != "",
 				},
 				Subdomain:            app.Subdomain,
+				SharingLevel:         sharingLevel,
 				HealthcheckUrl:       app.Healthcheck.Url,
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,

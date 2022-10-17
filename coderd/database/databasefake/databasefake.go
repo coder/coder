@@ -107,9 +107,15 @@ type data struct {
 	workspaceApps                  []database.WorkspaceApp
 	workspaces                     []database.Workspace
 	licenses                       []database.License
+	replicas                       []database.Replica
 
 	deploymentID  string
+	derpMeshKey   string
 	lastLicenseID int32
+}
+
+func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
+	return 0, nil
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -233,6 +239,52 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	}
 
 	return rs, nil
+}
+
+func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+	var emptyRow database.GetTemplateAverageBuildTimeRow
+	var (
+		startTimes  []float64
+		stopTimes   []float64
+		deleteTimes []float64
+	)
+	for _, wb := range q.workspaceBuilds {
+		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return emptyRow, err
+		}
+		if version.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
+		if err != nil {
+			return emptyRow, err
+		}
+		if job.CompletedAt.Valid {
+			took := job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds()
+			if wb.Transition == database.WorkspaceTransitionStart {
+				startTimes = append(startTimes, took)
+			} else if wb.Transition == database.WorkspaceTransitionStop {
+				stopTimes = append(stopTimes, took)
+			} else if wb.Transition == database.WorkspaceTransitionDelete {
+				deleteTimes = append(deleteTimes, took)
+			}
+		}
+	}
+
+	tryMedian := func(fs []float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[len(fs)/2]
+	}
+	var row database.GetTemplateAverageBuildTimeRow
+	row.DeleteMedian = tryMedian(deleteTimes)
+	row.StopMedian = tryMedian(stopTimes)
+	row.StartMedian = tryMedian(startTimes)
+	return row, nil
 }
 
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
@@ -2324,6 +2376,10 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if arg.SharingLevel == "" {
+		arg.SharingLevel = database.AppSharingLevelOwner
+	}
+
 	// nolint:gosimple
 	workspaceApp := database.WorkspaceApp{
 		ID:                   arg.ID,
@@ -2334,6 +2390,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Command:              arg.Command,
 		Url:                  arg.Url,
 		Subdomain:            arg.Subdomain,
+		SharingLevel:         arg.SharingLevel,
 		HealthcheckUrl:       arg.HealthcheckUrl,
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
@@ -2671,7 +2728,7 @@ func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (databas
 	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) error {
+func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -2683,9 +2740,9 @@ func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitS
 		key.PrivateKey = arg.PrivateKey
 		key.PublicKey = arg.PublicKey
 		q.gitSSHKey[index] = key
-		return nil
+		return key, nil
 	}
-	return sql.ErrNoRows
+	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGroupMemberParams) error {
@@ -2879,6 +2936,21 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
+}
+
+func (q *fakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.derpMeshKey = id
+	return nil
+}
+
+func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.derpMeshKey, nil
 }
 
 func (q *fakeQuerier) InsertLicense(
@@ -3146,4 +3218,71 @@ func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, replica := range q.replicas {
+		if replica.UpdatedAt.Before(before) {
+			q.replicas = append(q.replicas[:i], q.replicas[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
+func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	replica := database.Replica{
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		StartedAt:       arg.StartedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		Hostname:        arg.Hostname,
+		RegionID:        arg.RegionID,
+		RelayAddress:    arg.RelayAddress,
+		Version:         arg.Version,
+		DatabaseLatency: arg.DatabaseLatency,
+	}
+	q.replicas = append(q.replicas, replica)
+	return replica, nil
+}
+
+func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, replica := range q.replicas {
+		if replica.ID != arg.ID {
+			continue
+		}
+		replica.Hostname = arg.Hostname
+		replica.StartedAt = arg.StartedAt
+		replica.StoppedAt = arg.StoppedAt
+		replica.UpdatedAt = arg.UpdatedAt
+		replica.RelayAddress = arg.RelayAddress
+		replica.RegionID = arg.RegionID
+		replica.Version = arg.Version
+		replica.Error = arg.Error
+		replica.DatabaseLatency = arg.DatabaseLatency
+		q.replicas[index] = replica
+		return replica, nil
+	}
+	return database.Replica{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	replicas := make([]database.Replica, 0)
+	for _, replica := range q.replicas {
+		if replica.UpdatedAt.After(updatedAt) && !replica.StoppedAt.Valid {
+			replicas = append(replicas, replica)
+		}
+	}
+	return replicas, nil
 }

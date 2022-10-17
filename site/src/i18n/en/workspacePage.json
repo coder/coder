@@ -4,8 +4,10 @@
   },
   "workspaceScheduleButton": {
     "schedule": "Schedule",
-    "editDeadlineMinus": "Subtract one hour",
-    "editDeadlinePlus": "Add one hour"
+    "editDeadlineMinus": "Subtract hours",
+    "editDeadlinePlus": "Add hours",
+    "submitDeadline": "Set",
+    "hours": "Hours"
   },
   "ctas": {
     "createWorkspaceCta": "Create new workspace",

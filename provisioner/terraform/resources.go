@@ -30,6 +30,7 @@ type agentAppAttributes struct {
 	Icon        string                     `mapstructure:"icon"`
 	URL         string                     `mapstructure:"url"`
 	Command     string                     `mapstructure:"command"`
+	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
@@ -235,6 +236,16 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			}
 		}
 
+		sharingLevel := proto.AppSharingLevel_OWNER
+		switch strings.ToLower(attrs.Share) {
+		case "owner":
+			sharingLevel = proto.AppSharingLevel_OWNER
+		case "authenticated":
+			sharingLevel = proto.AppSharingLevel_AUTHENTICATED
+		case "public":
+			sharingLevel = proto.AppSharingLevel_PUBLIC
+		}
+
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -242,12 +253,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:        attrs.Name,
-					Command:     attrs.Command,
-					Url:         attrs.URL,
-					Icon:        attrs.Icon,
-					Subdomain:   attrs.Subdomain,
-					Healthcheck: healthcheck,
+					Name:         attrs.Name,
+					Command:      attrs.Command,
+					Url:          attrs.URL,
+					Icon:         attrs.Icon,
+					Subdomain:    attrs.Subdomain,
+					SharingLevel: sharingLevel,
+					Healthcheck:  healthcheck,
 				})
 			}
 		}
