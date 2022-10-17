@@ -121,7 +121,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -204,7 +204,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
