@@ -328,6 +328,8 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		delete(c.peerMap, peer.ID)
 	}
 	for _, node := range nodes {
+		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
+
 		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
@@ -351,7 +353,6 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
 		}
-		c.logger.Debug(context.Background(), "adding node", slog.F("node", peerNode))
 		c.peerMap[node.ID] = peerNode
 	}
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
