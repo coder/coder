@@ -40,7 +40,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: CODER_DERP_SERVER_RELAY_ADDRESS
+            - name: CODER_DERP_SERVER_RELAY_URL
               value: "{{ include "coder.portName" . }}://$(KUBE_POD_IP):{{ include "coder.port" . }}"
             {{- include "coder.tlsEnv" . | nindent 12 }}
             {{- with .Values.coder.env -}}
