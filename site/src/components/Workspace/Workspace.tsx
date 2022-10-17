@@ -20,7 +20,10 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
-import { WorkspaceBuildProgress } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
+import {
+  EstimateTransitionTime,
+  WorkspaceBuildProgress,
+} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -115,6 +118,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
+  let buildTimeEstimate: number | undefined = undefined
+  let isTransitioning: boolean | undefined = undefined
+  if (template !== undefined) {
+    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
+      template,
+      workspace,
+    )
+  }
+
   return (
     <Margins>
       <PageHeader
@@ -186,8 +198,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
-        {workspace.latest_build.status === "starting" && (
-          <WorkspaceBuildProgress workspace={workspace} template={template} />
+        {isTransitioning !== undefined && isTransitioning && (
+          <WorkspaceBuildProgress
+            workspace={workspace}
+            buildEstimate={buildTimeEstimate}
+          />
         )}
 
         {typeof resources !== "undefined" && resources.length > 0 && (

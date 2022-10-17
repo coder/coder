@@ -237,7 +237,7 @@ export const TemplatesPageView: FC<
                               style={{ color: theme.palette.text.secondary }}
                             >
                               {formatTemplateBuildTime(
-                                template.average_build_time_ms,
+                                template.build_time_stats.start_ms,
                               )}
                             </span>
                           </TableCellLink>

@@ -4,8 +4,8 @@
 -- template to be able to push and read files used for template
 -- versions they create.
 -- Prior to this collisions on file.hash were not an issue
--- since users who could push files could also read all files. 
--- 
+-- since users who could push files could also read all files.
+--
 -- This migration also adds a 'files.id' column as the primary
 -- key. As a side effect the provisioner_jobs must now reference
 -- the files.id column since the 'hash' column is now ambiguous.
@@ -14,10 +14,13 @@ BEGIN;
 -- Drop the primary key on hash.
 ALTER TABLE files DROP CONSTRAINT files_pkey;
 
+-- This extension is required by gen_random_uuid
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Add an 'id' column and designate it the primary key.
-ALTER TABLE files ADD COLUMN 
+ALTER TABLE files ADD COLUMN
 	id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid ();
-    
+
 -- Update the constraint to include the user who created it.
 ALTER TABLE files ADD UNIQUE(hash, created_by);
 

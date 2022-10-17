@@ -185,7 +185,11 @@ export const MockTemplate: TypesGen.Template = {
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 2,
   active_user_count: 1,
-  average_build_time_ms: 123,
+  build_time_stats: {
+    start_ms: 1000,
+    stop_ms: 2000,
+    delete_ms: 3000,
+  },
   description: "This is a test description.",
   max_ttl_ms: 24 * 60 * 60 * 1000,
   min_autostart_interval_ms: 60 * 60 * 1000,
