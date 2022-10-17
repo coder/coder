@@ -165,6 +165,16 @@ CREATE TABLE files (
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
+CREATE TABLE git_provider_links (
+    user_id uuid NOT NULL,
+    url text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry text NOT NULL
+);
+
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,

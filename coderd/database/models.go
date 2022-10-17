@@ -427,6 +427,16 @@ type File struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
+type GitProviderLink struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	Url               string    `db:"url" json:"url"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthExpiry       string    `db:"oauth_expiry" json:"oauth_expiry"`
+}
+
 type GitSSHKey struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
