@@ -6,6 +6,7 @@ import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 
 dayjs.extend(duration)
 
@@ -18,10 +19,9 @@ const estimateFinish = (
   }
   const realPercentage = dayjs().diff(startedAt) / templateAverage
 
-  // Showing a full bar is frustrating.
-  const maxPercentage = 0.99
+  const maxPercentage = 1
   if (realPercentage > maxPercentage) {
-    return [maxPercentage, "Any moment now..."]
+    return [1, "Any moment now..."]
   }
 
   return [
@@ -62,7 +62,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 }) => {
   const styles = useStyles()
   const job = workspace.latest_build.job
-  const [progressValue, setProgressValue] = useState(0)
+  const [progressValue, setProgressValue] = useState<number | undefined>(
+    undefined,
+  )
 
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
@@ -70,41 +72,43 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   useEffect(() => {
     const updateProgress = () => {
       if (job.status !== "running") {
-        setProgressValue(0)
+        setProgressValue(undefined)
         return
       }
-      setProgressValue(
-        estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100,
-      )
+      const est = estimateFinish(dayjs(job.started_at), buildEstimate)[0] * 100
+      setProgressValue(est)
     }
+    // Perform initial update
     setTimeout(updateProgress, 100)
   }, [progressValue, job, buildEstimate])
-
-  // buildEstimate may be undefined if the template is new or coderd hasn't
-  // finished initial metrics collection.
-  if (buildEstimate === undefined) {
-    return (
-      <div className={styles.stack}>
-        <LinearProgress value={0} variant="indeterminate" />
-        <div className={styles.barHelpers}>
-          <div className={styles.label}>{`Build ${job.status}`}</div>
-          <div className={styles.label}>Unknown ETA</div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className={styles.stack}>
       <LinearProgress
-        value={(job.status === "running" && progressValue) || 0}
-        variant={job.status === "running" ? "determinate" : "indeterminate"}
+        value={progressValue !== undefined ? progressValue : 0}
+        variant={
+          // There is an initial state where progressValue may be undefined
+          // (e.g. the build isn't yet running). If we flicker from the
+          // indeterminate bar to the determinate bar, the vigilant user
+          // perceives the bar jumping from 100% to 0%.
+          progressValue !== undefined || dayjs(job.started_at).diff() < 500
+            ? "determinate"
+            : "indeterminate"
+        }
+        // If a transition is set, there is a moment on new load where the
+        // bar accelerates to progressValue and then rapidly decelerates, which
+        // is not indicative of true progress.
+        className={styles.noTransition}
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
         <div className={styles.label}>
-          {job.status === "running" &&
-            estimateFinish(dayjs(job.started_at), buildEstimate)[1]}
+          <ChooseOne>
+            <Cond condition={job.status === "running"}>
+              {estimateFinish(dayjs(job.started_at), buildEstimate)[1]}
+            </Cond>
+            <Cond>Unknown ETA</Cond>
+          </ChooseOne>
         </div>
       </div>
     </div>
@@ -115,6 +119,9 @@ const useStyles = makeStyles((theme) => ({
   stack: {
     paddingLeft: theme.spacing(0.2),
     paddingRight: theme.spacing(0.2),
+  },
+  noTransition: {
+    transition: "none",
   },
   barHelpers: {
     display: "flex",
