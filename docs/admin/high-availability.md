@@ -15,6 +15,8 @@ workspace <-> coder and user <-> coder connections.
 
 ## Setup
 
+> We're stress testing High Availability this week before we enable it by default. To try HA beforehand, set `CODER_EXPERIMENTAL=true` for the Coder server as well as the additional configuration options below.
+
 Coder automatically enters HA mode when multiple instances simultaneously connect
 to the same Postgres endpoint.
 
@@ -28,12 +30,11 @@ embedded relay (default). If you're using [custom relays](../networking.md#custo
 
 Here's an example 3-node network configuration setup:
 
-| Name    | `CODER_ADDRESS` | `CODER_DERP_SERVER_RELAY_URL` | `CODER_ACCESS_URL`      |
-| ------- | --------------- | ----------------------------- | ----------------------- |
+| Name      | `CODER_ADDRESS` | `CODER_DERP_SERVER_RELAY_URL` | `CODER_ACCESS_URL`       |
+| --------- | --------------- | ----------------------------- | ------------------------ |
 | `coder-1` | `*:80`          | `http://10.0.0.1:80`          | `https://coder.big.corp` |
 | `coder-2` | `*:80`          | `http://10.0.0.2:80`          | `https://coder.big.corp` |
 | `coder-3` | `*:80`          | `http://10.0.0.3:80`          | `https://coder.big.corp` |
-
 
 ## Kubernetes
 
@@ -41,19 +42,19 @@ If you installed Coder via
 [our Helm Chart](../install/kubernetes.md#install-coder-with-helm), just
 increase `coder.replicaCount` in `values.yaml`.
 
-
 If you installed Coder into Kubernetes by some other means, insert the relay URL
 via the environment like so:
 
 ```yaml
-  env:
-    - name: POD_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.podIP
-    - name: CODER_DERP_SERVER_RELAY_URL
-      value: http://$(POD_IP)
+env:
+  - name: POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: CODER_DERP_SERVER_RELAY_URL
+    value: http://$(POD_IP)
 ```
+
 Then, increase the number of pods.
 
 ## Up next
