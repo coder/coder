@@ -648,8 +648,7 @@ export const getDeploymentFlags =
     return response.data
   }
 
-export const getReplicas =
-  async (): Promise<TypesGen.Replica[]> => {
-    const response = await axios.get(`/api/v2/replicas`)
-    return response.data
-  }
+export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
+  const response = await axios.get(`/api/v2/replicas`)
+  return response.data
+}

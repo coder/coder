@@ -5,14 +5,17 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import {
-  Badges, DisabledBadge, EnabledBadge, EnterpriseBadge
+  Badges,
+  DisabledBadge,
+  EnabledBadge,
+  EnterpriseBadge,
 } from "components/DeploySettingsLayout/Badges"
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { Header } from "components/DeploySettingsLayout/Header"
 import {
   OptionDescription,
   OptionName,
-  OptionValue
+  OptionValue,
 } from "components/DeploySettingsLayout/Option"
 import { Stack } from "components/Stack/Stack"
 import React from "react"
@@ -56,7 +59,9 @@ const SecuritySettingsPage: React.FC = () => {
               </TableRow>
               <TableRow>
                 <TableCell>
-                  <OptionName>{deploymentFlags.secure_auth_cookie.name}</OptionName>
+                  <OptionName>
+                    {deploymentFlags.secure_auth_cookie.name}
+                  </OptionName>
                   <OptionDescription>
                     {deploymentFlags.secure_auth_cookie.description}
                   </OptionDescription>
@@ -192,7 +197,9 @@ const SecuritySettingsPage: React.FC = () => {
 
               <TableRow>
                 <TableCell>
-                  <OptionName>{deploymentFlags.tls_min_version.name}</OptionName>
+                  <OptionName>
+                    {deploymentFlags.tls_min_version.name}
+                  </OptionName>
                   <OptionDescription>
                     {deploymentFlags.tls_min_version.description}
                   </OptionDescription>

@@ -354,8 +354,8 @@ export const authMachine =
                 idle: {
                   on: {
                     GET_AUTH_METHODS: {
-                      target: "gettingMethods"
-                    }, 
+                      target: "gettingMethods",
+                    },
                   },
                 },
                 gettingMethods: {
