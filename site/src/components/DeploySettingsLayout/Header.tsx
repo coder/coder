@@ -7,27 +7,32 @@ import React from "react"
 export const Header: React.FC<{
   title: string | JSX.Element
   description: string | JSX.Element
-  docsHref: string
-}> = ({ title, description, docsHref }) => {
+  secondary?: boolean
+  docsHref?: string
+}> = ({ title, description, docsHref, secondary }) => {
   const styles = useStyles()
 
   return (
     <Stack alignItems="baseline" direction="row" justifyContent="space-between">
       <div className={styles.headingGroup}>
-        <h1 className={styles.title}>{title}</h1>
+        <h1 className={`${styles.title} ${secondary ? "secondary" : ""}`}>
+          {title}
+        </h1>
         <span className={styles.description}>{description}</span>
       </div>
 
-      <Button
-        size="small"
-        startIcon={<LaunchOutlined />}
-        component="a"
-        href={docsHref}
-        target="_blank"
-        variant="outlined"
-      >
-        Read the docs
-      </Button>
+      {docsHref && (
+        <Button
+          size="small"
+          startIcon={<LaunchOutlined />}
+          component="a"
+          href={docsHref}
+          target="_blank"
+          variant="outlined"
+        >
+          Read the docs
+        </Button>
+      )}
     </Stack>
   )
 }
@@ -47,6 +52,11 @@ const useStyles = makeStyles((theme) => ({
     margin: 0,
     marginBottom: theme.spacing(0.5),
     gap: theme.spacing(1),
+
+    "&.secondary": {
+      fontSize: 24,
+      fontWeight: 500,
+    },
   },
 
   description: {

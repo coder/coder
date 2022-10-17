@@ -1,8 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
-import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
 import LockRounded from "@material-ui/icons/LockRounded"
-import BarChartOutlined from "@material-ui/icons/BarChartOutlined"
+import Globe from "@material-ui/icons/Public"
+import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
 import { Stack } from "components/Stack/Stack"
 import React, { ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
@@ -49,22 +49,22 @@ export const Sidebar: React.FC = () => {
         General
       </SidebarNavItem>
       <SidebarNavItem
-        href="../security"
-        icon={<SidebarNavItemIcon icon={LockRounded} />}
-      >
-        Security
-      </SidebarNavItem>
-      <SidebarNavItem
-        href="../metrics"
-        icon={<SidebarNavItemIcon icon={BarChartOutlined} />}
-      >
-        Metrics / observability
-      </SidebarNavItem>
-      <SidebarNavItem
         href="../auth"
         icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
       >
         Authentication
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="../network"
+        icon={<SidebarNavItemIcon icon={Globe} />}
+      >
+        Network
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="../security"
+        icon={<SidebarNavItemIcon icon={LockRounded} />}
+      >
+        Security
       </SidebarNavItem>
     </nav>
   )

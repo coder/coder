@@ -8,7 +8,6 @@ import {
   Badges,
   DisabledBadge,
   EnabledBadge,
-  EnterpriseBadge,
 } from "components/DeploySettingsLayout/Badges"
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { Header } from "components/DeploySettingsLayout/Header"
@@ -28,13 +27,147 @@ const AuthSettingsPage: React.FC = () => {
       <Stack direction="column" spacing={6}>
         <div>
           <Header
-            title="GitHub"
-            description="Authentication settings for GitHub"
+            title="OpenID Connect"
+            secondary
+            description="Set up authentication to log in with OpenID Connect."
             docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
           />
 
           <Badges>
-            {deploymentFlags.oauth2_github_allow_signups.value ? (
+            {deploymentFlags.oidc_client_id.value ? (
+              <EnabledBadge />
+            ) : (
+              <DisabledBadge />
+            )}
+          </Badges>
+
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell width="50%">Option</TableCell>
+                  <TableCell width="50%">Value</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oidc_client_id.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oidc_client_id.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      {deploymentFlags.oidc_client_id.value}
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oidc_client_secret.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oidc_client_secret.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      {deploymentFlags.oidc_client_secret.value}
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oidc_allow_signups.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oidc_allow_signups.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      {deploymentFlags.oidc_allow_signups.value.toString()}
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oidc_email_domain.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oidc_email_domain.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      {deploymentFlags.oidc_email_domain.value}
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oidc_issuer_url.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oidc_issuer_url.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      {deploymentFlags.oidc_issuer_url.value}
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>{deploymentFlags.oidc_scopes.name}</OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oidc_scopes.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      <ul>
+                        {deploymentFlags.oidc_scopes.value.map((scope) => (
+                          <li key={scope}>{scope}</li>
+                        ))}
+                      </ul>
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </div>
+
+        <div>
+          <Header
+            title="GitHub"
+            secondary
+            description="Set up authentication settings to log in with GitHub."
+            docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#github"
+          />
+
+          <Badges>
+            {deploymentFlags.oauth2_github_client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -83,49 +216,20 @@ const AuthSettingsPage: React.FC = () => {
                     </OptionValue>
                   </TableCell>
                 </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </div>
 
-        <div>
-          <Header
-            title="OIDC"
-            description="Authentication settings for GitHub"
-            docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
-          />
-
-          <Badges>
-            {deploymentFlags.oidc_allow_signups.value ? (
-              <EnabledBadge />
-            ) : (
-              <DisabledBadge />
-            )}
-            <EnterpriseBadge />
-          </Badges>
-
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="50%">Option</TableCell>
-                  <TableCell width="50%">Value</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_client_id.name}
+                      {deploymentFlags.oauth2_github_allow_signups.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_client_id.description}
+                      {deploymentFlags.oauth2_github_allow_signups.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_client_id.value}
+                      {deploymentFlags.oauth2_github_allow_signups.value.toString()}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -133,16 +237,68 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_cliet_secret.name}
+                      {deploymentFlags.oauth2_github_allowed_organizations.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_cliet_secret.description}
+                      {
+                        deploymentFlags.oauth2_github_allowed_organizations
+                          .description
+                      }
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_cliet_secret.value}
+                      <ul>
+                        {deploymentFlags.oauth2_github_allowed_organizations.value.map(
+                          (org) => (
+                            <li key={org}>{org}</li>
+                          ),
+                        )}
+                      </ul>
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oauth2_github_allowed_teams.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {deploymentFlags.oauth2_github_allowed_teams.description}
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      <ul>
+                        {deploymentFlags.oauth2_github_allowed_teams.value.map(
+                          (team) => (
+                            <li key={team}>{team}</li>
+                          ),
+                        )}
+                      </ul>
+                    </OptionValue>
+                  </TableCell>
+                </TableRow>
+
+                <TableRow>
+                  <TableCell>
+                    <OptionName>
+                      {deploymentFlags.oauth2_github_enterprise_base_url.name}
+                    </OptionName>
+                    <OptionDescription>
+                      {
+                        deploymentFlags.oauth2_github_enterprise_base_url
+                          .description
+                      }
+                    </OptionDescription>
+                  </TableCell>
+
+                  <TableCell>
+                    <OptionValue>
+                      {deploymentFlags.oauth2_github_enterprise_base_url.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>

@@ -74,11 +74,11 @@ const GeneralSettingsPage = lazy(
 const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
 )
-const MetricsSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/MetricsSettingsPage"),
-)
 const AuthSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/AuthSettingsPage"),
+)
+const NetworkSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
 )
 
 export const AppRouter: FC = () => {
@@ -280,14 +280,14 @@ export const AppRouter: FC = () => {
             }
           />
           <Route
-            path="metrics"
+            path="network"
             element={
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
                 >
                   <DeploySettingsLayout>
-                    <MetricsSettingsPage />
+                    <NetworkSettingsPage />
                   </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>

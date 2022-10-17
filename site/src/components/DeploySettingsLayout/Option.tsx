@@ -32,5 +32,9 @@ const useStyles = makeStyles((theme) => ({
   optionValue: {
     fontSize: 14,
     fontFamily: MONOSPACE_FONT_FAMILY,
+  
+    "& ul": {
+      padding: theme.spacing(2),
+    },
   },
 }))

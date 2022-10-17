@@ -17,7 +17,7 @@ export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
   canViewAuditLog: boolean
-  canViewAdmin: boolean
+  canViewDeployment: boolean
 }
 
 export const Language = {
@@ -25,16 +25,16 @@ export const Language = {
   templates: "Templates",
   users: "Users",
   audit: "Audit",
-  admin: "Admin",
+  deployment: "Deployment",
 }
 
 const NavItems: React.FC<
   React.PropsWithChildren<{
     className?: string
     canViewAuditLog: boolean
-    canViewAdmin: boolean
+    canViewDeployment: boolean
   }>
-> = ({ className, canViewAuditLog, canViewAdmin }) => {
+> = ({ className, canViewAuditLog, canViewDeployment }) => {
   const styles = useStyles()
   const location = useLocation()
 
@@ -71,10 +71,10 @@ const NavItems: React.FC<
           </NavLink>
         </ListItem>
       )}
-      {canViewAdmin && (
+      {canViewDeployment && (
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/admin">
-            {Language.admin}
+          <NavLink className={styles.link} to="/settings/deployment">
+            {Language.deployment}
           </NavLink>
         </ListItem>
       )}
@@ -85,7 +85,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
   onSignOut,
   canViewAuditLog,
-  canViewAdmin,
+  canViewDeployment,
 }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -114,7 +114,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
             </div>
             <NavItems
               canViewAuditLog={canViewAuditLog}
-              canViewAdmin={canViewAdmin}
+              canViewDeployment={canViewDeployment}
             />
           </div>
         </Drawer>
@@ -126,7 +126,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         <NavItems
           className={styles.desktopNavItems}
           canViewAuditLog={canViewAuditLog}
-          canViewAdmin={canViewAdmin}
+          canViewDeployment={canViewDeployment}
         />
 
         <div className={styles.profileButton}>

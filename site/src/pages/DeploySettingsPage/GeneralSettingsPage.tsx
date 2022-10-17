@@ -20,7 +20,7 @@ const GeneralSettingsPage: React.FC = () => {
     <>
       <Header
         title="General"
-        description="Deployment and networking settings"
+        description="Settings for accessing your Coder deployment."
         docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
       />
 
@@ -48,18 +48,14 @@ const GeneralSettingsPage: React.FC = () => {
 
             <TableRow>
               <TableCell>
-                <OptionName>
-                  {deploymentFlags.address.name}
-                </OptionName>
+                <OptionName>{deploymentFlags.address.name}</OptionName>
                 <OptionDescription>
                   {deploymentFlags.address.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>
-                  {deploymentFlags.address.value}
-                </OptionValue>
+                <OptionValue>{deploymentFlags.address.value}</OptionValue>
               </TableCell>
             </TableRow>
 
