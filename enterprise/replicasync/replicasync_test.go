@@ -134,17 +134,17 @@ func TestReplica(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
 			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-			StartedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: database.Now().Add(time.Minute),
+			StartedAt: database.Now().Add(time.Minute),
+			UpdatedAt: database.Now().Add(time.Minute),
 			Hostname:  "something",
-			// Fake address to hit!
-			RelayAddress: "http://169.254.169.254",
+			// Fake address to dial!
+			RelayAddress: "http://127.0.0.1:1",
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(context.Background(), slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
 			PeerTimeout:  1 * time.Millisecond,
-			RelayAddress: "http://169.254.169.254",
+			RelayAddress: "http://127.0.0.1:1",
 		})
 		require.NoError(t, err)
 		require.Len(t, server.Regional(), 1)
