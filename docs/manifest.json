@@ -27,17 +27,17 @@
       "children": [
         {
           "title": "Install script",
-          "description": "One-line install script for macOS and Linux.",
+          "description": "One-line install script for macOS and Linux",
           "path": "./install/install.sh.md"
         },
         {
           "title": "System packages",
-          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine.",
+          "description": "System packages for Debian, Ubuntu, Fedora, CentOS, RHEL, SUSE, and Alpine",
           "path": "./install/packages.md"
         },
         {
           "title": "Kubernetes",
-          "description": "Install Coder with Kubernetes via Helm.",
+          "description": "Install Coder with Kubernetes via Helm",
           "path": "./install/kubernetes.md"
         },
         {
@@ -47,12 +47,12 @@
         },
         {
           "title": "Standalone binaries",
-          "description": "Download binaries for macOS, Windows, and Linux.",
+          "description": "Download binaries for macOS, Windows, and Linux",
           "path": "./install/binary.md"
         },
         {
           "title": "Uninstall",
-          "description": "Learn how to uninstall Coder.",
+          "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
         }
       ]
@@ -182,7 +182,7 @@
       "children": [
         {
           "title": "Authentication",
-          "description": "Learn how to set up authentication using GitHub or OpenID Connect.",
+          "description": "Learn how to set up authentication using GitHub or OpenID Connect",
           "icon_path": "./images/icons/key.svg",
           "path": "./admin/auth.md"
         },
@@ -208,13 +208,13 @@
         },
         {
           "title": "Configuration",
-          "description": "Learn how to configure Coder.",
+          "description": "Learn how to configure Coder",
           "path": "./admin/configure.md",
           "icon_path": "./images/icons/toggle_on.svg"
         },
         {
           "title": "Upgrading",
-          "description": "Learn how to upgrade Coder.",
+          "description": "Learn how to upgrade Coder",
           "icon_path": "./images/icons/upgrade.svg",
           "path": "./admin/upgrade.md"
         },
@@ -226,27 +226,34 @@
         },
         {
           "title": "Audit Logs",
-          "description": "Learn how to use Audit Logs in your Coder deployment.",
+          "description": "Learn how to use Audit Logs in your Coder deployment",
           "icon_path": "./images/icons/radar.svg",
           "path": "./admin/audit-logs.md",
           "state": "enterprise"
         },
         {
           "title": "Quotas",
-          "description": "Learn how to use Workspace Quotas in Coder.",
+          "description": "Learn how to use Workspace Quotas in Coder",
           "icon_path": "./images/icons/dollar.svg",
           "path": "./admin/quotas.md",
           "state": "enterprise"
         },
         {
+          "title": "High Availability",
+          "description": "Learn how to configure Coder for High Availability",
+          "icon_path": "./images/icons/hydra.svg",
+          "path": "./admin/high-availability.md",
+          "state": "enterprise"
+        },
+        {
           "title": "Enterprise",
-          "description": "Learn how to enable Enterprise features.",
+          "description": "Learn how to enable Enterprise features",
           "icon_path": "./images/icons/group.svg",
           "path": "./admin/enterprise.md"
         },
         {
           "title": "Telemetry",
-          "description": "Learn what usage telemetry Coder collects.",
+          "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }

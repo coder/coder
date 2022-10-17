@@ -224,6 +224,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	entitlements.Experimental = api.Experimental
 
 	featureChanged := func(featureName string) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {
