@@ -14,9 +14,6 @@ BEGIN;
 -- Drop the primary key on hash.
 ALTER TABLE files DROP CONSTRAINT files_pkey;
 
--- This extension is required by gen_random_uuid
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 -- Add an 'id' column and designate it the primary key.
 ALTER TABLE files ADD COLUMN
 	id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid ();

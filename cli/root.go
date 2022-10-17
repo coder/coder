@@ -609,7 +609,8 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // ExperimentalEnabled returns if the experimental feature flag is enabled.
 func ExperimentalEnabled(cmd *cobra.Command) bool {
-	return cliflag.IsSetBool(cmd, varExperimental)
+	enabled, _ := cmd.Flags().GetBool(varExperimental)
+	return enabled
 }
 
 // EnsureExperimental will ensure that the experimental feature flag is set if the given flag is set.

@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -289,7 +290,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	for {
 		err := c.handleNextAgentMessage(id, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)

@@ -476,14 +476,13 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				), dflags.PromAddress.Value, "prometheus")()
 			}
 
-			// We use a separate closer so the Enterprise API
+			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner
 			// than abstracting the Coder API itself.
-			coderAPI, closer, err := newAPI(ctx, options)
+			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
 				return err
 			}
-			defer closer.Close()
 
 			client := codersdk.New(localURL)
 			if dflags.TLSEnable.Value {
@@ -663,7 +662,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			wg.Wait()
 
 			cmd.Println("Waiting for WebSocket connections to close...")
-			_ = coderAPI.Close()
+			_ = coderAPICloser.Close()
 			cmd.Println("Done waiting for WebSocket connections")
 
 			// Close tunnel after we no longer have in-flight connections.
