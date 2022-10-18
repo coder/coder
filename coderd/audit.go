@@ -289,6 +289,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 		return resourceTypeString
 	case codersdk.ResourceTypeWorkspace:
 		return resourceTypeString
+	case codersdk.ResourceTypeWorkspaceBuild:
+		return resourceTypeString
 	case codersdk.ResourceTypeGitSSHKey:
 		return resourceTypeString
 	case codersdk.ResourceTypeAPIKey:

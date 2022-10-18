@@ -278,10 +278,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// we only want to create audit logs for delete builds right now
+	auditor := api.Auditor.Load()
+
+	// if user deletes a workspace, audit the workspace
 	if action == rbac.ActionDelete {
 		var (
-			auditor           = api.Auditor.Load()
 			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 				Audit:   *auditor,
 				Log:     api.Logger,
@@ -294,12 +295,29 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		aReq.Old = workspace
 	}
 
+	latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+
+	// if a user starts/stops a workspace, audit the workspace build
+	if action == rbac.ActionUpdate {
+
+		var (
+			aReq, commitAudit = audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
+				Audit:   *auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionWrite,
+			})
+		)
+
+		defer commitAudit()
+		aReq.Old = latestBuild
+	}
+
 	if createBuild.TemplateVersionID == uuid.Nil {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-		if err != nil {
+		if latestBuildErr != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching the latest workspace build.",
-				Detail:  err.Error(),
+				Detail:  latestBuildErr.Error(),
 			})
 			return
 		}
