@@ -86,26 +86,26 @@ export const WorkspacesPageView: FC<
       </PageHeader>
 
       <Stack>
-      <Maybe condition={getWorkspacesError !== undefined}>
-        <AlertBanner
-          error={getWorkspacesError}
-          severity={
-            workspaceRefs !== undefined && workspaceRefs.length > 0
-              ? "warning"
-              : "error"
-          }
+        <Maybe condition={getWorkspacesError !== undefined}>
+          <AlertBanner
+            error={getWorkspacesError}
+            severity={
+              workspaceRefs !== undefined && workspaceRefs.length > 0
+                ? "warning"
+                : "error"
+            }
+          />
+        </Maybe>
+
+        <Maybe condition={getCountError !== undefined}>
+          <AlertBanner error={getCountError} severity="warning" />
+        </Maybe>
+
+        <SearchBarWithFilter
+          filter={filter}
+          onFilter={onFilter}
+          presetFilters={presetFilters}
         />
-      </Maybe>
-
-      <Maybe condition={getCountError !== undefined}>
-        <AlertBanner error={getCountError} severity="warning" />
-      </Maybe>
-
-      <SearchBarWithFilter
-        filter={filter}
-        onFilter={onFilter}
-        presetFilters={presetFilters}
-      />
       </Stack>
 
       <WorkspacesTable

@@ -292,7 +292,9 @@ export const getWorkspaces = async (
     searchParams.set("q", options.q)
   }
 
-  const response = await axios.get<TypesGen.Workspace[]>(`/api/v2/workspaces?${searchParams.toString()}`)
+  const response = await axios.get<TypesGen.Workspace[]>(
+    `/api/v2/workspaces?${searchParams.toString()}`,
+  )
   return response.data
 }
 
