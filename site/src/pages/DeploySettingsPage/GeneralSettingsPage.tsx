@@ -20,8 +20,8 @@ const GeneralSettingsPage: React.FC = () => {
     <>
       <Header
         title="General"
-        description="Settings for accessing your Coder deployment."
-        docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
+        description="Information about your Coder deployment."
+        docsHref="https://coder.com/docs/coder-oss/latest/admin/configure"
       />
 
       <TableContainer>
