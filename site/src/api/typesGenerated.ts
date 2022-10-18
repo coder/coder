@@ -787,7 +787,7 @@ export interface WorkspaceAgentResourceMetadata {
 export interface WorkspaceApp {
   readonly id: string
   readonly slug: string
-  readonly name: string
+  readonly display_name: string
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean

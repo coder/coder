@@ -596,7 +596,7 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:           dbApp.ID,
 			Slug:         dbApp.Slug,
-			Name:         dbApp.Name,
+			DisplayName:  dbApp.DisplayName,
 			Command:      dbApp.Command.String,
 			Icon:         dbApp.Icon,
 			Subdomain:    dbApp.Subdomain,
@@ -864,7 +864,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 	for name, newHealth := range req.Healths {
 		old := func() *database.WorkspaceApp {
 			for _, app := range apps {
-				if app.Name == name {
+				if app.DisplayName == name {
 					return &app
 				}
 			}

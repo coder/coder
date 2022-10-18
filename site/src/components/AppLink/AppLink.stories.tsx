@@ -14,7 +14,7 @@ WithIcon.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appSlug: "code-server",
-  appName: "Code Server",
+  appDisplayName: "code-server",
   appIcon: "/icon/code.svg",
   appSharingLevel: "owner",
   health: "healthy",
@@ -25,7 +25,7 @@ WithoutIcon.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appSlug: "code-server",
-  appName: "Code Server",
+  appDisplayName: "code-server",
   appSharingLevel: "owner",
   health: "healthy",
 }
@@ -35,7 +35,7 @@ HealthDisabled.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appSlug: "code-server",
-  appName: "Code Server",
+  appDisplayName: "code-server",
   appSharingLevel: "owner",
   health: "disabled",
 }
@@ -45,7 +45,7 @@ HealthInitializing.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appSlug: "code-server",
-  appName: "Code Server",
+  appDisplayName: "code-server",
   health: "initializing",
 }
 
@@ -54,6 +54,6 @@ HealthUnhealthy.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appSlug: "code-server",
-  appName: "Code Server",
+  appDisplayName: "code-server",
   health: "unhealthy",
 }

@@ -197,11 +197,11 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
                                   />
                                   {agent.apps.map((app) => (
                                     <AppLink
-                                      key={app.name}
+                                      key={app.slug}
                                       appsHost={applicationsHost}
                                       appIcon={app.icon}
                                       appSlug={app.slug}
-                                      appName={app.name}
+                                      appDisplayName={app.display_name}
                                       appCommand={app.command}
                                       appSubdomain={app.subdomain}
                                       appSharingLevel={app.sharing_level}

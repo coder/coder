@@ -27,12 +27,12 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				Name:        "app1",
+				DisplayName: "app1",
 				Healthcheck: codersdk.Healthcheck{},
 				Health:      codersdk.WorkspaceAppHealthDisabled,
 			},
 			{
-				Name: "app2",
+				DisplayName: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -69,7 +69,7 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				Name: "app2",
+				DisplayName: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -102,7 +102,7 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				Name: "app2",
+				DisplayName: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -137,7 +137,7 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				Name: "app2",
+				DisplayName: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -187,7 +187,7 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 		mu.Lock()
 		for name, health := range req.Healths {
 			for i, app := range apps {
-				if app.Name != name {
+				if app.DisplayName != name {
 					continue
 				}
 				app.Health = health

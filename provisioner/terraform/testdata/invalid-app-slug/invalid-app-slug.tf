@@ -1,9 +1,7 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
-      # future versions of coder/coder have built-in regex testing for valid
-      # app names, so we can't use a version after this.
+      source  = "coder/coder"
       version = "0.5.3"
     }
   }

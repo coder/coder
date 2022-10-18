@@ -832,7 +832,7 @@ func TestAppSharing(t *testing.T) {
 			proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
 		}
 		for _, app := range agnt.Apps {
-			found[app.Name] = app.SharingLevel
+			found[app.DisplayName] = app.SharingLevel
 		}
 		require.Equal(t, expected, found, "apps have incorrect sharing levels")
 

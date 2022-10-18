@@ -23,7 +23,7 @@ export interface AppLinkProps {
   workspaceName: TypesGen.Workspace["name"]
   agentName: TypesGen.WorkspaceAgent["name"]
   appSlug: TypesGen.WorkspaceApp["slug"]
-  appName: TypesGen.WorkspaceApp["name"]
+  appDisplayName: TypesGen.WorkspaceApp["name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
   appSubdomain: TypesGen.WorkspaceApp["subdomain"]
@@ -37,7 +37,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
   workspaceName,
   agentName,
   appSlug,
-  appName,
+  appDisplayName,
   appIcon,
   appCommand,
   appSubdomain,
@@ -46,10 +46,10 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
 }) => {
   const styles = useStyles()
   if (appSlug === "") {
-    appSlug = appName
+    appSlug = appDisplayName
   }
-  if (appName === "") {
-    appName = appSlug
+  if (appDisplayName === "") {
+    appDisplayName = appSlug
   }
 
   // The backend redirects if the trailing slash isn't included, so we add it
@@ -69,7 +69,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
 
   let canClick = true
   let icon = appIcon ? (
-    <img alt={`${appName} Icon`} src={appIcon} />
+    <img alt={`${appDisplayName} Icon`} src={appIcon} />
   ) : (
     <ComputerIcon />
   )
@@ -111,7 +111,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
       className={styles.button}
       disabled={!canClick}
     >
-      <span className={styles.appName}>{appName}</span>
+      <span className={styles.appName}>{appDisplayName}</span>
     </Button>
   )
 
@@ -128,7 +128,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
                   event.preventDefault()
                   window.open(
                     href,
-                    Language.appTitle(appName, generateRandomString(12)),
+                    Language.appTitle(appDisplayName, generateRandomString(12)),
                     "width=900,height=600",
                   )
                 }

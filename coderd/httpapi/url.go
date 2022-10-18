@@ -51,7 +51,7 @@ func (a ApplicationURL) String() string {
 //
 // Subdomains should be in the form:
 //
-//	{PORT/APP_NAME}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
+//	{PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
 //	(eg. https://8080--main--dev--dean.hi.c8s.io)
 func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)

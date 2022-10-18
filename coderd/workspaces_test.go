@@ -1462,7 +1462,7 @@ func TestWorkspaceResource(t *testing.T) {
 		app := apps[0]
 		require.EqualValues(t, app.Command, got.Command)
 		require.EqualValues(t, app.Icon, got.Icon)
-		require.EqualValues(t, app.DisplayName, got.Name)
+		require.EqualValues(t, app.DisplayName, got.DisplayName)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
 		require.EqualValues(t, "", got.Healthcheck.URL)
 		require.EqualValues(t, 0, got.Healthcheck.Interval)
@@ -1471,7 +1471,7 @@ func TestWorkspaceResource(t *testing.T) {
 		app = apps[1]
 		require.EqualValues(t, app.Command, got.Command)
 		require.EqualValues(t, app.Icon, got.Icon)
-		require.EqualValues(t, app.DisplayName, got.Name)
+		require.EqualValues(t, app.DisplayName, got.DisplayName)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
 		require.EqualValues(t, app.Healthcheck.Url, got.Healthcheck.URL)
 		require.EqualValues(t, app.Healthcheck.Interval, got.Healthcheck.Interval)

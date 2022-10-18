@@ -131,9 +131,9 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		},
 		{
 			Name:      "HyphenatedNames",
-			Subdomain: "app-name--agent-name--workspace-name--user-name",
+			Subdomain: "app-slug--agent-name--workspace-name--user-name",
 			Expected: httpapi.ApplicationURL{
-				AppSlug:       "app-name",
+				AppSlug:       "app-slug",
 				Port:          0,
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",

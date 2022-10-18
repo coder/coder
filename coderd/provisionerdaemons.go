@@ -832,12 +832,12 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:        uuid.New(),
-				CreatedAt: database.Now(),
-				AgentID:   dbAgent.ID,
-				Slug:      slug,
-				Name:      app.DisplayName,
-				Icon:      app.Icon,
+				ID:          uuid.New(),
+				CreatedAt:   database.Now(),
+				AgentID:     dbAgent.ID,
+				Slug:        slug,
+				DisplayName: app.DisplayName,
+				Icon:        app.Icon,
 				Command: sql.NullString{
 					String: app.Command,
 					Valid:  app.Command != "",

@@ -2363,7 +2363,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		AgentID:              arg.AgentID,
 		CreatedAt:            arg.CreatedAt,
 		Slug:                 arg.Slug,
-		Name:                 arg.Name,
+		DisplayName:          arg.DisplayName,
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,

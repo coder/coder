@@ -369,7 +369,7 @@ CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     agent_id uuid NOT NULL,
-    name character varying(64) NOT NULL,
+    display_name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
@@ -516,7 +516,7 @@ ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_apps
-    ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, name);
+    ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, display_name);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);
