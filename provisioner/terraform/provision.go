@@ -189,6 +189,8 @@ func provisionVars(start *proto.Provision_Start) ([]string, error) {
 
 func provisionEnv(start *proto.Provision_Start) ([]string, error) {
 	env := os.Environ()
+	// Be sure to add any values here to `sanitizeCoderEnv`, otherwise they will not
+	// get passed into the execute.
 	env = append(env,
 		"CODER_AGENT_URL="+start.Metadata.CoderUrl,
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),

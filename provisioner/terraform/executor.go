@@ -41,6 +41,41 @@ func (e executor) basicEnv() []string {
 	return env
 }
 
+func envName(env string) string {
+	parts := strings.Split(env, "=")
+
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+// sanitizeCoderEnv removes CODER_ environment variables to prevent accidentally
+// passing in secrets. See https://github.com/coder/coder/issues/4635.
+func sanitizeCoderEnv(env []string) []string {
+	var coderSafeEnv = map[string]struct{}{
+		"CODER_AGENT_URL":             {},
+		"CODER_WORKSPACE_TRANSITION":  {},
+		"CODER_WORKSPACE_NAME":        {},
+		"CODER_WORKSPACE_OWNER":       {},
+		"CODER_WORKSPACE_OWNER_EMAIL": {},
+		"CODER_WORKSPACE_ID":          {},
+		"CODER_WORKSPACE_OWNER_ID":    {},
+	}
+
+	strippedEnv := make([]string, 0, len(env))
+	for _, e := range env {
+		name := envName(e)
+		if strings.HasPrefix(name, "CODER_") {
+			if _, isSafe := coderSafeEnv[name]; !isSafe {
+				continue
+			}
+		}
+		strippedEnv = append(strippedEnv, e)
+	}
+	return strippedEnv
+}
+
 func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	defer func() {
 		closeErr := stdOutWriter.Close()
@@ -59,7 +94,7 @@ func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []stri
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
-	cmd.Env = env
+	cmd.Env = sanitizeCoderEnv(env)
 
 	// We want logs to be written in the correct order, so we wrap all logging
 	// in a sync.Mutex.
