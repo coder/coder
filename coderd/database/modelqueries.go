@@ -218,9 +218,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
-	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	filter := strings.Replace(getWorkspaceCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filter)
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceCount :many\n%s", filter)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.Status,
@@ -229,8 +229,6 @@ func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWor
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
 		arg.Name,
-		arg.Offset,
-		arg.Limit,
 	)
 	if err != nil {
 		return 0, xerrors.Errorf("get authorized workspaces: %w", err)
