@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
@@ -389,6 +390,23 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
 				defer sqlDB.Close()
+				// Ensure the PostgreSQL version is >=13.0.0!
+				version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
+				if err != nil {
+					return xerrors.Errorf("get postgres version: %w", err)
+				}
+				if !version.Next() {
+					return xerrors.Errorf("no rows returned for version select")
+				}
+				var versionStr string
+				err = version.Scan(&versionStr)
+				if err != nil {
+					return xerrors.Errorf("scan version: %w", err)
+				}
+				versionStr = strings.Split(versionStr, " ")[0]
+				if semver.Compare("v"+versionStr, "v13") < 0 {
+					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+				}
 
 				err = sqlDB.Ping()
 				if err != nil {
