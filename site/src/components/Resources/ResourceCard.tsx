@@ -136,10 +136,14 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                       <span className={styles.agentOS}>
                         {agent.operating_system}
                       </span>
-                      <AgentVersion
-                        agent={agent}
-                        serverVersion={serverVersion}
-                      />
+
+                      <Maybe condition={agent.status === "connected"}>
+                        <AgentVersion
+                          agent={agent}
+                          serverVersion={serverVersion}
+                        />
+                      </Maybe>
+
                       <AgentLatency agent={agent} />
                     </Stack>
                   </div>
