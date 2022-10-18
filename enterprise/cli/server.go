@@ -23,9 +23,14 @@ import (
 
 func server() *cobra.Command {
 	vip := deployment.DefaultViper()
-	cmd := agpl.Server(dflags, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		if dflags.DerpServerRelayAddress.Value != "" {
-			_, err := url.Parse(dflags.DerpServerRelayAddress.Value)
+	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+		cfg, err := deployment.Config(vip)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("failed to read config: %w", err)
+		}
+
+		if cfg.DerpServerRelayAddress != "" {
+			_, err := url.Parse(cfg.DerpServerRelayAddress)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
 			}
@@ -53,7 +58,7 @@ func server() *cobra.Command {
 			BrowserOnly:            options.DeploymentConfig.BrowserOnly,
 			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAuthHeader),
 			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota,
-			RBACEnabled:            true,
+			RBAC:                   true,
 			DERPServerRelayAddress: options.DeploymentConfig.DerpServerRelayAddress,
 			DERPServerRegionID:     options.DeploymentConfig.DerpServerRegionID,
 
