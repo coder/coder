@@ -220,8 +220,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWor
 	// authorizedFilter between the end of the where clause and those statements.
 	filter := strings.Replace(getWorkspaceCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceCount :many\n%s", filter)
-	rows, err := q.db.QueryContext(ctx, query,
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceCount :one\n%s", filter)
+	row := q.db.QueryRowContext(ctx, query,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
@@ -230,35 +230,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWor
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 	)
-	if err != nil {
-		return 0, xerrors.Errorf("get authorized workspaces: %w", err)
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-			&i.LastUsedAt,
-		); err != nil {
-			return 0, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return 0, err
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	return int64(len(items)), nil
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
