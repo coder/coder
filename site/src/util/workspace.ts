@@ -20,8 +20,7 @@ export const DisplayWorkspaceBuildStatusLanguage = {
 }
 
 export const DisplayAgentVersionLanguage = {
-  unknown: "unknown",
-  outdated: "outdated",
+  unknown: "Unknown",
 }
 
 export const getDisplayWorkspaceBuildStatus = (
@@ -105,57 +104,18 @@ export const displayWorkspaceBuildDuration = (
   return duration ? `${duration} seconds` : inProgressLabel
 }
 
-export const DisplayAgentStatusLanguage = {
-  loading: "Loading...",
-  connected: "⦿ Connected",
-  connecting: "⦿ Connecting",
-  disconnected: "◍ Disconnected",
-}
-
-export const getDisplayAgentStatus = (
-  theme: Theme,
-  agent: TypesGen.WorkspaceAgent,
-): {
-  color: string
-  status: string
-} => {
-  switch (agent.status) {
-    case undefined:
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayAgentStatusLanguage.loading,
-      }
-    case "connected":
-      return {
-        color: theme.palette.success.main,
-        status: DisplayAgentStatusLanguage["connected"],
-      }
-    case "connecting":
-      return {
-        color: theme.palette.primary.main,
-        status: DisplayAgentStatusLanguage["connecting"],
-      }
-    case "disconnected":
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayAgentStatusLanguage["disconnected"],
-      }
-  }
-}
-
 export const getDisplayVersionStatus = (
   agentVersion: string,
   serverVersion: string,
 ): { displayVersion: string; outdated: boolean } => {
   if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
     return {
-      displayVersion:
-        `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
+      displayVersion: agentVersion || DisplayAgentVersionLanguage.unknown,
       outdated: false,
     }
   } else if (semver.lt(agentVersion, serverVersion)) {
     return {
-      displayVersion: `${agentVersion} (${DisplayAgentVersionLanguage.outdated})`,
+      displayVersion: agentVersion,
       outdated: true,
     }
   } else {

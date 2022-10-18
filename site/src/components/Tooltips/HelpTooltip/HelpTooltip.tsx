@@ -1,5 +1,5 @@
 import Link from "@material-ui/core/Link"
-import Popover from "@material-ui/core/Popover"
+import Popover, { PopoverProps } from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
@@ -35,6 +35,35 @@ const useHelpTooltip = () => {
   return helpTooltipContext
 }
 
+export const HelpPopover: React.FC<
+  PopoverProps & { onOpen: () => void; onClose: () => void }
+> = ({ onOpen, onClose, children, ...props }) => {
+  const styles = useStyles({ size: "small" })
+
+  return (
+    <Popover
+      className={styles.popover}
+      classes={{ paper: styles.popoverPaper }}
+      onClose={onClose}
+      anchorOrigin={{
+        vertical: "bottom",
+        horizontal: "left",
+      }}
+      transformOrigin={{
+        vertical: "top",
+        horizontal: "left",
+      }}
+      PaperProps={{
+        onMouseEnter: onOpen,
+        onMouseLeave: onClose,
+      }}
+      {...props}
+    >
+      {children}
+    </Popover>
+  )
+}
+
 export const HelpTooltip: React.FC<
   React.PropsWithChildren<HelpTooltipProps>
 > = ({ children, open, size = "medium" }) => {
@@ -67,34 +96,17 @@ export const HelpTooltip: React.FC<
       >
         <HelpIcon className={styles.icon} />
       </button>
-      <Popover
-        className={styles.popover}
-        classes={{ paper: styles.popoverPaper }}
+      <HelpPopover
         id={id}
         open={isOpen}
         anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-        PaperProps={{
-          onMouseEnter: () => {
-            setIsOpen(true)
-          },
-          onMouseLeave: () => {
-            setIsOpen(false)
-          },
-        }}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
       >
         <HelpTooltipContext.Provider value={{ open: isOpen, onClose }}>
           {children}
         </HelpTooltipContext.Provider>
-      </Popover>
+      </HelpPopover>
     </>
   )
 }
