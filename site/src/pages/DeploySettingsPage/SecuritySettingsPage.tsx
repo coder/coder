@@ -24,7 +24,7 @@ import React, { useContext } from "react"
 import { XServiceContext } from "xServices/StateContext"
 
 const SecuritySettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig } = useDeploySettings()
   const xServices = useContext(XServiceContext)
   const [entitlementsState] = useActor(xServices.entitlementsXService)
 
@@ -49,32 +49,32 @@ const SecuritySettingsPage: React.FC = () => {
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.ssh_keygen_algorithm.name}
+                    {deploymentConfig.ssh_keygen_algorithm.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.ssh_keygen_algorithm.description}
+                    {deploymentConfig.ssh_keygen_algorithm.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.ssh_keygen_algorithm.value}
+                    {deploymentConfig.ssh_keygen_algorithm.value}
                   </OptionValue>
                 </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.secure_auth_cookie.name}
+                    {deploymentConfig.secure_auth_cookie.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.secure_auth_cookie.description}
+                    {deploymentConfig.secure_auth_cookie.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.secure_auth_cookie.value ? (
+                    {deploymentConfig.secure_auth_cookie.value ? (
                       <EnabledBadge />
                     ) : (
                       <DisabledBadge />
@@ -145,15 +145,15 @@ const SecuritySettingsPage: React.FC = () => {
             <TableBody>
               <TableRow>
                 <TableCell>
-                  <OptionName>{deploymentFlags.tls_enable.name}</OptionName>
+                  <OptionName>{deploymentConfig.tls_enable.name}</OptionName>
                   <OptionDescription>
-                    {deploymentFlags.tls_enable.description}
+                    {deploymentConfig.tls_enable.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.tls_enable.value ? (
+                    {deploymentConfig.tls_enable.value ? (
                       <EnabledBadge />
                     ) : (
                       <DisabledBadge />
@@ -164,16 +164,16 @@ const SecuritySettingsPage: React.FC = () => {
 
               <TableRow>
                 <TableCell>
-                  <OptionName>{deploymentFlags.tls_cert_files.name}</OptionName>
+                  <OptionName>{deploymentConfig.tls_cert_files.name}</OptionName>
                   <OptionDescription>
-                    {deploymentFlags.tls_cert_files.description}
+                    {deploymentConfig.tls_cert_files.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
                     <ul>
-                      {deploymentFlags.tls_cert_files.value.map(
+                      {deploymentConfig.tls_cert_files.value.map(
                         (file, index) => (
                           <li key={index}>{file}</li>
                         ),
@@ -185,16 +185,16 @@ const SecuritySettingsPage: React.FC = () => {
 
               <TableRow>
                 <TableCell>
-                  <OptionName>{deploymentFlags.tls_key_files.name}</OptionName>
+                  <OptionName>{deploymentConfig.tls_key_files.name}</OptionName>
                   <OptionDescription>
-                    {deploymentFlags.tls_key_files.description}
+                    {deploymentConfig.tls_key_files.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
                     <ul>
-                      {deploymentFlags.tls_key_files.value.map(
+                      {deploymentConfig.tls_key_files.value.map(
                         (file, index) => (
                           <li key={index}>{file}</li>
                         ),
@@ -207,16 +207,16 @@ const SecuritySettingsPage: React.FC = () => {
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.tls_min_version.name}
+                    {deploymentConfig.tls_min_version.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.tls_min_version.description}
+                    {deploymentConfig.tls_min_version.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.tls_min_version.value}
+                    {deploymentConfig.tls_min_version.value}
                   </OptionValue>
                 </TableCell>
               </TableRow>

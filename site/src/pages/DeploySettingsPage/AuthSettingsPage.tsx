@@ -20,7 +20,7 @@ import { Stack } from "components/Stack/Stack"
 import React from "react"
 
 const AuthSettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig } = useDeploySettings()
 
   return (
     <>
@@ -34,7 +34,7 @@ const AuthSettingsPage: React.FC = () => {
           />
 
           <Badges>
-            {deploymentFlags.oidc_client_id.value ? (
+            {deploymentConfig.oidc_client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -53,16 +53,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_client_id.name}
+                      {deploymentConfig.oidc_client_id.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_client_id.description}
+                      {deploymentConfig.oidc_client_id.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_client_id.value}
+                      {deploymentConfig.oidc_client_id.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -70,16 +70,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_client_secret.name}
+                      {deploymentConfig.oidc_client_secret.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_client_secret.description}
+                      {deploymentConfig.oidc_client_secret.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_client_secret.value}
+                      {deploymentConfig.oidc_client_secret.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -87,16 +87,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_allow_signups.name}
+                      {deploymentConfig.oidc_allow_signups.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_allow_signups.description}
+                      {deploymentConfig.oidc_allow_signups.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_allow_signups.value.toString()}
+                      {deploymentConfig.oidc_allow_signups.value.toString()}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -104,16 +104,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_email_domain.name}
+                      {deploymentConfig.oidc_email_domain.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_email_domain.description}
+                      {deploymentConfig.oidc_email_domain.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_email_domain.value}
+                      {deploymentConfig.oidc_email_domain.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -121,32 +121,32 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oidc_issuer_url.name}
+                      {deploymentConfig.oidc_issuer_url.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_issuer_url.description}
+                      {deploymentConfig.oidc_issuer_url.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oidc_issuer_url.value}
+                      {deploymentConfig.oidc_issuer_url.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
 
                 <TableRow>
                   <TableCell>
-                    <OptionName>{deploymentFlags.oidc_scopes.name}</OptionName>
+                    <OptionName>{deploymentConfig.oidc_scopes.name}</OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oidc_scopes.description}
+                      {deploymentConfig.oidc_scopes.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
                       <ul>
-                        {deploymentFlags.oidc_scopes.value.map((scope) => (
+                        {deploymentConfig.oidc_scopes.value.map((scope) => (
                           <li key={scope}>{scope}</li>
                         ))}
                       </ul>
@@ -167,7 +167,7 @@ const AuthSettingsPage: React.FC = () => {
           />
 
           <Badges>
-            {deploymentFlags.oauth2_github_client_id.value ? (
+            {deploymentConfig.oauth2_github_client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -186,16 +186,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oauth2_github_client_id.name}
+                      {deploymentConfig.oauth2_github_client_id.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oauth2_github_client_id.description}
+                      {deploymentConfig.oauth2_github_client_id.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oauth2_github_client_id.value}
+                      {deploymentConfig.oauth2_github_client_id.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -203,16 +203,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oauth2_github_client_secret.name}
+                      {deploymentConfig.oauth2_github_client_secret.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oauth2_github_client_secret.description}
+                      {deploymentConfig.oauth2_github_client_secret.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oauth2_github_client_secret.value}
+                      {deploymentConfig.oauth2_github_client_secret.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -220,16 +220,16 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oauth2_github_allow_signups.name}
+                      {deploymentConfig.oauth2_github_allow_signups.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oauth2_github_allow_signups.description}
+                      {deploymentConfig.oauth2_github_allow_signups.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oauth2_github_allow_signups.value.toString()}
+                      {deploymentConfig.oauth2_github_allow_signups.value.toString()}
                     </OptionValue>
                   </TableCell>
                 </TableRow>
@@ -237,11 +237,11 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oauth2_github_allowed_organizations.name}
+                      {deploymentConfig.oauth2_github_allowed_organizations.name}
                     </OptionName>
                     <OptionDescription>
                       {
-                        deploymentFlags.oauth2_github_allowed_organizations
+                        deploymentConfig.oauth2_github_allowed_organizations
                           .description
                       }
                     </OptionDescription>
@@ -250,7 +250,7 @@ const AuthSettingsPage: React.FC = () => {
                   <TableCell>
                     <OptionValue>
                       <ul>
-                        {deploymentFlags.oauth2_github_allowed_organizations.value.map(
+                        {deploymentConfig.oauth2_github_allowed_organizations.value.map(
                           (org) => (
                             <li key={org}>{org}</li>
                           ),
@@ -263,17 +263,17 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oauth2_github_allowed_teams.name}
+                      {deploymentConfig.oauth2_github_allowed_teams.name}
                     </OptionName>
                     <OptionDescription>
-                      {deploymentFlags.oauth2_github_allowed_teams.description}
+                      {deploymentConfig.oauth2_github_allowed_teams.description}
                     </OptionDescription>
                   </TableCell>
 
                   <TableCell>
                     <OptionValue>
                       <ul>
-                        {deploymentFlags.oauth2_github_allowed_teams.value.map(
+                        {deploymentConfig.oauth2_github_allowed_teams.value.map(
                           (team) => (
                             <li key={team}>{team}</li>
                           ),
@@ -286,11 +286,11 @@ const AuthSettingsPage: React.FC = () => {
                 <TableRow>
                   <TableCell>
                     <OptionName>
-                      {deploymentFlags.oauth2_github_enterprise_base_url.name}
+                      {deploymentConfig.oauth2_github_enterprise_base_url.name}
                     </OptionName>
                     <OptionDescription>
                       {
-                        deploymentFlags.oauth2_github_enterprise_base_url
+                        deploymentConfig.oauth2_github_enterprise_base_url
                           .description
                       }
                     </OptionDescription>
@@ -298,7 +298,7 @@ const AuthSettingsPage: React.FC = () => {
 
                   <TableCell>
                     <OptionValue>
-                      {deploymentFlags.oauth2_github_enterprise_base_url.value}
+                      {deploymentConfig.oauth2_github_enterprise_base_url.value}
                     </OptionValue>
                   </TableCell>
                 </TableRow>

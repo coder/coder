@@ -14,7 +14,7 @@ import {
 import React from "react"
 
 const GeneralSettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig } = useDeploySettings()
 
   return (
     <>
@@ -35,43 +35,43 @@ const GeneralSettingsPage: React.FC = () => {
           <TableBody>
             <TableRow>
               <TableCell>
-                <OptionName>{deploymentFlags.access_url.name}</OptionName>
+                <OptionName>{deploymentConfig.access_url.name}</OptionName>
                 <OptionDescription>
-                  {deploymentFlags.access_url.description}
+                  {deploymentConfig.access_url.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>{deploymentFlags.access_url.value}</OptionValue>
+                <OptionValue>{deploymentConfig.access_url.value}</OptionValue>
               </TableCell>
             </TableRow>
 
             <TableRow>
               <TableCell>
-                <OptionName>{deploymentFlags.address.name}</OptionName>
+                <OptionName>{deploymentConfig.address.name}</OptionName>
                 <OptionDescription>
-                  {deploymentFlags.address.description}
+                  {deploymentConfig.address.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
-                <OptionValue>{deploymentFlags.address.value}</OptionValue>
+                <OptionValue>{deploymentConfig.address.value}</OptionValue>
               </TableCell>
             </TableRow>
 
             <TableRow>
               <TableCell>
                 <OptionName>
-                  {deploymentFlags.wildcard_access_url.name}
+                  {deploymentConfig.wildcard_access_url.name}
                 </OptionName>
                 <OptionDescription>
-                  {deploymentFlags.wildcard_access_url.description}
+                  {deploymentConfig.wildcard_access_url.description}
                 </OptionDescription>
               </TableCell>
 
               <TableCell>
                 <OptionValue>
-                  {deploymentFlags.wildcard_access_url.value}
+                  {deploymentConfig.wildcard_access_url.value}
                 </OptionValue>
               </TableCell>
             </TableRow>

@@ -19,7 +19,7 @@ import { Stack } from "components/Stack/Stack"
 import React from "react"
 
 const NetworkSettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig } = useDeploySettings()
 
   return (
     <Stack direction="column" spacing={6}>
@@ -42,16 +42,16 @@ const NetworkSettingsPage: React.FC = () => {
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.derp_server_enabled.name}
+                    {deploymentConfig.derp_server_enabled.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.derp_server_enabled.description}
+                    {deploymentConfig.derp_server_enabled.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.derp_server_enabled.value ? (
+                    {deploymentConfig.derp_server_enabled.value ? (
                       <EnabledBadge />
                     ) : (
                       <DisabledBadge />
@@ -63,16 +63,16 @@ const NetworkSettingsPage: React.FC = () => {
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.derp_server_region_name.name}
+                    {deploymentConfig.derp_server_region_name.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.derp_server_region_name.description}
+                    {deploymentConfig.derp_server_region_name.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.derp_server_region_name.value}
+                    {deploymentConfig.derp_server_region_name.value}
                   </OptionValue>
                 </TableCell>
               </TableRow>
@@ -80,16 +80,16 @@ const NetworkSettingsPage: React.FC = () => {
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.derp_server_stun_address.name}
+                    {deploymentConfig.derp_server_stun_address.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.derp_server_stun_address.description}
+                    {deploymentConfig.derp_server_stun_address.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.derp_server_stun_address.value}
+                    {deploymentConfig.derp_server_stun_address.value}
                   </OptionValue>
                 </TableCell>
               </TableRow>
@@ -97,16 +97,16 @@ const NetworkSettingsPage: React.FC = () => {
               <TableRow>
                 <TableCell>
                   <OptionName>
-                    {deploymentFlags.derp_config_url.name}
+                    {deploymentConfig.derp_config_url.name}
                   </OptionName>
                   <OptionDescription>
-                    {deploymentFlags.derp_config_url.description}
+                    {deploymentConfig.derp_config_url.description}
                   </OptionDescription>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>
-                    {deploymentFlags.derp_config_url.value}
+                    {deploymentConfig.derp_config_url.value}
                   </OptionValue>
                 </TableCell>
               </TableRow>
