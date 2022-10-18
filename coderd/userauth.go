@@ -415,7 +415,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				if !validUsername {
 					return httpError{
 						code: http.StatusConflict,
-						msg:  fmt.Sprintf("exhausted alternate usernames for taken username %q", original),
+						msg:  fmt.Sprintf("exhausted alternatives for taken username %q", original),
 					}
 				}
 			}
