@@ -22,7 +22,7 @@ import (
 )
 
 func server() *cobra.Command {
-	vip := deployment.DefaultViper()
+	vip := deployment.NewViper()
 	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		cfg, err := deployment.Config(vip)
 		if err != nil {

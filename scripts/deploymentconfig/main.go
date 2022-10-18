@@ -139,7 +139,7 @@ func handleStruct(prefix string, target string, structs map[string]*ast.StructTy
 		}
 		f := Field{
 			Key: key,
-			Env: EnvPrefix + strings.ReplaceAll(strings.ToUpper(key), "-", "_"),
+			Env: EnvPrefix + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(key)),
 		}
 		switch ft := field.Type.(type) {
 		case *ast.Ident:
@@ -266,7 +266,7 @@ func Config(vip *viper.Viper) (codersdk.DeploymentConfig, error) {
 	return cfg, vip.Unmarshal(cfg)
 }
 
-func DefaultViper() *viper.Viper {
+func NewViper() *viper.Viper {
 	v := viper.New()
 	v.SetEnvPrefix("coder")
 	v.AutomaticEnv()
