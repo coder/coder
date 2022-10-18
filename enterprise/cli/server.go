@@ -71,7 +71,7 @@ func server() *cobra.Command {
 		return api.AGPL, api, nil
 	})
 
-	deployment.AttachEnterpriseFlags(cmd.Flags(), vip)
+	deployment.AttachFlags(cmd.Flags(), vip, true)
 
 	return cmd
 }

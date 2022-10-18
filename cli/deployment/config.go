@@ -265,9 +265,31 @@ func newConfig() codersdk.DeploymentConfig {
 	}
 }
 
-func Config(vip *viper.Viper) (codersdk.DeploymentConfig, error) {
-	cfg := codersdk.DeploymentConfig{}
-	return cfg, vip.Unmarshal(&cfg)
+func Config(vip *viper.Viper) codersdk.DeploymentConfig {
+	dc := newConfig()
+	dcv := reflect.ValueOf(dc).Elem()
+	t := dcv.Type()
+	for i := 0; i < t.NumField(); i++ {
+		fv := dcv.Field(i)
+		fve := fv.Elem()
+		key := fve.FieldByName("Key").String()
+		value := fve.FieldByName("Value").Interface()
+
+		switch value.(type) {
+		case string:
+			fve.FieldByName("Value").SetString(vip.GetString(key))
+		case bool:
+			fve.FieldByName("Value").SetBool(vip.GetBool(key))
+		case int:
+			fve.FieldByName("Value").SetInt(int64(vip.GetInt(key)))
+		case time.Duration:
+			fve.FieldByName("Value").SetInt(int64(vip.GetDuration(key)))
+		case []string:
+			fve.FieldByName("Value").Set(reflect.ValueOf(vip.GetStringSlice(key)))
+		}
+	}
+
+	return dc
 }
 
 func NewViper() *viper.Viper {

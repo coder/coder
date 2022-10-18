@@ -76,10 +76,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := deployment.Config(vip)
-			if err != nil {
-				return xerrors.Errorf("failed to read config: %w", err)
-			}
+			cfg := deployment.Config(vip)
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if cfg.Verbose {
@@ -726,10 +723,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dcfg, err := deployment.Config(vip)
-			if err != nil {
-				return xerrors.Errorf("failed to read config: %w", err)
-			}
+			dcfg := deployment.Config(vip)
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if dcfg.Verbose {
@@ -753,7 +747,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		},
 	})
 
-	deployment.AttachFlags(root.Flags(), vip)
+	deployment.AttachFlags(root.Flags(), vip, false)
 
 	return root
 }
