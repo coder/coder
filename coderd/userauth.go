@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 
@@ -219,12 +220,25 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	usernameRaw, ok := claims["preferred_username"]
+	var username string
+	if ok {
+		username, _ = usernameRaw.(string)
+	}
 	emailRaw, ok := claims["email"]
 	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "No email found in OIDC payload!",
-		})
-		return
+		// Email is an optional claim in OIDC and
+		// instead the email is frequently sent in
+		// "preferred_username". See:
+		// https://github.com/coder/coder/issues/4472
+		_, err = mail.ParseAddress(username)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No email found in OIDC payload!",
+			})
+			return
+		}
+		emailRaw = username
 	}
 	email, ok := emailRaw.(string)
 	if !ok {
@@ -242,11 +256,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-	}
-	usernameRaw, ok := claims["preferred_username"]
-	var username string
-	if ok {
-		username, _ = usernameRaw.(string)
 	}
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will

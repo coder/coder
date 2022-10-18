@@ -33,6 +33,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
@@ -389,6 +390,23 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
 				defer sqlDB.Close()
+				// Ensure the PostgreSQL version is >=13.0.0!
+				version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
+				if err != nil {
+					return xerrors.Errorf("get postgres version: %w", err)
+				}
+				if !version.Next() {
+					return xerrors.Errorf("no rows returned for version select")
+				}
+				var versionStr string
+				err = version.Scan(&versionStr)
+				if err != nil {
+					return xerrors.Errorf("scan version: %w", err)
+				}
+				versionStr = strings.Split(versionStr, " ")[0]
+				if semver.Compare("v"+versionStr, "v13") < 0 {
+					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+				}
 
 				err = sqlDB.Ping()
 				if err != nil {
@@ -476,14 +494,13 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				), dflags.PromAddress.Value, "prometheus")()
 			}
 
-			// We use a separate closer so the Enterprise API
+			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner
 			// than abstracting the Coder API itself.
-			coderAPI, closer, err := newAPI(ctx, options)
+			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
 				return err
 			}
-			defer closer.Close()
 
 			client := codersdk.New(localURL)
 			if dflags.TLSEnable.Value {
@@ -663,7 +680,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			wg.Wait()
 
 			cmd.Println("Waiting for WebSocket connections to close...")
-			_ = coderAPI.Close()
+			_ = coderAPICloser.Close()
 			cmd.Println("Done waiting for WebSocket connections")
 
 			// Close tunnel after we no longer have in-flight connections.

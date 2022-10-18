@@ -757,18 +757,30 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	// Allow overriding the stat interval for debugging and testing purposes.
 	timer := time.NewTicker(api.AgentStatsRefreshInterval)
-	for {
-		err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
-		if err != nil {
-			api.Logger.Debug(ctx, "write report request", slog.Error(err))
-			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("write report request: %s", err))
-			return
-		}
-		var rep codersdk.AgentStatsReportResponse
+	defer timer.Stop()
 
+	go func() {
+		for {
+			err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
+			if err != nil {
+				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("write report request: %s", err))
+				return
+			}
+
+			select {
+			case <-timer.C:
+				continue
+			case <-ctx.Done():
+				conn.Close(websocket.StatusNormalClosure, "")
+				return
+			}
+		}
+	}()
+
+	for {
+		var rep codersdk.AgentStatsReportResponse
 		err = wsjson.Read(ctx, conn, &rep)
 		if err != nil {
-			api.Logger.Debug(ctx, "read report response", slog.Error(err))
 			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("read report response: %s", err))
 			return
 		}
@@ -826,14 +838,6 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("update workspace last used at: %s", err))
 				return
 			}
-		}
-
-		select {
-		case <-timer.C:
-			continue
-		case <-ctx.Done():
-			conn.Close(websocket.StatusNormalClosure, "")
-			return
 		}
 	}
 }

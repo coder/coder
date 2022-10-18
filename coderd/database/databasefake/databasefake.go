@@ -2784,6 +2784,7 @@ func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 	for i, group := range q.groups {
 		if group.ID == arg.ID {
 			group.Name = arg.Name
+			group.AvatarURL = arg.AvatarURL
 			q.groups[i] = group
 			return group, nil
 		}
@@ -3135,6 +3136,7 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		ID:             arg.ID,
 		Name:           arg.Name,
 		OrganizationID: arg.OrganizationID,
+		AvatarURL:      arg.AvatarURL,
 	}
 
 	q.groups = append(q.groups, group)

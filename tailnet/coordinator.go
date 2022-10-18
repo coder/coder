@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -152,12 +153,10 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	if ok {
 		data, err := json.Marshal([]*Node{node})
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("marshal node: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			c.mutex.Unlock()
 			return xerrors.Errorf("write nodes: %w", err)
 		}
 	}
@@ -289,7 +288,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	for {
 		err := c.handleNextAgentMessage(id, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)
@@ -313,6 +312,7 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	}
 	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
+		c.mutex.Unlock()
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
 

@@ -241,7 +241,12 @@ export const TemplatePermissionsPageView: FC<
                   <TableRow key={group.id}>
                     <TableCell>
                       <AvatarData
-                        avatar={<GroupAvatar name={group.name} />}
+                        avatar={
+                          <GroupAvatar
+                            name={group.name}
+                            avatarURL={group.avatar_url}
+                          />
+                        }
                         title={group.name}
                         subtitle={getGroupSubtitle(group)}
                         highlightTitle
