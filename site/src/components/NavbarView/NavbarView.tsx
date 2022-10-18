@@ -17,6 +17,7 @@ export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
   canViewAuditLog: boolean
+  canViewDeployment: boolean
 }
 
 export const Language = {
@@ -24,11 +25,16 @@ export const Language = {
   templates: "Templates",
   users: "Users",
   audit: "Audit",
+  deployment: "Deployment",
 }
 
 const NavItems: React.FC<
-  React.PropsWithChildren<{ className?: string; canViewAuditLog: boolean }>
-> = ({ className, canViewAuditLog }) => {
+  React.PropsWithChildren<{
+    className?: string
+    canViewAuditLog: boolean
+    canViewDeployment: boolean
+  }>
+> = ({ className, canViewAuditLog, canViewDeployment }) => {
   const styles = useStyles()
   const location = useLocation()
 
@@ -65,6 +71,13 @@ const NavItems: React.FC<
           </NavLink>
         </ListItem>
       )}
+      {canViewDeployment && (
+        <ListItem button className={styles.item}>
+          <NavLink className={styles.link} to="/settings/deployment/general">
+            {Language.deployment}
+          </NavLink>
+        </ListItem>
+      )}
     </List>
   )
 }
@@ -72,6 +85,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
   onSignOut,
   canViewAuditLog,
+  canViewDeployment,
 }) => {
   const styles = useStyles()
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -98,7 +112,10 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
             <div className={styles.drawerHeader}>
               <Logo fill="white" opacity={1} width={125} />
             </div>
-            <NavItems canViewAuditLog={canViewAuditLog} />
+            <NavItems
+              canViewAuditLog={canViewAuditLog}
+              canViewDeployment={canViewDeployment}
+            />
           </div>
         </Drawer>
 
@@ -109,6 +126,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         <NavItems
           className={styles.desktopNavItems}
           canViewAuditLog={canViewAuditLog}
+          canViewDeployment={canViewDeployment}
         />
 
         <div className={styles.profileButton}>
@@ -192,7 +210,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 16,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2)}px`,
     textDecoration: "none",
-    transition: "background-color 0.3s ease",
+    transition: "background-color 0.15s ease-in-out",
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,

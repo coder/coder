@@ -3,6 +3,7 @@ package tracing
 import (
 	"context"
 
+	"github.com/go-logr/logr"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -59,12 +60,15 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 
 	tracerProvider := sdktrace.NewTracerProvider(tracerOpts...)
 	otel.SetTracerProvider(tracerProvider)
+	// Ignore otel errors!
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {}))
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{},
 			propagation.Baggage{},
 		),
 	)
+	otel.SetLogger(logr.Discard())
 
 	return tracerProvider, func(ctx context.Context) error {
 		for _, close := range closers {

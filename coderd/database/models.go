@@ -34,6 +34,26 @@ func (e *APIKeyScope) Scan(src interface{}) error {
 	return nil
 }
 
+type AppSharingLevel string
+
+const (
+	AppSharingLevelOwner         AppSharingLevel = "owner"
+	AppSharingLevelAuthenticated AppSharingLevel = "authenticated"
+	AppSharingLevelPublic        AppSharingLevel = "public"
+)
+
+func (e *AppSharingLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppSharingLevel(s)
+	case string:
+		*e = AppSharingLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppSharingLevel: %T", src)
+	}
+	return nil
+}
+
 type AuditAction string
 
 const (
@@ -405,6 +425,7 @@ type File struct {
 	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -419,6 +440,7 @@ type Group struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Name           string    `db:"name" json:"name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 }
 
 type GroupMember struct {
@@ -488,6 +510,7 @@ type ProvisionerDaemon struct {
 	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
 }
 
 type ProvisionerJob struct {
@@ -502,10 +525,10 @@ type ProvisionerJob struct {
 	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource  string                   `db:"storage_source" json:"storage_source"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
+	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 }
 
 type ProvisionerJobLog struct {
@@ -516,6 +539,20 @@ type ProvisionerJobLog struct {
 	Level     LogLevel  `db:"level" json:"level"`
 	Stage     string    `db:"stage" json:"stage"`
 	Output    string    `db:"output" json:"output"`
+}
+
+type Replica struct {
+	ID              uuid.UUID    `db:"id" json:"id"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	StartedAt       time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	Hostname        string       `db:"hostname" json:"hostname"`
+	RegionID        int32        `db:"region_id" json:"region_id"`
+	RelayAddress    string       `db:"relay_address" json:"relay_address"`
+	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
+	Version         string       `db:"version" json:"version"`
+	Error           string       `db:"error" json:"error"`
 }
 
 type SiteConfig struct {
@@ -626,6 +663,7 @@ type WorkspaceApp struct {
 	HealthcheckThreshold int32              `db:"healthcheck_threshold" json:"healthcheck_threshold"`
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
+	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 }
 
 type WorkspaceBuild struct {

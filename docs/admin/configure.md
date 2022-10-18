@@ -29,6 +29,8 @@ Coder uses a PostgreSQL database to store users, workspace metadata, and other d
 Use `CODER_PG_CONNECTION_URL` to set the database that Coder connects to. If unset, PostgreSQL binaries will be
 downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root.
 
+> Postgres 13 is the minimum supported version.
+
 ## System packages
 
 If you've installed Coder via a [system package](../install/packages.md) Coder, you can

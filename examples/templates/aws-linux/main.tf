@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.5.0"
+      version = "0.5.3"
     }
   }
 }
@@ -86,10 +86,12 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.main.id
-  name     = "code-server"
-  url      = "http://localhost:13337/?folder=/home/coder"
-  icon     = "/icon/code.svg"
+  agent_id  = coder_agent.main.id
+  name      = "code-server"
+  url       = "http://localhost:13337/?folder=/home/coder"
+  icon      = "/icon/code.svg"
+  subdomain = false
+  share     = "owner"
 
   healthcheck {
     url       = "http://localhost:13337/healthz"

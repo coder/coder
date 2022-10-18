@@ -19,6 +19,7 @@ type DeploymentFlags struct {
 	DerpServerRegionCode             *StringFlag      `json:"derp_server_region_code" typescript:",notnull"`
 	DerpServerRegionName             *StringFlag      `json:"derp_server_region_name" typescript:",notnull"`
 	DerpServerSTUNAddresses          *StringArrayFlag `json:"derp_server_stun_address" typescript:",notnull"`
+	DerpServerRelayAddress           *StringFlag      `json:"derp_server_relay_address" typescript:",notnull"`
 	DerpConfigURL                    *StringFlag      `json:"derp_config_url" typescript:",notnull"`
 	DerpConfigPath                   *StringFlag      `json:"derp_config_path" typescript:",notnull"`
 	PromEnabled                      *BoolFlag        `json:"prom_enabled" typescript:",notnull"`
@@ -37,7 +38,7 @@ type DeploymentFlags struct {
 	OAuth2GithubEnterpriseBaseURL    *StringFlag      `json:"oauth2_github_enterprise_base_url" typescript:",notnull"`
 	OIDCAllowSignups                 *BoolFlag        `json:"oidc_allow_signups" typescript:",notnull"`
 	OIDCClientID                     *StringFlag      `json:"oidc_client_id" typescript:",notnull"`
-	OIDCClientSecret                 *StringFlag      `json:"oidc_cliet_secret" typescript:",notnull"`
+	OIDCClientSecret                 *StringFlag      `json:"oidc_client_secret" typescript:",notnull"`
 	OIDCEmailDomain                  *StringFlag      `json:"oidc_email_domain" typescript:",notnull"`
 	OIDCIssuerURL                    *StringFlag      `json:"oidc_issuer_url" typescript:",notnull"`
 	OIDCScopes                       *StringArrayFlag `json:"oidc_scopes" typescript:",notnull"`
@@ -48,7 +49,7 @@ type DeploymentFlags struct {
 	TLSCertFiles                     *StringArrayFlag `json:"tls_cert_files" typescript:",notnull"`
 	TLSClientCAFile                  *StringFlag      `json:"tls_client_ca_file" typescript:",notnull"`
 	TLSClientAuth                    *StringFlag      `json:"tls_client_auth" typescript:",notnull"`
-	TLSKeyFiles                      *StringArrayFlag `json:"tls_key_tiles" typescript:",notnull"`
+	TLSKeyFiles                      *StringArrayFlag `json:"tls_key_files" typescript:",notnull"`
 	TLSMinVersion                    *StringFlag      `json:"tls_min_version" typescript:",notnull"`
 	TraceEnable                      *BoolFlag        `json:"trace_enable" typescript:",notnull"`
 	SecureAuthCookie                 *BoolFlag        `json:"secure_auth_cookie" typescript:",notnull"`

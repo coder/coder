@@ -28,6 +28,7 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
   return {
     features: features,
     has_license: false,
+    errors: [],
     warnings: [],
     experimental: false,
     trial: false,
@@ -638,5 +639,16 @@ export const getAgentListeningPorts = async (
   const response = await axios.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
   )
+  return response.data
+}
+
+export const getDeploymentFlags =
+  async (): Promise<TypesGen.DeploymentFlags> => {
+    const response = await axios.get(`/api/v2/flags/deployment`)
+    return response.data
+  }
+
+export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
+  const response = await axios.get(`/api/v2/replicas`)
   return response.data
 }

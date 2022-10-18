@@ -23,8 +23,7 @@ export type ApiError = AxiosError<ApiErrorResponse> & {
   response: AxiosResponse<ApiErrorResponse>
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
-export const isApiError = (err: any): err is ApiError => {
+export const isApiError = (err: unknown): err is ApiError => {
   if (axios.isAxiosError(err)) {
     const response = err.response?.data
     if (!response) {

@@ -132,6 +132,17 @@ WHERE
 			name ILIKE '%' || @name || '%'
 		ELSE true
 	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
+	-- @authorize_filter
+ORDER BY
+    last_used_at DESC
+LIMIT
+    CASE
+        WHEN @limit_ :: integer > 0 THEN
+            @limit_
+    END
+OFFSET
+    @offset_
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one

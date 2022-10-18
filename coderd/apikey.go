@@ -34,12 +34,23 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var createToken codersdk.CreateTokenRequest
+	if !httpapi.Read(ctx, rw, r, &createToken) {
+		return
+	}
+
+	scope := database.APIKeyScopeAll
+	if scope != "" {
+		scope = database.APIKeyScope(createToken.Scope)
+	}
+
 	// tokens last 100 years
 	lifeTime := time.Hour * 876000
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
 		ExpiresAt:       database.Now().Add(lifeTime),
+		Scope:           scope,
 		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
 	if err != nil {
@@ -54,6 +65,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new session key, used for logging in via the CLI.
+// DEPRECATED: use postToken instead.
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -228,6 +240,11 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 	scope := database.APIKeyScopeAll
 	if params.Scope != "" {
 		scope = params.Scope
+	}
+	switch scope {
+	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
+	default:
+		return nil, xerrors.Errorf("invalid API key scope: %q", scope)
 	}
 
 	key, err := api.Database.InsertAPIKey(ctx, database.InsertAPIKeyParams{

@@ -4,6 +4,7 @@ import { createMachine, assign } from "xstate"
 
 export const portForwardMachine = createMachine(
   {
+    predictableActionArguments: true,
     id: "portForwardMachine",
     schema: {
       context: {} as {
