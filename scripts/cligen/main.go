@@ -103,6 +103,7 @@ func (g *Generator) parsePackage(ctx context.Context, patterns ...string) error 
 
 func (g *Generator) generateAll() (*Data, error) {
 	cb := Data{}
+	structs := make(map[string]*ast.StructType)
 	for _, file := range g.pkg.Syntax {
 		for _, decl := range file.Decls {
 			decl, ok := decl.(*ast.GenDecl)
@@ -117,105 +118,128 @@ func (g *Generator) generateAll() (*Data, error) {
 				if !ok {
 					continue
 				}
-				if spec.Name.Name != "DeploymentConfig" {
-					continue
-				}
 				t, ok := spec.Type.(*ast.StructType)
 				if !ok {
-					return nil, xerrors.Errorf("expected struct type, found %T", spec.Type)
+					continue
 				}
-
-				for _, field := range t.Fields.List {
-					key := reflect.StructTag(strings.Trim(field.Tag.Value, "`")).Get("mapstructure")
-					if key == "" {
-						continue
-					}
-					f := Field{
-						Key: key,
-						Env: "CODER_" + strings.ReplaceAll(strings.ToUpper(key), "-", "_"),
-					}
-					switch ft := field.Type.(type) {
-					case *ast.Ident:
-						switch ft.Name {
-						case "string":
-							f.Type = "String"
-							f.ViperType = "String"
-						case "int":
-							f.Type = "Int"
-							f.ViperType = "Int"
-						case "bool":
-							f.Type = "Bool"
-							f.ViperType = "Bool"
-						default:
-							continue
-						}
-					case *ast.SelectorExpr:
-						if ft.Sel.Name != "Duration" {
-							continue
-						}
-						f.Type = "Duration"
-						f.ViperType = "Duration"
-					case *ast.ArrayType:
-						i, ok := ft.Elt.(*ast.Ident)
-						if !ok {
-							continue
-						}
-						if i.Name != "string" {
-							continue
-						}
-						f.Type = "StringArray"
-						f.ViperType = "StringSlice"
-					}
-
-					for _, line := range field.Doc.List {
-						if strings.HasPrefix(line.Text, "// Usage:") {
-							v := strings.TrimPrefix(line.Text, "// Usage:")
-							v = strings.TrimSpace(v)
-							f.Usage = v
-						}
-						if strings.HasPrefix(line.Text, "// Flag:") {
-							v := strings.TrimPrefix(line.Text, "// Flag:")
-							v = strings.TrimSpace(v)
-							f.Flag = v
-						}
-						if strings.HasPrefix(line.Text, "// Shorthand:") {
-							v := strings.TrimPrefix(line.Text, "// Shorthand:")
-							v = strings.TrimSpace(v)
-							f.Shorthand = v
-						}
-						if strings.HasPrefix(line.Text, "// Default:") {
-							v := strings.TrimPrefix(line.Text, "// Default:")
-							v = strings.TrimSpace(v)
-							f.Default = v
-						}
-						if strings.HasPrefix(line.Text, "// Enterprise:") {
-							v := strings.TrimPrefix(line.Text, "// Enterprise:")
-							v = strings.TrimSpace(v)
-							b, err := strconv.ParseBool(v)
-							if err != nil {
-								return nil, xerrors.Errorf("parse enterprise: %w", err)
-							}
-							f.Enterprise = b
-						}
-						if strings.HasPrefix(line.Text, "// Hidden:") {
-							v := strings.TrimPrefix(line.Text, "// Hidden:")
-							v = strings.TrimSpace(v)
-							v = strings.TrimSpace(v)
-							b, err := strconv.ParseBool(v)
-							if err != nil {
-								return nil, xerrors.Errorf("parse hidden: %w", err)
-							}
-							f.Hidden = b
-						}
-					}
-
-					cb.Fields = append(cb.Fields, f)
-				}
+				structs[spec.Name.Name] = t
 			}
 		}
 	}
 
+	cb.Fields = handleStruct("", "DeploymentConfig", structs, cb.Fields)
+
 	return &cb, nil
+}
+
+func handleStruct(prefix string, target string, structs map[string]*ast.StructType, fields []Field) []Field {
+	var dc *ast.StructType
+	for name, t := range structs {
+		if name == target {
+			dc = t
+			break
+		}
+	}
+	if dc == nil {
+		return fields
+	}
+	for _, field := range dc.Fields.List {
+		key := reflect.StructTag(strings.Trim(field.Tag.Value, "`")).Get("mapstructure")
+		if key == "" {
+			continue
+		}
+		if prefix != "" {
+			key = fmt.Sprintf("%s.%s", prefix, key)
+		}
+		f := Field{
+			Key: key,
+			Env: "CODER_" + strings.ReplaceAll(strings.ToUpper(key), "-", "_"),
+		}
+		switch ft := field.Type.(type) {
+		case *ast.Ident:
+			switch ft.Name {
+			case "string":
+				f.Type = "String"
+				f.ViperType = "String"
+			case "int":
+				f.Type = "Int"
+				f.ViperType = "Int"
+			case "bool":
+				f.Type = "Bool"
+				f.ViperType = "Bool"
+			default:
+				_, ok := structs[ft.Name]
+				if !ok {
+					continue
+				}
+				fields = handleStruct(key, ft.Name, structs, fields)
+				continue
+			}
+		case *ast.SelectorExpr:
+			if ft.Sel.Name != "Duration" {
+				continue
+			}
+			f.Type = "Duration"
+			f.ViperType = "Duration"
+		case *ast.ArrayType:
+			i, ok := ft.Elt.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if i.Name != "string" {
+				continue
+			}
+			f.Type = "StringArray"
+			f.ViperType = "StringSlice"
+		default:
+			continue
+		}
+
+		for _, line := range field.Doc.List {
+			if strings.HasPrefix(line.Text, "// Usage:") {
+				v := strings.TrimPrefix(line.Text, "// Usage:")
+				v = strings.TrimSpace(v)
+				f.Usage = v
+			}
+			if strings.HasPrefix(line.Text, "// Flag:") {
+				v := strings.TrimPrefix(line.Text, "// Flag:")
+				v = strings.TrimSpace(v)
+				f.Flag = v
+			}
+			if strings.HasPrefix(line.Text, "// Shorthand:") {
+				v := strings.TrimPrefix(line.Text, "// Shorthand:")
+				v = strings.TrimSpace(v)
+				f.Shorthand = v
+			}
+			if strings.HasPrefix(line.Text, "// Default:") {
+				v := strings.TrimPrefix(line.Text, "// Default:")
+				v = strings.TrimSpace(v)
+				f.Default = v
+			}
+			if strings.HasPrefix(line.Text, "// Enterprise:") {
+				v := strings.TrimPrefix(line.Text, "// Enterprise:")
+				v = strings.TrimSpace(v)
+				b, err := strconv.ParseBool(v)
+				if err != nil {
+					continue
+				}
+				f.Enterprise = b
+			}
+			if strings.HasPrefix(line.Text, "// Hidden:") {
+				v := strings.TrimPrefix(line.Text, "// Hidden:")
+				v = strings.TrimSpace(v)
+				v = strings.TrimSpace(v)
+				b, err := strconv.ParseBool(v)
+				if err != nil {
+					continue
+				}
+				f.Hidden = b
+			}
+		}
+
+		fields = append(fields, f)
+	}
+	return fields
 }
 
 func (c Data) Render() string {
@@ -238,15 +262,17 @@ const deploymentConfigTemplate = `// Code generated by go generate; DO NOT EDIT.
 package deployment
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func Config(vip *viper.Viper) (codersdk.DeploymentConfig, error) {
