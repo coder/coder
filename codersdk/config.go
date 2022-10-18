@@ -121,6 +121,10 @@ type DERPServerConfig struct {
 	// Flag:    derp-server-stun-addresses
 	// Default: []string{"stun.l.google.com:19302"}
 	STUNAddresses []string `mapstructure:"stun_address"`
+	// Usage:       An HTTP address that is accessible by other replicas to relay DERP traffic. Required for high availability.
+	// Flag:        derp-server-relay-address
+	// Enterprise:  true
+	RelayAddress string `mapstructure:"relay_address"`
 }
 
 type DERPConfigConfig struct {
