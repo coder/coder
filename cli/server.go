@@ -172,6 +172,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 			defer listener.Close()
 
+			var tlsConfig *tls.Config
 			if cfg.TLS.Enable {
 				tlsConfig, err = configureTLS(
 					cfg.TLS.MinVersion,
