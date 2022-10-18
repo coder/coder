@@ -114,7 +114,7 @@ export const WorkspacesPageView: FC<
         filter={filter}
       />
 
-      <Maybe condition={count !== undefined && count > limit}>
+      <Maybe condition={count !== undefined}>
         <PaginationWidget
           prevLabel=""
           nextLabel=""
