@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
@@ -36,6 +37,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -723,6 +725,79 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 				}
 			}),
 		}
+}
+
+type FakeOIDCConfig struct {
+	key    *rsa.PrivateKey
+	issuer string
+}
+
+func NewFakeOIDCConfig(t *testing.T, issuer string) *FakeOIDCConfig {
+	t.Helper()
+
+	pkey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	if issuer == "" {
+		issuer = "https://coder.com"
+	}
+
+	return &FakeOIDCConfig{
+		key:    pkey,
+		issuer: issuer,
+	}
+}
+
+func (*FakeOIDCConfig) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
+	return "/?state=" + url.QueryEscape(state)
+}
+
+func (*FakeOIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	return nil
+}
+
+func (*FakeOIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	token, err := base64.StdEncoding.DecodeString(code)
+	if err != nil {
+		return nil, xerrors.Errorf("decode code: %w", err)
+	}
+	return (&oauth2.Token{
+		AccessToken: "token",
+	}).WithExtra(map[string]interface{}{
+		"id_token": string(token),
+	}), nil
+}
+
+func (o *FakeOIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
+	t.Helper()
+
+	if _, ok := claims["exp"]; !ok {
+		claims["exp"] = time.Now().Add(time.Hour).UnixMilli()
+	}
+
+	if _, ok := claims["iss"]; !ok {
+		claims["iss"] = o.issuer
+	}
+
+	if _, ok := claims["sub"]; !ok {
+		claims["sub"] = "testme"
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(o.key)
+	require.NoError(t, err)
+
+	return base64.StdEncoding.EncodeToString([]byte(signed))
+}
+
+func (o *FakeOIDCConfig) OIDCConfig() *coderd.OIDCConfig {
+	return &coderd.OIDCConfig{
+		OAuth2Config: o,
+		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
+			PublicKeys: []crypto.PublicKey{o.key.Public()},
+		}, &oidc.Config{
+			SkipClientIDCheck: true,
+		}),
+	}
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
