@@ -30,7 +30,6 @@ const SecuritySettingsPage: React.FC = () => {
           <Header
             title="Security"
             description="Ensure your Coder deployment is secure."
-            docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
           />
 
           <OptionsTable
