@@ -54,7 +54,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   }
 
   return (
-    <Stack direction="column" spacing={1}>
+    <Stack direction="column" spacing={0}>
       {displayResources.map((resource) => {
         return (
           <ResourceCard
