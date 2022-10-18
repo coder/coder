@@ -210,6 +210,17 @@ const useStyles = makeStyles((theme) => ({
     background: theme.palette.background.paper,
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
+
+    "&:not(:first-child)": {
+      borderTop: 0,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+    },
+
+    "&:not(:last-child)": {
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+    },
   },
 
   resourceCardProfile: {
