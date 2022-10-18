@@ -9,6 +9,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// DeploymentConfig is the central configuration for the coder server.
+// Secret values should specify `json:"-"` to prevent them from being returned by the API.
+// All config values can be set via environment variables in the form of `CODER_<key>` with `.` and `-` replaced by `_`.
+// Optional doc comments above fields will generate CLI commands with the following options:
+// Usage: - Describe what the setting field does (required)
+// Flag: - Long flag name (required)
+// Shorthand: - Single character shorthand flag name (optional)
+// Default: - Default value for the field as you would write in go code (ex. "string", int, time.Minute, []string{"one", "two"}) (optional)
+// Enterprise - Whether or not the field is only available in enterprise (optional)
+// Hidden - Whether or not the field should be hidden from the CLI (optional)
 type DeploymentConfig struct {
 	// Usage: External URL to access your deployment. This must be accessible by all provisioned workspaces.
 	// Flag:  access-url
