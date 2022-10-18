@@ -85,6 +85,7 @@ export const WorkspacesPageView: FC<
         </PageHeaderSubtitle>
       </PageHeader>
 
+      <Stack>
       <Maybe condition={getWorkspacesError !== undefined}>
         <AlertBanner
           error={getWorkspacesError}
@@ -105,6 +106,7 @@ export const WorkspacesPageView: FC<
         onFilter={onFilter}
         presetFilters={presetFilters}
       />
+      </Stack>
 
       <WorkspacesTable
         isLoading={isLoading}
