@@ -43,6 +43,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Username
 	case database.Workspace:
 		return typed.Name
+	case database.WorkspaceBuild:
+		return string(typed.Transition)
 	case database.GitSSHKey:
 		return typed.PublicKey
 	case database.Group:
@@ -63,6 +65,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.User:
 		return typed.ID
 	case database.Workspace:
+		return typed.ID
+	case database.WorkspaceBuild:
 		return typed.ID
 	case database.GitSSHKey:
 		return typed.UserID
@@ -85,6 +89,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUser
 	case database.Workspace:
 		return database.ResourceTypeWorkspace
+	case database.WorkspaceBuild:
+		return database.ResourceTypeWorkspaceBuild
 	case database.GitSSHKey:
 		return database.ResourceTypeGitSshKey
 	case database.Group:
