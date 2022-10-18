@@ -306,8 +306,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
-<<<<<<< HEAD
-			appHostname := strings.TrimSpace(dflags.WildcardAccessURL.Value)
+			appHostname := strings.TrimSpace(cfg.WildcardAccessURL)
 			var appHostnameRegex *regexp.Regexp
 			if appHostname != "" {
 				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
@@ -315,11 +314,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
 			}
-=======
-			appHostname := strings.TrimPrefix(cfg.WildcardAccessURL, "http://")
-			appHostname = strings.TrimPrefix(appHostname, "https://")
-			appHostname = strings.TrimPrefix(appHostname, "*.")
->>>>>>> idk
 
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
