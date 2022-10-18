@@ -25,7 +25,7 @@ func (a *Actions) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
-// TemplateACL is a map of user_ids to permissions.
+// TemplateACL is a map of ids to permissions.
 type TemplateACL map[string][]rbac.Action
 
 func (t *TemplateACL) Scan(src interface{}) error {

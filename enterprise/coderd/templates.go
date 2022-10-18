@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -18,8 +19,11 @@ import (
 )
 
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	template := httpmw.TemplateParam(r)
+	var (
+		ctx      = r.Context()
+		template = httpmw.TemplateParam(r)
+	)
+
 	if !api.Authorize(r, rbac.ActionRead, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -92,9 +96,18 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx      = r.Context()
-		template = httpmw.TemplateParam(r)
+		ctx               = r.Context()
+		template          = httpmw.TemplateParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
 	)
+	defer commitAudit()
+	aReq.Old = template
 
 	// Only users who are able to create templates (aka template admins)
 	// are able to control permissions.
@@ -165,6 +178,8 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	aReq.New = template
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Successfully updated template ACL list.",
