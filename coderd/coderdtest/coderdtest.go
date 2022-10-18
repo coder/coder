@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
@@ -36,6 +37,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -725,6 +727,80 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 		}
 }
 
+type OIDCConfig struct {
+	key    *rsa.PrivateKey
+	issuer string
+}
+
+func NewOIDCConfig(t *testing.T, issuer string) *OIDCConfig {
+	t.Helper()
+
+	block, _ := pem.Decode([]byte(testRSAPrivateKey))
+	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	require.NoError(t, err)
+
+	if issuer == "" {
+		issuer = "https://coder.com"
+	}
+
+	return &OIDCConfig{
+		key:    pkey,
+		issuer: issuer,
+	}
+}
+
+func (*OIDCConfig) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
+	return "/?state=" + url.QueryEscape(state)
+}
+
+func (*OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	return nil
+}
+
+func (*OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	token, err := base64.StdEncoding.DecodeString(code)
+	if err != nil {
+		return nil, xerrors.Errorf("decode code: %w", err)
+	}
+	return (&oauth2.Token{
+		AccessToken: "token",
+	}).WithExtra(map[string]interface{}{
+		"id_token": string(token),
+	}), nil
+}
+
+func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
+	t.Helper()
+
+	if _, ok := claims["exp"]; !ok {
+		claims["exp"] = time.Now().Add(time.Hour).UnixMilli()
+	}
+
+	if _, ok := claims["iss"]; !ok {
+		claims["iss"] = o.issuer
+	}
+
+	if _, ok := claims["sub"]; !ok {
+		claims["sub"] = "testme"
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(o.key)
+	require.NoError(t, err)
+
+	return base64.StdEncoding.EncodeToString([]byte(signed))
+}
+
+func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
+	return &coderd.OIDCConfig{
+		OAuth2Config: o,
+		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
+			PublicKeys: []crypto.PublicKey{o.key.Public()},
+		}, &oidc.Config{
+			SkipClientIDCheck: true,
+		}),
+	}
+}
+
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Azure.
 func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptions, *http.Client) {
@@ -805,3 +881,19 @@ func SDKError(t *testing.T, err error) *codersdk.Error {
 	require.True(t, errors.As(err, &cerr))
 	return cerr
 }
+
+const testRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
+MIICXQIBAAKBgQDLets8+7M+iAQAqN/5BVyCIjhTQ4cmXulL+gm3v0oGMWzLupUS
+v8KPA+Tp7dgC/DZPfMLaNH1obBBhJ9DhS6RdS3AS3kzeFrdu8zFHLWF53DUBhS92
+5dCAEuJpDnNizdEhxTfoHrhuCmz8l2nt1pe5eUK2XWgd08Uc93h5ij098wIDAQAB
+AoGAHLaZeWGLSaen6O/rqxg2laZ+jEFbMO7zvOTruiIkL/uJfrY1kw+8RLIn+1q0
+wLcWcuEIHgKKL9IP/aXAtAoYh1FBvRPLkovF1NZB0Je/+CSGka6wvc3TGdvppZJe
+rKNcUvuOYLxkmLy4g9zuY5qrxFyhtIn2qZzXEtLaVOHzPQECQQDvN0mSajpU7dTB
+w4jwx7IRXGSSx65c+AsHSc1Rj++9qtPC6WsFgAfFN2CEmqhMbEUVGPv/aPjdyWk9
+pyLE9xR/AkEA2cGwyIunijE5v2rlZAD7C4vRgdcMyCf3uuPcgzFtsR6ZhyQSgLZ8
+YRPuvwm4cdPJMmO3YwBfxT6XGuSc2k8MjQJBAI0+b8prvpV2+DCQa8L/pjxp+VhR
+Xrq2GozrHrgR7NRokTB88hwFRJFF6U9iogy9wOx8HA7qxEbwLZuhm/4AhbECQC2a
+d8h4Ht09E+f3nhTEc87mODkl7WJZpHL6V2sORfeq/eIkds+H6CJ4hy5w/bSw8tjf
+sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
+QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
+-----END RSA PRIVATE KEY-----`
