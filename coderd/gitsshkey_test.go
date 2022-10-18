@@ -5,9 +5,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -73,8 +76,10 @@ func TestGitSSHKey(t *testing.T) {
 	})
 	t.Run("Regenerate", func(t *testing.T) {
 		t.Parallel()
+		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
+			Auditor:            auditor,
 		})
 		res := coderdtest.CreateFirstUser(t, client)
 
@@ -89,6 +94,9 @@ func TestGitSSHKey(t *testing.T) {
 		require.GreaterOrEqual(t, key2.UpdatedAt, key1.UpdatedAt)
 		require.NotEmpty(t, key2.PublicKey)
 		require.NotEqual(t, key2.PublicKey, key1.PublicKey)
+
+		require.Len(t, auditor.AuditLogs, 1)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
 	})
 }
 

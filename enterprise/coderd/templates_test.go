@@ -23,7 +23,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -35,7 +35,7 @@ func TestTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleView,
+				user2.ID.String(): codersdk.TemplateRoleUse,
 				user3.ID.String(): codersdk.TemplateRoleAdmin,
 			},
 		})
@@ -46,7 +46,7 @@ func TestTemplateACL(t *testing.T) {
 
 		templateUser2 := codersdk.TemplateUser{
 			User: user2,
-			Role: codersdk.TemplateRoleView,
+			Role: codersdk.TemplateRoleUse,
 		}
 
 		templateUser3 := codersdk.TemplateUser{
@@ -64,7 +64,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -88,7 +88,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -138,7 +138,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -149,7 +149,7 @@ func TestTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user1.ID.String(): codersdk.TemplateRoleView,
+				user1.ID.String(): codersdk.TemplateRoleUse,
 			},
 		})
 		require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user1,
-			Role: codersdk.TemplateRoleView,
+			Role: codersdk.TemplateRoleUse,
 		})
 
 		err = client.DeleteUser(ctx, user1.ID)
@@ -176,7 +176,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -187,7 +187,7 @@ func TestTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user1.ID.String(): codersdk.TemplateRoleView,
+				user1.ID.String(): codersdk.TemplateRoleUse,
 			},
 		})
 		require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user1,
-			Role: codersdk.TemplateRoleView,
+			Role: codersdk.TemplateRoleUse,
 		})
 
 		_, err = client.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusSuspended)
@@ -214,7 +214,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -229,7 +229,7 @@ func TestTemplateACL(t *testing.T) {
 
 		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			GroupPerms: map[string]codersdk.TemplateRole{
-				group.ID.String(): codersdk.TemplateRoleView,
+				group.ID.String(): codersdk.TemplateRoleUse,
 			},
 		})
 		require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestTemplateACL(t *testing.T) {
 
 		require.Contains(t, acl.Groups, codersdk.TemplateGroup{
 			Group: group,
-			Role:  codersdk.TemplateRoleView,
+			Role:  codersdk.TemplateRoleUse,
 		})
 
 		err = client.DeleteGroup(ctx, group.ID)
@@ -253,7 +253,7 @@ func TestTemplateACL(t *testing.T) {
 		require.Len(t, acl.Groups, 1)
 		require.NotContains(t, acl.Groups, codersdk.TemplateGroup{
 			Group: group,
-			Role:  codersdk.TemplateRoleView,
+			Role:  codersdk.TemplateRoleUse,
 		})
 	})
 
@@ -262,7 +262,7 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -273,7 +273,7 @@ func TestTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user1.ID.String(): codersdk.TemplateRoleView,
+				user1.ID.String(): codersdk.TemplateRoleUse,
 			},
 		})
 		require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestTemplateACL(t *testing.T) {
 		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "testme",
 			TemplateID:    template.ID,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
@@ -302,7 +302,7 @@ func TestTemplateACL(t *testing.T) {
 		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "testme",
 			TemplateID:    template.ID,
-			StorageSource: file.Hash,
+			FileID:        file.ID,
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
@@ -318,7 +318,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -331,7 +331,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleView,
+				user2.ID.String(): codersdk.TemplateRoleUse,
 				user3.ID.String(): codersdk.TemplateRoleAdmin,
 			},
 		})
@@ -342,7 +342,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		templateUser2 := codersdk.TemplateUser{
 			User: user2,
-			Role: codersdk.TemplateRoleView,
+			Role: codersdk.TemplateRoleUse,
 		}
 
 		templateUser3 := codersdk.TemplateUser{
@@ -361,7 +361,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -370,7 +370,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleView,
+				user2.ID.String(): codersdk.TemplateRoleUse,
 				user3.ID.String(): codersdk.TemplateRoleAdmin,
 			},
 		}
@@ -385,7 +385,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user2,
-			Role: codersdk.TemplateRoleView,
+			Role: codersdk.TemplateRoleUse,
 		})
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user3,
@@ -422,7 +422,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -447,7 +447,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -472,7 +472,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -498,7 +498,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -506,7 +506,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user2.ID.String(): codersdk.TemplateRoleView,
+				user2.ID.String(): codersdk.TemplateRoleUse,
 			},
 		}
 
@@ -533,7 +533,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -553,7 +553,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		req = codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
-				user3.ID.String(): codersdk.TemplateRoleView,
+				user3.ID.String(): codersdk.TemplateRoleUse,
 			},
 		}
 
@@ -565,7 +565,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 
 		require.Contains(t, acl.Users, codersdk.TemplateUser{
 			User: user3,
-			Role: codersdk.TemplateRoleView,
+			Role: codersdk.TemplateRoleUse,
 		})
 	})
 
@@ -575,7 +575,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -597,7 +597,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -622,7 +622,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			GroupPerms: map[string]codersdk.TemplateRole{
 				// The allUsers group shares the same ID as the organization.
 				user.OrganizationID.String(): codersdk.TemplateRoleDeleted,
-				group.ID.String():            codersdk.TemplateRoleView,
+				group.ID.String():            codersdk.TemplateRoleUse,
 			},
 		})
 		require.NoError(t, err)
@@ -662,7 +662,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			RBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)

@@ -5,6 +5,8 @@ IST = "IST"
 MacOS = "macOS"
 
 [default.extend-words]
+# do as sudo replacement
+doas = "doas"
 
 [files]
 extend-exclude = [

@@ -226,7 +226,7 @@ func validateTemplateRole(role codersdk.TemplateRole) error {
 func convertToTemplateRole(actions []rbac.Action) codersdk.TemplateRole {
 	switch {
 	case len(actions) == 1 && actions[0] == rbac.ActionRead:
-		return codersdk.TemplateRoleView
+		return codersdk.TemplateRoleUse
 	case len(actions) == 1 && actions[0] == rbac.WildcardSymbol:
 		return codersdk.TemplateRoleAdmin
 	}
@@ -238,7 +238,7 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) []rbac.Action {
 	switch role {
 	case codersdk.TemplateRoleAdmin:
 		return []rbac.Action{rbac.WildcardSymbol}
-	case codersdk.TemplateRoleView:
+	case codersdk.TemplateRoleUse:
 		return []rbac.Action{rbac.ActionRead}
 	}
 
@@ -246,10 +246,10 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) []rbac.Action {
 }
 
 // TODO reduce the duplication across all of these.
-func (api *API) rbacEnabledMW(next http.Handler) http.Handler {
+func (api *API) templateRBACEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		api.entitlementsMu.RLock()
-		rbac := api.entitlements.Features[codersdk.FeatureRBAC].Enabled
+		rbac := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
 		api.entitlementsMu.RUnlock()
 
 		if !rbac {

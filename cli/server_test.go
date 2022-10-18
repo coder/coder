@@ -60,6 +60,9 @@ func TestServer(t *testing.T) {
 			"--postgres-url", connectionURL,
 			"--cache-dir", t.TempDir(),
 		)
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
+		root.SetErr(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.ExecuteContext(ctx)

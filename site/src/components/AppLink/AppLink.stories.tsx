@@ -15,6 +15,7 @@ WithIcon.args = {
   workspaceName: MockWorkspace.name,
   appName: "code-server",
   appIcon: "/icon/code.svg",
+  appSharingLevel: "owner",
   health: "healthy",
 }
 
@@ -23,6 +24,7 @@ WithoutIcon.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
+  appSharingLevel: "owner",
   health: "healthy",
 }
 
@@ -31,6 +33,7 @@ HealthDisabled.args = {
   username: "developer",
   workspaceName: MockWorkspace.name,
   appName: "code-server",
+  appSharingLevel: "owner",
   health: "disabled",
 }
 

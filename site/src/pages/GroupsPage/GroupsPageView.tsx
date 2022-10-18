@@ -26,13 +26,13 @@ import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
 export type GroupsPageViewProps = {
   groups: Group[] | undefined
   canCreateGroup: boolean
-  isRBACEnabled: boolean
+  isTemplateRBACEnabled: boolean
 }
 
 export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
   groups,
   canCreateGroup,
-  isRBACEnabled,
+  isTemplateRBACEnabled,
 }) => {
   const isLoading = Boolean(groups === undefined)
   const isEmpty = Boolean(groups && groups.length === 0)
@@ -42,7 +42,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
   return (
     <>
       <ChooseOne>
-        <Cond condition={!isRBACEnabled}>
+        <Cond condition={!isTemplateRBACEnabled}>
           <Paywall
             message="User groups"
             description="Organize the users into groups and manage their permissions. To use this feature, you have to upgrade your account."
@@ -50,7 +50,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
               <Stack direction="row" alignItems="center">
                 <Link
                   underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  href="https://coder.com/docs/coder-oss/latest/admin/enterprise"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -60,7 +60,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
                 </Link>
                 <Link
                   underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  href="https://coder.com/docs/coder-oss/latest/admin/groups"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -136,7 +136,12 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
                         >
                           <TableCell>
                             <AvatarData
-                              avatar={<GroupAvatar name={group.name} />}
+                              avatar={
+                                <GroupAvatar
+                                  name={group.name}
+                                  avatarURL={group.avatar_url}
+                                />
+                              }
                               title={group.name}
                               subtitle={`${group.members.length} members`}
                               highlightTitle

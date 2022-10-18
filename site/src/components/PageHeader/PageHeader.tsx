@@ -15,14 +15,17 @@ export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({
   const styles = useStyles({})
 
   return (
-    <div className={combineClasses([styles.root, className])}>
+    <header
+      className={combineClasses([styles.root, className])}
+      data-testid="header"
+    >
       <hgroup>{children}</hgroup>
       {actions && (
         <Stack direction="row" className={styles.actions}>
           {actions}
         </Stack>
       )}
-    </div>
+    </header>
   )
 }
 

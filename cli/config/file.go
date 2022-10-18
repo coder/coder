@@ -13,6 +13,11 @@ func (r Root) Session() File {
 	return File(filepath.Join(string(r), "session"))
 }
 
+// ReplicaID is a unique identifier for the Coder server.
+func (r Root) ReplicaID() File {
+	return File(filepath.Join(string(r), "replica_id"))
+}
+
 func (r Root) URL() File {
 	return File(filepath.Join(string(r), "url"))
 }

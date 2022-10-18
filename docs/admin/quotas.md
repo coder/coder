@@ -15,6 +15,10 @@ Then, when users create workspaces they would see:
 
 <img src="../images/admin/quotas.png"/>
 
+## Enabling this feature
+
+This feature is only available with an enterprise license. [Learn more](./enterprise.md)
+
 ## Up next
 
 - [Enterprise](./enterprise.md)

@@ -32,7 +32,7 @@ func Flags() *codersdk.DeploymentFlags {
 			Name:        "Wildcard Address URL",
 			Flag:        "wildcard-access-url",
 			EnvVar:      "CODER_WILDCARD_ACCESS_URL",
-			Description: `Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".`,
+			Description: `Specifies the wildcard hostname to use for workspace applications in the form "*.example.com" or "*-suffix.example.com". Ports or schemes should not be included. The scheme will be copied from the access URL.`,
 		},
 		Address: &codersdk.StringFlag{
 			Name:        "Bind Address",
@@ -84,6 +84,13 @@ func Flags() *codersdk.DeploymentFlags {
 			EnvVar:      "CODER_DERP_SERVER_STUN_ADDRESSES",
 			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
 			Default:     []string{"stun.l.google.com:19302"},
+		},
+		DerpServerRelayAddress: &codersdk.StringFlag{
+			Name:        "DERP Server Relay Address",
+			Flag:        "derp-server-relay-address",
+			EnvVar:      "CODER_DERP_SERVER_RELAY_URL",
+			Description: "An HTTP address that is accessible by other replicas to relay DERP traffic. Required for high availability.",
+			Enterprise:  true,
 		},
 		DerpConfigURL: &codersdk.StringFlag{
 			Name:        "DERP Config URL",

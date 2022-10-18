@@ -29,6 +29,7 @@ import {
 import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
+import { getGroupSubtitle } from "util/groups"
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string
@@ -50,14 +51,14 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   const styles = useStyles()
   const [selectedOption, setSelectedOption] =
     useState<UserOrGroupAutocompleteValue>(null)
-  const [selectedRole, setSelectedRole] = useState<TemplateRole>("view")
+  const [selectedRole, setSelectedRole] = useState<TemplateRole>("use")
   const excludeFromAutocomplete = templateACL
     ? [...templateACL.group, ...templateACL.users]
     : []
 
   const resetValues = () => {
     setSelectedOption(null)
-    setSelectedRole("view")
+    setSelectedRole("use")
   }
 
   return (
@@ -88,7 +89,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         />
 
         <Select
-          defaultValue="view"
+          defaultValue="use"
           variant="outlined"
           className={styles.select}
           disabled={isLoading}
@@ -96,8 +97,8 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
             setSelectedRole(event.target.value as TemplateRole)
           }}
         >
-          <MenuItem key="view" value="view">
-            View
+          <MenuItem key="use" value="use">
+            Use
           </MenuItem>
           <MenuItem key="admin" value="admin">
             Admin
@@ -128,17 +129,20 @@ const RoleSelect: FC<SelectProps> = (props) => {
       className={styles.updateSelect}
       {...props}
     >
-      <MenuItem key="view" value="view" className={styles.menuItem}>
+      <MenuItem key="use" value="use" className={styles.menuItem}>
         <div>
-          <div>View</div>
-          <div className={styles.menuItemSecondary}>Read, access</div>
+          <div>Use</div>
+          <div className={styles.menuItemSecondary}>
+            Can read and use this template to create workspaces.
+          </div>
         </div>
       </MenuItem>
       <MenuItem key="admin" value="admin" className={styles.menuItem}>
         <div>
           <div>Admin</div>
           <div className={styles.menuItemSecondary}>
-            Read, access, edit, push, and delete
+            Can modify all aspects of this template including permissions,
+            metadata, and template versions.
           </div>
         </div>
       </MenuItem>
@@ -237,9 +241,14 @@ export const TemplatePermissionsPageView: FC<
                   <TableRow key={group.id}>
                     <TableCell>
                       <AvatarData
-                        avatar={<GroupAvatar name={group.name} />}
+                        avatar={
+                          <GroupAvatar
+                            name={group.name}
+                            avatarURL={group.avatar_url}
+                          />
+                        }
                         title={group.name}
-                        subtitle={`${group.members.length} members`}
+                        subtitle={getGroupSubtitle(group)}
                         highlightTitle
                       />
                     </TableCell>
@@ -385,6 +394,8 @@ export const useStyles = makeStyles((theme) => {
       lineHeight: "140%",
       paddingTop: theme.spacing(1.5),
       paddingBottom: theme.spacing(1.5),
+      whiteSpace: "normal",
+      inlineSize: "250px",
     },
 
     menuItemSecondary: {

@@ -1,11 +1,13 @@
 import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import AddIcon from "@material-ui/icons/Add"
 import RemoveIcon from "@material-ui/icons/Remove"
 import ScheduleIcon from "@material-ui/icons/Schedule"
+import { Maybe } from "components/Conditionals/Maybe"
+import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
 import duration from "dayjs/plugin/duration"
@@ -17,6 +19,7 @@ import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { EditHours } from "./EditHours"
 import { WorkspaceScheduleLabel } from "./WorkspaceScheduleLabel"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
@@ -27,12 +30,12 @@ dayjs.extend(duration)
 dayjs.extend(relativeTime)
 dayjs.extend(timezone)
 
-export const shouldDisplayPlusMinus = (workspace: Workspace): boolean => {
+export const canEditDeadline = (workspace: Workspace): boolean => {
   return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline)
 }
 
 export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
-  if (shouldDisplayPlusMinus(workspace)) {
+  if (canEditDeadline(workspace)) {
     return true
   }
   if (isWorkspaceOn(workspace)) {
@@ -43,12 +46,16 @@ export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
 
 export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
-  onDeadlinePlus: () => void
-  onDeadlineMinus: () => void
+  onDeadlinePlus: (hours: number) => void
+  onDeadlineMinus: (hours: number) => void
   deadlineMinusEnabled: () => boolean
   deadlinePlusEnabled: () => boolean
+  maxDeadlineIncrease: number
+  maxDeadlineDecrease: number
   canUpdateWorkspace: boolean
 }
+
+export type EditMode = "add" | "subtract" | "off"
 
 export const WorkspaceScheduleButton: React.FC<
   WorkspaceScheduleButtonProps
@@ -58,49 +65,93 @@ export const WorkspaceScheduleButton: React.FC<
   onDeadlineMinus,
   deadlinePlusEnabled,
   deadlineMinusEnabled,
+  maxDeadlineDecrease,
+  maxDeadlineIncrease,
   canUpdateWorkspace,
 }) => {
   const { t } = useTranslation("workspacePage")
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [editMode, setEditMode] = useState<EditMode>("off")
   const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles()
+  const styles = useStyles({ editMode })
 
   const onClose = () => {
     setIsOpen(false)
   }
 
+  const handleSubmitHours = (hours: number) => {
+    if (hours !== 0) {
+      if (editMode === "add") {
+        onDeadlinePlus(hours)
+      }
+      if (editMode === "subtract") {
+        onDeadlineMinus(hours)
+      }
+    }
+    setEditMode("off")
+  }
+
   return (
     <span className={styles.wrapper}>
-      {shouldDisplayScheduleLabel(workspace) && (
-        <span className={styles.label}>
-          <WorkspaceScheduleLabel workspace={workspace} />
-          {canUpdateWorkspace && shouldDisplayPlusMinus(workspace) && (
-            <span className={styles.actions}>
-              <IconButton
-                className={styles.iconButton}
-                size="small"
-                disabled={!deadlineMinusEnabled()}
-                onClick={onDeadlineMinus}
-              >
-                <Tooltip title={t("workspaceScheduleButton.editDeadlineMinus")}>
-                  <RemoveIcon />
-                </Tooltip>
-              </IconButton>
-              <IconButton
-                className={styles.iconButton}
-                size="small"
-                disabled={!deadlinePlusEnabled()}
-                onClick={onDeadlinePlus}
-              >
-                <Tooltip title={t("workspaceScheduleButton.editDeadlinePlus")}>
-                  <AddIcon />
-                </Tooltip>
-              </IconButton>
-            </span>
-          )}
-        </span>
-      )}
+      <Maybe condition={shouldDisplayScheduleLabel(workspace)}>
+        <Stack
+          className={styles.label}
+          spacing={1}
+          direction="row"
+          alignItems="center"
+        >
+          <Stack spacing={1} direction="row" alignItems="center">
+            <WorkspaceScheduleLabel workspace={workspace} />
+            <Maybe condition={canUpdateWorkspace && canEditDeadline(workspace)}>
+              <span className={styles.actions}>
+                <IconButton
+                  className={styles.subtractButton}
+                  size="small"
+                  disabled={!deadlineMinusEnabled()}
+                  onClick={() => {
+                    setEditMode("subtract")
+                  }}
+                >
+                  <Tooltip
+                    title={t("workspaceScheduleButton.editDeadlineMinus")}
+                  >
+                    <RemoveIcon />
+                  </Tooltip>
+                </IconButton>
+                <IconButton
+                  className={styles.addButton}
+                  size="small"
+                  disabled={!deadlinePlusEnabled()}
+                  onClick={() => {
+                    setEditMode("add")
+                  }}
+                >
+                  <Tooltip
+                    title={t("workspaceScheduleButton.editDeadlinePlus")}
+                  >
+                    <AddIcon />
+                  </Tooltip>
+                </IconButton>
+              </span>
+            </Maybe>
+          </Stack>
+          <Maybe
+            condition={
+              canUpdateWorkspace &&
+              canEditDeadline(workspace) &&
+              editMode !== "off"
+            }
+          >
+            <EditHours
+              handleSubmit={handleSubmitHours}
+              max={
+                editMode === "add" ? maxDeadlineIncrease : maxDeadlineDecrease
+              }
+            />
+          </Maybe>
+        </Stack>
+      </Maybe>
       <>
         <Button
           ref={anchorRef}
@@ -139,7 +190,11 @@ export const WorkspaceScheduleButton: React.FC<
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+interface StyleProps {
+  editMode: EditMode
+}
+
+const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   wrapper: {
     display: "inline-flex",
     alignItems: "center",
@@ -151,15 +206,13 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   label: {
-    borderRight: 0,
-    padding: "0 8px 0 16px",
+    padding: theme.spacing(0, 2),
     color: theme.palette.text.secondary,
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
-      display: "flex",
-      alignItems: "center",
       padding: theme.spacing(1.5, 2),
+      flexDirection: "column",
     },
   },
   actions: {
@@ -190,8 +243,19 @@ const useStyles = makeStyles((theme) => ({
       },
     },
   },
-  iconButton: {
+  addButton: {
     borderRadius: theme.shape.borderRadius,
+    border: ({ editMode }) =>
+      editMode === "add"
+        ? `2px solid ${theme.palette.primary.main}`
+        : "2px solid transparent",
+  },
+  subtractButton: {
+    borderRadius: theme.shape.borderRadius,
+    border: ({ editMode }) =>
+      editMode === "subtract"
+        ? `2px solid ${theme.palette.primary.main}`
+        : "2px solid transparent",
   },
   popoverPaper: {
     padding: `${theme.spacing(2)}px ${theme.spacing(3)}px ${theme.spacing(
