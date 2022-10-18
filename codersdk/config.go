@@ -225,12 +225,13 @@ type TLSConfig struct {
 	// Usage: PEM-encoded Certificate Authority file used for checking the authenticity of client
 	// Flag:  tls-client-ca-file
 	ClientCAFile string `mapstructure:"tls_client_ca_file" json:"tls_client_ca_file"`
-	// Usage: Policy the server will follow for TLS Client Authentication. Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
-	// Flag:  tls-client-auth
+	// Usage:   Policy the server will follow for TLS Client Authentication. Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
+	// Flag:    tls-client-auth
+	// Default: "request"
 	ClientAuth string `mapstructure:"tls_client_auth" json:"tls_client_auth"`
 	// Usage: Paths to the private keys for each of the certificates. It requires a PEM-encoded file.
 	// Flag:  tls-key-file
-	KeyFiles []string `mapstructure:"tls_key_tiles" json:"tls_key_tiles"`
+	KeyFiles []string `mapstructure:"tls_key_files" json:"tls_key_files"`
 	// Usage:   Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"
 	// Flag:    tls-min-version
 	// Default: "tls12"
