@@ -403,6 +403,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				if err != nil {
 					return xerrors.Errorf("scan version: %w", err)
 				}
+				versionStr = strings.Split(versionStr, " ")[0]
 				if semver.Compare("v"+versionStr, "v13") < 0 {
 					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
 				}
