@@ -6,7 +6,7 @@ import React from "react"
 
 export const Header: React.FC<{
   title: string | JSX.Element
-  description: string | JSX.Element
+  description?: string | JSX.Element
   secondary?: boolean
   docsHref?: string
 }> = ({ title, description, docsHref, secondary }) => {
@@ -18,7 +18,9 @@ export const Header: React.FC<{
         <h1 className={`${styles.title} ${secondary ? "secondary" : ""}`}>
           {title}
         </h1>
-        <span className={styles.description}>{description}</span>
+        {description && (
+          <span className={styles.description}>{description}</span>
+        )}
       </div>
 
       {docsHref && (
