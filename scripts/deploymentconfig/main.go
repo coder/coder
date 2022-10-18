@@ -54,12 +54,12 @@ func GenerateData(ctx context.Context, dir string) (*Data, error) {
 		return nil, xerrors.Errorf("parse package %q: %w", dir, err)
 	}
 
-	codeBlocks, err := generateAll(pkg)
+	data, err := generateAll(pkg)
 	if err != nil {
 		return nil, xerrors.Errorf("parse package %q: %w", dir, err)
 	}
 
-	return codeBlocks, nil
+	return data, nil
 }
 
 // parsePackage takes a list of patterns such as a directory, and parses them.
@@ -88,7 +88,9 @@ func parsePackage(ctx context.Context, patterns ...string) (*packages.Package, e
 }
 
 func generateAll(pkg *packages.Package) (*Data, error) {
-	cb := Data{}
+	cb := Data{
+		StructTarget: StructTarget,
+	}
 	structs := make(map[string]*ast.StructType)
 	for _, file := range pkg.Syntax {
 		for _, decl := range file.Decls {
