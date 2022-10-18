@@ -1,64 +1,10 @@
 package database
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/coder/coder/coderd/rbac"
 )
 
 const AllUsersGroup = "Everyone"
-
-// TemplateACL is a map of user_ids to permissions.
-type TemplateACL map[string][]rbac.Action
-
-func (t Template) UserACL() TemplateACL {
-	var acl TemplateACL
-	if len(t.userACL) == 0 {
-		return acl
-	}
-
-	err := json.Unmarshal(t.userACL, &acl)
-	if err != nil {
-		panic(fmt.Sprintf("failed to unmarshal template.userACL: %v", err.Error()))
-	}
-
-	return acl
-}
-
-func (t Template) GroupACL() TemplateACL {
-	var acl TemplateACL
-	if len(t.groupACL) == 0 {
-		return acl
-	}
-
-	err := json.Unmarshal(t.groupACL, &acl)
-	if err != nil {
-		panic(fmt.Sprintf("failed to unmarshal template.userACL: %v", err.Error()))
-	}
-
-	return acl
-}
-
-func (t Template) SetGroupACL(acl TemplateACL) Template {
-	raw, err := json.Marshal(acl)
-	if err != nil {
-		panic(fmt.Sprintf("marshal user acl: %v", err))
-	}
-
-	t.groupACL = raw
-	return t
-}
-
-func (t Template) SetUserACL(acl TemplateACL) Template {
-	raw, err := json.Marshal(acl)
-	if err != nil {
-		panic(fmt.Sprintf("marshal user acl: %v", err))
-	}
-
-	t.userACL = raw
-	return t
-}
 
 func (s APIKeyScope) ToRBAC() rbac.Scope {
 	switch s {
@@ -74,8 +20,8 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 func (t Template) RBACObject() rbac.Object {
 	obj := rbac.ResourceTemplate
 	return obj.InOrg(t.OrganizationID).
-		WithACLUserList(t.UserACL()).
-		WithGroupACL(t.GroupACL())
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
 }
 
 func (TemplateVersion) RBACObject(template Template) rbac.Object {

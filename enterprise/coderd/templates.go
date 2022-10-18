@@ -31,6 +31,8 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("group_acl: %+v\n", template.GroupACL)
+
 	dbGroups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -119,40 +121,43 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		template, err = tx.GetTemplateByID(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("get template by ID: %w", err)
+		}
+
 		if len(req.UserPerms) > 0 {
-			userACL := template.UserACL()
 			for id, role := range req.UserPerms {
 				// A user with an empty string implies
 				// deletion.
 				if role == "" {
-					delete(userACL, id)
+					delete(template.UserACL, id)
 					continue
 				}
-				userACL[id] = convertSDKTemplateRole(role)
-			}
-
-			err := tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
+				template.UserACL[id] = convertSDKTemplateRole(role)
 			}
 		}
 
 		if len(req.GroupPerms) > 0 {
-			groupACL := template.GroupACL()
 			for id, role := range req.GroupPerms {
 				// An id with an empty string implies
 				// deletion.
 				if role == "" {
-					delete(groupACL, id)
+					delete(template.GroupACL, id)
 					continue
 				}
-				groupACL[id] = convertSDKTemplateRole(role)
+				template.GroupACL[id] = convertSDKTemplateRole(role)
 			}
+		}
 
-			err := tx.UpdateTemplateGroupACLByID(ctx, template.ID, groupACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
-			}
+		template, err = tx.UpdateTemplateACLByID(ctx, database.UpdateTemplateACLByIDParams{
+			ID:       template.ID,
+			UserACL:  template.UserACL,
+			GroupACL: template.GroupACL,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template ACL by ID: %w", err)
 		}
 		return nil
 	})
