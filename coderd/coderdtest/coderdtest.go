@@ -263,20 +263,11 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 					},
 				},
 			},
-<<<<<<< HEAD
 			AutoImportTemplates:         options.AutoImportTemplates,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-			DeploymentFlags:             options.DeploymentFlags,
+			DeploymentConfig:            options.DeploymentConfig,
 		}
-=======
-		},
-		AutoImportTemplates:         options.AutoImportTemplates,
-		MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
-		AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-		DeploymentConfig:            options.DeploymentConfig,
-	}
->>>>>>> idk
 }
 
 // NewWithAPI constructs an in-memory API instance and returns a client to talk to it.
