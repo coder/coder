@@ -29,8 +29,8 @@ func server() *cobra.Command {
 			return nil, nil, xerrors.Errorf("failed to read config: %w", err)
 		}
 
-		if cfg.DerpServerRelayAddress != "" {
-			_, err := url.Parse(cfg.DerpServerRelayAddress)
+		if cfg.DERP.Server.RelayAddress != "" {
+			_, err := url.Parse(cfg.DERP.Server.RelayAddress)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
 			}
@@ -59,8 +59,8 @@ func server() *cobra.Command {
 			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAuthHeader),
 			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota,
 			RBAC:                   true,
-			DERPServerRelayAddress: options.DeploymentConfig.DerpServerRelayAddress,
-			DERPServerRegionID:     options.DeploymentConfig.DerpServerRegionID,
+			DERPServerRelayAddress: options.DeploymentConfig.DERP.Server.RelayAddress,
+			DERPServerRegionID:     options.DeploymentConfig.DERP.Server.RegionID,
 
 			Options: options,
 		}
