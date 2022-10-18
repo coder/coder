@@ -126,6 +126,19 @@ export interface AzureInstanceIdentityToken {
   readonly encoding: string
 }
 
+// From codersdk/flags.go
+export interface BoolFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly hidden: boolean
+  readonly default: boolean
+  readonly value: boolean
+}
+
 // From codersdk/buildinfo.go
 export interface BuildInfoResponse {
   readonly external_url: string
@@ -245,63 +258,81 @@ export interface DAUEntry {
   readonly amount: number
 }
 
-// From codersdk/config.go
-export interface DERPConfig {
-  readonly server: DERPServerConfig
-  readonly config: DERPConfigConfig
-}
-
-// From codersdk/config.go
-export interface DERPConfigConfig {
-  readonly url: string
-  readonly path: string
-}
-
 // From codersdk/workspaceagents.go
 export interface DERPRegion {
   readonly preferred: boolean
   readonly latency_ms: number
 }
 
-// From codersdk/config.go
-export interface DERPServerConfig {
-  readonly enabled: boolean
-  readonly region_id: number
-  readonly region_code: string
-  readonly region_name: string
-  readonly stun_address: string[]
-  readonly relay_address: string
+// From codersdk/flags.go
+export interface DeploymentFlags {
+  readonly access_url: StringFlag
+  readonly wildcard_access_url: StringFlag
+  readonly address: StringFlag
+  readonly autobuild_poll_interval: DurationFlag
+  readonly derp_server_enabled: BoolFlag
+  readonly derp_server_region_id: IntFlag
+  readonly derp_server_region_code: StringFlag
+  readonly derp_server_region_name: StringFlag
+  readonly derp_server_stun_address: StringArrayFlag
+  readonly derp_server_relay_address: StringFlag
+  readonly derp_config_url: StringFlag
+  readonly derp_config_path: StringFlag
+  readonly prom_enabled: BoolFlag
+  readonly prom_address: StringFlag
+  readonly pprof_enabled: BoolFlag
+  readonly pprof_address: StringFlag
+  readonly cache_dir: StringFlag
+  readonly in_memory_database: BoolFlag
+  readonly provisioner_daemon_count: IntFlag
+  readonly postgres_url: StringFlag
+  readonly oauth2_github_client_id: StringFlag
+  readonly oauth2_github_client_secret: StringFlag
+  readonly oauth2_github_allowed_organizations: StringArrayFlag
+  readonly oauth2_github_allowed_teams: StringArrayFlag
+  readonly oauth2_github_allow_signups: BoolFlag
+  readonly oauth2_github_enterprise_base_url: StringFlag
+  readonly oidc_allow_signups: BoolFlag
+  readonly oidc_client_id: StringFlag
+  readonly oidc_client_secret: StringFlag
+  readonly oidc_email_domain: StringFlag
+  readonly oidc_issuer_url: StringFlag
+  readonly oidc_scopes: StringArrayFlag
+  readonly telemetry_enable: BoolFlag
+  readonly telemetry_trace_enable: BoolFlag
+  readonly telemetry_url: StringFlag
+  readonly tls_enable: BoolFlag
+  readonly tls_cert_files: StringArrayFlag
+  readonly tls_client_ca_file: StringFlag
+  readonly tls_client_auth: StringFlag
+  readonly tls_key_files: StringArrayFlag
+  readonly tls_min_version: StringFlag
+  readonly trace_enable: BoolFlag
+  readonly secure_auth_cookie: BoolFlag
+  readonly ssh_keygen_algorithm: StringFlag
+  readonly auto_import_templates: StringArrayFlag
+  readonly metrics_cache_refresh_interval: DurationFlag
+  readonly agent_stat_refresh_interval: DurationFlag
+  readonly verbose: BoolFlag
+  readonly audit_logging: BoolFlag
+  readonly browser_only: BoolFlag
+  readonly scim_auth_header: StringFlag
+  readonly user_workspace_quota: IntFlag
 }
 
-// From codersdk/config.go
-export interface DeploymentConfig {
-  readonly access_url: string
-  readonly wildcard_access_url: string
-  readonly address: string
+// From codersdk/flags.go
+export interface DurationFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly hidden: boolean
   // This is likely an enum in an external package ("time.Duration")
-  readonly autobuild_poll_interval: number
-  readonly derp: DERPConfig
-  readonly prometheus: PrometheusConfig
-  readonly pprof: PprofConfig
-  readonly cache_dir: string
-  readonly in_memory_database: boolean
-  readonly provisioner_daemon_count: number
-  readonly oauth2_github: OAuth2GithubConfig
-  readonly oidc: OIDCConfig
-  readonly telemetry: TelemetryConfig
-  readonly tls_config: TLSConfig
-  readonly trace_enable: boolean
-  readonly secure_auth_cookie: boolean
-  readonly ssh_keygen_algorithm: string
-  readonly auto_import_templates: string[]
+  readonly default: number
   // This is likely an enum in an external package ("time.Duration")
-  readonly metrics_cache_refresh_interval: number
-  // This is likely an enum in an external package ("time.Duration")
-  readonly agent_stat_refresh_interval: number
-  readonly verbose: boolean
-  readonly audit_logging: boolean
-  readonly browser_only: boolean
-  readonly user_workspace_quota: number
+  readonly value: number
 }
 
 // From codersdk/features.go
@@ -356,6 +387,19 @@ export interface Healthcheck {
   readonly threshold: number
 }
 
+// From codersdk/flags.go
+export interface IntFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly hidden: boolean
+  readonly default: number
+  readonly value: number
+}
+
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
@@ -385,24 +429,6 @@ export interface LoginWithPasswordRequest {
 // From codersdk/users.go
 export interface LoginWithPasswordResponse {
   readonly session_token: string
-}
-
-// From codersdk/config.go
-export interface OAuth2GithubConfig {
-  readonly client_id: string
-  readonly allowed_organizations: string[]
-  readonly allowed_teams: string[]
-  readonly allow_signups: boolean
-  readonly enterprise_base_url: string
-}
-
-// From codersdk/config.go
-export interface OIDCConfig {
-  readonly allow_signups: boolean
-  readonly client_id: string
-  readonly email_domain: string
-  readonly issuer_url: string
-  readonly scopes: string[]
 }
 
 // From codersdk/organizations.go
@@ -468,18 +494,6 @@ export interface PatchGroupRequest {
   readonly remove_users: string[]
   readonly name: string
   readonly avatar_url?: string
-}
-
-// From codersdk/config.go
-export interface PprofConfig {
-  readonly enabled: boolean
-  readonly address: string
-}
-
-// From codersdk/config.go
-export interface PrometheusConfig {
-  readonly enabled: boolean
-  readonly address: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -550,21 +564,31 @@ export interface ServerSentEvent {
   readonly data: any
 }
 
-// From codersdk/config.go
-export interface TLSConfig {
-  readonly tls_enable: boolean
-  readonly tls_cert_files: string[]
-  readonly tls_client_ca_file: string
-  readonly tls_client_auth: string
-  readonly tls_key_files: string[]
-  readonly tls_min_version: string
+// From codersdk/flags.go
+export interface StringArrayFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly hidden: boolean
+  readonly default: string[]
+  readonly value: string[]
 }
 
-// From codersdk/config.go
-export interface TelemetryConfig {
-  readonly enable: boolean
-  readonly trace_enable: boolean
-  readonly url: string
+// From codersdk/flags.go
+export interface StringFlag {
+  readonly name: string
+  readonly flag: string
+  readonly env_var: string
+  readonly shorthand: string
+  readonly description: string
+  readonly enterprise: boolean
+  readonly secret: boolean
+  readonly hidden: boolean
+  readonly default: string
+  readonly value: string
 }
 
 // From codersdk/templates.go
