@@ -2222,7 +2222,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	defer q.mutex.Unlock()
 
 	for _, user := range q.users {
-		if user.Username == arg.Username {
+		if user.Username == arg.Username && !user.Deleted {
 			return database.User{}, errDuplicateKey
 		}
 	}
