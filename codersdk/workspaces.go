@@ -324,6 +324,34 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
+func (c *Client) WorkspaceCount(ctx context.Context, req WorkspaceCountRequest) (WorkspaceCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces/count", nil, func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return WorkspaceCountResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceCountResponse{}, readBodyAsError(res)
+	}
+
+	var countRes WorkspaceCountResponse
+	err = json.NewDecoder(res.Body).Decode(&countRes)
+	if err != nil {
+		return WorkspaceCountResponse{}, err
+	}
+
+	return countRes, nil
+}
+
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
 func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
