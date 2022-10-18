@@ -263,7 +263,7 @@ import (
 
 func Config(vip *viper.Viper) (codersdk.DeploymentConfig, error) {
 	cfg := codersdk.DeploymentConfig{}
-	return cfg, vip.Unmarshal(cfg)
+	return cfg, vip.Unmarshal(&cfg)
 }
 
 func NewViper() *viper.Viper {
