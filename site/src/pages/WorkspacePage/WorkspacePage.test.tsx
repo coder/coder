@@ -27,7 +27,6 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { DisplayAgentStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 const { t } = i18next
@@ -338,15 +337,21 @@ describe("WorkspacePage", () => {
       )
       expect(agent2Names.length).toEqual(2)
       const agent1Status = await screen.findAllByLabelText(
-        DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
+        t<string>(`agentStatus.${MockWorkspaceAgent.status}`, {
+          ns: "workspacePage",
+        }),
       )
       expect(agent1Status.length).toEqual(1)
       const agentDisconnected = await screen.findAllByLabelText(
-        DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
+        t<string>(`agentStatus.${MockWorkspaceAgentDisconnected.status}`, {
+          ns: "workspacePage",
+        }),
       )
       expect(agentDisconnected.length).toEqual(1)
       const agentConnecting = await screen.findAllByLabelText(
-        DisplayAgentStatusLanguage[MockWorkspaceAgentConnecting.status],
+        t<string>(`agentStatus.${MockWorkspaceAgentConnecting.status}`, {
+          ns: "workspacePage",
+        }),
       )
       expect(agentConnecting.length).toEqual(1)
       expect(getTemplateMock).toBeCalled()

@@ -3,16 +3,17 @@ import { makeStyles } from "@material-ui/core/styles"
 import { combineClasses } from "util/combineClasses"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { DisplayAgentStatusLanguage } from "util/workspace"
+import { useTranslation } from "react-i18next"
 
 const ConnectedStatus: React.FC = () => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={DisplayAgentStatusLanguage.connected}>
+    <Tooltip title={t("agentStatus.connected")}>
       <div
         role="status"
-        aria-label={DisplayAgentStatusLanguage.connected}
+        aria-label={t("agentStatus.connected")}
         className={combineClasses([styles.status, styles.connected])}
       />
     </Tooltip>
@@ -21,12 +22,13 @@ const ConnectedStatus: React.FC = () => {
 
 const DisconnectedStatus: React.FC = () => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={DisplayAgentStatusLanguage.disconnected}>
+    <Tooltip title={t("agentStatus.disconnected")}>
       <div
         role="status"
-        aria-label={DisplayAgentStatusLanguage.disconnected}
+        aria-label={t("agentStatus.disconnected")}
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
@@ -35,12 +37,13 @@ const DisconnectedStatus: React.FC = () => {
 
 const ConnectingStatus: React.FC = () => {
   const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
 
   return (
-    <Tooltip title={DisplayAgentStatusLanguage.connecting}>
+    <Tooltip title={t("agentStatus.connecting")}>
       <div
         role="status"
-        aria-label={DisplayAgentStatusLanguage.connecting}
+        aria-label={t("agentStatus.connecting")}
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
