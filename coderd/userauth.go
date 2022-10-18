@@ -400,7 +400,10 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					validUsername bool
 				)
 				for i := 0; i < 10; i++ {
-					params.Username = fmt.Sprintf("%s_%s", original, namesgenerator.GetRandomName(10))
+					alternate := fmt.Sprintf("%s_%s", original, namesgenerator.GetRandomName(1))
+
+					params.Username = httpapi.UsernameFrom(alternate)
+
 					_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})

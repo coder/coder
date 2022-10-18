@@ -449,7 +449,7 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			conf := coderdtest.NewFakeOIDCConfig(t, "")
+			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig()
 			config.AllowSignups = tc.AllowSignups
@@ -482,7 +482,7 @@ func TestUserOIDC(t *testing.T) {
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
 
-		conf := coderdtest.NewFakeOIDCConfig(t, "")
+		conf := coderdtest.NewOIDCConfig(t, "")
 
 		config := conf.OIDCConfig()
 		config.AllowSignups = true
