@@ -330,9 +330,9 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
 							Apps: []*proto.App{{
-								Slug: "testapp",
-								Name: "testapp",
-								Url:  "http://localhost:3000",
+								Slug:        "testapp",
+								DisplayName: "testapp",
+								Url:         "http://localhost:3000",
 							}},
 						}},
 					}},

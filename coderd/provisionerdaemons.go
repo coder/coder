@@ -809,13 +809,10 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
 			if slug == "" {
-				slug = app.Name
-			}
-			if slug == "" {
 				return xerrors.Errorf("app must have a slug or name set")
 			}
-			if !provisioner.ValidAppSlugRegex.MatchString(slug) {
-				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.ValidAppSlugRegex.String())
+			if !provisioner.AppSlugRegex.MatchString(slug) {
+				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
 			}
 
 			health := database.WorkspaceAppHealthDisabled
@@ -839,7 +836,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				CreatedAt: database.Now(),
 				AgentID:   dbAgent.ID,
 				Slug:      slug,
-				Name:      app.Name,
+				Name:      app.DisplayName,
 				Icon:      app.Icon,
 				Command: sql.NullString{
 					String: app.Command,

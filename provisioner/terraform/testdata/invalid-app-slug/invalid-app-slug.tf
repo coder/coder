@@ -20,6 +20,7 @@ resource "null_resource" "dev" {
   ]
 }
 
-resource "coder_app" "invalid_app_name" {
+resource "coder_app" "invalid-app-slug" {
   agent_id = coder_agent.dev.id
+  slug     = "$$$"
 }

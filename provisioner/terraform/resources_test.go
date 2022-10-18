@@ -130,15 +130,15 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					Apps: []*proto.App{
 						{
-							Slug: "app1",
-							Name: "app1",
+							Slug:        "app1",
+							DisplayName: "app1",
 							// Subdomain defaults to false if unspecified.
 							Subdomain: false,
 						},
 						{
-							Slug:      "app2",
-							Name:      "app2",
-							Subdomain: true,
+							Slug:        "app2",
+							DisplayName: "app2",
+							Subdomain:   true,
 							Healthcheck: &proto.Healthcheck{
 								Url:       "http://localhost:13337/healthz",
 								Interval:  5,
@@ -146,9 +146,9 @@ func TestConvertResources(t *testing.T) {
 							},
 						},
 						{
-							Slug:      "app3",
-							Name:      "app3",
-							Subdomain: false,
+							Slug:        "app3",
+							DisplayName: "app3",
+							Subdomain:   false,
 						},
 					},
 					Auth: &proto.Agent_Token{},
@@ -354,7 +354,7 @@ func sortResources(resources []*proto.Resource) {
 	for _, resource := range resources {
 		for _, agent := range resource.Agents {
 			sort.Slice(agent.Apps, func(i, j int) bool {
-				return agent.Apps[i].Name < agent.Apps[j].Name
+				return agent.Apps[i].DisplayName < agent.Apps[j].DisplayName
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {

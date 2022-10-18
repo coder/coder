@@ -150,26 +150,26 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 							Apps: []*proto.App{
 								{
 									Slug:         proxyTestAppNameFake,
-									Name:         proxyTestAppNameFake,
+									DisplayName:  proxyTestAppNameFake,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									// Hopefully this IP and port doesn't exist.
 									Url: "http://127.1.0.1:65535",
 								},
 								{
 									Slug:         proxyTestAppNameOwner,
-									Name:         proxyTestAppNameOwner,
+									DisplayName:  proxyTestAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									Url:          appURL,
 								},
 								{
 									Slug:         proxyTestAppNameAuthenticated,
-									Name:         proxyTestAppNameAuthenticated,
+									DisplayName:  proxyTestAppNameAuthenticated,
 									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 									Url:          appURL,
 								},
 								{
 									Slug:         proxyTestAppNamePublic,
-									Name:         proxyTestAppNamePublic,
+									DisplayName:  proxyTestAppNamePublic,
 									SharingLevel: proto.AppSharingLevel_PUBLIC,
 									Url:          appURL,
 								},

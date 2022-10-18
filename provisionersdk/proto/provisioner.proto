@@ -98,7 +98,7 @@ message App {
 	// slug is the unique identifier for the app, usually the name from the
 	// template. It must be URL-safe and hostname-safe.
 	string slug = 1;
-    string name = 2;
+    string display_name = 2;
     string command = 3;
     string url = 4;
     string icon = 5;

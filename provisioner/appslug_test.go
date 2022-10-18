@@ -32,7 +32,7 @@ func TestValidAppSlugRegex(t *testing.T) {
 		}
 
 		for _, s := range validStrings {
-			require.True(t, provisioner.ValidAppSlugRegex.MatchString(s), s)
+			require.True(t, provisioner.AppSlugRegex.MatchString(s), s)
 		}
 	})
 
@@ -58,7 +58,7 @@ func TestValidAppSlugRegex(t *testing.T) {
 		}
 
 		for _, s := range invalidStrings {
-			require.False(t, provisioner.ValidAppSlugRegex.MatchString(s), s)
+			require.False(t, provisioner.AppSlugRegex.MatchString(s), s)
 		}
 	})
 }

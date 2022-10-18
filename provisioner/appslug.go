@@ -3,7 +3,7 @@ package provisioner
 import "regexp"
 
 var (
-	// ValidAppSlugRegex is the regex used to validate the slug of a coder_app
+	// AppSlugRegex is the regex used to validate the slug of a coder_app
 	// resource. It must be a valid hostname and cannot contain two consecutive
 	// hyphens or start/end with a hyphen.
 	//
@@ -11,5 +11,5 @@ var (
 	// update it there as well.
 	//
 	// There are test cases for this regex in appslug_test.go.
-	ValidAppSlugRegex = regexp.MustCompile(`^[a-z0-9](-?[a-z0-9])*$`)
+	AppSlugRegex = regexp.MustCompile(`^[a-z0-9](-?[a-z0-9])*$`)
 )

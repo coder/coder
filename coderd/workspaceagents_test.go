@@ -553,9 +553,9 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			// should not exist in the response.
 			_, appLPort := generateUnfilteredPort(t)
 			app := &proto.App{
-				Slug: "test-app",
-				Name: "test-app",
-				Url:  fmt.Sprintf("http://localhost:%d", appLPort),
+				Slug:        "test-app",
+				DisplayName: "test-app",
+				Url:         fmt.Sprintf("http://localhost:%d", appLPort),
 			}
 
 			// Generate a filtered port that should not exist in the response.
@@ -622,18 +622,18 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	authToken := uuid.NewString()
 	apps := []*proto.App{
 		{
-			Slug:    "code-server",
-			Name:    "code-server",
-			Command: "some-command",
-			Url:     "http://localhost:3000",
-			Icon:    "/code.svg",
+			Slug:        "code-server",
+			DisplayName: "code-server",
+			Command:     "some-command",
+			Url:         "http://localhost:3000",
+			Icon:        "/code.svg",
 		},
 		{
-			Slug:    "code-server-2",
-			Name:    "code-server-2",
-			Command: "some-command",
-			Url:     "http://localhost:3000",
-			Icon:    "/code.svg",
+			Slug:        "code-server-2",
+			DisplayName: "code-server-2",
+			Command:     "some-command",
+			Url:         "http://localhost:3000",
+			Icon:        "/code.svg",
 			Healthcheck: &proto.Healthcheck{
 				Url:       "http://localhost:3000",
 				Interval:  5,
