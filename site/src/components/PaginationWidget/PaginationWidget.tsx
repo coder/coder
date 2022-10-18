@@ -102,7 +102,6 @@ const PageButton = ({
         page === numPages ? "Last Page" : ""
       } Page${page}`}
       name="Page button"
-      key={`Page${page}`}
       onClick={() => onPageClick && onPageClick(page)}
     >
       <div>{page}</div>
@@ -167,6 +166,7 @@ export const PaginationWidget = ({
                 </Button>
               ) : (
                 <PageButton
+                  key={`Page${page}`}
                   activePage={activePage}
                   page={page}
                   numPages={numPages}
