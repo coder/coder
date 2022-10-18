@@ -99,6 +99,7 @@ type DERPConfig struct {
 	Server DERPServerConfig `mapstructure:"server"`
 	Config DERPConfigConfig `mapstructure:"config"`
 }
+
 type DERPServerConfig struct {
 	// Usage: Whether to enable or disable the embedded DERP relay server.
 	// Flag:        derp-server-enable
@@ -210,7 +211,6 @@ type TelemetryConfig struct {
 	// Default:     "https://telemetry.coder.com"
 	URL string `mapstructure:"url"`
 }
-
 type TLSConfig struct {
 	// Usage: Whether TLS will be enabled.
 	// Flag:        tls-enable
@@ -229,7 +229,7 @@ type TLSConfig struct {
 	KeyFiles []string `mapstructure:"tls_key_tiles"`
 	// Usage: Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"
 	// Flag:        tls-min-version
-	// Default:     tls12
+	// Default:     "tls12"
 	MinVersion string `mapstructure:"tls_min_version"`
 }
 
