@@ -727,12 +727,12 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 		}
 }
 
-type FakeOIDCConfig struct {
+type OIDCConfig struct {
 	key    *rsa.PrivateKey
 	issuer string
 }
 
-func NewFakeOIDCConfig(t *testing.T, issuer string) *FakeOIDCConfig {
+func NewOIDCConfig(t *testing.T, issuer string) *OIDCConfig {
 	t.Helper()
 
 	pkey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -742,21 +742,21 @@ func NewFakeOIDCConfig(t *testing.T, issuer string) *FakeOIDCConfig {
 		issuer = "https://coder.com"
 	}
 
-	return &FakeOIDCConfig{
+	return &OIDCConfig{
 		key:    pkey,
 		issuer: issuer,
 	}
 }
 
-func (*FakeOIDCConfig) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
+func (*OIDCConfig) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "/?state=" + url.QueryEscape(state)
 }
 
-func (*FakeOIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+func (*OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
 	return nil
 }
 
-func (*FakeOIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (*OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	token, err := base64.StdEncoding.DecodeString(code)
 	if err != nil {
 		return nil, xerrors.Errorf("decode code: %w", err)
@@ -768,7 +768,7 @@ func (*FakeOIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.Auth
 	}), nil
 }
 
-func (o *FakeOIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
+func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
 
 	if _, ok := claims["exp"]; !ok {
@@ -789,7 +789,7 @@ func (o *FakeOIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *FakeOIDCConfig) OIDCConfig() *coderd.OIDCConfig {
+func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
 	return &coderd.OIDCConfig{
 		OAuth2Config: o,
 		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{

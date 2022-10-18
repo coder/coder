@@ -516,7 +516,7 @@ func TestUserOIDC(t *testing.T) {
 		client.SessionToken = authCookieValue(resp.Cookies())
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(user.Username, "jon_"), "username %q should have prefix %q", user.Username, "jon")
+		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
