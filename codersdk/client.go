@@ -150,10 +150,12 @@ func readBodyAsError(res *http.Response) error {
 	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			// If no body is sent, we'll just provide the status code.
 			return &Error{
 				statusCode: res.StatusCode,
-				Helper:     helper,
+				Response: Response{
+					Message: "empty response body",
+				},
+				Helper: helper,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
