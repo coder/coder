@@ -172,7 +172,7 @@ endef
 # calling this manually.
 $(CODER_ALL_BINARIES): go.mod go.sum \
 	$(shell find . -not -path './vendor/*' -type f -name '*.go') \
-	$(shell find ./examples/templates)
+	$(shell find ./templates/examples)
 
 	$(get-mode-os-arch-ext)
 	if [[ "$$os" != "windows" ]] && [[ "$$ext" != "" ]]; then
