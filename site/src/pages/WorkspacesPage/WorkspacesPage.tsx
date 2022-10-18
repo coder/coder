@@ -65,7 +65,7 @@ const WorkspacesPage: FC = () => {
         onFilter={(query) => {
           setSearchParams({ filter: query })
           send({
-            type: "GET_WORKSPACES",
+            type: "UPDATE_FILTER",
             query,
           })
         }}
