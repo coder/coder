@@ -54,6 +54,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
         aria-label="latency"
         ref={anchorRef}
         onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
         className={styles.trigger}
         style={{ color: latency.color }}
       >
