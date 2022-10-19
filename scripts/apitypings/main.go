@@ -370,6 +370,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		state.Extends = strings.Join(extends, ", ")
 	}
 
+	genericsUsed := make(map[string]string)
 	// For each field in the struct, we print 1 line of the typescript interface
 	for i := 0; i < st.NumFields(); i++ {
 		if extendedFields[i] {
@@ -434,7 +435,15 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		valueType := tsType.ValueType
 		if tsType.GenericMapping != "" {
 			valueType = tsType.GenericMapping
-			state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", tsType.GenericMapping, tsType.ValueType))
+			// Don't add a generic twice
+			if _, ok := genericsUsed[tsType.GenericMapping]; !ok {
+				// TODO: We should probably check that the generic mapping is
+				// 	not a different type. Like 'T' being referenced to 2 different
+				//	constraints. I don't think this is possible though in valid
+				// 	go, so I'm going to ignore this for now.
+				state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", tsType.GenericMapping, tsType.ValueType))
+			}
+			genericsUsed[tsType.GenericMapping] = tsType.ValueType
 		}
 		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, valueType))
 	}
