@@ -255,7 +255,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
 		enforcer := workspacequota.NewNop()
 		if enabled {
-			enforcer = api.WorkspaceQuotaEnforcer
+			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
 		}
 		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}

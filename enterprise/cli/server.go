@@ -57,8 +57,6 @@ func server() *cobra.Command {
 			)
 		}
 
-		options.WorkspaceQuotaEnforcer = coderd.NewEnforcer(dflags.UserWorkspaceQuota.Value)
-
 		o := &coderd.Options{
 			AuditLogging:           dflags.AuditLogging.Value,
 			BrowserOnly:            dflags.BrowserOnly.Value,
