@@ -113,7 +113,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"provisioner_state":   ActionIgnore, // Unimportant to the user
 		"job_id":              ActionIgnore, // Unimportant to the user
 		"deadline":            ActionIgnore, // Unimportant to the user
-		"reason":              ActionTrack,
+		"reason":              ActionIgnore, // Unimportant to the user
 	},
 })
 
