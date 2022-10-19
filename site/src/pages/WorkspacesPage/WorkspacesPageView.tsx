@@ -114,18 +114,16 @@ export const WorkspacesPageView: FC<
         filter={filter}
       />
 
-      <Maybe condition={count !== undefined}>
-        <PaginationWidget
-          prevLabel=""
-          nextLabel=""
-          onPrevClick={onPrevious}
-          onNextClick={onNext}
-          onPageClick={onGoToPage}
-          numRecords={count}
-          activePage={page}
-          numRecordsPerPage={limit}
-        />
-      </Maybe>
+      <PaginationWidget
+        prevLabel=""
+        nextLabel=""
+        onPrevClick={onPrevious}
+        onNextClick={onNext}
+        onPageClick={onGoToPage}
+        numRecords={count}
+        activePage={page}
+        numRecordsPerPage={limit}
+      />
     </Margins>
   )
 }
