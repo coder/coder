@@ -91,6 +91,11 @@ Coder volume definitions.
   secret:
     secretName: {{ $secretName | quote }}
 {{ end -}}
+{{ range $secret := .Values.coder.certs.secrets -}}
+- name: "ca-cert-{{ $secret.name }}"
+  secret:
+    secretName: {{ $secret.name | quote }}
+{{ end -}}
 {{- end }}
 
 {{/*
@@ -113,7 +118,13 @@ Coder volume mounts.
 - name: "tls-{{ $secretName }}"
   mountPath: "/etc/ssl/certs/coder/{{ $secretName }}"
   readOnly: true
-{{ end }}
+{{ end -}}
+{{ range $secret := .Values.coder.certs.secrets -}}
+- name: "ca-cert-{{ $secret.name }}"
+  mountPath: "/etc/ssl/certs/{{ $secret.name }}.crt"
+  subPath: {{ $secret.key | quote }}
+  readOnly: true
+{{ end -}}
 {{- end }}
 
 {{/*

@@ -65,12 +65,17 @@ coder:
     #   cpu: 100m
     #   memory: 128Mi
 
-  # coder.certs -- Certificate to mount inside the Coder pod (e.g. CA bundle).
+  # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:
-    # coder.certs.secretNames -- A list of CA certificate secrets to mount into
-    # the Coder pod. The secrets should exist in the same namespace as the Helm
+    # coder.certs.secrets -- A list of CA bundle secrets to mount into the Coder
+    # pod. The secrets should exist in the same namespace as the Helm
     # deployment.
-    secretNames: []
+    #
+    # The given key in each secret is mounted at
+    # `/etc/ssl/certs/{secret_name}.crt`.
+    secrets: []
+      # - name: "my-ca-bundle"
+      #   key: "ca-bundle.crt"
 
   # coder.service -- The Service object to expose for Coder.
   service:
