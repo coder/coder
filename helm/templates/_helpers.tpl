@@ -46,7 +46,7 @@ Coder Docker image URI
 Coder listen port (must be > 1024)
 */}}
 {{- define "coder.port" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName -}}
+{{- if .Values.coder.tls.secretNames -}}
 8443
 {{- else -}}
 8080
@@ -57,7 +57,7 @@ Coder listen port (must be > 1024)
 Coder service port
 */}}
 {{- define "coder.servicePort" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName -}}
+{{- if .Values.coder.tls.secretNames -}}
 443
 {{- else -}}
 80
@@ -68,7 +68,7 @@ Coder service port
 Port name
 */}}
 {{- define "coder.portName" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName -}}
+{{- if .Values.coder.tls.secretNames -}}
 https
 {{- else -}}
 http
@@ -86,25 +86,15 @@ Scheme
 Coder volume definitions.
 */}}
 {{- define "coder.volumes" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName .Values.coder.certs.secretNames }}
+{{- if .Values.coder.tls.secretNames }}
 volumes:
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
   secret:
     secretName: {{ $secretName | quote }}
 {{ end -}}
-{{- if .Values.coder.tls.secretName -}}
-- name: "tls-{{ .Values.coder.tls.secretName }}"
-  secret:
-    secretName: {{ .Values.coder.tls.secretName | quote }}
-{{- end }}
-{{ range $certSecretNames := .Values.coder.certs.secretNames -}}
-- name: {{ $certSecretNames | quote }}
-  secret:
-    secretName: {{ $certSecretNames | quote }}
-{{ end -}}
 {{- else }}
-volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.secretName) (not .Values.coder.certs.secretNames) }}[]{{ end }}
+volumes: []
 {{- end }}
 {{- end }}
 
@@ -112,22 +102,12 @@ volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.se
 Coder volume mounts.
 */}}
 {{- define "coder.volumeMounts" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName .Values.coder.certs.secretNames }}
+{{- if .Values.coder.tls.secretNames }}
 volumeMounts:
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
   mountPath: "/etc/ssl/certs/coder/{{ $secretName }}"
   readOnly: true
-{{ end }}
-{{- if .Values.coder.tls.secretName -}}
-- name: "tls-{{ .Values.coder.tls.secretName }}"
-  mountPath: "/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}"
-  readOnly: true
-{{- end }}
-{{ range $certSecretNames := .Values.coder.certs.secretNames -}}
-- name: {{ $certSecretNames | quote }}
-  mountPath: "/etc/ssl/certs/{{ $certSecretNames }}"
-	readOnly: true
 {{ end }}
 {{- else }}
 volumeMounts: []
@@ -138,13 +118,13 @@ volumeMounts: []
 Coder TLS environment variables.
 */}}
 {{- define "coder.tlsEnv" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
+{{- if .Values.coder.tls.secretNames }}
 - name: CODER_TLS_ENABLE
   value: "true"
 - name: CODER_TLS_CERT_FILE
-  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.crt{{- end }}{{ if .Values.coder.tls.secretName -}}/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}/tls.crt{{- end }}"
+  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.crt{{- end }}"
 - name: CODER_TLS_KEY_FILE
-  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.key{{- end }}{{ if .Values.coder.tls.secretName -}}/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}/tls.key{{- end }}"
+  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.key{{- end }}"
 {{- end }}
 {{- end }}
 
@@ -172,10 +152,9 @@ included at the top of coder.yaml.
 */}}
 {{- define "coder.verifyDeprecated" }}
 {{/*
-Deprecated value coder.tls.secretName should not be used alongside new value
-coder.tls.secretName.
+Deprecated value coder.tls.secretName must not be used.
 */}}
-{{- if and .Values.coder.tls.secretName .Values.coder.tls.secretNames }}
-{{ fail "You must specify either coder.tls.secretName or coder.tls.secretNames, not both." }}
+{{- if .Values.coder.tls.secretName }}
+{{ fail "coder.tls.secretName is deprecated, use coder.tls.secretNames instead." }}
 {{- end }}
 {{- end }}
