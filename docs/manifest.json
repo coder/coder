@@ -75,6 +75,12 @@
           "path": "./quickstart/docker.md"
         },
         {
+          "title": "Google Cloud Platform",
+          "description": "Setup Coder with Google Cloud Platform",
+          "icon_path": "./images/google-cloud.svg",
+          "path": "./quickstart/google-cloud-platform.md"
+        },
+        {
           "title": "AWS",
           "description": "Setup Coder with AWS",
           "icon_path": "./images/aws.svg",
