@@ -53,6 +53,8 @@ const (
 	AuditActionCreate AuditAction = "create"
 	AuditActionWrite  AuditAction = "write"
 	AuditActionDelete AuditAction = "delete"
+	AuditActionStart  AuditAction = "start"
+	AuditActionStop   AuditAction = "stop"
 )
 
 func (a AuditAction) FriendlyString() string {
@@ -63,6 +65,10 @@ func (a AuditAction) FriendlyString() string {
 		return "updated"
 	case AuditActionDelete:
 		return "deleted"
+	case AuditActionStart:
+		return "started"
+	case AuditActionStop:
+		return "stopped"
 	default:
 		return "unknown"
 	}

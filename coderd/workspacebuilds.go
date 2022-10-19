@@ -300,12 +300,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	// if a user starts/stops a workspace, audit the workspace build
 	if action == rbac.ActionUpdate {
 
+		var auditAction database.AuditAction
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			auditAction = database.AuditActionStart
+		} else if createBuild.Transition == codersdk.WorkspaceTransitionStop {
+			auditAction = database.AuditActionStop
+		} else {
+			auditAction = database.AuditActionWrite
+		}
+
 		var (
 			aReq, commitAudit = audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
 				Audit:   *auditor,
 				Log:     api.Logger,
 				Request: r,
-				Action:  database.AuditActionWrite,
+				Action:  auditAction,
 			})
 		)
 

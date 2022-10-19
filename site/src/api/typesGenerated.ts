@@ -886,7 +886,7 @@ export interface WorkspaceResourceMetadata {
 export type APIKeyScope = "all" | "application_connect"
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "write"
+export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
@@ -945,6 +945,7 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+  | "workspace_build"
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"

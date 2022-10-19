@@ -60,6 +60,8 @@ const (
 	AuditActionCreate AuditAction = "create"
 	AuditActionWrite  AuditAction = "write"
 	AuditActionDelete AuditAction = "delete"
+	AuditActionStart  AuditAction = "start"
+	AuditActionStop   AuditAction = "stop"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
