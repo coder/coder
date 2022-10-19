@@ -39,8 +39,9 @@ func main() {
 // TypescriptTypes holds all the code blocks created.
 type TypescriptTypes struct {
 	// Each entry is the type name, and it's typescript code block.
-	Types map[string]string
-	Enums map[string]string
+	Types    map[string]string
+	Enums    map[string]string
+	Generics map[string]string
 }
 
 // String just combines all the codeblocks.
@@ -50,6 +51,7 @@ func (t TypescriptTypes) String() string {
 
 	sortedTypes := make([]string, 0, len(t.Types))
 	sortedEnums := make([]string, 0, len(t.Enums))
+	sortedGenerics := make([]string, 0, len(t.Generics))
 
 	for k := range t.Types {
 		sortedTypes = append(sortedTypes, k)
@@ -57,9 +59,13 @@ func (t TypescriptTypes) String() string {
 	for k := range t.Enums {
 		sortedEnums = append(sortedEnums, k)
 	}
+	for k := range t.Generics {
+		sortedGenerics = append(sortedGenerics, k)
+	}
 
 	sort.Strings(sortedTypes)
 	sort.Strings(sortedEnums)
+	sort.Strings(sortedGenerics)
 
 	for _, k := range sortedTypes {
 		v := t.Types[k]
@@ -69,6 +75,12 @@ func (t TypescriptTypes) String() string {
 
 	for _, k := range sortedEnums {
 		v := t.Enums[k]
+		_, _ = s.WriteString(v)
+		_, _ = s.WriteRune('\n')
+	}
+
+	for _, k := range sortedGenerics {
+		v := t.Generics[k]
 		_, _ = s.WriteString(v)
 		_, _ = s.WriteRune('\n')
 	}
@@ -129,6 +141,7 @@ func (g *Generator) parsePackage(ctx context.Context, patterns ...string) error 
 // generateAll will generate for all types found in the pkg
 func (g *Generator) generateAll() (*TypescriptTypes, error) {
 	structs := make(map[string]string)
+	generics := make(map[string]string)
 	enums := make(map[string]types.Object)
 	enumConsts := make(map[string][]*types.Const)
 
@@ -170,12 +183,11 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 			if !ok {
 				panic("all typename should be named types")
 			}
-			switch named.Underlying().(type) {
+			switch underNamed := named.Underlying().(type) {
 			case *types.Struct:
 				// type <Name> struct
 				// Structs are obvious.
-				st, _ := obj.Type().Underlying().(*types.Struct)
-				codeBlock, err := g.buildStruct(obj, st)
+				codeBlock, err := g.buildStruct(obj, underNamed)
 				if err != nil {
 					return nil, xerrors.Errorf("generate %q: %w", obj.Name(), err)
 				}
@@ -205,7 +217,35 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 				str.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), ts.ValueType))
 				structs[obj.Name()] = str.String()
 			case *types.Array, *types.Slice:
-				// TODO: @emyrk if you need this, follow the same design as "*types.Map" case.
+			// TODO: @emyrk if you need this, follow the same design as "*types.Map" case.
+			case *types.Interface:
+				// Interfaces are used as generics. Non-generic interfaces are
+				// not supported.
+				if underNamed.NumEmbeddeds() == 1 {
+					union, ok := underNamed.EmbeddedType(0).(*types.Union)
+					if !ok {
+						// If the underlying is not a union, but has 1 type. It's
+						// just that one type.
+						union = types.NewUnion([]*types.Term{
+							// Set the tilde to true to support underlying.
+							// Doesn't actually affect our generation.
+							types.NewTerm(true, underNamed.EmbeddedType(0)),
+						})
+					}
+
+					block, err := g.buildUnion(obj, union)
+					if err != nil {
+						return nil, xerrors.Errorf("generate union %q: %w", obj.Name(), err)
+					}
+					generics[obj.Name()] = block
+				}
+			case *types.Signature:
+			// Ignore named functions.
+			default:
+				// If you hit this error, you added a new unsupported named type.
+				// The easiest way to solve this is add a new case above with
+				// your type and a TODO to implement it.
+				return nil, xerrors.Errorf("unsupported named type %q", underNamed.String())
 			}
 		case *types.Var:
 			// TODO: Are any enums var declarations? This is also codersdk.Me.
@@ -242,14 +282,42 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 	}
 
 	return &TypescriptTypes{
-		Types: structs,
-		Enums: enumCodeBlocks,
+		Types:    structs,
+		Enums:    enumCodeBlocks,
+		Generics: generics,
 	}, nil
 }
 
 func (g *Generator) posLine(obj types.Object) string {
 	file := g.pkg.Fset.File(obj.Pos())
 	return fmt.Sprintf("// From %s\n", filepath.Join("codersdk", filepath.Base(file.Name())))
+}
+
+// buildStruct just prints the typescript def for a type.
+func (g *Generator) buildUnion(obj types.Object, st *types.Union) (string, error) {
+	var s strings.Builder
+	_, _ = s.WriteString(g.posLine(obj))
+
+	allTypes := make([]string, 0, st.Len())
+	var optional bool
+	for i := 0; i < st.Len(); i++ {
+		term := st.Term(i)
+		scriptType, err := g.typescriptType(term.Type())
+		if err != nil {
+			return "", xerrors.Errorf("union %q for %q failed to get type: %w", st.String(), obj.Name(), err)
+		}
+		allTypes = append(allTypes, scriptType.ValueType)
+		optional = optional || scriptType.Optional
+	}
+
+	qMark := ""
+	if optional {
+		qMark = "?"
+	}
+
+	s.WriteString(fmt.Sprintf("export type %s%s = %s\n", obj.Name(), qMark, strings.Join(allTypes, " | ")))
+
+	return s.String(), nil
 }
 
 // buildStruct just prints the typescript def for a type.
