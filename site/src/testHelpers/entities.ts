@@ -418,10 +418,12 @@ export const MockWorkspace: TypesGen.Workspace = {
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-stopped-workspace",
   latest_build: { ...MockWorkspaceBuildStop, status: "stopped" },
 }
 export const MockStoppingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-stopping-workspace",
   latest_build: {
     ...MockWorkspaceBuildStop,
     job: MockRunningProvisionerJob,
@@ -430,6 +432,7 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 }
 export const MockStartingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-starting-workspace",
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockRunningProvisionerJob,
@@ -439,6 +442,7 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
 }
 export const MockCancelingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-canceling-workspace",
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockCancelingProvisionerJob,
@@ -447,6 +451,7 @@ export const MockCancelingWorkspace: TypesGen.Workspace = {
 }
 export const MockCanceledWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-canceled-workspace",
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockCanceledProvisionerJob,
@@ -455,6 +460,7 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 }
 export const MockFailedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-failed-workspace",
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockFailedProvisionerJob,
@@ -463,6 +469,7 @@ export const MockFailedWorkspace: TypesGen.Workspace = {
 }
 export const MockDeletingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-deleting-workspace",
   latest_build: {
     ...MockWorkspaceBuildDelete,
     job: MockRunningProvisionerJob,
@@ -471,16 +478,19 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 }
 export const MockDeletedWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-deleted-workspace",
   latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
 }
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = {
   ...MockFailedWorkspace,
+  id: "test-outdated-workspace",
   outdated: true,
 }
 
 export const MockPendingWorkspace: TypesGen.Workspace = {
   ...MockWorkspace,
+  id: "test-pending-workspace",
   latest_build: {
     ...MockWorkspaceBuild,
     job: MockPendingProvisionerJob,
@@ -494,6 +504,10 @@ export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
   parameter_values: [],
   template_id: "test-template",
+}
+
+export const MockWorkspaceCountResponse: TypesGen.WorkspaceCountResponse = {
+  count: 26 // just over 1 page
 }
 
 export const MockUserAgent: Types.UserAgent = {
