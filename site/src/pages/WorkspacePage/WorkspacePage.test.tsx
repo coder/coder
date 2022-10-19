@@ -220,7 +220,7 @@ describe("WorkspacePage", () => {
 
     await waitFor(() =>
       expect(api.startWorkspace).toBeCalledWith(
-        "test-workspace",
+        "test-outdated-workspace",
         "test-template-version",
       ),
     )

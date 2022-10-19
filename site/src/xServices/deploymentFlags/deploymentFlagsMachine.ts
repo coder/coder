@@ -5,6 +5,7 @@ import { createMachine, assign } from "xstate"
 export const deploymentFlagsMachine = createMachine(
   {
     id: "deploymentFlagsMachine",
+    predictableActionArguments: true,
     initial: "idle",
     schema: {
       context: {} as {
