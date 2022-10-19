@@ -257,6 +257,10 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxTtl:               int64(maxTTL),
 			MinAutostartInterval: int64(minAutostartInterval),
 			CreatedBy:            apiKey.UserID,
+			UserACL:              database.TemplateACL{},
+			GroupACL: database.TemplateACL{
+				organization.ID.String(): []rbac.Action{rbac.ActionRead},
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -297,13 +301,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
 			}
-		}
-
-		err = tx.UpdateTemplateGroupACLByID(ctx, dbTemplate.ID, database.TemplateACL{
-			dbTemplate.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
-		})
-		if err != nil {
-			return xerrors.Errorf("update template group acl: %w", err)
 		}
 
 		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
@@ -683,6 +680,10 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			MaxTtl:               int64(maxTTLDefault),
 			MinAutostartInterval: int64(minAutostartIntervalDefault),
 			CreatedBy:            opts.userID,
+			UserACL:              database.TemplateACL{},
+			GroupACL: database.TemplateACL{
+				opts.orgID.String(): []rbac.Action{rbac.ActionRead},
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %w", err)
@@ -716,13 +717,6 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			if err != nil {
 				return xerrors.Errorf("insert template-scoped parameter %q with value %q: %w", key, value, err)
 			}
-		}
-
-		err = tx.UpdateTemplateGroupACLByID(ctx, template.ID, database.TemplateACL{
-			opts.orgID.String(): []rbac.Action{rbac.ActionRead},
-		})
-		if err != nil {
-			return xerrors.Errorf("update template group acl: %w", err)
 		}
 
 		return nil

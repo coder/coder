@@ -158,6 +158,9 @@ func TestAuditLogging(t *testing.T) {
 		t.Parallel()
 		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			AuditLogging: true,
+			Options: &coderdtest.Options{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
 		})
 		coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{

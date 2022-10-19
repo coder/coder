@@ -2899,8 +2899,8 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
-		&i.userACL,
-		&i.groupACL,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
@@ -2941,8 +2941,8 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
-		&i.userACL,
-		&i.groupACL,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
@@ -2975,8 +2975,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.MinAutostartInterval,
 			&i.CreatedBy,
 			&i.Icon,
-			&i.userACL,
-			&i.groupACL,
+			&i.UserACL,
+			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -3055,8 +3055,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.MinAutostartInterval,
 			&i.CreatedBy,
 			&i.Icon,
-			&i.userACL,
-			&i.groupACL,
+			&i.UserACL,
+			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -3085,10 +3085,12 @@ INSERT INTO
 		max_ttl,
 		min_autostart_interval,
 		created_by,
-		icon
+		icon,
+		user_acl,
+		group_acl
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
 `
 
 type InsertTemplateParams struct {
@@ -3104,6 +3106,8 @@ type InsertTemplateParams struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
+	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -3120,6 +3124,8 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.MinAutostartInterval,
 		arg.CreatedBy,
 		arg.Icon,
+		arg.UserACL,
+		arg.GroupACL,
 	)
 	var i Template
 	err := row.Scan(
@@ -3136,8 +3142,49 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
-		&i.userACL,
-		&i.groupACL,
+		&i.UserACL,
+		&i.GroupACL,
+	)
+	return i, err
+}
+
+const updateTemplateACLByID = `-- name: UpdateTemplateACLByID :one
+UPDATE
+	templates
+SET
+	group_acl = $1,
+	user_acl = $2
+WHERE
+	id = $3
+RETURNING
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+`
+
+type UpdateTemplateACLByIDParams struct {
+	GroupACL TemplateACL `db:"group_acl" json:"group_acl"`
+	UserACL  TemplateACL `db:"user_acl" json:"user_acl"`
+	ID       uuid.UUID   `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) (Template, error) {
+	row := q.db.QueryRowContext(ctx, updateTemplateACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	var i Template
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.Deleted,
+		&i.Name,
+		&i.Provisioner,
+		&i.ActiveVersionID,
+		&i.Description,
+		&i.MaxTtl,
+		&i.MinAutostartInterval,
+		&i.CreatedBy,
+		&i.Icon,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
@@ -3235,8 +3282,8 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
-		&i.userACL,
-		&i.groupACL,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }

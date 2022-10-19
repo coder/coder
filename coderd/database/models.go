@@ -301,6 +301,7 @@ const (
 	ResourceTypeWorkspace       ResourceType = "workspace"
 	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
 	ResourceTypeApiKey          ResourceType = "api_key"
+	ResourceTypeGroup           ResourceType = "group"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -573,8 +574,8 @@ type Template struct {
 	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
 	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                 string          `db:"icon" json:"icon"`
-	userACL              json.RawMessage `db:"user_acl" json:"user_acl"`
-	groupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
+	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {
