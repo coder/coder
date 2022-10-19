@@ -17,15 +17,14 @@ func TestDeploymentConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	vip := deployment.NewViper()
-	cfg, err := deployment.Config(vip)
-	require.NoError(t, err)
+	cfg := deployment.Config(vip)
 	// values should be returned
-	cfg.AccessURL = hi
+	cfg.AccessURL.Value = hi
 	// values should not be returned
-	cfg.OAuth2Github.ClientSecret = hi
-	cfg.OIDC.ClientSecret = hi
-	cfg.PostgresURL = hi
-	cfg.SCIMAuthHeader = hi
+	cfg.OAuth2GithubClientSecret.Value = hi
+	cfg.OIDCClientSecret.Value = hi
+	cfg.PostgresURL.Value = hi
+	cfg.SCIMAuthHeader.Value = hi
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig: &cfg,
@@ -34,10 +33,10 @@ func TestDeploymentConfig(t *testing.T) {
 	scrubbed, err := client.DeploymentConfig(ctx)
 	require.NoError(t, err)
 	// ensure normal values pass through
-	require.EqualValues(t, hi, scrubbed.AccessURL)
+	require.EqualValues(t, hi, scrubbed.AccessURL.Value)
 	// ensure secrets are removed
-	require.Empty(t, scrubbed.OAuth2Github.ClientSecret)
-	require.Empty(t, scrubbed.OIDC.ClientSecret)
-	require.Empty(t, scrubbed.PostgresURL)
-	require.Empty(t, scrubbed.SCIMAuthHeader)
+	require.Empty(t, scrubbed.OAuth2GithubClientSecret.Value)
+	require.Empty(t, scrubbed.OIDCClientSecret.Value)
+	require.Empty(t, scrubbed.PostgresURL.Value)
+	require.Empty(t, scrubbed.SCIMAuthHeader.Value)
 }
