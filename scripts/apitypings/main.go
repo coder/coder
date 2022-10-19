@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"go/types"
@@ -10,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
@@ -320,11 +322,33 @@ func (g *Generator) buildUnion(obj types.Object, st *types.Union) (string, error
 	return s.String(), nil
 }
 
+type structTemplateState struct {
+	PosLine   string
+	Name      string
+	Fields    []string
+	Extends   string
+	AboveLine string
+}
+
+const structTemplate = `{{ .PosLine -}}
+{{ if .AboveLine }}{{ .AboveLine }}
+{{ end }}export interface {{ .Name }}{{ if .Extends }} extends {{ .Extends }}{{ end }}{
+{{- range .Fields }}
+{{ . -}}
+{{- end }}
+}
+`
+
 // buildStruct just prints the typescript def for a type.
 func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, error) {
-	var s strings.Builder
-	_, _ = s.WriteString(g.posLine(obj))
-	_, _ = s.WriteString(fmt.Sprintf("export interface %s ", obj.Name()))
+	state := structTemplateState{}
+	tpl, err := template.New("struct").Parse(structTemplate)
+	if err != nil {
+		return "", xerrors.Errorf("parse struct template: %w", err)
+	}
+
+	state.PosLine = g.posLine(obj)
+	state.Name = obj.Name()
 
 	// Handle named embedded structs in the codersdk package via extension.
 	var extends []string
@@ -340,10 +364,9 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		}
 	}
 	if len(extends) > 0 {
-		_, _ = s.WriteString(fmt.Sprintf("extends %s ", strings.Join(extends, ", ")))
+		state.Extends = strings.Join(extends, ", ")
 	}
 
-	_, _ = s.WriteString("{\n")
 	// For each field in the struct, we print 1 line of the typescript interface
 	for i := 0; i < st.NumFields(); i++ {
 		if extendedFields[i] {
@@ -399,21 +422,29 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		}
 
 		if tsType.AboveTypeLine != "" {
-			_, _ = s.WriteString(tsType.AboveTypeLine)
-			_, _ = s.WriteRune('\n')
+			state.AboveLine = tsType.AboveTypeLine
 		}
 		optional := ""
 		if jsonOptional || tsType.Optional {
 			optional = "?"
 		}
-		_, _ = s.WriteString(fmt.Sprintf("%sreadonly %s%s: %s\n", indent, jsonName, optional, tsType.ValueType))
+		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, tsType.ValueType))
 	}
-	_, _ = s.WriteString("}\n")
-	return s.String(), nil
+
+	data := bytes.NewBuffer(make([]byte, 0))
+	err = tpl.Execute(data, state)
+	if err != nil {
+		return "", xerrors.Errorf("execute struct template: %w", err)
+	}
+	return data.String(), nil
 }
 
 type TypescriptType struct {
-	ValueType string
+	// GenericMapping gives a unique character for mapping the value type
+	// to a generic. This is only useful if you can use generic syntax.
+	// This is optional, as the ValueType will have the correct constraints.
+	GenericMapping string
+	ValueType      string
 	// AboveTypeLine lets you put whatever text you want above the typescript
 	// type line.
 	AboveTypeLine string
@@ -562,6 +593,23 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				AboveTypeLine: indentedComment("eslint-disable-next-line")}, nil
 		}
 		return TypescriptType{}, xerrors.New("only empty interface types are supported")
+	case *types.TypeParam:
+		_, ok := ty.Underlying().(*types.Interface)
+		if !ok {
+			// If it's not an interface, it is likely a usage of generics that
+			// we have not hit yet. Feel free to add support for it.
+			return TypescriptType{}, xerrors.New("type param must be an interface")
+		}
+
+		generic := ty.Constraint()
+		// This is kinda a hack, but we want just the end of the name.
+		name := strings.TrimSuffix("github.com/coder/coder/codersdk.", generic.String())
+		return TypescriptType{
+			GenericMapping: ty.Obj().Name(),
+			ValueType:      name,
+			AboveTypeLine:  "",
+			Optional:       false,
+		}, nil
 	}
 
 	// These are all the other types we need to support.
