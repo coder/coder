@@ -312,12 +312,11 @@ func (g *Generator) buildUnion(obj types.Object, st *types.Union) (string, error
 		optional = optional || scriptType.Optional
 	}
 
-	qMark := ""
 	if optional {
-		qMark = "?"
+		allTypes = append(allTypes, "null")
 	}
 
-	s.WriteString(fmt.Sprintf("export type %s%s = %s\n", obj.Name(), qMark, strings.Join(allTypes, " | ")))
+	s.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), strings.Join(allTypes, " | ")))
 
 	return s.String(), nil
 }
