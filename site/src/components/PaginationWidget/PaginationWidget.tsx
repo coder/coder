@@ -124,7 +124,7 @@ export const PaginationWidget = ({
   const firstPageActive = activePage === 1 && numPages !== 0
   const lastPageActive = activePage === numPages && numPages !== 0
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const styles = useStyles()
 
   // No need to display any pagination if we know the number of pages is 1
@@ -145,9 +145,7 @@ export const PaginationWidget = ({
       </Button>
       <Maybe condition={numPages > 0}>
         <ChooseOne>
-          <Cond
-            condition={isMobile}
-          >
+          <Cond condition={isMobile}>
             <PageButton
               activePage={activePage}
               page={activePage}

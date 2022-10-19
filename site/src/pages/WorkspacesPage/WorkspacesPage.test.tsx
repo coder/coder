@@ -47,7 +47,9 @@ describe("WorkspacesPage", () => {
     const nextPage = await screen.findByRole("button", { name: "Next page" })
     expect(nextPage).toBeEnabled()
     await user.click(nextPage)
-    const pageButtons = await container.querySelectorAll(`button[name="Page button"]`)
+    const pageButtons = await container.querySelectorAll(
+      `button[name="Page button"]`,
+    )
     expect(pageButtons.length).toBe(2)
   })
 })

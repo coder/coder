@@ -507,7 +507,7 @@ export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
 }
 
 export const MockWorkspaceCountResponse: TypesGen.WorkspaceCountResponse = {
-  count: 26 // just over 1 page
+  count: 26, // just over 1 page
 }
 
 export const MockUserAgent: Types.UserAgent = {
