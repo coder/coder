@@ -896,6 +896,7 @@ export interface WorkspaceResourceMetadata {
 export interface WorkspacesRequest extends Pagination {
   readonly q?: string
 }
+
 // From codersdk/apikey.go
 export type APIKeyScope = "all" | "application_connect"
 
