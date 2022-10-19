@@ -35,8 +35,6 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("group_acl: %+v\n", template.GroupACL)
-
 	dbGroups, err := api.Database.GetTemplateGroupRoles(ctx, template.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
