@@ -85,33 +85,47 @@ Scheme
 {{/*
 Coder volume definitions.
 */}}
-{{- define "coder.volumes" }}
-{{- if .Values.coder.tls.secretNames }}
-volumes:
+{{- define "coder.volumeList" }}
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
   secret:
     secretName: {{ $secretName | quote }}
 {{ end -}}
-{{- else }}
-volumes: []
 {{- end }}
+
+{{/*
+Coder volumes yaml.
+*/}}
+{{- define "coder.volumes" }}
+{{- if trim (include "coder.volumeList" .) -}}
+volumes:
+{{- include "coder.volumeList" . -}}
+{{- else -}}
+volumes: []
+{{- end -}}
 {{- end }}
 
 {{/*
 Coder volume mounts.
 */}}
-{{- define "coder.volumeMounts" }}
-{{- if .Values.coder.tls.secretNames }}
-volumeMounts:
+{{- define "coder.volumeMountList" }}
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
   mountPath: "/etc/ssl/certs/coder/{{ $secretName }}"
   readOnly: true
 {{ end }}
-{{- else }}
-volumeMounts: []
 {{- end }}
+
+{{/*
+Coder volume mounts yaml.
+*/}}
+{{- define "coder.volumeMounts" }}
+{{- if trim (include "coder.volumeMountList" .) -}}
+volumeMounts:
+{{- include "coder.volumeMountList" . -}}
+{{- else -}}
+volumeMounts: []
+{{- end -}}
 {{- end }}
 
 {{/*
