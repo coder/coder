@@ -126,7 +126,7 @@ volumeMounts:
 {{- end }}
 {{ range $certSecretNames := .Values.coder.certs.secretNames -}}
 - name: {{ $certSecretNames | quote }}
-  mountPath: "/etc/ssl/certs/{{ $certSecretName }}"
+  mountPath: "/etc/ssl/certs/{{ $certSecretNames }}"
 	readOnly: true
 {{ end }}
 {{- else }}
