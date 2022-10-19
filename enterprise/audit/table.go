@@ -107,6 +107,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"id":              ActionTrack,
 		"name":            ActionTrack,
 		"organization_id": ActionTrack,
+		"avatar_url":      ActionTrack,
 	},
 })
 
