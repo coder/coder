@@ -18,7 +18,7 @@ export interface AddLicenseRequest {
   readonly license: string
 }
 
-// From codersdk/gitsshkey.go
+// From codersdk/gitproviders.go
 export interface AgentGitSSHKey {
   readonly public_key: string
   readonly private_key: string
@@ -363,7 +363,7 @@ export interface GetAppHostResponse {
   readonly host: string
 }
 
-// From codersdk/gitsshkey.go
+// From codersdk/gitproviders.go
 export interface GitSSHKey {
   readonly user_id: string
   readonly created_at: string
@@ -782,6 +782,18 @@ export interface WorkspaceAgent {
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
+}
+
+// From codersdk/gitproviders.go
+export interface WorkspaceAgentGitAuthRequest {
+  readonly url: string
+}
+
+// From codersdk/gitproviders.go
+export interface WorkspaceAgentGitAuthResponse {
+  readonly username: string
+  readonly password: string
+  readonly url: string
 }
 
 // From codersdk/workspaceagents.go

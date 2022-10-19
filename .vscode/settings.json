@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
     "apps",
+    "ASKPASS",
     "awsidentity",
     "bodyclose",
     "buildinfo",
@@ -29,6 +30,7 @@
     "eventsourcemock",
     "fatih",
     "Formik",
+    "gitauth",
     "gitsshkey",
     "goarch",
     "gographviz",
