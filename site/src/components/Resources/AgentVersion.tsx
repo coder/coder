@@ -32,6 +32,7 @@ export const AgentVersion: FC<{
         aria-label="latency"
         ref={anchorRef}
         onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
         className={styles.trigger}
       >
         Agent Outdated
