@@ -3,28 +3,32 @@
 Coder is free to use and includes some features that are only accessible with a paid license.
 Contact sales@coder.com to obtain a license.
 
-These features are available in the enterprise edition:
-
-- [Audit Logging](./audit-logs.md)
-- [Browser Only Connections](../networking.md#browser-only-connections)
+### User Management
 - [Groups](./groups.md)
 - [Template RBAC](./rbac.md)
-- [Quotas](./quotas.md)
 - [SCIM](./auth.md#scim)
 
-And we're releasing these imminently:
+### Networking & Deployment
+- [High Availability](./high-availability.md)
+- [Browser Only Connections](../networking.md#browser-only-connections)
 
-- High Availability
+### Other
+- [Audit Logging](./audit-logs.md)
+- [Quotas](./quotas.md)
+
+### Coming soon
+
 - Multiple Git Provider Authentication
+- Max Workspace Auto-Stop
 
 ## Adding your license key
 
-### You will need:
+### Requirements
 
 - Your license key (contact sales@coder.com if you don't have yours)
 - Coder CLI installed
 
-### Steps:
+### Instructions
 
 1. Save your license key to disk and make note of the path
 2. Open a terminal

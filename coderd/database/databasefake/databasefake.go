@@ -107,9 +107,15 @@ type data struct {
 	workspaceApps                  []database.WorkspaceApp
 	workspaces                     []database.Workspace
 	licenses                       []database.License
+	replicas                       []database.Replica
 
 	deploymentID  string
+	derpMeshKey   string
 	lastLicenseID int32
+}
+
+func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
+	return 0, nil
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -235,15 +241,17 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	return rs, nil
 }
 
-func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (float64, error) {
-	var times []float64
+func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+	var emptyRow database.GetTemplateAverageBuildTimeRow
+	var (
+		startTimes  []float64
+		stopTimes   []float64
+		deleteTimes []float64
+	)
 	for _, wb := range q.workspaceBuilds {
-		if wb.Transition != database.WorkspaceTransitionStart {
-			continue
-		}
 		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
 		if err != nil {
-			return -1, err
+			return emptyRow, err
 		}
 		if version.TemplateID != arg.TemplateID {
 			continue
@@ -251,17 +259,32 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 
 		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
 		if err != nil {
-			return -1, err
+			return emptyRow, err
 		}
 		if job.CompletedAt.Valid {
-			times = append(times, job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds())
+			took := job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds()
+			if wb.Transition == database.WorkspaceTransitionStart {
+				startTimes = append(startTimes, took)
+			} else if wb.Transition == database.WorkspaceTransitionStop {
+				stopTimes = append(stopTimes, took)
+			} else if wb.Transition == database.WorkspaceTransitionDelete {
+				deleteTimes = append(deleteTimes, took)
+			}
 		}
 	}
-	sort.Float64s(times)
-	if len(times) == 0 {
-		return -1, nil
+
+	tryMedian := func(fs []float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[len(fs)/2]
 	}
-	return times[len(times)/2], nil
+	var row database.GetTemplateAverageBuildTimeRow
+	row.DeleteMedian = tryMedian(deleteTimes)
+	row.StopMedian = tryMedian(stopTimes)
+	row.StartMedian = tryMedian(startTimes)
+	return row, nil
 }
 
 func (q *fakeQuerier) ParameterValue(_ context.Context, id uuid.UUID) (database.ParameterValue, error) {
@@ -1434,34 +1457,6 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
-func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.TemplateACL) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for i, t := range q.templates {
-		if t.ID == id {
-			t = t.SetUserACL(acl)
-			q.templates[i] = t
-			return nil
-		}
-	}
-	return sql.ErrNoRows
-}
-
-func (q *fakeQuerier) UpdateTemplateGroupACLByID(_ context.Context, id uuid.UUID, acl database.TemplateACL) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for i, t := range q.templates {
-		if t.ID == id {
-			t = t.SetGroupACL(acl)
-			q.templates[i] = t
-			return nil
-		}
-	}
-	return sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1478,10 +1473,8 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 		return nil, sql.ErrNoRows
 	}
 
-	acl := template.UserACL()
-
-	users := make([]database.TemplateUser, 0, len(acl))
-	for k, v := range acl {
+	users := make([]database.TemplateUser, 0, len(template.UserACL))
+	for k, v := range template.UserACL {
 		user, err := q.GetUserByID(context.Background(), uuid.MustParse(k))
 		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get user by ID: %w", err)
@@ -1521,10 +1514,8 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 		return nil, sql.ErrNoRows
 	}
 
-	acl := template.GroupACL()
-
-	groups := make([]database.TemplateGroup, 0, len(acl))
-	for k, v := range acl {
+	groups := make([]database.TemplateGroup, 0, len(template.GroupACL))
+	for k, v := range template.GroupACL {
 		group, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get group by ID: %w", err)
@@ -2024,11 +2015,9 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		MaxTtl:               arg.MaxTtl,
 		MinAutostartInterval: arg.MinAutostartInterval,
 		CreatedBy:            arg.CreatedBy,
+		UserACL:              arg.UserACL,
+		GroupACL:             arg.GroupACL,
 	}
-	template = template.SetUserACL(database.TemplateACL{})
-	template = template.SetGroupACL(database.TemplateACL{
-		arg.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
-	})
 	q.templates = append(q.templates, template)
 	return template, nil
 }
@@ -2197,6 +2186,12 @@ func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	for _, user := range q.users {
+		if user.Username == arg.Username && !user.Deleted {
+			return database.User{}, errDuplicateKey
+		}
+	}
 
 	user := database.User{
 		ID:             arg.ID,
@@ -2440,6 +2435,23 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, template := range q.templates {
+		if template.ID == arg.ID {
+			template.GroupACL = arg.GroupACL
+			template.UserACL = arg.UserACL
+
+			q.templates[i] = template
+			return template, nil
+		}
+	}
+
+	return database.Template{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
@@ -2762,6 +2774,7 @@ func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 	for i, group := range q.groups {
 		if group.ID == arg.ID {
 			group.Name = arg.Name
+			group.AvatarURL = arg.AvatarURL
 			q.groups[i] = group
 			return group, nil
 		}
@@ -2913,6 +2926,21 @@ func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
+}
+
+func (q *fakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.derpMeshKey = id
+	return nil
+}
+
+func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.derpMeshKey, nil
 }
 
 func (q *fakeQuerier) InsertLicense(
@@ -3098,6 +3126,7 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		ID:             arg.ID,
 		Name:           arg.Name,
 		OrganizationID: arg.OrganizationID,
+		AvatarURL:      arg.AvatarURL,
 	}
 
 	q.groups = append(q.groups, group)
@@ -3179,4 +3208,71 @@ func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, replica := range q.replicas {
+		if replica.UpdatedAt.Before(before) {
+			q.replicas = append(q.replicas[:i], q.replicas[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
+func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	replica := database.Replica{
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		StartedAt:       arg.StartedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		Hostname:        arg.Hostname,
+		RegionID:        arg.RegionID,
+		RelayAddress:    arg.RelayAddress,
+		Version:         arg.Version,
+		DatabaseLatency: arg.DatabaseLatency,
+	}
+	q.replicas = append(q.replicas, replica)
+	return replica, nil
+}
+
+func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, replica := range q.replicas {
+		if replica.ID != arg.ID {
+			continue
+		}
+		replica.Hostname = arg.Hostname
+		replica.StartedAt = arg.StartedAt
+		replica.StoppedAt = arg.StoppedAt
+		replica.UpdatedAt = arg.UpdatedAt
+		replica.RelayAddress = arg.RelayAddress
+		replica.RegionID = arg.RegionID
+		replica.Version = arg.Version
+		replica.Error = arg.Error
+		replica.DatabaseLatency = arg.DatabaseLatency
+		q.replicas[index] = replica
+		return replica, nil
+	}
+	return database.Replica{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	replicas := make([]database.Replica, 0)
+	for _, replica := range q.replicas {
+		if replica.UpdatedAt.After(updatedAt) && !replica.StoppedAt.Valid {
+			replicas = append(replicas, replica)
+		}
+	}
+	return replicas, nil
 }

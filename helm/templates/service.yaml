@@ -10,6 +10,7 @@ metadata:
     {{- toYaml .Values.coder.service.annotations | nindent 4 }}
 spec:
   type: {{ .Values.coder.service.type }}
+  sessionAffinity: ClientIP
   ports:
     - name: {{ include "coder.portName" . | quote }}
       port: {{ include "coder.servicePort" . }}

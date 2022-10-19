@@ -60,8 +60,10 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 				continue
 			}
 			app := nextApp
-			t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
 			go func() {
+				t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
+				defer t.Stop()
+
 				for {
 					select {
 					case <-ctx.Done():
@@ -118,6 +120,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 		lastHealth := copyHealth(health)
 		mu.Unlock()
 		reportTicker := time.NewTicker(time.Second)
+		defer reportTicker.Stop()
 		// every second we check if the health values of the apps have changed
 		// and if there is a change we will report the new values.
 		for {

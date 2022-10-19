@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
 import i18next from "i18next"
@@ -27,7 +27,6 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { DisplayAgentStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 const { t } = i18next
@@ -71,7 +70,8 @@ const testStatus = async (ws: Workspace, label: string) => {
     ),
   )
   await renderWorkspacePage()
-  const status = await screen.findByRole("status")
+  const header = screen.getByTestId("header")
+  const status = await within(header).findByRole("status")
   expect(status).toHaveTextContent(label)
 }
 
@@ -96,7 +96,8 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
     const workspaceName = await screen.findByText(MockWorkspace.name)
     expect(workspaceName).toBeDefined()
-    const status = await screen.findByRole("status")
+    const header = screen.getByTestId("header")
+    const status = await within(header).findByRole("status")
     expect(status).toHaveTextContent("Running")
     // wait for workspace page to finish loading
     await screen.findByText("stop")
@@ -335,16 +336,22 @@ describe("WorkspacePage", () => {
         MockWorkspaceAgentDisconnected.name,
       )
       expect(agent2Names.length).toEqual(2)
-      const agent1Status = await screen.findAllByText(
-        DisplayAgentStatusLanguage[MockWorkspaceAgent.status],
+      const agent1Status = await screen.findAllByLabelText(
+        t<string>(`agentStatus.${MockWorkspaceAgent.status}`, {
+          ns: "workspacePage",
+        }),
       )
       expect(agent1Status.length).toEqual(1)
-      const agentDisconnected = await screen.findAllByText(
-        DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status],
+      const agentDisconnected = await screen.findAllByLabelText(
+        t<string>(`agentStatus.${MockWorkspaceAgentDisconnected.status}`, {
+          ns: "workspacePage",
+        }),
       )
       expect(agentDisconnected.length).toEqual(1)
-      const agentConnecting = await screen.findAllByText(
-        DisplayAgentStatusLanguage[MockWorkspaceAgentConnecting.status],
+      const agentConnecting = await screen.findAllByLabelText(
+        t<string>(`agentStatus.${MockWorkspaceAgentConnecting.status}`, {
+          ns: "workspacePage",
+        }),
       )
       expect(agentConnecting.length).toEqual(1)
       expect(getTemplateMock).toBeCalled()

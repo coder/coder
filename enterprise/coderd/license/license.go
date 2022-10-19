@@ -17,12 +17,20 @@ import (
 )
 
 // Entitlements processes licenses to return whether features are enabled or not.
-func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, keys map[string]ed25519.PublicKey, enablements map[string]bool) (codersdk.Entitlements, error) {
+func Entitlements(
+	ctx context.Context,
+	db database.Store,
+	logger slog.Logger,
+	replicaCount int,
+	keys map[string]ed25519.PublicKey,
+	enablements map[string]bool,
+) (codersdk.Entitlements, error) {
 	now := time.Now()
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
 		Features: map[string]codersdk.Feature{},
 		Warnings: []string{},
+		Errors:   []string{},
 	}
 	for _, featureName := range codersdk.FeatureNames {
 		entitlements.Features[featureName] = codersdk.Feature{
@@ -96,6 +104,12 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 				Enabled:     enablements[codersdk.FeatureWorkspaceQuota],
 			}
 		}
+		if claims.Features.HighAvailability > 0 {
+			entitlements.Features[codersdk.FeatureHighAvailability] = codersdk.Feature{
+				Entitlement: entitlement,
+				Enabled:     enablements[codersdk.FeatureHighAvailability],
+			}
+		}
 		if claims.Features.TemplateRBAC > 0 {
 			entitlements.Features[codersdk.FeatureTemplateRBAC] = codersdk.Feature{
 				Entitlement: entitlement,
@@ -132,6 +146,10 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 			if featureName == codersdk.FeatureUserLimit {
 				continue
 			}
+			// High availability has it's own warnings based on replica count!
+			if featureName == codersdk.FeatureHighAvailability {
+				continue
+			}
 			feature := entitlements.Features[featureName]
 			if !feature.Enabled {
 				continue
@@ -141,14 +159,37 @@ func Entitlements(ctx context.Context, db database.Store, logger slog.Logger, ke
 			case codersdk.EntitlementNotEntitled:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf("%s is enabled but your license is not entitled to this feature.", niceName))
-				// Disable the feature and add a warning...
-				feature.Enabled = false
-				entitlements.Features[featureName] = feature
 			case codersdk.EntitlementGracePeriod:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
 			default:
 			}
+		}
+	}
+
+	if replicaCount > 1 {
+		feature := entitlements.Features[codersdk.FeatureHighAvailability]
+
+		switch feature.Entitlement {
+		case codersdk.EntitlementNotEntitled:
+			if entitlements.HasLicense {
+				entitlements.Errors = append(entitlements.Warnings,
+					"You have multiple replicas but your license is not entitled to high availability. You will be unable to connect to workspaces.")
+			} else {
+				entitlements.Errors = append(entitlements.Warnings,
+					"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.")
+			}
+		case codersdk.EntitlementGracePeriod:
+			entitlements.Warnings = append(entitlements.Warnings,
+				"You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.")
+		}
+	}
+
+	for _, featureName := range codersdk.FeatureNames {
+		feature := entitlements.Features[featureName]
+		if feature.Entitlement == codersdk.EntitlementNotEntitled {
+			feature.Enabled = false
+			entitlements.Features[featureName] = feature
 		}
 	}
 
@@ -171,12 +212,13 @@ var (
 )
 
 type Features struct {
-	UserLimit      int64 `json:"user_limit"`
-	AuditLog       int64 `json:"audit_log"`
-	BrowserOnly    int64 `json:"browser_only"`
-	SCIM           int64 `json:"scim"`
-	WorkspaceQuota int64 `json:"workspace_quota"`
-	TemplateRBAC   int64 `json:"template_rbac"`
+	UserLimit        int64 `json:"user_limit"`
+	AuditLog         int64 `json:"audit_log"`
+	BrowserOnly      int64 `json:"browser_only"`
+	SCIM             int64 `json:"scim"`
+	WorkspaceQuota   int64 `json:"workspace_quota"`
+	TemplateRBAC     int64 `json:"template_rbac"`
+	HighAvailability int64 `json:"high_availability"`
 }
 
 type Claims struct {

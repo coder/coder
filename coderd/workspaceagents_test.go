@@ -123,13 +123,13 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		defer cancel()
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, resources[0].Agents[0].ID)
+		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer func() {
 			_ = conn.Close()
 		}()
 		require.Eventually(t, func() bool {
-			_, err := conn.Ping()
+			_, err := conn.Ping(ctx)
 			return err == nil
 		}, testutil.WaitLong, testutil.IntervalFast)
 	})
@@ -253,7 +253,9 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug), resources[0].Agents[0].ID)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+	})
 	require.NoError(t, err)
 	defer conn.Close()
 	sshClient, err := conn.SSHClient()

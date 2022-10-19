@@ -60,7 +60,7 @@ Once installed, you can start a production deployment<sup>1</sup> with a single 
 # Automatically sets up an external access URL on *.try.coder.app
 coder server
 
-# Requires a PostgreSQL instance and external access URL
+# Requires a PostgreSQL instance (version 13 or higher) and external access URL
 coder server --postgres-url <url> --access-url <url>
 ```
 
@@ -95,7 +95,7 @@ Join our community on [Discord](https://coder.com/chat?utm_source=github.com/cod
 
 ## Contributing
 
-If you're using Coder in your organization, please try to add your company name to the [ADOPTERS.md](./ADOPTERS.md). It really helps the project to gain momentum and credibility. It's a small contribution back to the project with a big impact. 
+If you're using Coder in your organization, please try to add your company name to the [ADOPTERS.md](./ADOPTERS.md). It really helps the project to gain momentum and credibility. It's a small contribution back to the project with a big impact.
 
 Read the [contributing docs](https://coder.com/docs/coder-oss/latest/CONTRIBUTING).
 

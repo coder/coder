@@ -23,7 +23,7 @@ export interface AppLinkProps {
   workspaceName: TypesGen.Workspace["name"]
   agentName: TypesGen.WorkspaceAgent["name"]
   appSlug: TypesGen.WorkspaceApp["slug"]
-  appDisplayName: TypesGen.WorkspaceApp["name"]
+  appDisplayName: TypesGen.WorkspaceApp["display_name"]
   appIcon?: TypesGen.WorkspaceApp["icon"]
   appCommand?: TypesGen.WorkspaceApp["command"]
   appSubdomain: TypesGen.WorkspaceApp["subdomain"]

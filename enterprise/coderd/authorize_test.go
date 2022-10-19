@@ -28,7 +28,7 @@ func TestCheckACLPermissions(t *testing.T) {
 	// Create adminClient, member, and org adminClient
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
 	_ = coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
-		TemplateRBACEnabled: true,
+		TemplateRBAC: true,
 	})
 
 	memberClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)

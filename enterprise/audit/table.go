@@ -62,6 +62,8 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"min_autostart_interval": ActionTrack,
 		"created_by":             ActionTrack,
 		"is_private":             ActionTrack,
+		"group_acl":              ActionTrack,
+		"user_acl":               ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,
@@ -100,6 +102,12 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
+	},
+	&database.Group{}: {
+		"id":              ActionTrack,
+		"name":            ActionTrack,
+		"organization_id": ActionTrack,
+		"avatar_url":      ActionTrack,
 	},
 })
 

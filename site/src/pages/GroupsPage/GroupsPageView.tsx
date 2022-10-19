@@ -136,7 +136,12 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
                         >
                           <TableCell>
                             <AvatarData
-                              avatar={<GroupAvatar name={group.name} />}
+                              avatar={
+                                <GroupAvatar
+                                  name={group.name}
+                                  avatarURL={group.avatar_url}
+                                />
+                              }
                               title={group.name}
                               subtitle={`${group.members.length} members`}
                               highlightTitle

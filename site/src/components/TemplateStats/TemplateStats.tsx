@@ -46,7 +46,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({
         <span className={styles.statsLabel}>{Language.buildTimeLabel}</span>
 
         <span className={styles.statsValue}>
-          {formatTemplateBuildTime(template.average_build_time_ms)}{" "}
+          {formatTemplateBuildTime(template.build_time_stats.start_ms)}{" "}
         </span>
       </div>
       <div className={styles.statsDivider} />

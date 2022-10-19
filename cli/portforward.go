@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -96,7 +95,7 @@ func portForward() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 			if err != nil {
 				return err
 			}
@@ -139,8 +138,7 @@ func portForward() *cobra.Command {
 				case <-ctx.Done():
 					closeErr = ctx.Err()
 				case <-sigs:
-					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
-					closeErr = xerrors.New("signal received")
+					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "\nReceived signal, closing all listeners and active connections")
 				}
 
 				cancel()
@@ -156,7 +154,7 @@ func portForward() *cobra.Command {
 				case <-ticker.C:
 				}
 
-				_, err = conn.Ping()
+				_, err = conn.Ping(ctx)
 				if err != nil {
 					continue
 				}
@@ -214,7 +212,11 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 		for {
 			netConn, err := l.Accept()
 			if err != nil {
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %+v\n", spec.listenNetwork, spec.listenAddress, err)
+				// Silently ignore net.ErrClosed errors.
+				if xerrors.Is(err, net.ErrClosed) {
+					return
+				}
+				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
 				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
 				return
 			}

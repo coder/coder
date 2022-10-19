@@ -85,6 +85,13 @@ func Flags() *codersdk.DeploymentFlags {
 			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
 			Default:     []string{"stun.l.google.com:19302"},
 		},
+		DerpServerRelayAddress: &codersdk.StringFlag{
+			Name:        "DERP Server Relay Address",
+			Flag:        "derp-server-relay-address",
+			EnvVar:      "CODER_DERP_SERVER_RELAY_URL",
+			Description: "An HTTP address that is accessible by other replicas to relay DERP traffic. Required for high availability.",
+			Enterprise:  true,
+		},
 		DerpConfigURL: &codersdk.StringFlag{
 			Name:        "DERP Config URL",
 			Flag:        "derp-config-url",

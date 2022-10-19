@@ -185,7 +185,11 @@ export const MockTemplate: TypesGen.Template = {
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 2,
   active_user_count: 1,
-  average_build_time_ms: 123,
+  build_time_stats: {
+    start_ms: 1000,
+    stop_ms: 2000,
+    delete_ms: 3000,
+  },
   description: "This is a test description.",
   max_ttl_ms: 24 * 60 * 60 * 1000,
   min_autostart_interval_ms: 60 * 60 * 1000,
@@ -818,6 +822,7 @@ export const makeMockApiError = ({
 })
 
 export const MockEntitlements: TypesGen.Entitlements = {
+  errors: [],
   warnings: [],
   has_license: false,
   features: {},
@@ -826,6 +831,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 }
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
+  errors: [],
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
   experimental: false,
@@ -849,6 +855,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 }
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
+  errors: [],
   warnings: [],
   has_license: true,
   experimental: false,
@@ -923,6 +930,7 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 export const MockGroup: TypesGen.Group = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   name: "Front-End",
+  avatar_url: "https://example.com",
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
 }

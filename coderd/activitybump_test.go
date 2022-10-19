@@ -72,7 +72,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				"deadline %v never updated", firstDeadline,
 			)
 
-			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Second)
+			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, 3*time.Second)
 		}
 	}
 
@@ -82,7 +82,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		client, workspace, assertBumped := setupActivityTest(t)
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil), resources[0].Agents[0].ID)
+		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+			Logger: slogtest.Make(t, nil),
+		})
 		require.NoError(t, err)
 		defer conn.Close()
 

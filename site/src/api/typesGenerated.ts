@@ -169,6 +169,7 @@ export interface CreateFirstUserResponse {
 // From codersdk/groups.go
 export interface CreateGroupRequest {
   readonly name: string
+  readonly avatar_url: string
 }
 
 // From codersdk/users.go
@@ -274,6 +275,7 @@ export interface DeploymentFlags {
   readonly derp_server_region_code: StringFlag
   readonly derp_server_region_name: StringFlag
   readonly derp_server_stun_address: StringArrayFlag
+  readonly derp_server_relay_address: StringFlag
   readonly derp_config_url: StringFlag
   readonly derp_config_path: StringFlag
   readonly prom_enabled: BoolFlag
@@ -292,7 +294,7 @@ export interface DeploymentFlags {
   readonly oauth2_github_enterprise_base_url: StringFlag
   readonly oidc_allow_signups: BoolFlag
   readonly oidc_client_id: StringFlag
-  readonly oidc_cliet_secret: StringFlag
+  readonly oidc_client_secret: StringFlag
   readonly oidc_email_domain: StringFlag
   readonly oidc_issuer_url: StringFlag
   readonly oidc_scopes: StringArrayFlag
@@ -303,7 +305,7 @@ export interface DeploymentFlags {
   readonly tls_cert_files: StringArrayFlag
   readonly tls_client_ca_file: StringFlag
   readonly tls_client_auth: StringFlag
-  readonly tls_key_tiles: StringArrayFlag
+  readonly tls_key_files: StringArrayFlag
   readonly tls_min_version: StringFlag
   readonly trace_enable: BoolFlag
   readonly secure_auth_cookie: BoolFlag
@@ -337,6 +339,7 @@ export interface DurationFlag {
 export interface Entitlements {
   readonly features: Record<string, Feature>
   readonly warnings: string[]
+  readonly errors: string[]
   readonly has_license: boolean
   readonly experimental: boolean
   readonly trial: boolean
@@ -374,6 +377,7 @@ export interface Group {
   readonly name: string
   readonly organization_id: string
   readonly members: User[]
+  readonly avatar_url: string
 }
 
 // From codersdk/workspaceapps.go
@@ -489,6 +493,7 @@ export interface PatchGroupRequest {
   readonly add_users: string[]
   readonly remove_users: string[]
   readonly name: string
+  readonly avatar_url?: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -526,6 +531,17 @@ export interface ProvisionerJobLog {
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string
+}
+
+// From codersdk/replicas.go
+export interface Replica {
+  readonly id: string
+  readonly hostname: string
+  readonly created_at: string
+  readonly relay_address: string
+  readonly region_id: number
+  readonly error: string
+  readonly database_latency: number
 }
 
 // From codersdk/error.go
@@ -586,7 +602,7 @@ export interface Template {
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly active_user_count: number
-  readonly average_build_time_ms: number
+  readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
   readonly icon: string
   readonly max_ttl_ms: number
@@ -599,6 +615,13 @@ export interface Template {
 export interface TemplateACL {
   readonly users: TemplateUser[]
   readonly group: TemplateGroup[]
+}
+
+// From codersdk/templates.go
+export interface TemplateBuildTimeStats {
+  readonly start_ms?: number
+  readonly stop_ms?: number
+  readonly delete_ms?: number
 }
 
 // From codersdk/templates.go
@@ -918,6 +941,7 @@ export type ProvisionerType = "echo" | "terraform"
 export type ResourceType =
   | "api_key"
   | "git_ssh_key"
+  | "group"
   | "organization"
   | "template"
   | "template_version"

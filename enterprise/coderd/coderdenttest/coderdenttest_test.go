@@ -33,7 +33,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	ctx, _ := testutil.Context(t)
 	admin := coderdtest.CreateFirstUser(t, client)
 	license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		TemplateRBACEnabled: true,
+		TemplateRBAC: true,
 	})
 	group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 		Name: "testgroup",
@@ -57,6 +57,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		StatusCode:   http.StatusOK,
 		AssertAction: rbac.ActionRead,
 		AssertObject: rbac.ResourceLicense,
+	}
+	assertRoute["GET:/api/v2/replicas"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceReplicas,
 	}
 	assertRoute["DELETE:/api/v2/licenses/{id}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionDelete,
