@@ -27,7 +27,7 @@ export type PaginationWidgetProps = {
 const range = (start: number, stop: number, step = 1) =>
   Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step)
 
-export const DEFAULT_RECORDS_PER_PAGE = 25
+export const DEFAULT_RECORDS_PER_PAGE = 2
 // Number of pages to the left or right of the current page selection.
 const PAGE_NEIGHBORS = 1
 // Number of pages displayed for cases where there are multiple ellipsis showing. This can be
@@ -128,7 +128,7 @@ export const PaginationWidget = ({
   const styles = useStyles()
 
   // No need to display any pagination if we know the number of pages is 1
-  if (numPages === 1) {
+  if (numPages === 1 || numRecords === 0) {
     return null
   }
 
