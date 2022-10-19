@@ -27,7 +27,7 @@ export type PaginationWidgetProps = {
 const range = (start: number, stop: number, step = 1) =>
   Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step)
 
-const DEFAULT_RECORDS_PER_PAGE = 25
+export const DEFAULT_RECORDS_PER_PAGE = 25
 // Number of pages to the left or right of the current page selection.
 const PAGE_NEIGHBORS = 1
 // Number of pages displayed for cases where there are multiple ellipsis showing. This can be

@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useSearchParams } from "react-router-dom"
@@ -17,7 +18,7 @@ const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
       page: currentPage,
-      limit: 25,
+      limit: DEFAULT_RECORDS_PER_PAGE,
       filter,
     },
     actions: {
