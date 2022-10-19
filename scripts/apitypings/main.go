@@ -326,23 +326,26 @@ type structTemplateState struct {
 	PosLine   string
 	Name      string
 	Fields    []string
+	Generics  []string
 	Extends   string
 	AboveLine string
 }
 
 const structTemplate = `{{ .PosLine -}}
 {{ if .AboveLine }}{{ .AboveLine }}
-{{ end }}export interface {{ .Name }}{{ if .Extends }} extends {{ .Extends }}{{ end }}{
-{{- range .Fields }}
-{{ . -}}
-{{- end }}
+{{ end }}export interface {{ .Name }}{{ if .Generics }}<{{ join .Generics ", " }}>{{ end }}{{ if .Extends }} extends {{ .Extends }}{{ end }} {
+{{ join .Fields "\n"}}
 }
 `
 
 // buildStruct just prints the typescript def for a type.
 func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, error) {
 	state := structTemplateState{}
-	tpl, err := template.New("struct").Parse(structTemplate)
+	tpl := template.New("struct")
+	tpl.Funcs(template.FuncMap{
+		"join": strings.Join,
+	})
+	tpl, err := tpl.Parse(structTemplate)
 	if err != nil {
 		return "", xerrors.Errorf("parse struct template: %w", err)
 	}
@@ -428,7 +431,12 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		if jsonOptional || tsType.Optional {
 			optional = "?"
 		}
-		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, tsType.ValueType))
+		valueType := tsType.ValueType
+		if tsType.GenericMapping != "" {
+			valueType = tsType.GenericMapping
+			state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", tsType.GenericMapping, tsType.ValueType))
+		}
+		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, valueType))
 	}
 
 	data := bytes.NewBuffer(make([]byte, 0))
@@ -603,7 +611,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		generic := ty.Constraint()
 		// This is kinda a hack, but we want just the end of the name.
-		name := strings.TrimSuffix("github.com/coder/coder/codersdk.", generic.String())
+		name := strings.TrimPrefix(generic.String(), "github.com/coder/coder/codersdk.")
 		return TypescriptType{
 			GenericMapping: ty.Obj().Name(),
 			ValueType:      name,
