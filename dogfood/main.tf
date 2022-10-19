@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.0"
+      version = "~> 2.22.0"
     }
   }
 }
@@ -65,20 +65,22 @@ resource "coder_metadata" "home_info" {
   }
 }
 
-
-data "docker_registry_image" "dogfood" {
-  name = "codercom/oss-dogfood:main"
-}
-
-
 locals {
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  registry_name  = "codercom/oss-dogfood"
+}
+data "docker_registry_image" "dogfood" {
+  name = "${local.registry_name}:main"
 }
 
 resource "docker_image" "dogfood" {
-  name          = data.docker_registry_image.dogfood.name
-  pull_triggers = [data.docker_registry_image.dogfood.sha256_digest]
-  keep_locally  = true
+  name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
+  pull_triggers = [
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
+  ]
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {
