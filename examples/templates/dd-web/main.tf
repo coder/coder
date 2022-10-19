@@ -82,10 +82,9 @@ resource "coder_agent" "main" {
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log
 
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash
-    . .bashrc
-    echo 16.18.0 > .nvmrc
-    nvm install
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &&\
+    sudo apt-get install -y nodejs
+
     git clone https://github.com/doordash-cloud-hackathon/codespaces-react.git
 
     code-server --auth none --port 13337 | tee code-server-install.log &
