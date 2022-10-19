@@ -13,6 +13,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/xerrors"
@@ -315,6 +317,8 @@ func (g *Generator) buildUnion(obj types.Object, st *types.Union) (string, error
 	if optional {
 		allTypes = append(allTypes, "null")
 	}
+
+	allTypes = slice.Unique(allTypes)
 
 	s.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), strings.Join(allTypes, " | ")))
 
