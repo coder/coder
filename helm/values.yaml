@@ -33,6 +33,8 @@ coder:
     # It is recommended to keep this on if you are using Kubernetes templates
     # within Coder.
     workspacePerms: true
+    # coder.serviceAccount.annotations -- The Coder service account annotations.
+    annotations: {}
 
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
