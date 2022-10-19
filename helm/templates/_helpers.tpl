@@ -129,6 +129,7 @@ volumeMounts:
   mountPath: /etc/ssl/certs/{{ .Values.coder.certs.secret.key }}
   subPath: {{ .Values.coder.certs.secret.key | quote }}
 	readOnly: true
+{{- end }}
 {{- else }}
 volumeMounts: []
 {{- end }}
