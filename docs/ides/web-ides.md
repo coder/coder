@@ -240,7 +240,7 @@ EOF
 resource "coder_app" "jupyter" {
   agent_id     = coder_agent.coder.id
   slug         = "jupyter"
-  displaY_name = "JupyterLab"
+  display_name = "JupyterLab"
   url          = "http://localhost:8888${local.jupyter_base_path}"
   icon         = "/icon/jupyter.svg"
 
