@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/pointer"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -24,14 +25,16 @@ func TestCreateGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "hi",
+			Name:      "hi",
+			AvatarURL: "https://example.com",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "hi", group.Name)
+		require.Equal(t, "https://example.com", group.AvatarURL)
 		require.Empty(t, group.Members)
 		require.NotEqual(t, uuid.Nil.String(), group.ID.String())
 	})
@@ -43,7 +46,7 @@ func TestCreateGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -67,7 +70,7 @@ func TestCreateGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -83,14 +86,42 @@ func TestCreateGroup(t *testing.T) {
 func TestPatchGroup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Name", func(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
+		})
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:      "hi",
+			AvatarURL: "https://example.com",
+		})
+		require.NoError(t, err)
+
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			Name:      "bye",
+			AvatarURL: pointer.String("https://google.com"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "bye", group.Name)
+		require.Equal(t, "https://google.com", group.AvatarURL)
+	})
+
+	// The FE sends a request from the edit page where the old name == new name.
+	// This should pass since it's not really an error to update a group name
+	// to itself.
+	t.Run("SameNameOK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -99,10 +130,10 @@ func TestPatchGroup(t *testing.T) {
 		require.NoError(t, err)
 
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			Name: "bye",
+			Name: "hi",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "bye", group.Name)
+		require.Equal(t, "hi", group.Name)
 	})
 
 	t.Run("AddUsers", func(t *testing.T) {
@@ -112,7 +143,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -138,7 +169,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -166,6 +197,37 @@ func TestPatchGroup(t *testing.T) {
 		require.Contains(t, group.Members, user4)
 	})
 
+	t.Run("NameConflict", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
+		})
+		ctx, _ := testutil.Context(t)
+		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:      "hi",
+			AvatarURL: "https://example.com",
+		})
+		require.NoError(t, err)
+
+		group2, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "bye",
+		})
+		require.NoError(t, err)
+
+		group1, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
+			Name:      group2.Name,
+			AvatarURL: pointer.String("https://google.com"),
+		})
+		require.Error(t, err)
+		cerr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusConflict, cerr.StatusCode())
+	})
+
 	t.Run("UserNotExist", func(t *testing.T) {
 		t.Parallel()
 
@@ -173,7 +235,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -197,7 +259,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -221,7 +283,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		ctx, _ := testutil.Context(t)
@@ -247,7 +309,7 @@ func TestPatchGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -276,7 +338,7 @@ func TestGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -296,7 +358,7 @@ func TestGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -326,7 +388,7 @@ func TestGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 
@@ -347,7 +409,7 @@ func TestGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -380,7 +442,7 @@ func TestGroup(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -421,7 +483,7 @@ func TestGroups(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -467,7 +529,7 @@ func TestDeleteGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -492,7 +554,7 @@ func TestDeleteGroup(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBACEnabled: true,
+			TemplateRBAC: true,
 		})
 		ctx, _ := testutil.Context(t)
 		err := client.DeleteGroup(ctx, user.OrganizationID)

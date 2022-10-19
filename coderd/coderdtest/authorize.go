@@ -142,7 +142,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{hash}": {
+		"GET:/api/v2/files/{fileID}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceFile.WithOwner(a.Admin.UserID.String()),
 		},
@@ -369,7 +369,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{workspaceagent}":      workspace.LatestBuild.Resources[0].Agents[0].ID.String(),
 		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
 		"{template}":            template.ID.String(),
-		"{hash}":                file.Hash,
+		"{fileID}":              file.ID.String(),
 		"{workspaceresource}":   workspace.LatestBuild.Resources[0].ID.String(),
 		"{workspaceapp}":        workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Name,
 		"{templateversion}":     version.ID.String(),

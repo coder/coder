@@ -11,7 +11,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		// Required for any subdomain-based proxy tests to pass.
-		AppHostname:              "test.coder.com",
+		AppHostname:              "*.test.coder.com",
 		Authorizer:               &coderdtest.RecordingAuthorizer{},
 		IncludeProvisionerDaemon: true,
 	})

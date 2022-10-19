@@ -11,4 +11,5 @@ const Template: Story<GroupAvatarProps> = (args) => <GroupAvatar {...args} />
 export const Example = Template.bind({})
 Example.args = {
   name: "My Group",
+  avatarURL: "",
 }

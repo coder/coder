@@ -87,7 +87,8 @@ func Tar(directory string, limit int64) ([]byte, error) {
 			// Don't store tfstate!
 			return err
 		}
-		header.Name = rel
+		// Use unix paths in the tar archive.
+		header.Name = filepath.ToSlash(rel)
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}
@@ -131,7 +132,7 @@ func Untar(directory string, archive []byte) error {
 			return err
 		}
 		// #nosec
-		target := filepath.Join(directory, header.Name)
+		target := filepath.Join(directory, filepath.FromSlash(header.Name))
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if _, err := os.Stat(target); err != nil {

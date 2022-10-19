@@ -49,6 +49,7 @@ Running.args = {
   canUpdateWorkspace: true,
   workspaceErrors: {},
   buildInfo: Mocks.MockBuildInfo,
+  template: Mocks.MockTemplate,
 }
 
 export const WithoutUpdateAccess = Template.bind({})

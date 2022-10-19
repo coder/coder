@@ -1,7 +1,6 @@
 package provisionersdk_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,6 +58,7 @@ func TestTar(t *testing.T) {
 		}}
 		for _, file := range files {
 			newDir := dir
+			file.Name = filepath.FromSlash(file.Name)
 			if filepath.Base(file.Name) != file.Name {
 				newDir = filepath.Join(newDir, filepath.Dir(file.Name))
 				err := os.MkdirAll(newDir, 0755)
@@ -70,7 +70,6 @@ func TestTar(t *testing.T) {
 			_ = tmpFile.Close()
 			file.Name, err = filepath.Rel(dir, tmpFile.Name())
 			require.NoError(t, err)
-			fmt.Printf("rel")
 		}
 		content, err := provisionersdk.Tar(dir, 1024)
 		require.NoError(t, err)

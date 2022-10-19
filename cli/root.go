@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -100,8 +101,9 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(deployment.Flags(), func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
-		return coderd.New(o), nil
+	all := append(Core(), Server(deployment.Flags(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+		api := coderd.New(o)
+		return api, api, nil
 	}))
 	return all
 }
@@ -607,7 +609,8 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // ExperimentalEnabled returns if the experimental feature flag is enabled.
 func ExperimentalEnabled(cmd *cobra.Command) bool {
-	return cliflag.IsSetBool(cmd, varExperimental)
+	enabled, _ := cmd.Flags().GetBool(varExperimental)
+	return enabled
 }
 
 // EnsureExperimental will ensure that the experimental feature flag is set if the given flag is set.

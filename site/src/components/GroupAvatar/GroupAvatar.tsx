@@ -25,9 +25,10 @@ const StyledBadge = withStyles((theme) => ({
 
 export type GroupAvatarProps = {
   name: string
+  avatarURL?: string
 }
 
-export const GroupAvatar: FC<GroupAvatarProps> = ({ name }) => {
+export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
   return (
     <StyledBadge
       overlap="circular"
@@ -37,7 +38,7 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name }) => {
       }}
       badgeContent={<Group />}
     >
-      <Avatar>{firstLetter(name)}</Avatar>
+      <Avatar src={avatarURL}>{firstLetter(name)}</Avatar>
     </StyledBadge>
   )
 }

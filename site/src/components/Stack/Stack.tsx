@@ -12,6 +12,7 @@ export type StackProps = {
   spacing?: number
   alignItems?: CSSProperties["alignItems"]
   justifyContent?: CSSProperties["justifyContent"]
+  wrap?: CSSProperties["flexWrap"]
 } & React.HTMLProps<HTMLDivElement>
 
 type StyleProps = Omit<StackProps, "className">
@@ -23,6 +24,7 @@ const useStyles = makeStyles((theme) => ({
     gap: ({ spacing }: StyleProps) => spacing && theme.spacing(spacing),
     alignItems: ({ alignItems }: StyleProps) => alignItems,
     justifyContent: ({ justifyContent }: StyleProps) => justifyContent,
+    flexWrap: ({ wrap }: StyleProps) => wrap,
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
@@ -37,6 +39,7 @@ export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
   spacing = 2,
   alignItems,
   justifyContent,
+  wrap,
   ...divProps
 }) => {
   const styles = useStyles({
@@ -44,6 +47,7 @@ export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
     direction,
     alignItems,
     justifyContent,
+    wrap,
   })
 
   return (

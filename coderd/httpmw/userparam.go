@@ -33,8 +33,11 @@ func UserParam(r *http.Request) database.User {
 	return user
 }
 
-// ExtractUserParam extracts a user from an ID/username in the {user} URL parameter.
-func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
+// ExtractUserParam extracts a user from an ID/username in the {user} URL
+// parameter.
+//
+//nolint:revive
+func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			var (
@@ -53,7 +56,19 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			if userQuery == "me" {
-				user, err = db.GetUserByID(ctx, APIKey(r).UserID)
+				apiKey, ok := APIKeyOptional(r)
+				if !ok {
+					if redirectToLoginOnMe {
+						RedirectToLogin(rw, r, SignedOutErrorMessage)
+						return
+					}
+
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Cannot use \"me\" without a valid session.",
+					})
+					return
+				}
+				user, err = db.GetUserByID(ctx, apiKey.UserID)
 				if xerrors.Is(err, sql.ErrNoRows) {
 					httpapi.ResourceNotFound(rw)
 					return

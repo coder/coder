@@ -108,7 +108,9 @@ export const WorkspaceSchedulePage: React.FC = () => {
         onSubmit={(values) => {
           scheduleSend({
             type: "SUBMIT_SCHEDULE",
-            autoStart: formValuesToAutoStartRequest(values),
+            autoStart: values.autoStartEnabled
+              ? formValuesToAutoStartRequest(values)
+              : undefined,
             ttl: formValuesToTTLRequest(values),
           })
         }}

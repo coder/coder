@@ -148,7 +148,7 @@ func TestOrganizationParam(t *testing.T) {
 				DB:              db,
 				RedirectToLogin: false,
 			}),
-			httpmw.ExtractUserParam(db),
+			httpmw.ExtractUserParam(db, false),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),
 		)
@@ -189,7 +189,7 @@ func TestOrganizationParam(t *testing.T) {
 				RedirectToLogin: false,
 			}),
 			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractUserParam(db),
+			httpmw.ExtractUserParam(db, false),
 			httpmw.ExtractOrganizationMemberParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {

@@ -14,5 +14,5 @@ lint: lint/helm
 .PHONY: lint
 
 lint/helm:
-	helm lint --strict .
+	helm lint --strict --set coder.image.tag=v0.0.1 .
 .PHONY: lint/helm
