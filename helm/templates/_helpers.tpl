@@ -86,7 +86,7 @@ Scheme
 Coder volume definitions.
 */}}
 {{- define "coder.volumes" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName .Values.coder.certs.secretNames }}
 volumes:
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
@@ -98,13 +98,13 @@ volumes:
   secret:
     secretName: {{ .Values.coder.tls.secretName | quote }}
 {{- end }}
-{{- if .Values.coder.certs.secret.name }}
-- name: {{ .Values.coder.certs.secret.name | quote }}
+{{ range $certSecretNames := .Values.coder.certs.secretNames -}}
+- name: {{ $certSecretNames | quote }}
   secret:
-    secretName: {{ .Values.coder.certs.secret.name | quote }}
-{{- end }}
+    secretName: {{ $certSecretNames | quote }}
+{{ end -}}
 {{- else }}
-volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.secretName) }}[]{{ end }}
+volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.secretName) (not .Values.coder.certs.secretNames) }}[]{{ end }}
 {{- end }}
 {{- end }}
 
@@ -112,7 +112,7 @@ volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.se
 Coder volume mounts.
 */}}
 {{- define "coder.volumeMounts" }}
-{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName }}
+{{- if or .Values.coder.tls.secretNames .Values.coder.tls.secretName .Values.coder.certs.secretNames }}
 volumeMounts:
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
@@ -124,12 +124,11 @@ volumeMounts:
   mountPath: "/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}"
   readOnly: true
 {{- end }}
-{{- if .Values.coder.certs.secret.name }}
-- name: {{ .Values.coder.certs.secret.name | quote }}
-  mountPath: /etc/ssl/certs/{{ .Values.coder.certs.secret.key }}
-  subPath: {{ .Values.coder.certs.secret.key | quote }}
+{{ range $certSecretNames := .Values.coder.certs.secretNames -}}
+- name: {{ $certSecretNames | quote }}
+  mountPath: "/etc/ssl/certs/{{ $certSecretName }}"
 	readOnly: true
-{{- end }}
+{{ end }}
 {{- else }}
 volumeMounts: []
 {{- end }}

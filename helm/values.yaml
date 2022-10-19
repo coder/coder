@@ -70,11 +70,10 @@ coder:
 
   # coder.certs -- Certificate to mount inside the Coder pod (e.g. CA bundle).
   certs:
-    secret:
-      # coder.certs.secret.name -- Name of the secret.
-      name: ""
-      # coder.certs.secret.key -- Key pointing to a certificate in the secret.
-      key: ""
+    # coder.certs.secretNames -- A list of CA certificate secrets to mount into
+    # the Coder pod. The secrets should exist in the same namespace as the Helm
+    # deployment.
+    secretNames: []
 
   # coder.service -- The Service object to expose for Coder.
   service:
