@@ -32,48 +32,13 @@ type executor struct {
 func (e executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
-	env := os.Environ()
+	env := safeEnviron()
 	// Only Linux reliably works with the Terraform plugin
 	// cache directory. It's unknown why this is.
 	if e.cachePath != "" && runtime.GOOS == "linux" {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	return env
-}
-
-func envName(env string) string {
-	parts := strings.Split(env, "=")
-
-	if len(parts) > 0 {
-		return parts[0]
-	}
-	return ""
-}
-
-// sanitizeCoderEnv removes CODER_ environment variables to prevent accidentally
-// passing in secrets. See https://github.com/coder/coder/issues/4635.
-func sanitizeCoderEnv(env []string) []string {
-	var coderSafeEnv = map[string]struct{}{
-		"CODER_AGENT_URL":             {},
-		"CODER_WORKSPACE_TRANSITION":  {},
-		"CODER_WORKSPACE_NAME":        {},
-		"CODER_WORKSPACE_OWNER":       {},
-		"CODER_WORKSPACE_OWNER_EMAIL": {},
-		"CODER_WORKSPACE_ID":          {},
-		"CODER_WORKSPACE_OWNER_ID":    {},
-	}
-
-	strippedEnv := make([]string, 0, len(env))
-	for _, e := range env {
-		name := envName(e)
-		if strings.HasPrefix(name, "CODER_") {
-			if _, isSafe := coderSafeEnv[name]; !isSafe {
-				continue
-			}
-		}
-		strippedEnv = append(strippedEnv, e)
-	}
-	return strippedEnv
 }
 
 func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
@@ -91,10 +56,14 @@ func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []stri
 		return ctx.Err()
 	}
 
+	if isCanarySet(env) {
+		return xerrors.New("environment variables not sanitized, this is a bug within Coder")
+	}
+
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
-	cmd.Env = sanitizeCoderEnv(env)
+	cmd.Env = env
 
 	// We want logs to be written in the correct order, so we wrap all logging
 	// in a sync.Mutex.

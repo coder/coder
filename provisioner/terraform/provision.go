@@ -188,9 +188,7 @@ func provisionVars(start *proto.Provision_Start) ([]string, error) {
 }
 
 func provisionEnv(start *proto.Provision_Start) ([]string, error) {
-	env := os.Environ()
-	// Be sure to add any values here to `sanitizeCoderEnv`, otherwise they will not
-	// get passed into the execute.
+	env := safeEnviron()
 	env = append(env,
 		"CODER_AGENT_URL="+start.Metadata.CoderUrl,
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
@@ -234,12 +232,12 @@ var (
 )
 
 func logTerraformEnvVars(logr logger) error {
-	env := os.Environ()
+	env := safeEnviron()
 	for _, e := range env {
 		if strings.HasPrefix(e, "TF_") {
 			parts := strings.SplitN(e, "=", 2)
 			if len(parts) != 2 {
-				panic("os.Environ() returned vars not in key=value form")
+				panic("safeEnviron() returned vars not in key=value form")
 			}
 			if !tfEnvSafeToPrint[parts[0]] {
 				parts[1] = "<value redacted>"
