@@ -103,5 +103,5 @@ ErrorWithActionRetryAndDismiss.args = {
 export const ErrorAsWarning = Template.bind({})
 ErrorAsWarning.args = {
   error: mockError,
-  severity: "warning"
+  severity: "warning",
 }
