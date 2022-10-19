@@ -98,6 +98,11 @@ volumes:
   secret:
     secretName: {{ .Values.coder.tls.secretName | quote }}
 {{- end }}
+{{- if .Values.certs.secret.name }}
+- name: {{ .Values.certs.secret.name | quote }}
+  secret:
+    secretName: {{ .Values.certs.secret.name | quote }}
+{{- end }}
 {{- else }}
 volumes: {{ if and (not .Values.coder.tls.secretNames) (not .Values.coder.tls.secretName) }}[]{{ end }}
 {{- end }}
@@ -119,6 +124,11 @@ volumeMounts:
   mountPath: "/etc/ssl/certs/coder/{{ .Values.coder.tls.secretName }}"
   readOnly: true
 {{- end }}
+{{- if .Values.certs.secret.name }}
+- name: {{ .Values.coder.certs.secret.name | quote }}
+  mountPath: /etc/ssl/certs/{{ .Values.certs.secret.key }}
+  subPath: {{ .Values.certs.secret.key | quote }}
+	readOnly: true
 {{- else }}
 volumeMounts: []
 {{- end }}

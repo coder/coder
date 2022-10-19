@@ -33,6 +33,8 @@ coder:
     # It is recommended to keep this on if you are using Kubernetes templates
     # within Coder.
     workspacePerms: true
+    # coder.serviceAccount.annotations -- The Coder service account annotations.
+
 
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
@@ -67,6 +69,14 @@ coder:
     # requests:
     #   cpu: 100m
     #   memory: 128Mi
+
+  # coder.certs -- Certificate to mount inside the Coder pod (e.g. CA bundle).
+  certs:
+    secret:
+      # coder.certs.secret.name -- Name of the secret.
+      name: ""
+      # coder.certs.secret.key -- Key pointing to a certificate in the secret.
+      key: ""
 
   # coder.service -- The Service object to expose for Coder.
   service:
