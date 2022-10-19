@@ -123,7 +123,10 @@ services:
     image: registry.example.com/coder:latest
     volumes:
       - ./plugins:/opt/registry.terraform.io
-# ...
+    # ...
+  database:
+    image: registry.example.com/postgres:13
+    # ...
 ```
 
 > The [terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror) command can be used to download the required plugins for a Coder template. This can be uploaded into the `plugins` directory on your offline server.
