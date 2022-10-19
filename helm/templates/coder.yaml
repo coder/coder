@@ -6,7 +6,7 @@ metadata:
   name: coder
   annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
   labels:
-    {{- include "coder.labels" . | nindent 4 -}}
+    {{- include "coder.labels" . | nindent 4 }}
 
 ---
 apiVersion: apps/v1
