@@ -68,8 +68,8 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
       >
         <HelpTooltipTitle>Latency</HelpTooltipTitle>
         <HelpTooltipText>
-          Latency from relay servers, used when connections cannot connect
-          peer-to-peer. Star indicates the preferred relay.
+          This is the latency overhead on non peer to peer connections. The star
+          indicates the preferred relay.
         </HelpTooltipText>
 
         <HelpTooltipText>
