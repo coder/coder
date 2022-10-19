@@ -225,6 +225,13 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
 
+	// Strings for build updates follow the below format:
+	// "{user} started workspace build for workspace {target}"
+	// where target is a workspace instead of the workspace build
+	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
+		str += " for workspace"
+	}
+
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
 	if alog.ResourceType != database.ResourceTypeGitSshKey {
