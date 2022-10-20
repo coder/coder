@@ -582,6 +582,17 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		if obj := g.pkg.Types.Scope().Lookup(name); obj != nil {
 			// Sweet! Using other typescript types as fields. This could be an
 			// enum or another struct
+			if args := n.TypeArgs(); args != nil && args.Len() > 0 {
+				genericArgs := make([]string, 0, args.Len())
+				for i := 0; i < args.Len(); i++ {
+					genType, err := g.typescriptType(args.At(i))
+					if err != nil {
+						return TypescriptType{}, xerrors.Errorf("generic field %q<%q>: %w", name, args.At(i).String(), err)
+					}
+					genericArgs = append(genericArgs, genType.ValueType)
+				}
+				name += fmt.Sprintf("<%s>", strings.Join(genericArgs, ", "))
+			}
 			return TypescriptType{ValueType: name}, nil
 		}
 
