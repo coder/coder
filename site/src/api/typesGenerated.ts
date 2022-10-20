@@ -846,6 +846,16 @@ export interface WorkspaceBuildsRequest extends Pagination {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceCountRequest {
+  readonly q?: string
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceCountResponse {
+  readonly count: number
+}
+
+// From codersdk/workspaces.go
 export interface WorkspaceFilter {
   readonly q?: string
 }
@@ -880,6 +890,11 @@ export interface WorkspaceResourceMetadata {
   readonly key: string
   readonly value: string
   readonly sensitive: boolean
+}
+
+// From codersdk/workspaces.go
+export interface WorkspacesRequest extends Pagination {
+  readonly q?: string
 }
 
 // From codersdk/apikey.go

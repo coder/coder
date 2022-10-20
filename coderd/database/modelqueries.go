@@ -112,6 +112,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
+	GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -165,4 +166,24 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, err
 	}
 	return items, nil
+}
+
+func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
+	// authorizedFilter between the end of the where clause and those statements.
+	filter := strings.Replace(getWorkspaceCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceCount :one\n%s", filter)
+	row := q.db.QueryRowContext(ctx, query,
+		arg.Deleted,
+		arg.Status,
+		arg.OwnerID,
+		arg.OwnerUsername,
+		arg.TemplateName,
+		pq.Array(arg.TemplateIds),
+		arg.Name,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }

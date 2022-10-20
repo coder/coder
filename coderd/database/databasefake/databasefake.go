@@ -788,6 +788,156 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	return workspaces, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceCount(ctx context.Context, arg database.GetWorkspaceCountParams) (int64, error) {
+	count, err := q.GetAuthorizedWorkspaceCount(ctx, arg, nil)
+	return count, err
+}
+
+//nolint:gocyclo
+func (q *fakeQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg database.GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+
+		if arg.OwnerUsername != "" {
+			owner, err := q.GetUserByID(ctx, workspace.OwnerID)
+			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
+				continue
+			}
+		}
+
+		if arg.TemplateName != "" {
+			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
+				continue
+			}
+		}
+
+		if !arg.Deleted && workspace.Deleted {
+			continue
+		}
+
+		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
+			continue
+		}
+
+		if arg.Status != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return 0, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return 0, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			switch arg.Status {
+			case "pending":
+				if !job.StartedAt.Valid {
+					continue
+				}
+
+			case "starting":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "running":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "stopping":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "stopped":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "failed":
+				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
+					(!job.CompletedAt.Valid && !job.Error.Valid) {
+					continue
+				}
+
+			case "canceling":
+				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
+					continue
+				}
+
+			case "canceled":
+				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
+					continue
+				}
+
+			case "deleted":
+				if !job.StartedAt.Valid &&
+					job.CanceledAt.Valid &&
+					!job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			case "deleting":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid &&
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			default:
+				return 0, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+			}
+		}
+
+		if len(arg.TemplateIds) > 0 {
+			match := false
+			for _, id := range arg.TemplateIds {
+				if workspace.TemplateID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	return int64(len(workspaces)), nil
+}
+
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

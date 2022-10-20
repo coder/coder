@@ -110,6 +110,8 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
+	// this duplicates the filtering in GetWorkspaces
+	GetWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams) (int64, error)
 	GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)

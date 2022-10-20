@@ -5756,6 +5756,160 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 	return i, err
 }
 
+const getWorkspaceCount = `-- name: GetWorkspaceCount :one
+SELECT
+	COUNT(*) as count
+FROM
+	workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_builds.transition,
+		provisioner_jobs.started_at,
+		provisioner_jobs.updated_at,
+		provisioner_jobs.canceled_at,
+		provisioner_jobs.completed_at,
+		provisioner_jobs.error
+	FROM
+		workspace_builds
+	LEFT JOIN
+		provisioner_jobs
+	ON
+		provisioner_jobs.id = workspace_builds.job_id
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		build_number DESC
+	LIMIT
+		1
+) latest_build ON TRUE
+WHERE
+	-- Optionally include deleted workspaces
+	workspaces.deleted = $1
+	AND CASE
+		WHEN $2 :: text != '' THEN
+			CASE
+				WHEN $2 = 'pending' THEN
+					latest_build.started_at IS NULL
+				WHEN $2 = 'starting' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'start'::workspace_transition
+
+				WHEN $2 = 'running' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'start'::workspace_transition
+
+				WHEN $2 = 'stopping' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'stop'::workspace_transition
+
+				WHEN $2 = 'stopped' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'stop'::workspace_transition
+
+				WHEN $2 = 'failed' THEN
+					(latest_build.canceled_at IS NOT NULL AND
+						latest_build.error IS NOT NULL) OR
+					(latest_build.completed_at IS NOT NULL AND
+						latest_build.error IS NOT NULL)
+
+				WHEN $2 = 'canceling' THEN
+					latest_build.canceled_at IS NOT NULL AND
+					latest_build.completed_at IS NULL
+
+				WHEN $2 = 'canceled' THEN
+					latest_build.canceled_at IS NOT NULL AND
+					latest_build.completed_at IS NOT NULL
+
+				WHEN $2 = 'deleted' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'delete'::workspace_transition
+
+				WHEN $2 = 'deleting' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'delete'::workspace_transition
+
+				ELSE
+					true
+			END
+		ELSE true
+	END
+	-- Filter by owner_id
+	AND CASE
+		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = $3
+		ELSE true
+	END
+	-- Filter by owner_name
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
+		ELSE true
+	END
+	-- Filter by template_name
+	-- There can be more than 1 template with the same name across organizations.
+	-- Use the organization filter to restrict to 1 org if needed.
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5)  AND deleted = false)
+		ELSE true
+	END
+	-- Filter by template_ids
+	AND CASE
+		WHEN array_length($6 :: uuid[], 1) > 0 THEN
+			template_id = ANY($6)
+		ELSE true
+	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			name ILIKE '%' || $7 || '%'
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaceCount
+	-- @authorize_filter
+`
+
+type GetWorkspaceCountParams struct {
+	Deleted       bool        `db:"deleted" json:"deleted"`
+	Status        string      `db:"status" json:"status"`
+	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername string      `db:"owner_username" json:"owner_username"`
+	TemplateName  string      `db:"template_name" json:"template_name"`
+	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Name          string      `db:"name" json:"name"`
+}
+
+// this duplicates the filtering in GetWorkspaces
+func (q *sqlQuerier) GetWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceCount,
+		arg.Deleted,
+		arg.Status,
+		arg.OwnerID,
+		arg.OwnerUsername,
+		arg.TemplateName,
+		pq.Array(arg.TemplateIds),
+		arg.Name,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getWorkspaceCountByUserID = `-- name: GetWorkspaceCountByUserID :one
 SELECT
 	COUNT(id)
