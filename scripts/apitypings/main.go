@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/types"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -340,7 +341,8 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 
 func (g *Generator) posLine(obj types.Object) string {
 	file := g.pkg.Fset.File(obj.Pos())
-	return fmt.Sprintf("// From %s\n", filepath.Join("codersdk", filepath.Base(file.Name())))
+	// Do not use filepath, as that changes behavior based on OS
+	return fmt.Sprintf("// From %s\n", path.Join("codersdk", filepath.Base(file.Name())))
 }
 
 // buildStruct just prints the typescript def for a type.
