@@ -25,10 +25,15 @@ export interface WorkspaceStatsProps {
   handleUpdate: () => void
 }
 
-export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdate }) => {
+export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
+  workspace,
+  handleUpdate,
+}) => {
   const styles = useStyles()
   const theme = useTheme()
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
+    workspace.latest_build,
+  )
 
   return (
     <div className={styles.stats} aria-label={Language.workspaceDetails}>
@@ -49,10 +54,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdat
           {workspace.outdated ? (
             <span className={styles.outdatedLabel}>
               {Language.outdated}
-              <OutdatedHelpTooltip onUpdateVersion={handleUpdate} ariaLabel="update version" />
+              <OutdatedHelpTooltip
+                onUpdateVersion={handleUpdate}
+                ariaLabel="update version"
+              />
             </span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>{Language.upToDate}</span>
+            <span style={{ color: theme.palette.text.secondary }}>
+              {Language.upToDate}
+            </span>
           )}
         </span>
       </div>

@@ -7,7 +7,9 @@ export default {
   component: TemplatesPageView,
 } as ComponentMeta<typeof TemplatesPageView>
 
-const Template: Story<TemplatesPageViewProps> = (args) => <TemplatesPageView {...args} />
+const Template: Story<TemplatesPageViewProps> = (args) => (
+  <TemplatesPageView {...args} />
+)
 
 export const AllStates = Template.bind({})
 AllStates.args = {
@@ -52,5 +54,7 @@ EmptyCannotCreate.args = {}
 
 export const Error = Template.bind({})
 Error.args = {
-  getTemplatesError: makeMockApiError({ message: "Something went wrong fetching templates." }),
+  getTemplatesError: makeMockApiError({
+    message: "Something went wrong fetching templates.",
+  }),
 }

@@ -1,5 +1,6 @@
 import { useActor, useMachine } from "@xstate/react"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+import { usePermissions } from "hooks/usePermissions"
 import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
@@ -44,21 +45,14 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const userToBeDeleted = users?.find((u) => u.id === userIdToDelete)
   const userToBeActivated = users?.find((u) => u.id === userIdToActivate)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
-
-  const [authState, _] = useActor(xServices.authXService)
-  const { permissions } = authState.context
-  const canEditUsers = permissions && permissions.updateUsers
-  const canCreateUser = permissions && permissions.createUser
-
+  const { updateUsers: canEditUsers } = usePermissions()
   const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const { roles } = rolesState.context
 
   // Is loading if
-  // - permissions are loading or
   // - users are loading or
   // - the user can edit the users but the roles are loading
   const isLoading =
-    authState.matches("gettingPermissions") ||
     usersState.matches("gettingUsers") ||
     (canEditUsers && rolesState.matches("gettingRoles"))
 
@@ -88,11 +82,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <UsersPageView
         roles={roles}
         users={users}
-        openUserCreationDialog={() => {
-          navigate("/users/create")
-        }}
         onListWorkspaces={(user) => {
-          navigate("/workspaces?filter=" + encodeURIComponent(`owner:${user.username}`))
+          navigate(
+            "/workspaces?filter=" +
+              encodeURIComponent(`owner:${user.username}`),
+          )
         }}
         onDeleteUser={(user) => {
           usersSend({ type: "DELETE_USER", userId: user.id })
@@ -117,7 +111,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
-        canCreateUser={canCreateUser}
         filter={usersState.context.filter}
         onFilter={(query) => {
           searchParams.set("filter", query)
@@ -155,7 +148,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.suspendDialogMessagePrefix} <strong>{userToBeSuspended?.username}</strong>?
+            {Language.suspendDialogMessagePrefix}{" "}
+            <strong>{userToBeSuspended?.username}</strong>?
           </>
         }
       />
@@ -175,7 +169,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.activateDialogMessagePrefix} <strong>{userToBeActivated?.username}</strong>?
+            {Language.activateDialogMessagePrefix}{" "}
+            <strong>{userToBeActivated?.username}</strong>?
           </>
         }
       />

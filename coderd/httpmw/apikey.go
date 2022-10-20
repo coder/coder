@@ -54,6 +54,7 @@ type Authorization struct {
 	ID       uuid.UUID
 	Username string
 	Roles    []string
+	Groups   []string
 	Scope    database.APIKeyScope
 }
 
@@ -82,8 +83,8 @@ type OAuth2Configs struct {
 }
 
 const (
-	signedOutErrorMessage string = "You are signed out or your session has expired. Please sign in again to continue."
-	internalErrorMessage  string = "An internal error occurred. Please try again or contact the system administrator."
+	SignedOutErrorMessage = "You are signed out or your session has expired. Please sign in again to continue."
+	internalErrorMessage  = "An internal error occurred. Please try again or contact the system administrator."
 )
 
 type ExtractAPIKeyConfig struct {
@@ -118,21 +119,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			// like workspace applications.
 			write := func(code int, response codersdk.Response) {
 				if cfg.RedirectToLogin {
-					path := r.URL.Path
-					if r.URL.RawQuery != "" {
-						path += "?" + r.URL.RawQuery
-					}
-
-					q := url.Values{}
-					q.Add("message", response.Message)
-					q.Add("redirect", path)
-
-					u := &url.URL{
-						Path:     "/login",
-						RawQuery: q.Encode(),
-					}
-
-					http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+					RedirectToLogin(rw, r, response.Message)
 					return
 				}
 
@@ -156,7 +143,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			token := apiTokenFromRequest(r)
 			if token == "" {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: signedOutErrorMessage,
+					Message: SignedOutErrorMessage,
 					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
 				})
 				return
@@ -165,7 +152,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			keyID, keySecret, err := SplitAPIToken(token)
 			if err != nil {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: signedOutErrorMessage,
+					Message: SignedOutErrorMessage,
 					Detail:  "Invalid API key format: " + err.Error(),
 				})
 				return
@@ -175,7 +162,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
-						Message: signedOutErrorMessage,
+						Message: SignedOutErrorMessage,
 						Detail:  "API key is invalid.",
 					})
 					return
@@ -191,7 +178,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			hashedSecret := sha256.Sum256([]byte(keySecret))
 			if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: signedOutErrorMessage,
+					Message: SignedOutErrorMessage,
 					Detail:  "API key secret is invalid.",
 				})
 				return
@@ -203,7 +190,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// Tracks if the API key has properties updated
 				changed = false
 			)
-			if key.LoginType != database.LoginTypePassword {
+			if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 				link, err = cfg.DB.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,
@@ -216,7 +203,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 					return
 				}
 				// Check if the OAuth token is expired
-				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() {
+				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
 					var oauthConfig OAuth2Config
 					switch key.LoginType {
 					case database.LoginTypeGithub:
@@ -254,7 +241,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			// Checking if the key is expired.
 			if key.ExpiresAt.Before(now) {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: signedOutErrorMessage,
+					Message: SignedOutErrorMessage,
 					Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
 				})
 				return
@@ -360,6 +347,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				Username: roles.Username,
 				Roles:    roles.Roles,
 				Scope:    key.Scope,
+				Groups:   roles.Groups,
 			})
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
@@ -419,4 +407,24 @@ func SplitAPIToken(token string) (id string, secret string, err error) {
 	}
 
 	return keyID, keySecret, nil
+}
+
+// RedirectToLogin redirects the user to the login page with the `message` and
+// `redirect` query parameters set.
+func RedirectToLogin(rw http.ResponseWriter, r *http.Request, message string) {
+	path := r.URL.Path
+	if r.URL.RawQuery != "" {
+		path += "?" + r.URL.RawQuery
+	}
+
+	q := url.Values{}
+	q.Add("message", message)
+	q.Add("redirect", path)
+
+	u := &url.URL{
+		Path:     "/login",
+		RawQuery: q.Encode(),
+	}
+
+	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 }

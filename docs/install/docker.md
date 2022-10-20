@@ -30,9 +30,9 @@ Learn more about Coder's [configuration options](../admin/configure.md).
 
 ## Run Coder with access URL and external PostgreSQL (recommended)
 
-For production deployments, we recommend using an external PostgreSQL database.
-Set `ACCESS_URL` to the external URL that users and workspaces will use to
-connect to Coder.
+For production deployments, we recommend using an external PostgreSQL database
+(version 13 or higher). Set `ACCESS_URL` to the external URL that users and
+workspaces will use to connect to Coder.
 
 ```sh
 docker run --rm -it \

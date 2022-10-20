@@ -30,7 +30,10 @@ describe("DeleteDialog", () => {
         name="MyTemplate"
       />,
     )
-    const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "template" })
+    const labelText = t("deleteDialog.confirmLabel", {
+      ns: "common",
+      entity: "template",
+    })
     const textField = screen.getByLabelText(labelText)
     await userEvent.type(textField, "MyTemplateWrong")
     const confirmButton = screen.getByRole("button", { name: "Delete" })
@@ -48,7 +51,10 @@ describe("DeleteDialog", () => {
         name="MyTemplate"
       />,
     )
-    const labelText = t("deleteDialog.confirmLabel", { ns: "common", entity: "template" })
+    const labelText = t("deleteDialog.confirmLabel", {
+      ns: "common",
+      entity: "template",
+    })
     const textField = screen.getByLabelText(labelText)
     await userEvent.type(textField, "MyTemplate")
     const confirmButton = screen.getByRole("button", { name: "Delete" })

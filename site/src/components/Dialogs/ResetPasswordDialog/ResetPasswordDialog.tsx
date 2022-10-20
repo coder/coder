@@ -24,19 +24,16 @@ export const Language = {
   confirmText: "Reset password",
 }
 
-export const ResetPasswordDialog: FC<React.PropsWithChildren<ResetPasswordDialogProps>> = ({
-  open,
-  onClose,
-  onConfirm,
-  user,
-  newPassword,
-  loading,
-}) => {
+export const ResetPasswordDialog: FC<
+  React.PropsWithChildren<ResetPasswordDialogProps>
+> = ({ open, onClose, onConfirm, user, newPassword, loading }) => {
   const styles = useStyles()
 
   const description = (
     <>
-      <DialogContentText variant="subtitle2">{Language.message(user?.username)}</DialogContentText>
+      <DialogContentText variant="subtitle2">
+        {Language.message(user?.username)}
+      </DialogContentText>
       <DialogContentText component="div" className={styles.codeBlock}>
         <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
       </DialogContentText>

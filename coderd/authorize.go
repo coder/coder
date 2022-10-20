@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -18,7 +20,7 @@ import (
 // This is faster than calling Authorize() on each object.
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r)
-	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objects)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
 		h.Logger.Error(r.Context(), "filter failed",
@@ -63,7 +65,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserAuthorization(r)
-	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, object.RBACObject())
+	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
@@ -95,7 +97,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 // Note the authorization is only for the given action and object type.
 func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.AuthorizeFilter, error) {
 	roles := httpmw.UserAuthorization(r)
-	prepared, err := h.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), action, objectType)
+	prepared, err := h.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare filter: %w", err)
 	}
@@ -127,6 +129,28 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	response := make(codersdk.AuthorizationResponse)
+	// Prevent using too many resources by ID. This prevents database abuse
+	// from this endpoint. This also prevents misuse of this endpoint, as
+	// resource_id should be used for single objects, not for a list of them.
+	var (
+		idFetch  int
+		maxFetch = 10
+	)
+	for _, v := range params.Checks {
+		if v.Object.ResourceID != "" {
+			idFetch++
+		}
+	}
+	if idFetch > maxFetch {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Endpoint only supports using \"resource_id\" field %d times, found %d usages. Remove %d objects with this field set.",
+				maxFetch, idFetch, idFetch-maxFetch,
+			),
+		})
+		return
+	}
+
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -135,15 +159,60 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if v.Object.OwnerID == "me" {
-			v.Object.OwnerID = auth.ID.String()
+		obj := rbac.Object{
+			Owner: v.Object.OwnerID,
+			OrgID: v.Object.OrganizationID,
+			Type:  v.Object.ResourceType,
 		}
-		err := api.Authorizer.ByRoleName(r.Context(), auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), rbac.Action(v.Action),
-			rbac.Object{
-				Owner: v.Object.OwnerID,
-				OrgID: v.Object.OrganizationID,
-				Type:  v.Object.ResourceType,
-			})
+		if obj.Owner == "me" {
+			obj.Owner = auth.ID.String()
+		}
+
+		// If a resource ID is specified, fetch that specific resource.
+		if v.Object.ResourceID != "" {
+			id, err := uuid.Parse(v.Object.ResourceID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message:     fmt.Sprintf("Object %q id is not a valid uuid.", v.Object.ResourceID),
+					Validations: []codersdk.ValidationError{{Field: "resource_id", Detail: err.Error()}},
+				})
+				return
+			}
+
+			var dbObj rbac.Objecter
+			var dbErr error
+			// Only support referencing some resources by ID.
+			switch v.Object.ResourceType {
+			case rbac.ResourceWorkspaceExecution.Type:
+				wrkSpace, err := api.Database.GetWorkspaceByID(ctx, id)
+				if err == nil {
+					dbObj = wrkSpace.ExecutionRBAC()
+				}
+				dbErr = err
+			case rbac.ResourceWorkspace.Type:
+				dbObj, dbErr = api.Database.GetWorkspaceByID(ctx, id)
+			case rbac.ResourceTemplate.Type:
+				dbObj, dbErr = api.Database.GetTemplateByID(ctx, id)
+			case rbac.ResourceUser.Type:
+				dbObj, dbErr = api.Database.GetUserByID(ctx, id)
+			case rbac.ResourceGroup.Type:
+				dbObj, dbErr = api.Database.GetGroupByID(ctx, id)
+			default:
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message:     fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType),
+					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: err.Error()}},
+				})
+				return
+			}
+			if dbErr != nil {
+				// 404 or unauthorized is false
+				response[k] = false
+				continue
+			}
+			obj = dbObj.RBACObject()
+		}
+
+		err := api.Authorizer.ByRoleName(r.Context(), auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
 		response[k] = err == nil
 	}
 

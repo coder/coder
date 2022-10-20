@@ -4,14 +4,17 @@ import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 
 const Language = {
-  stateMessage: "The workspace may have failed to delete due to a Terraform state mismatch.",
+  stateMessage:
+    "The workspace may have failed to delete due to a Terraform state mismatch.",
 }
 
 export interface WorkspaceBuildStateErrorProps {
   build: WorkspaceBuild
 }
 
-export const WorkspaceBuildStateError: React.FC<WorkspaceBuildStateErrorProps> = ({ build }) => {
+export const WorkspaceBuildStateError: React.FC<
+  WorkspaceBuildStateErrorProps
+> = ({ build }) => {
   const styles = useStyles()
 
   const orphanCommand = `coder rm ${
@@ -23,8 +26,8 @@ export const WorkspaceBuildStateError: React.FC<WorkspaceBuildStateErrorProps> =
         <Stack direction="row" spacing={0}>
           <span className={styles.errorMessage}>
             {Language.stateMessage} A template admin may run{" "}
-            <CodeExample inline code={orphanCommand} /> to delete the workspace skipping resource
-            destruction.
+            <CodeExample inline code={orphanCommand} /> to delete the workspace
+            skipping resource destruction.
           </span>
         </Stack>
       </Stack>

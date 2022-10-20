@@ -1,5 +1,5 @@
 import Link from "@material-ui/core/Link"
-import Popover from "@material-ui/core/Popover"
+import Popover, { PopoverProps } from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
@@ -19,25 +19,54 @@ export const Language = {
   ariaLabel: "tooltip",
 }
 
-const HelpTooltipContext = createContext<{ open: boolean; onClose: () => void } | undefined>(
-  undefined,
-)
+const HelpTooltipContext = createContext<
+  { open: boolean; onClose: () => void } | undefined
+>(undefined)
 
 const useHelpTooltip = () => {
   const helpTooltipContext = useContext(HelpTooltipContext)
 
   if (!helpTooltipContext) {
-    throw new Error("This hook should be used in side of the HelpTooltipContext.")
+    throw new Error(
+      "This hook should be used in side of the HelpTooltipContext.",
+    )
   }
 
   return helpTooltipContext
 }
 
-export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = ({
-  children,
-  open,
-  size = "medium",
-}) => {
+export const HelpPopover: React.FC<
+  PopoverProps & { onOpen: () => void; onClose: () => void }
+> = ({ onOpen, onClose, children, ...props }) => {
+  const styles = useStyles({ size: "small" })
+
+  return (
+    <Popover
+      className={styles.popover}
+      classes={{ paper: styles.popoverPaper }}
+      onClose={onClose}
+      anchorOrigin={{
+        vertical: "bottom",
+        horizontal: "left",
+      }}
+      transformOrigin={{
+        vertical: "top",
+        horizontal: "left",
+      }}
+      PaperProps={{
+        onMouseEnter: onOpen,
+        onMouseLeave: onClose,
+      }}
+      {...props}
+    >
+      {children}
+    </Popover>
+  )
+}
+
+export const HelpTooltip: React.FC<
+  React.PropsWithChildren<HelpTooltipProps>
+> = ({ children, open, size = "medium" }) => {
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(Boolean(open))
@@ -60,58 +89,47 @@ export const HelpTooltip: React.FC<React.PropsWithChildren<HelpTooltipProps>> = 
         onMouseEnter={() => {
           setIsOpen(true)
         }}
+        onMouseLeave={() => {
+          setIsOpen(false)
+        }}
         aria-label={Language.ariaLabel}
       >
         <HelpIcon className={styles.icon} />
       </button>
-      <Popover
-        className={styles.popover}
-        classes={{ paper: styles.popoverPaper }}
+      <HelpPopover
         id={id}
         open={isOpen}
         anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-        PaperProps={{
-          onMouseEnter: () => {
-            setIsOpen(true)
-          },
-          onMouseLeave: () => {
-            setIsOpen(false)
-          },
-        }}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
       >
         <HelpTooltipContext.Provider value={{ open: isOpen, onClose }}>
           {children}
         </HelpTooltipContext.Provider>
-      </Popover>
+      </HelpPopover>
     </>
   )
 }
 
-export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles({})
 
   return <h4 className={styles.title}>{children}</h4>
 }
 
-export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles({})
 
   return <p className={styles.text}>{children}</p>
 }
 
-export const HelpTooltipLink: React.FC<React.PropsWithChildren<{ href: string }>> = ({
-  children,
-  href,
-}) => {
+export const HelpTooltipLink: React.FC<
+  React.PropsWithChildren<{ href: string }>
+> = ({ children, href }) => {
   const styles = useStyles({})
 
   return (
@@ -148,7 +166,9 @@ export const HelpTooltipAction: React.FC<
   )
 }
 
-export const HelpTooltipLinksGroup: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const HelpTooltipLinksGroup: React.FC<
+  React.PropsWithChildren<unknown>
+> = ({ children }) => {
   const styles = useStyles({})
 
   return (
@@ -183,8 +203,10 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: ({ size }: { size?: Size }) => theme.spacing(getButtonSpacingFromSize(size)),
-    height: ({ size }: { size?: Size }) => theme.spacing(getButtonSpacingFromSize(size)),
+    width: ({ size }: { size?: Size }) =>
+      theme.spacing(getButtonSpacingFromSize(size)),
+    height: ({ size }: { size?: Size }) =>
+      theme.spacing(getButtonSpacingFromSize(size)),
     padding: 0,
     border: 0,
     background: "transparent",
@@ -198,8 +220,10 @@ const useStyles = makeStyles((theme) => ({
   },
 
   icon: {
-    width: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
-    height: ({ size }: { size?: Size }) => theme.spacing(getIconSpacingFromSize(size)),
+    width: ({ size }: { size?: Size }) =>
+      theme.spacing(getIconSpacingFromSize(size)),
+    height: ({ size }: { size?: Size }) =>
+      theme.spacing(getIconSpacingFromSize(size)),
   },
 
   popover: {

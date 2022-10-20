@@ -286,7 +286,7 @@ func TestPostLogin(t *testing.T) {
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
 		// tokens have a longer life
-		token, err := client.CreateToken(ctx, codersdk.Me)
+		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
 		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
@@ -643,6 +643,67 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err, "admin should be able to update own password without providing old password")
 		assert.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
+	})
+
+	t.Run("ChangingPasswordDeletesKeys", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx, _ := testutil.Context(t)
+
+		apikey1, err := client.CreateToken(ctx, user.UserID.String(), codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+
+		apikey2, err := client.CreateToken(ctx, user.UserID.String(), codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+
+		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.NoError(t, err)
+
+		// Trying to get an API key should fail since our client's token
+		// has been deleted.
+		_, err = client.GetAPIKey(ctx, user.UserID.String(), apikey1.Key)
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
+
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: "newpassword",
+		})
+		require.NoError(t, err)
+
+		client.SessionToken = resp.SessionToken
+
+		// Trying to get an API key should fail since all keys are deleted
+		// on password change.
+		_, err = client.GetAPIKey(ctx, user.UserID.String(), apikey1.Key)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		_, err = client.GetAPIKey(ctx, user.UserID.String(), apikey2.Key)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	t.Run("PasswordsMustDiffer", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx, _ := testutil.Context(t)
+
+		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 }
 
@@ -1202,7 +1263,7 @@ func TestPostTokens(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	apiKey, err := client.CreateToken(ctx, codersdk.Me)
+	apiKey, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 	require.NotNil(t, apiKey)
 	require.GreaterOrEqual(t, len(apiKey.Key), 2)
 	require.NoError(t, err)

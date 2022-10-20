@@ -56,13 +56,17 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
   updateSecurityError,
   initialTouched,
 }) => {
-  const form: FormikContextType<SecurityFormValues> = useFormik<SecurityFormValues>({
-    initialValues,
-    validationSchema,
-    onSubmit,
-    initialTouched,
-  })
-  const getFieldHelpers = getFormHelpers<SecurityFormValues>(form, updateSecurityError)
+  const form: FormikContextType<SecurityFormValues> =
+    useFormik<SecurityFormValues>({
+      initialValues,
+      validationSchema,
+      onSubmit,
+      initialTouched,
+    })
+  const getFieldHelpers = getFormHelpers<SecurityFormValues>(
+    form,
+    updateSecurityError,
+  )
 
   return (
     <>
@@ -100,7 +104,11 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
           />
 
           <div>
-            <LoadingButton loading={isLoading} type="submit" variant="contained">
+            <LoadingButton
+              loading={isLoading}
+              type="submit"
+              variant="contained"
+            >
               {isLoading ? "" : Language.updatePassword}
             </LoadingButton>
           </div>

@@ -1,9 +1,9 @@
 # coder -- Primary configuration for `coder server`.
 coder:
-  # NOTE: this is currently not used as coder v2 does not support high
-  #       availability yet.
-  # # coder.replicaCount -- The number of Kubernetes deployment replicas.
-  # replicaCount: 1
+  # coder.replicaCount -- The number of Kubernetes deployment replicas.
+  # This should only be increased if High Availability is enabled.
+  # This is an Enterprise feature. Contact sales@coder.com.
+  replicaCount: 1
 
   # coder.image -- The image to use for Coder.
   image:
@@ -33,6 +33,8 @@ coder:
     # It is recommended to keep this on if you are using Kubernetes templates
     # within Coder.
     workspacePerms: true
+    # coder.serviceAccount.annotations -- The Coder service account annotations.
+    annotations: {}
 
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
@@ -59,7 +61,8 @@ coder:
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
-  resources: {}
+  resources:
+    {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
@@ -88,3 +91,31 @@ coder:
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
+
+  # coder.ingress -- The Ingress object to expose for Coder.
+  ingress:
+    # coder.ingress.enable -- Whether to create the Ingress object. If using an
+    # Ingress, we recommend not specifying coder.tls.secretNames as the Ingress
+    # will handle TLS termination.
+    enable: false
+    # coder.ingress.className -- The name of the Ingress class to use.
+    className: ""
+    # coder.ingress.host -- The hostname to match on.
+    host: ""
+    # coder.ingress.wildcardHost -- The wildcard hostname to match on. Should be
+    # in the form "*.example.com" or "*-suffix.example.com". If you are using a
+    # suffix after the wildcard, the suffix will be stripped from the created
+    # ingress to ensure that it is a legal ingress host. Optional if not using
+    # applications over subdomains.
+    wildcardHost: ""
+    # coder.ingress.annotations -- The ingress annotations.
+    annotations: {}
+    # coder.ingress.tls -- The TLS configuration to use for the Ingress.
+    tls:
+      # coder.ingress.tls.enable -- Whether to enable TLS on the Ingress.
+      enable: false
+      # coder.ingress.tls.secretName -- The name of the TLS secret to use.
+      secretName: ""
+      # coder.ingress.tls.wildcardSecretName -- The name of the TLS secret to
+      # use for the wildcard host.
+      wildcardSecretName: ""

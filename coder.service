@@ -20,11 +20,12 @@ AmbientCapabilities=CAP_IPC_LOCK CAP_NET_BIND_SERVICE
 CacheDirectory=coder
 CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK CAP_NET_BIND_SERVICE
 KillSignal=SIGINT
+KillMode=mixed
 NoNewPrivileges=yes
 ExecStart=/usr/bin/coder server
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=30
+TimeoutStopSec=90
 
 [Install]
 WantedBy=multi-user.target

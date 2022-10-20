@@ -57,7 +57,7 @@ func TestFeaturesList(t *testing.T) {
 		var entitlements codersdk.Entitlements
 		err := json.Unmarshal(buf.Bytes(), &entitlements)
 		require.NoError(t, err, "unmarshal JSON output")
-		assert.Len(t, entitlements.Features, 5)
+		assert.Len(t, entitlements.Features, 7)
 		assert.Empty(t, entitlements.Warnings)
 		assert.Equal(t, codersdk.EntitlementNotEntitled,
 			entitlements.Features[codersdk.FeatureUserLimit].Entitlement)
@@ -68,7 +68,11 @@ func TestFeaturesList(t *testing.T) {
 		assert.Equal(t, codersdk.EntitlementNotEntitled,
 			entitlements.Features[codersdk.FeatureWorkspaceQuota].Entitlement)
 		assert.Equal(t, codersdk.EntitlementNotEntitled,
+			entitlements.Features[codersdk.FeatureTemplateRBAC].Entitlement)
+		assert.Equal(t, codersdk.EntitlementNotEntitled,
 			entitlements.Features[codersdk.FeatureSCIM].Entitlement)
+		assert.Equal(t, codersdk.EntitlementNotEntitled,
+			entitlements.Features[codersdk.FeatureHighAvailability].Entitlement)
 		assert.False(t, entitlements.HasLicense)
 		assert.False(t, entitlements.Experimental)
 	})

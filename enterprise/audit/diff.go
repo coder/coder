@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database"
 )
 
 func structName(t reflect.Type) string {
@@ -31,6 +32,10 @@ func diffValues(left, right any, table Table) audit.Map {
 	}
 
 	for i := 0; i < rightT.NumField(); i++ {
+		if !rightT.Field(i).IsExported() {
+			continue
+		}
+
 		var (
 			leftF  = leftV.Field(i)
 			rightF = rightV.Field(i)
@@ -133,7 +138,8 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		}
 
 		return leftInt64Ptr, rightInt64Ptr, true
-
+	case database.TemplateACL:
+		return fmt.Sprintf("%+v", left), fmt.Sprintf("%+v", right), true
 	default:
 		return left, right, false
 	}

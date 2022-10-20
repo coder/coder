@@ -20,6 +20,7 @@ export type EntitlementsEvent =
   | { type: "HIDE_MOCK_BANNER" }
 
 const emptyEntitlements = {
+  errors: [],
   warnings: [],
   features: {},
   has_license: false,

@@ -4,7 +4,9 @@
  */
 
 import { makeStyles } from "@material-ui/core/styles"
-import MuiTypography, { TypographyProps as MuiTypographyProps } from "@material-ui/core/Typography"
+import MuiTypography, {
+  TypographyProps as MuiTypographyProps,
+} from "@material-ui/core/Typography"
 import * as React from "react"
 import { appendCSSString, combineClasses } from "../../util/combineClasses"
 
@@ -18,7 +20,11 @@ export interface TypographyProps extends MuiTypographyProps {
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/typography/
  */
-export const Typography: React.FC<TypographyProps> = ({ className, short, ...rest }) => {
+export const Typography: React.FC<TypographyProps> = ({
+  className,
+  short,
+  ...rest
+}) => {
   const styles = useStyles()
 
   let classes = combineClasses({ [styles.short]: short })

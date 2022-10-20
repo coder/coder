@@ -54,3 +54,9 @@ FROM
 	api_keys
 WHERE
 	id = $1;
+
+-- name: DeleteAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1;

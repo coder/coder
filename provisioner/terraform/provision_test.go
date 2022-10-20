@@ -415,7 +415,7 @@ func TestProvision(t *testing.T) {
 // nolint:paralleltest
 func TestProvision_ExtraEnv(t *testing.T) {
 	// #nosec
-	secretValue := "oinae3uinxase"
+	const secretValue = "oinae3uinxase"
 	t.Setenv("TF_LOG", "INFO")
 	t.Setenv("TF_SUPERSECRET", secretValue)
 
@@ -458,4 +458,77 @@ func TestProvision_ExtraEnv(t *testing.T) {
 		}
 	}
 	require.True(t, found)
+}
+
+// nolint:paralleltest
+func TestProvision_SafeEnv(t *testing.T) {
+	// #nosec
+	const (
+		passedValue = "superautopets"
+		secretValue = "oinae3uinxase"
+	)
+
+	t.Setenv("VALID_USER_ENV", passedValue)
+
+	// We ensure random CODER_ variables aren't passed through to avoid leaking
+	// control plane secrets (e.g. PG URL).
+	t.Setenv("CODER_SECRET", secretValue)
+
+	const echoResource = `
+	resource "null_resource" "a" {
+		provisioner "local-exec" {
+		  command = "env"
+		}
+	  }
+
+	`
+
+	ctx, api := setupProvisioner(t, nil)
+
+	directory := t.TempDir()
+	path := filepath.Join(directory, "main.tf")
+	err := os.WriteFile(path, []byte(echoResource), 0o600)
+	require.NoError(t, err)
+
+	request := &proto.Provision_Request{
+		Type: &proto.Provision_Request_Start{
+			Start: &proto.Provision_Start{
+				Directory: directory,
+				Metadata: &proto.Provision_Metadata{
+					WorkspaceTransition: proto.WorkspaceTransition_START,
+				},
+			},
+		},
+	}
+	response, err := api.Provision(ctx)
+	require.NoError(t, err)
+	err = response.Send(request)
+	require.NoError(t, err)
+	var (
+		foundUserEnv = false
+		// Some CODER_ environment variables used by our Terraform provider
+		// must make it through.
+		foundCoderEnv = false
+	)
+	for {
+		msg, err := response.Recv()
+		require.NoError(t, err)
+
+		if log := msg.GetLog(); log != nil {
+			t.Log(log.Level.String(), log.Output)
+			if strings.Contains(log.Output, passedValue) {
+				foundUserEnv = true
+			}
+			if strings.Contains(log.Output, "CODER_") {
+				foundCoderEnv = true
+			}
+			require.NotContains(t, log.Output, secretValue)
+		}
+		if c := msg.GetComplete(); c != nil {
+			require.Empty(t, c.Error)
+			break
+		}
+	}
+	require.True(t, foundUserEnv)
+	require.True(t, foundCoderEnv)
 }

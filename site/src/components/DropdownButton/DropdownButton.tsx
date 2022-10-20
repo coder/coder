@@ -1,7 +1,10 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles, useTheme } from "@material-ui/core/styles"
-import { CloseDropdown, OpenDropdown } from "components/DropdownArrows/DropdownArrows"
+import {
+  CloseDropdown,
+  OpenDropdown,
+} from "components/DropdownArrows/DropdownArrows"
 import { DropdownContent } from "components/DropdownButton/DropdownContent/DropdownContent"
 import { FC, ReactNode, useRef, useState } from "react"
 import { CancelButton } from "./ActionCtas"
@@ -51,7 +54,9 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
             {isOpen ? (
               <CloseDropdown />
             ) : (
-              <OpenDropdown color={canOpen ? undefined : theme.palette.action.disabled} />
+              <OpenDropdown
+                color={canOpen ? undefined : theme.palette.action.disabled}
+              />
             )}
           </Button>
           <Popover
@@ -105,6 +110,8 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   popoverPaper: {
-    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px ${theme.spacing(1)}px`,
+    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px ${theme.spacing(
+      1,
+    )}px`,
   },
 }))

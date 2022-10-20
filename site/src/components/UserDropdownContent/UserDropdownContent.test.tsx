@@ -17,14 +17,26 @@ describe("UserDropdownContent", () => {
   })
 
   it("displays the menu items", () => {
-    render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
+    render(
+      <UserDropdownContent
+        user={MockUser}
+        onSignOut={jest.fn()}
+        onPopoverClose={jest.fn()}
+      />,
+    )
     expect(screen.getByText(Language.accountLabel)).toBeDefined()
     expect(screen.getByText(Language.docsLabel)).toBeDefined()
     expect(screen.getByText(Language.signOutLabel)).toBeDefined()
   })
 
   it("has the correct link for the account item", () => {
-    render(<UserDropdownContent user={MockUser} onSignOut={jest.fn()} onPopoverClose={jest.fn()} />)
+    render(
+      <UserDropdownContent
+        user={MockUser}
+        onSignOut={jest.fn()}
+        onPopoverClose={jest.fn()}
+      />,
+    )
 
     const link = screen.getByText(Language.accountLabel).closest("a")
     if (!link) {
@@ -36,7 +48,13 @@ describe("UserDropdownContent", () => {
 
   it("calls the onSignOut function", () => {
     const onSignOut = jest.fn()
-    render(<UserDropdownContent user={MockUser} onSignOut={onSignOut} onPopoverClose={jest.fn()} />)
+    render(
+      <UserDropdownContent
+        user={MockUser}
+        onSignOut={onSignOut}
+        onPopoverClose={jest.fn()}
+      />,
+    )
     screen.getByText(Language.signOutLabel).click()
     expect(onSignOut).toBeCalledTimes(1)
   })

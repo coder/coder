@@ -12,7 +12,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
+	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
 )
 
@@ -23,6 +25,7 @@ type Store interface {
 	// customQuerier contains custom queries that are not generated.
 	customQuerier
 
+	Ping(ctx context.Context) (time.Duration, error)
 	InTx(func(Store) error) error
 }
 
@@ -32,24 +35,41 @@ type DBTX interface {
 	PrepareContext(context.Context, string) (*sql.Stmt, error)
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
 // New creates a new database store using a SQL database connection.
 func New(sdb *sql.DB) Store {
+	dbx := sqlx.NewDb(sdb, "postgres")
 	return &sqlQuerier{
-		db:  sdb,
-		sdb: sdb,
+		db:  dbx,
+		sdb: dbx,
 	}
 }
 
+// queries encompasses both are sqlc generated
+// queries and our custom queries.
+type querier interface {
+	sqlcQuerier
+	customQuerier
+}
+
 type sqlQuerier struct {
-	sdb *sql.DB
+	sdb *sqlx.DB
 	db  DBTX
+}
+
+// Ping returns the time it takes to ping the database.
+func (q *sqlQuerier) Ping(ctx context.Context) (time.Duration, error) {
+	start := time.Now()
+	err := q.sdb.PingContext(ctx)
+	return time.Since(start), err
 }
 
 // InTx performs database operations inside a transaction.
 func (q *sqlQuerier) InTx(function func(Store) error) error {
-	if _, ok := q.db.(*sql.Tx); ok {
+	if _, ok := q.db.(*sqlx.Tx); ok {
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
 		// that.
@@ -60,7 +80,7 @@ func (q *sqlQuerier) InTx(function func(Store) error) error {
 		return nil
 	}
 
-	transaction, err := q.sdb.Begin()
+	transaction, err := q.sdb.BeginTxx(context.Background(), nil)
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}

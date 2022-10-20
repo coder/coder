@@ -15,27 +15,31 @@ export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({
   const styles = useStyles({})
 
   return (
-    <div className={combineClasses([styles.root, className])}>
+    <header
+      className={combineClasses([styles.root, className])}
+      data-testid="header"
+    >
       <hgroup>{children}</hgroup>
       {actions && (
         <Stack direction="row" className={styles.actions}>
           {actions}
         </Stack>
       )}
-    </div>
+    </header>
   )
 }
 
-export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles({})
 
   return <h1 className={styles.title}>{children}</h1>
 }
 
-export const PageHeaderSubtitle: React.FC<React.PropsWithChildren<{ condensed?: boolean }>> = ({
-  children,
-  condensed,
-}) => {
+export const PageHeaderSubtitle: React.FC<
+  React.PropsWithChildren<{ condensed?: boolean }>
+> = ({ children, condensed }) => {
   const styles = useStyles({
     condensed,
   })

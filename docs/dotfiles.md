@@ -32,7 +32,7 @@ resource "coder_agent" "main" {
 
 ## Persistent Home
 
-Sometimes you wants to support personalization without
+Sometimes you want to support personalization without
 requiring dotfiles.
 
 In such cases:

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
@@ -328,7 +329,7 @@ func Test_diff(t *testing.T) {
 				"username":        audit.OldNew{Old: "", New: "colin"},
 				"hashed_password": audit.OldNew{Old: ([]byte)(nil), New: ([]byte)(nil), Secret: true},
 				"status":          audit.OldNew{Old: database.UserStatus(""), New: database.UserStatusActive},
-				"rbac_roles":      audit.OldNew{Old: ([]string)(nil), New: []string{"omega admin"}},
+				"rbac_roles":      audit.OldNew{Old: (pq.StringArray)(nil), New: pq.StringArray{"omega admin"}},
 			},
 		},
 	})

@@ -12,7 +12,10 @@ export interface TableRowMenuProps<TData> {
   }>
 }
 
-export const TableRowMenu = <T,>({ data, menuItems }: TableRowMenuProps<T>): JSX.Element => {
+export const TableRowMenu = <T,>({
+  data,
+  menuItems,
+}: TableRowMenuProps<T>): JSX.Element => {
   const [anchorEl, setAnchorEl] = useState<MenuProps["anchorEl"]>(null)
 
   const handleClick = (event: MouseEvent) => {

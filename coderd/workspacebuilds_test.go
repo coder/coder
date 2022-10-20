@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -162,6 +163,50 @@ func TestWorkspaceBuilds(t *testing.T) {
 		require.Len(t, builds, 1)
 		require.Equal(t, int32(1), builds[0].BuildNumber)
 		require.Equal(t, user.Username, builds[0].InitiatorUsername)
+		require.NoError(t, err)
+
+		// Test since
+		builds, err = client.WorkspaceBuilds(ctx,
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(time.Minute)},
+		)
+		require.NoError(t, err)
+		require.Len(t, builds, 0)
+
+		builds, err = client.WorkspaceBuilds(ctx,
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(-time.Hour)},
+		)
+		require.NoError(t, err)
+		require.Len(t, builds, 1)
+	})
+
+	t.Run("DeletedInitiator", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		first := coderdtest.CreateFirstUser(t, client)
+		second := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		secondUser, err := second.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch me")
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace, err := second.CreateWorkspace(ctx, first.OrganizationID, first.UserID.String(), codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "example",
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		err = client.DeleteUser(ctx, secondUser.ID)
+		require.NoError(t, err)
+
+		builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})
+		require.Len(t, builds, 1)
+		require.Equal(t, int32(1), builds[0].BuildNumber)
+		require.Equal(t, secondUser.Username, builds[0].InitiatorUsername)
 		require.NoError(t, err)
 	})
 
@@ -490,7 +535,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	auditor := audit.NewMock()
+	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -531,4 +577,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
+
+	// assert an audit log has been created for deletion
+	require.Len(t, auditor.AuditLogs, 5)
+	assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[4].Action)
 }

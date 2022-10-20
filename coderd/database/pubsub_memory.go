@@ -47,8 +47,9 @@ func (m *memoryPubsub) Publish(event string, message []byte) error {
 		return nil
 	}
 	for _, listener := range listeners {
-		listener(context.Background(), message)
+		go listener(context.Background(), message)
 	}
+
 	return nil
 }
 

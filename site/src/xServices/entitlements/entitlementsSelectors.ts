@@ -26,7 +26,9 @@ export const getFeatureVisibility = (
   }
 }
 
-export const selectFeatureVisibility = (state: EntitlementState): Record<string, boolean> => {
+export const selectFeatureVisibility = (
+  state: EntitlementState,
+): Record<string, boolean> => {
   return getFeatureVisibility(
     state.context.entitlements.has_license,
     state.context.entitlements.features,
