@@ -12,19 +12,20 @@ type Custom interface {
 
 // StaticGeneric has all generic fields defined in the field
 type StaticGeneric struct {
-	Static GenericFields[string, int, time.Duration] `json:"static"`
+	Static GenericFields[string, int, time.Duration, string] `json:"static"`
 }
 
 // DynamicGeneric can has some dynamic fields
-type DynamicGeneric[C comparable, A any] struct {
-	Dynamic    GenericFields[C, A, string] `json:"dynamic"`
-	Comparable C                           `json:"comparable"`
+type DynamicGeneric[C comparable, A any, S Single] struct {
+	Dynamic    GenericFields[C, A, string, S] `json:"dynamic"`
+	Comparable C                              `json:"comparable"`
 }
 
-type GenericFields[C comparable, A any, T Custom] struct {
+type GenericFields[C comparable, A any, T Custom, S Single] struct {
 	Comparable C `json:"comparable"`
 	Any        A `json:"any"`
 
-	Custom T `json:"custom"`
-	Again  T `json:"again"`
+	Custom          T `json:"custom"`
+	Again           T `json:"again"`
+	SingleContraint S `json:"single_constraint"`
 }
