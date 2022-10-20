@@ -18,7 +18,7 @@ export interface AddLicenseRequest {
   readonly license: string
 }
 
-// From codersdk/gitauth.go
+// From codersdk/gitsshkey.go
 export interface AgentGitSSHKey {
   readonly public_key: string
   readonly private_key: string
@@ -282,6 +282,7 @@ export interface DeploymentFlags {
   readonly prom_address: StringFlag
   readonly pprof_enabled: BoolFlag
   readonly pprof_address: StringFlag
+  readonly config_path: StringFlag
   readonly cache_dir: StringFlag
   readonly in_memory_database: BoolFlag
   readonly provisioner_daemon_count: IntFlag
@@ -363,7 +364,7 @@ export interface GetAppHostResponse {
   readonly host: string
 }
 
-// From codersdk/gitauth.go
+// From codersdk/gitsshkey.go
 export interface GitSSHKey {
   readonly user_id: string
   readonly created_at: string
@@ -784,7 +785,7 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
 }
 
-// From codersdk/gitauth.go
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentGitAuthResponse {
   readonly username: string
   readonly password: string
