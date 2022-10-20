@@ -1,7 +1,9 @@
 package httpmw
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/httprate"
@@ -23,6 +25,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			return handler
 		}
 	}
+
 	return httprate.Limit(
 		count,
 		window,
@@ -33,7 +36,8 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 				return httprate.KeyByIP(r)
 			}
 
-			if r.Header.Get(codersdk.BypassRatelimitHeader) == "" {
+			if ok, _ := strconv.ParseBool(r.Header.Get(codersdk.BypassRatelimitHeader)); !ok {
+				// No bypass attempt, just ratelimit.
 				return apiKey.UserID.String(), nil
 			}
 
@@ -41,6 +45,8 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			// and automation.
 			auth := UserAuthorization(r)
 
+			// We avoid using rbac.Authorizer since rego is CPU-intensive
+			// and undermines the DoS-prevention goal of the rate limiter.
 			for _, role := range auth.Roles {
 				if role == rbac.RoleOwner() {
 					// HACK: use a random key each time to
@@ -59,7 +65,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 		}, httprate.KeyByEndpoint),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
-				Message: "You've been rate limited for sending too many requests!",
+				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
 			})
 		}),
 	)

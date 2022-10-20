@@ -395,7 +395,9 @@ func New(options *Options) *API {
 				// We use a tight limit for password login to protect
 				// against audit-log write DoS, pbkdf2 DoS, and simple
 				// brute-force attacks.
-				r.Use(httpmw.RateLimit(10, time.Minute))
+				//
+				// Making this too small can break tests.
+				r.Use(httpmw.RateLimit(60, time.Minute))
 				r.Post("/login", api.postLogin)
 			})
 			r.Get("/authmethods", api.userAuthMethods)
