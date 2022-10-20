@@ -26,6 +26,7 @@ type DeploymentFlags struct {
 	PromAddress                      *StringFlag      `json:"prom_address" typescript:",notnull"`
 	PprofEnabled                     *BoolFlag        `json:"pprof_enabled" typescript:",notnull"`
 	PprofAddress                     *StringFlag      `json:"pprof_address" typescript:",notnull"`
+	ConfigPath                       *StringFlag      `json:"config_path" typescript:",notnull"`
 	CacheDir                         *StringFlag      `json:"cache_dir" typescript:",notnull"`
 	InMemoryDatabase                 *BoolFlag        `json:"in_memory_database" typescript:",notnull"`
 	ProvisionerDaemonCount           *IntFlag         `json:"provisioner_daemon_count" typescript:",notnull"`

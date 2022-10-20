@@ -59,7 +59,8 @@ func TestValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, testCase.Valid, httpapi.UsernameValid(testCase.Username))
+			valid, _ := httpapi.UsernameValid(testCase.Username)
+			require.Equal(t, testCase.Valid, valid)
 		})
 	}
 }
@@ -91,7 +92,8 @@ func TestFrom(t *testing.T) {
 			t.Parallel()
 			converted := httpapi.UsernameFrom(testCase.From)
 			t.Log(converted)
-			require.True(t, httpapi.UsernameValid(converted))
+			valid, _ := httpapi.UsernameValid(converted)
+			require.True(t, valid)
 			if testCase.Match == "" {
 				require.NotEqual(t, testCase.From, converted)
 			} else {

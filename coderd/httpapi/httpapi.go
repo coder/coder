@@ -40,7 +40,8 @@ func init() {
 		if !ok {
 			return false
 		}
-		return UsernameValid(str)
+		valid, _ := UsernameValid(str)
+		return valid
 	}
 	for _, tag := range []string{"username", "template_name", "workspace_name"} {
 		err := validate.RegisterValidation(tag, nameValidator)

@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -84,7 +85,7 @@ type Options struct {
 	AutobuildStats       chan<- executor.Stats
 	Auditor              audit.Auditor
 	TLSCertificates      []tls.Certificate
-	GitAuthConfigs       []*coderd.GitAuthConfig
+	GitAuthConfigs       []*gitauth.Config
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool

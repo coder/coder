@@ -1,23 +1,23 @@
-package gitaskpass_test
+package gitauth_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/gitaskpass"
+	"github.com/coder/coder/coderd/gitauth"
 )
 
 func TestCheckCommand(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		valid := gitaskpass.CheckCommand([]string{"Username "}, []string{"GIT_PREFIX=/example"})
+		valid := gitauth.CheckCommand([]string{"Username "}, []string{"GIT_PREFIX=/example"})
 		require.True(t, valid)
 	})
 	t.Run("Failure", func(t *testing.T) {
 		t.Parallel()
-		valid := gitaskpass.CheckCommand([]string{}, []string{})
+		valid := gitauth.CheckCommand([]string{}, []string{})
 		require.False(t, valid)
 	})
 }
@@ -63,7 +63,7 @@ func TestParse(t *testing.T) {
 		tc := tc
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			user, host, err := gitaskpass.Parse(tc.in)
+			user, host, err := gitauth.ParseAskpass(tc.in)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantUser, user)
 			require.Equal(t, tc.wantHost, host)

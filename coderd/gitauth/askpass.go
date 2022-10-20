@@ -1,4 +1,4 @@
-package gitaskpass
+package gitauth
 
 import (
 	"net/url"
@@ -25,13 +25,13 @@ func CheckCommand(args, env []string) bool {
 	return false
 }
 
-// Parse returns the user and host from a git askpass prompt. For
+// ParseAskpass returns the user and host from a git askpass prompt. For
 // example: "user1" and "https://github.com". Note that for HTTP
 // protocols, the URL will never contain a path.
 //
 // For details on how the prompt is formatted, see `credential_ask_one`:
 // https://github.com/git/git/blob/bbe21b64a08f89475d8a3818e20c111378daa621/credential.c#L173-L191
-func Parse(prompt string) (user string, host string, err error) {
+func ParseAskpass(prompt string) (user string, host string, err error) {
 	parts := strings.Split(prompt, " ")
 	if len(parts) < 3 {
 		return "", "", xerrors.Errorf("askpass prompt must contain 3 words; got %d: %q", len(parts), prompt)

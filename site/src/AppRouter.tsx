@@ -80,6 +80,9 @@ const AuthSettingsPage = lazy(
 const NetworkSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
 )
+const GitAuthPage = lazy(
+  () => import("./pages/GitAuthPage/GitAuthPage")
+)
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -109,6 +112,14 @@ export const AppRouter: FC = () => {
           element={
             <RequireAuth>
               <CliAuthenticationPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="gitauth"
+          element={
+            <RequireAuth>
+              <GitAuthPage />
             </RequireAuth>
           }
         />

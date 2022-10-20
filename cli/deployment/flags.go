@@ -50,6 +50,12 @@ func Flags() *codersdk.DeploymentFlags {
 			Hidden:      true,
 			Default:     time.Minute,
 		},
+		ConfigPath: &codersdk.StringFlag{
+			Name:        "Configuration Path",
+			Flag:        "config",
+			EnvVar:      "CODER_SERVER_CONFIG",
+			Description: "Path to the Coder configuration file.",
+		},
 		DerpServerEnable: &codersdk.BoolFlag{
 			Name:        "DERP Server Enabled",
 			Flag:        "derp-server-enable",

@@ -90,7 +90,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			// be interrupted by additional signals. Note that we avoid
 			// shadowing cancel() (from above) here because notifyStop()
 			// restores default behavior for the signals. This protects
-			// the shutdown sequence from abrubtly terminating things
+			// the shutdown sequence from abruptly terminating things
 			// like: database migrations, provisioner work, workspace
 			// cleanup in dev-mode, etc.
 			//
@@ -143,13 +143,13 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				}
 			}
 
-			config := createConfig(cmd)
+			cfg := createConfig(cmd)
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !dflags.InMemoryDatabase.Value && dflags.PostgresURL.Value == "" {
 				var closeFunc func() error
-				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
-				dflags.PostgresURL.Value, closeFunc, err = startBuiltinPostgres(ctx, config, logger)
+				cmd.Printf("Using built-in PostgreSQL (%s)\n", cfg.PostgresPath())
+				dflags.PostgresURL.Value, closeFunc, err = startBuiltinPostgres(ctx, cfg, logger)
 				if err != nil {
 					return err
 				}
@@ -311,6 +311,14 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				}
 			}
 
+			if dflags.ConfigPath.Value == "" {
+				dflags.ConfigPath.Value = string(cfg.ServerConfig())
+			}
+			serverConfig, err := config.ParseServer(cmd, accessURLParsed, dflags.ConfigPath.Value)
+			if err != nil {
+				return xerrors.Errorf("parse server config: %w", err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
 				AppHostname:                 appHostname,
@@ -321,6 +329,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 				Pubsub:                      database.NewPubsubInMemory(),
 				CacheDir:                    dflags.CacheDir.Value,
 				GoogleTokenValidator:        googleTokenValidator,
+				GitAuthConfigs:              serverConfig.GitAuth,
 				SecureAuthCookie:            dflags.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -602,7 +611,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
 			// such as via the systemd service.
-			_ = config.URL().Write(client.URL.String())
+			_ = cfg.URL().Write(client.URL.String())
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
