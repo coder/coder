@@ -26,13 +26,10 @@ import (
 func server() *cobra.Command {
 	vip := deployment.NewViper()
 	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		cfg, err := deployment.Config(vip)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("failed to read config: %w", err)
-		}
+		cfg := deployment.Config(vip)
 
-		if cfg.DERP.Server.RelayAddress != "" {
-			_, err := url.Parse(cfg.DERP.Server.RelayAddress)
+		if cfg.DERPServerRelayAddress.Value != "" {
+			_, err := url.Parse(cfg.DERPServerRelayAddress.Value)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
 			}
@@ -55,7 +52,7 @@ func server() *cobra.Command {
 		}
 		options.DERPServer.SetMeshKey(meshKey)
 
-		if dflags.AuditLogging.Value {
+		if options.DeploymentConfig.AuditLogging.Value {
 			options.Auditor = audit.NewAuditor(audit.DefaultFilter,
 				backends.NewPostgres(options.Database, true),
 				backends.NewSlog(options.Logger),
@@ -63,13 +60,13 @@ func server() *cobra.Command {
 		}
 
 		o := &coderd.Options{
-			AuditLogging:           options.DeploymentConfig.AuditLogging,
-			BrowserOnly:            options.DeploymentConfig.BrowserOnly,
-			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAuthHeader),
-			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota,
+			AuditLogging:           options.DeploymentConfig.AuditLogging.Value,
+			BrowserOnly:            options.DeploymentConfig.BrowserOnly.Value,
+			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAuthHeader.Value),
+			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota.Value,
 			RBAC:                   true,
-			DERPServerRelayAddress: options.DeploymentConfig.DERP.Server.RelayAddress,
-			DERPServerRegionID:     options.DeploymentConfig.DERP.Server.RegionID,
+			DERPServerRelayAddress: options.DeploymentConfig.DERPServerRelayAddress.Value,
+			DERPServerRegionID:     options.DeploymentConfig.DERPServerRegionID.Value,
 
 			Options: options,
 		}
