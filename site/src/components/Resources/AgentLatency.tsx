@@ -54,6 +54,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
         aria-label="latency"
         ref={anchorRef}
         onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
         className={styles.trigger}
         style={{ color: latency.color }}
       >
@@ -68,8 +69,8 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
       >
         <HelpTooltipTitle>Latency</HelpTooltipTitle>
         <HelpTooltipText>
-          Latency from relay servers, used when connections cannot connect
-          peer-to-peer. Star indicates the preferred relay.
+          This is the latency overhead on non peer to peer connections. The star
+          indicates the preferred relay.
         </HelpTooltipText>
 
         <HelpTooltipText>

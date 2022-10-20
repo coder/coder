@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -37,6 +38,37 @@ func TestCreateGroup(t *testing.T) {
 		require.Equal(t, "https://example.com", group.AvatarURL)
 		require.Empty(t, group.Members)
 		require.NotEqual(t, uuid.Nil.String(), group.ID.String())
+	})
+
+	t.Run("Audit", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMock()
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Auditor:                  auditor,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
+			AuditLog:     true,
+		})
+
+		ctx, _ := testutil.Context(t)
+
+		numLogs := len(auditor.AuditLogs)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+		numLogs++
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
 	})
 
 	t.Run("Conflict", func(t *testing.T) {
@@ -197,6 +229,43 @@ func TestPatchGroup(t *testing.T) {
 		require.Contains(t, group.Members, user4)
 	})
 
+	t.Run("Audit", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMock()
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Auditor:                  auditor,
+			},
+		})
+
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
+			AuditLog:     true,
+		})
+
+		ctx, _ := testutil.Context(t)
+
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		numLogs := len(auditor.AuditLogs)
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			Name: "bye",
+		})
+		require.NoError(t, err)
+		numLogs++
+
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+	})
 	t.Run("NameConflict", func(t *testing.T) {
 		t.Parallel()
 
@@ -545,6 +614,40 @@ func TestDeleteGroup(t *testing.T) {
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	t.Run("Audit", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMock()
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Auditor:                  auditor,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
+			AuditLog:     true,
+		})
+		ctx, _ := testutil.Context(t)
+
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		numLogs := len(auditor.AuditLogs)
+		err = client.DeleteGroup(ctx, group.ID)
+		require.NoError(t, err)
+		numLogs++
+
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionDelete, auditor.AuditLogs[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
 	})
 
 	t.Run("allUsers", func(t *testing.T) {

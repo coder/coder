@@ -29,7 +29,6 @@ variable "namespace" {
   type        = string
   sensitive   = true
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
-  default     = "coder-workspaces"
 }
 
 variable "home_disk_size" {
