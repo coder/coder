@@ -18,3 +18,13 @@ export const Empty = Template.bind({})
 Empty.args = {
   builds: [],
 }
+
+export const TestStory = Template.bind({})
+TestStory.args = {
+  builds: [...MockBuilds, ...MockBuilds, ...MockBuilds]
+}
+
+export const TestStory2 = Template.bind({})
+TestStory2.args = {
+  builds: [...MockBuilds, ...MockBuilds, ...MockBuilds]
+}
