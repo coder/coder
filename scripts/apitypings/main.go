@@ -530,9 +530,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		name := param.String()
 
 		constraint, ok := genericsUsed[param.String()]
-		if ok {
-			state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
-		} else {
+		if !ok {
 			// If this error is thrown, it is because you have defined a
 			// generic field on a structure, but did not use it in your
 			// fields. If this happens, remove the unused generic on
@@ -544,6 +542,8 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			//	}
 			return "", xerrors.Errorf("generic param %q missing on %q, fix your data structure", name, obj.Name())
 		}
+
+		state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
 	}
 
 	data := bytes.NewBuffer(make([]byte, 0))
