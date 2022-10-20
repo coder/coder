@@ -166,7 +166,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			listener, err := net.Listen("tcp", cfg.Address.Value)
 			if err != nil {
-				return xerrors.Errorf("listen %q: %w", cfg.Address, err)
+				return xerrors.Errorf("listen %q: %w", cfg.Address.Value, err)
 			}
 			defer listener.Close()
 
@@ -268,7 +268,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(cfg.SSHKeygenAlgorithm.Value)
 			if err != nil {
-				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm, err)
+				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
 			}
 
 			// Validate provided auto-import templates.
