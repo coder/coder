@@ -208,8 +208,8 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 			)
 			defer closeTunnel()
 
-			// If the access URL is empty, we attempt to run a reverse-proxy tunnel
-			// to make the initial setup really simple.
+			// If the access URL is empty, we attempt to run a reverse-proxy
+			// tunnel to make the initial setup really simple.
 			if dflags.AccessURL.Value == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
@@ -217,6 +217,16 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
 				dflags.AccessURL.Value = tunnel.URL
+
+				if dflags.WildcardAccessURL.Value == "" {
+					u, err := parseURL(ctx, tunnel.URL)
+					if err != nil {
+						return xerrors.Errorf("parse tunnel url: %w", err)
+					}
+
+					// Suffixed wildcard access URL.
+					dflags.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
+				}
 			}
 
 			accessURLParsed, err := parseURL(ctx, dflags.AccessURL.Value)
@@ -752,7 +762,7 @@ func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *code
 
 // parseURL parses a string into a URL. It works around some technically correct
 // but undesired behavior of url.Parse by prepending a scheme if one does not
-// exist so that the URL does not get parsed improprely.
+// exist so that the URL does not get parsed improperly.
 func parseURL(ctx context.Context, u string) (*url.URL, error) {
 	var (
 		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
@@ -1108,7 +1118,9 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 		}
 	}()
 
-	return func() { _ = srv.Close() }
+	return func() {
+		_ = srv.Close()
+	}
 }
 
 // embeddedPostgresURL returns the URL for the embedded PostgreSQL deployment.
