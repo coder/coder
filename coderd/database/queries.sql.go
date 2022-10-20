@@ -145,6 +145,18 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return err
 }
 
+const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, userID)
+	return err
+}
+
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
 	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
