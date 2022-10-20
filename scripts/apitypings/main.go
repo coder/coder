@@ -13,14 +13,13 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/coder/coder/coderd/util/slice"
-
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 const (
@@ -511,14 +510,39 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	return data.String(), nil
 }
 
+c := TypescriptType {
+	  ValueType: "comparable",
+	  GenericValue: "C",
+	  GenericTypes: map[string]string{
+		  "C":"comparable"
+	  }
+}
+
 type TypescriptType struct {
-	// GenericValue gives a unique character for mapping the value type
-	// to a generic. This is only useful if you can use generic syntax.
-	// This is optional, as the ValueType will have the correct constraints.
-	GenericValue string
-	// GenericTypes is a map of generic name to actual constraint
+	// GenericTypes is a map of generic name to actual constraint.
+	// We return these, so we can bubble them up if we are recursively traversing
+	// a nested structure. We duplicate these at the top level.
 	// Example: 'C = comparable'.
 	GenericTypes map[string]string
+	// GenericValue is the value using the Generic name, rather than the constraint.
+	// This is only usedful if you can use the generic syntax. Things like maps
+	// don't currently support this, and will use the ValueType instead.
+	// Example:
+	//	Given the Golang
+	//	  type Foo[C comparable] struct {
+	//		  Bar C
+	//	  }
+	// 	The field `Bar` will return:
+	//	  TypescriptType {
+	//	    ValueType: "comparable",
+	//	    GenericValue: "C",
+	//	    GenericTypes: map[string]string{
+	//		  "C":"comparable"
+	//	    }
+	//    }
+	GenericValue string
+	// ValueType is the typescript value type. This is the actual type or
+	// generic constraint. This can **always** be used without special handling.
 	ValueType    string
 	// AboveTypeLine lets you put whatever text you want above the typescript
 	// type line.
