@@ -475,9 +475,6 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			}
 		}
 
-		if tsType.AboveTypeLine != "" {
-			state.AboveLine = tsType.AboveTypeLine
-		}
 		optional := ""
 		if jsonOptional || tsType.Optional {
 			optional = "?"
@@ -497,6 +494,11 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 				state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
 				genericsUsed[name] = constraint
 			}
+		}
+
+		if tsType.AboveTypeLine != "" {
+			// Just append these as fields. We should fix this later.
+			state.Fields = append(state.Fields, tsType.AboveTypeLine)
 		}
 		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, valueType))
 	}

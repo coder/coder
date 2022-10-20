@@ -907,10 +907,7 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 export type LoginType = "github" | "oidc" | "password" | "token"
 
 // From codersdk/parameters.go
-export type ParameterDestinationScheme =
-  | "environment_variable"
-  | "none"
-  | "provisioner_variable"
+export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
 
 // From codersdk/parameters.go
 export type ParameterScope = "import_job" | "template" | "workspace"
@@ -922,13 +919,7 @@ export type ParameterSourceScheme = "data" | "none"
 export type ParameterTypeSystem = "hcl" | "none"
 
 // From codersdk/provisionerdaemons.go
-export type ProvisionerJobStatus =
-  | "canceled"
-  | "canceling"
-  | "failed"
-  | "pending"
-  | "running"
-  | "succeeded"
+export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
 
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod = "file"
@@ -937,15 +928,7 @@ export type ProvisionerStorageMethod = "file"
 export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/audit.go
-export type ResourceType =
-  | "api_key"
-  | "git_ssh_key"
-  | "group"
-  | "organization"
-  | "template"
-  | "template_version"
-  | "user"
-  | "workspace"
+export type ResourceType = "api_key" | "git_ssh_key" | "group" | "organization" | "template" | "template_version" | "user" | "workspace"
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"
@@ -960,27 +943,13 @@ export type UserStatus = "active" | "suspended"
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppHealth =
-  | "disabled"
-  | "healthy"
-  | "initializing"
-  | "unhealthy"
+export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
 
 // From codersdk/workspacebuilds.go
-export type WorkspaceStatus =
-  | "canceled"
-  | "canceling"
-  | "deleted"
-  | "deleting"
-  | "failed"
-  | "pending"
-  | "running"
-  | "starting"
-  | "stopped"
-  | "stopping"
+export type WorkspaceStatus = "canceled" | "canceling" | "deleted" | "deleting" | "failed" | "pending" | "running" | "starting" | "stopped" | "stopping"
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"
