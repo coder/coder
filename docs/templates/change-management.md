@@ -17,7 +17,11 @@ export CODER_TEMPLATE_NAME=kubernetes
 export CODER_TEMPLATE_DIR=.coder/templates/kubernetes
 export CODER_TEMPLATE_VERSION=$(git rev-parse --short HEAD)
 
+# Push the new template template version to Coder
 coder templates push --yes $CODER_TEMPLATE_NAME \
     --directory $CODER_TEMPLATE_DIR \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
 ```
+
+> Looking for an example? See how we push our development image
+> and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
