@@ -481,6 +481,12 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		valueType := tsType.ValueType
 		if tsType.GenericValue != "" {
 			valueType = tsType.GenericValue
+			// This map we are building is just gathering all the generics used
+			// by our fields. We will use this map for our export type line.
+			// This isn't actually required since we can get it from the obj
+			// itself, but this ensures we actually use all the generic fields
+			// we place in the export line. If we are missing one from this map,
+			// that is a developer error. And we might as well catch it.
 			for name, constraint := range tsType.GenericTypes {
 				if _, ok := genericsUsed[name]; ok {
 					// Don't add a generic twice
@@ -505,33 +511,37 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	// top level structure. Ordering of generic fields is important, and
 	// we want to match the same order as Golang. The gathering of generic types
 	// from our fields does not guarantee the order.
-	if named, ok := obj.(*types.TypeName); ok {
-		if namedType, ok := named.Type().(*types.Named); ok {
-			// Ensure proper generic param ordering
-			params := namedType.TypeParams()
-			for i := 0; i < params.Len(); i++ {
-				param := params.At(i)
-				name := param.String()
-
-				constraint, ok := genericsUsed[param.String()]
-				if ok {
-					state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
-				} else {
-					// If this error is thrown, it is because you have defined a
-					// generic field on a structure, but did not use it in your
-					// fields. If this happens, remove the unused generic on
-					// the top level structure. We **technically** can implement
-					// this still, but it's not a case we need to support.
-					// Example:
-					//	type Foo[A any] struct {
-					//	  Bar string
-					//	}
-					return "", xerrors.Errorf("generic param %q missing on %q, fix your data structure", name, obj.Name())
-				}
-			}
-		}
-	} else {
+	named, ok := obj.(*types.TypeName)
+	if !ok {
 		return "", xerrors.Errorf("generic param ordering undefined on %q", obj.Name())
+	}
+
+	namedType, ok := named.Type().(*types.Named)
+	if !ok {
+		return "", xerrors.Errorf("generic param %q unexpected type %q", obj.Name(), named.Type().String())
+	}
+
+	// Ensure proper generic param ordering
+	params := namedType.TypeParams()
+	for i := 0; i < params.Len(); i++ {
+		param := params.At(i)
+		name := param.String()
+
+		constraint, ok := genericsUsed[param.String()]
+		if ok {
+			state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
+		} else {
+			// If this error is thrown, it is because you have defined a
+			// generic field on a structure, but did not use it in your
+			// fields. If this happens, remove the unused generic on
+			// the top level structure. We **technically** can implement
+			// this still, but it's not a case we need to support.
+			// Example:
+			//	type Foo[A any] struct {
+			//	  Bar string
+			//	}
+			return "", xerrors.Errorf("generic param %q missing on %q, fix your data structure", name, obj.Name())
+		}
 	}
 
 	data := bytes.NewBuffer(make([]byte, 0))
