@@ -42,6 +42,10 @@ func (r Root) PostgresPort() File {
 	return File(filepath.Join(r.PostgresPath(), "port"))
 }
 
+func (r Root) DeploymentConfigPath() string {
+	return filepath.Join(string(r), "server.yaml")
+}
+
 // File provides convenience methods for interacting with *os.File.
 type File string
 

@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
@@ -101,7 +100,7 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(deployment.NewViper(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil
 	}))

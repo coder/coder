@@ -32,7 +32,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -71,12 +70,15 @@ import (
 )
 
 // nolint:gocyclo
-func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
+func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := deployment.Config(vip)
+			cfg, err := deployment.Config(cmd.Flags(), false)
+			if err != nil {
+				return xerrors.Errorf("getting up deployment config", err)
+			}
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if cfg.Verbose.Value {
@@ -144,7 +146,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			var err error
 			config := createConfig(cmd)
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
@@ -734,7 +735,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dcfg := deployment.Config(vip)
+			dcfg, err := deployment.Config(cmd.Flags(), false)
+			if err != nil {
+				return xerrors.Errorf("getting up deployment config", err)
+			}
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if dcfg.Verbose.Value {
@@ -757,8 +761,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			return nil
 		},
 	})
-
-	deployment.AttachFlags(root.Flags(), vip, false)
 
 	return root
 }
