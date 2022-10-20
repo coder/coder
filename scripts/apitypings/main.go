@@ -510,14 +510,6 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	return data.String(), nil
 }
 
-c := TypescriptType {
-	  ValueType: "comparable",
-	  GenericValue: "C",
-	  GenericTypes: map[string]string{
-		  "C":"comparable"
-	  }
-}
-
 type TypescriptType struct {
 	// GenericTypes is a map of generic name to actual constraint.
 	// We return these, so we can bubble them up if we are recursively traversing
@@ -543,7 +535,7 @@ type TypescriptType struct {
 	GenericValue string
 	// ValueType is the typescript value type. This is the actual type or
 	// generic constraint. This can **always** be used without special handling.
-	ValueType    string
+	ValueType string
 	// AboveTypeLine lets you put whatever text you want above the typescript
 	// type line.
 	AboveTypeLine string
