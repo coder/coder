@@ -481,9 +481,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		valueType := tsType.ValueType
 		if tsType.GenericValue != "" {
 			valueType = tsType.GenericValue
-
-			for _, value := range tsType.GenericTypes {
-				name, constraint := value.Name, value.Constraint
+			for name, constraint := range tsType.GenericTypes {
 				if _, ok := genericsUsed[name]; ok {
 					// Don't add a generic twice
 					// TODO: We should probably check that the generic mapping is
@@ -512,19 +510,12 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	return data.String(), nil
 }
 
-type GenericType struct {
-	// Name is the generic name, eg "C"
-	Name string
-	// Constraint is the interface constraint, eg "comparable"
-	Constraint string
-}
-
 type TypescriptType struct {
-	// GenericTypes are a list of the generic names to actual constraint.
+	// GenericTypes is a map of generic name to actual constraint.
 	// We return these, so we can bubble them up if we are recursively traversing
 	// a nested structure. We duplicate these at the top level.
-	// Example: '{Name: "C", Constraint: "comparable"}'.
-	GenericTypes []GenericType
+	// Example: 'C = comparable'.
+	GenericTypes map[string]string
 	// GenericValue is the value using the Generic name, rather than the constraint.
 	// This is only usedful if you can use the generic syntax. Things like maps
 	// don't currently support this, and will use the ValueType instead.
@@ -656,7 +647,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// we generate.
 		name := n.Obj().Name()
 		genericName := ""
-		var genericTypes []GenericType
+		genericTypes := make(map[string]string)
 		if obj := g.pkg.Types.Scope().Lookup(name); obj != nil {
 			// Sweet! Using other typescript types as fields. This could be an
 			// enum or another struct
@@ -673,10 +664,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 						// Using a generic defined by the parent.
 						gname := param.Obj().Name()
 						genericNames = append(genericNames, gname)
-						genericTypes = append(genericTypes, GenericType{
-							Name:       gname,
-							Constraint: genType.ValueType,
-						})
+						genericTypes[gname] = genType.ValueType
 					} else {
 						// Defining a generic
 						genericNames = append(genericNames, genType.ValueType)
@@ -748,7 +736,9 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				// If we don't have the type constraint defined somewhere in the package,
 				// then we have to resort to using any.
 				return TypescriptType{
-					GenericTypes:  []GenericType{{Name: ty.Obj().Name(), Constraint: "any"}},
+					GenericTypes: map[string]string{
+						ty.Obj().Name(): "any",
+					},
 					GenericValue:  ty.Obj().Name(),
 					ValueType:     "any",
 					AboveTypeLine: fmt.Sprintf("// %q is an external type, so we use any", name),
@@ -760,7 +750,9 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 
 		return TypescriptType{
-			GenericTypes:  []GenericType{{Name: ty.Obj().Name(), Constraint: name}},
+			GenericTypes: map[string]string{
+				ty.Obj().Name(): name,
+			},
 			GenericValue:  ty.Obj().Name(),
 			ValueType:     name,
 			AboveTypeLine: "",
