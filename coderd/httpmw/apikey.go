@@ -203,7 +203,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 					return
 				}
 				// Check if the OAuth token is expired
-				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() {
+				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
 					var oauthConfig OAuth2Config
 					switch key.LoginType {
 					case database.LoginTypeGithub:
