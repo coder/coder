@@ -631,8 +631,8 @@ func TestAPIKey(t *testing.T) {
 	})
 }
 
-func createUser(ctx context.Context, t *testing.T, db database.Store) database.User {
-	user, err := db.InsertUser(ctx, database.InsertUserParams{
+func createUser(ctx context.Context, t *testing.T, db database.Store, opts ...func(u *database.InsertUserParams)) database.User {
+	insert := database.InsertUserParams{
 		ID:             uuid.New(),
 		Email:          "email@coder.com",
 		Username:       "username",
@@ -640,7 +640,11 @@ func createUser(ctx context.Context, t *testing.T, db database.Store) database.U
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 		RBACRoles:      []string{},
-	})
+	}
+	for _, opt := range opts {
+		opt(&insert)
+	}
+	user, err := db.InsertUser(ctx, insert)
 	require.NoError(t, err, "create user")
 	return user
 }

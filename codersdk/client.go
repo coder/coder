@@ -24,6 +24,9 @@ const (
 	SessionCustomHeader = "Coder-Session-Token"
 	OAuth2StateKey      = "oauth_state"
 	OAuth2RedirectKey   = "oauth_redirect"
+
+	// nolint: gosec
+	BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit"
 )
 
 // New creates a Coder client for the provided URL.
