@@ -109,19 +109,20 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 	},
+	// We don't show any diff for the WorkspaceBuild resource
 	&database.WorkspaceBuild{}: {
-		"id":                  ActionIgnore, // Unimportant to the user
-		"created_at":          ActionIgnore, // Never changes.
-		"updated_at":          ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"workspace_id":        ActionTrack,
-		"template_version_id": ActionTrack,
-		"build_number":        ActionIgnore, // Unimportant to the user
-		"transition":          ActionTrack,
-		"initiator_id":        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"provisioner_state":   ActionIgnore, // Unimportant to the user
-		"job_id":              ActionIgnore, // Unimportant to the user
-		"deadline":            ActionIgnore, // Unimportant to the user
-		"reason":              ActionIgnore, // Unimportant to the user
+		"id":                  ActionIgnore,
+		"created_at":          ActionIgnore,
+		"updated_at":          ActionIgnore,
+		"workspace_id":        ActionIgnore,
+		"template_version_id": ActionIgnore,
+		"build_number":        ActionIgnore,
+		"transition":          ActionIgnore,
+		"initiator_id":        ActionIgnore,
+		"provisioner_state":   ActionIgnore,
+		"job_id":              ActionIgnore,
+		"deadline":            ActionIgnore,
+		"reason":              ActionIgnore,
 	},
 })
 
