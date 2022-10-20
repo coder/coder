@@ -21,14 +21,11 @@ const createWorkspaceItemRef = (
   transition: WorkspaceTransition = "start",
   outdated = false,
   lastUsedAt = "0001-01-01",
-  id?: string,
 ): WorkspaceItemMachineRef => {
-  const wsId = id ?? MockWorkspace.id
   return spawn(
     workspaceItemMachine.withContext({
       data: {
         ...MockWorkspace,
-        id: wsId,
         outdated,
         latest_build: {
           ...MockWorkspace.latest_build,
@@ -86,18 +83,6 @@ const additionalWorkspaces: Record<string, WorkspaceItemMachineRef> = {
   ),
 }
 
-const fillerWorkspaces = Array(14)
-  .fill(undefined)
-  .map((_, i) =>
-    createWorkspaceItemRef(
-      "running",
-      undefined,
-      true,
-      dayjs().toString(),
-      `test-workspace-${i}`,
-    ),
-  )
-
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
@@ -108,18 +93,6 @@ export default {
         ...Object.keys(additionalWorkspaces),
       ],
       mapping: { ...workspaces, ...additionalWorkspaces },
-    },
-    onFilter: {
-      action: "filter",
-    },
-    onGoToPage: {
-      action: "go to page",
-    },
-    onNext: {
-      action: "next",
-    },
-    onPrevious: {
-      action: "previous",
     },
   },
 } as ComponentMeta<typeof WorkspacesPageView>
@@ -134,29 +107,16 @@ AllStates.args = {
     ...Object.values(workspaces),
     ...Object.values(additionalWorkspaces),
   ],
-  count: 14,
 }
 
 export const OwnerHasNoWorkspaces = Template.bind({})
 OwnerHasNoWorkspaces.args = {
   workspaceRefs: [],
-  count: 0,
   filter: workspaceFilterQuery.me,
 }
 
 export const NoResults = Template.bind({})
 NoResults.args = {
   workspaceRefs: [],
-  count: 0,
   filter: "searchtearmwithnoresults",
-}
-
-export const TwoPages = Template.bind({})
-TwoPages.args = {
-  workspaceRefs: [
-    ...Object.values(workspaces),
-    ...Object.values(additionalWorkspaces),
-    ...fillerWorkspaces,
-  ],
-  count: 28,
 }
