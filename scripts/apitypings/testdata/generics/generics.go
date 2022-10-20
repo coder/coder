@@ -25,7 +25,7 @@ type GenericFields[C comparable, A any, T Custom, S Single] struct {
 	Comparable C `json:"comparable"`
 	Any        A `json:"any"`
 
-	Custom          T `json:"custom"`
-	Again           T `json:"again"`
-	SingleContraint S `json:"single_constraint"`
+	Custom           T `json:"custom"`
+	Again            T `json:"again"`
+	SingleConstraint S `json:"single_constraint"`
 }

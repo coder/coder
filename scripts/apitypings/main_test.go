@@ -10,6 +10,7 @@ import (
 )
 
 func TestGeneration(t *testing.T) {
+	t.Parallel()
 	files, err := os.ReadDir("testdata")
 	require.NoError(t, err, "read dir")
 
@@ -20,6 +21,7 @@ func TestGeneration(t *testing.T) {
 		}
 		f := f
 		t.Run(f.Name(), func(t *testing.T) {
+			t.Parallel()
 			dir := filepath.Join(".", "testdata", f.Name())
 			output, err := Generate("./" + dir)
 			require.NoErrorf(t, err, "generate %q", dir)
