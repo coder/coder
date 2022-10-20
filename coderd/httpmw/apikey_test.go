@@ -468,9 +468,10 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
-			UserID:      user.ID,
-			LoginType:   database.LoginTypeGithub,
-			OAuthExpiry: database.Now().AddDate(0, 0, -1),
+			UserID:            user.ID,
+			LoginType:         database.LoginTypeGithub,
+			OAuthExpiry:       database.Now().AddDate(0, 0, -1),
+			OAuthRefreshToken: "hello",
 		})
 		require.NoError(t, err)
 
