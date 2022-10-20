@@ -490,7 +490,6 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 					// 	go, so I'm going to ignore this for now.
 					continue
 				}
-				state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
 				genericsUsed[name] = constraint
 			}
 		}
@@ -500,6 +499,39 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			state.Fields = append(state.Fields, tsType.AboveTypeLine)
 		}
 		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, valueType))
+	}
+
+	// This is implemented to ensure the correct order of generics on the
+	// top level structure. Ordering of generic fields is important, and
+	// we want to match the same order as Golang. The gathering of generic types
+	// from our fields does not guarantee the order.
+	if named, ok := obj.(*types.TypeName); ok {
+		if namedType, ok := named.Type().(*types.Named); ok {
+			// Ensure proper generic param ordering
+			params := namedType.TypeParams()
+			for i := 0; i < params.Len(); i++ {
+				param := params.At(i)
+				name := param.String()
+
+				constraint, ok := genericsUsed[param.String()]
+				if ok {
+					state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
+				} else {
+					// If this error is thrown, it is because you have defined a
+					// generic field on a structure, but did not use it in your
+					// fields. If this happens, remove the unused generic on
+					// the top level structure. We **technically** can implement
+					// this still, but it's not a case we need to support.
+					// Example:
+					//	type Foo[A any] struct {
+					//	  Bar string
+					//	}
+					return "", xerrors.Errorf("generic param %q missing on %q, fix your data structure", name, obj.Name())
+				}
+			}
+		}
+	} else {
+		return "", xerrors.Errorf("generic param ordering undefined on %q", obj.Name())
 	}
 
 	data := bytes.NewBuffer(make([]byte, 0))

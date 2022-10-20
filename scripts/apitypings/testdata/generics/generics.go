@@ -16,9 +16,17 @@ type StaticGeneric struct {
 }
 
 // DynamicGeneric can has some dynamic fields
-type DynamicGeneric[C comparable, A any, S Single] struct {
-	Dynamic    GenericFields[C, A, string, S] `json:"dynamic"`
-	Comparable C                              `json:"comparable"`
+type DynamicGeneric[A any, S Single] struct {
+	Dynamic    GenericFields[bool, A, string, S] `json:"dynamic"`
+	Comparable bool                              `json:"comparable"`
+}
+
+type ComplexGeneric[C comparable, S Single, T Custom] struct {
+	Dynamic    GenericFields[C, bool, string, S]       `json:"dynamic"`
+	Order      GenericFieldsDiffOrder[C, string, S, T] `json:"order"`
+	Comparable C                                       `json:"comparable"`
+	Single     S                                       `json:"single"`
+	Static     StaticGeneric                           `json:"static"`
 }
 
 type GenericFields[C comparable, A any, T Custom, S Single] struct {
@@ -28,4 +36,8 @@ type GenericFields[C comparable, A any, T Custom, S Single] struct {
 	Custom           T `json:"custom"`
 	Again            T `json:"again"`
 	SingleConstraint S `json:"single_constraint"`
+}
+
+type GenericFieldsDiffOrder[A any, C comparable, S Single, T Custom] struct {
+	GenericFields[C, A, T, S]
 }
