@@ -632,6 +632,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Prevent users reusing their old password.
+	if match, _ := userpassword.Compare(string(user.HashedPassword), params.Password); match {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "New password cannot match old password.",
+		})
+		return
+	}
+
 	hashedPassword, err := userpassword.Hash(params.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -640,9 +648,22 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Database.UpdateUserHashedPassword(ctx, database.UpdateUserHashedPasswordParams{
-		ID:             user.ID,
-		HashedPassword: []byte(hashedPassword),
+
+	err = api.Database.InTx(func(tx database.Store) error {
+		err = tx.UpdateUserHashedPassword(ctx, database.UpdateUserHashedPasswordParams{
+			ID:             user.ID,
+			HashedPassword: []byte(hashedPassword),
+		})
+		if err != nil {
+			return xerrors.Errorf("update user hashed password: %w", err)
+		}
+
+		err = tx.DeleteAPIKeysByUserID(ctx, user.ID)
+		if err != nil {
+			return xerrors.Errorf("delete api keys by user ID: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

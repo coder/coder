@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -18,8 +19,11 @@ import (
 )
 
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	template := httpmw.TemplateParam(r)
+	var (
+		ctx      = r.Context()
+		template = httpmw.TemplateParam(r)
+	)
+
 	if !api.Authorize(r, rbac.ActionRead, template) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -90,9 +94,18 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx      = r.Context()
-		template = httpmw.TemplateParam(r)
+		ctx               = r.Context()
+		template          = httpmw.TemplateParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
 	)
+	defer commitAudit()
+	aReq.Old = template
 
 	// Only users who are able to create templates (aka template admins)
 	// are able to control permissions.
@@ -119,40 +132,43 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		template, err = tx.GetTemplateByID(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("get template by ID: %w", err)
+		}
+
 		if len(req.UserPerms) > 0 {
-			userACL := template.UserACL()
 			for id, role := range req.UserPerms {
 				// A user with an empty string implies
 				// deletion.
 				if role == "" {
-					delete(userACL, id)
+					delete(template.UserACL, id)
 					continue
 				}
-				userACL[id] = convertSDKTemplateRole(role)
-			}
-
-			err := tx.UpdateTemplateUserACLByID(r.Context(), template.ID, userACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
+				template.UserACL[id] = convertSDKTemplateRole(role)
 			}
 		}
 
 		if len(req.GroupPerms) > 0 {
-			groupACL := template.GroupACL()
 			for id, role := range req.GroupPerms {
 				// An id with an empty string implies
 				// deletion.
 				if role == "" {
-					delete(groupACL, id)
+					delete(template.GroupACL, id)
 					continue
 				}
-				groupACL[id] = convertSDKTemplateRole(role)
+				template.GroupACL[id] = convertSDKTemplateRole(role)
 			}
+		}
 
-			err := tx.UpdateTemplateGroupACLByID(ctx, template.ID, groupACL)
-			if err != nil {
-				return xerrors.Errorf("update template user ACL: %w", err)
-			}
+		template, err = tx.UpdateTemplateACLByID(ctx, database.UpdateTemplateACLByIDParams{
+			ID:       template.ID,
+			UserACL:  template.UserACL,
+			GroupACL: template.GroupACL,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template ACL by ID: %w", err)
 		}
 		return nil
 	})
@@ -160,6 +176,8 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	aReq.New = template
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Successfully updated template ACL list.",

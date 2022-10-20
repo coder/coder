@@ -24,3 +24,22 @@ func (a *Actions) Scan(src interface{}) error {
 func (a *Actions) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
+
+// TemplateACL is a map of ids to permissions.
+type TemplateACL map[string][]rbac.Action
+
+func (t *TemplateACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &t)
+	case []byte, json.RawMessage:
+		//nolint
+		return json.Unmarshal(v.([]byte), &t)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (t TemplateACL) Value() (driver.Value, error) {
+	return json.Marshal(t)
+}

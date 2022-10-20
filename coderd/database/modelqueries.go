@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -23,8 +22,6 @@ type customQuerier interface {
 }
 
 type templateQuerier interface {
-	UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error
-	UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error
 	GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error)
 	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
 }
@@ -32,28 +29,6 @@ type templateQuerier interface {
 type TemplateUser struct {
 	User
 	Actions Actions `db:"actions"`
-}
-
-func (q *sqlQuerier) UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
-	raw, err := json.Marshal(acl)
-	if err != nil {
-		return xerrors.Errorf("marshal user acl: %w", err)
-	}
-
-	const query = `
-UPDATE
-	templates
-SET
-	user_acl = $2
-WHERE
-	id = $1`
-
-	_, err = q.db.ExecContext(ctx, query, id.String(), raw)
-	if err != nil {
-		return xerrors.Errorf("update user acl: %w", err)
-	}
-
-	return nil
 }
 
 func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error) {
@@ -98,28 +73,6 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 type TemplateGroup struct {
 	Group
 	Actions Actions `db:"actions"`
-}
-
-func (q *sqlQuerier) UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
-	raw, err := json.Marshal(acl)
-	if err != nil {
-		return xerrors.Errorf("marshal user acl: %w", err)
-	}
-
-	const query = `
-UPDATE
-	templates
-SET
-	group_acl = $2
-WHERE
-	id = $1`
-
-	_, err = q.db.ExecContext(ctx, query, id.String(), raw)
-	if err != nil {
-		return xerrors.Errorf("update user acl: %w", err)
-	}
-
-	return nil
 }
 
 func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error) {
