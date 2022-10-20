@@ -1,14 +1,19 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import * as Mocks from "../../testHelpers/entities"
-import { WorkspaceDeletedBanner, WorkspaceDeletedBannerProps } from "./WorkspaceDeletedBanner"
+import {
+  WorkspaceDeletedBanner,
+  WorkspaceDeletedBannerProps,
+} from "./WorkspaceDeletedBanner"
 
 export default {
   title: "components/WorkspaceDeletedBanner",
   component: WorkspaceDeletedBanner,
 }
 
-const Template: Story<WorkspaceDeletedBannerProps> = (args) => <WorkspaceDeletedBanner {...args} />
+const Template: Story<WorkspaceDeletedBannerProps> = (args) => (
+  <WorkspaceDeletedBanner {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

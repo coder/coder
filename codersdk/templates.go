@@ -23,17 +23,52 @@ type Template struct {
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount            int       `json:"active_user_count"`
-	Description                string    `json:"description"`
-	Icon                       string    `json:"icon"`
-	MaxTTLMillis               int64     `json:"max_ttl_ms"`
-	MinAutostartIntervalMillis int64     `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.UUID `json:"created_by_id"`
-	CreatedByName              string    `json:"created_by_name"`
+	ActiveUserCount            int                    `json:"active_user_count"`
+	BuildTimeStats             TemplateBuildTimeStats `json:"build_time_stats"`
+	Description                string                 `json:"description"`
+	Icon                       string                 `json:"icon"`
+	MaxTTLMillis               int64                  `json:"max_ttl_ms"`
+	MinAutostartIntervalMillis int64                  `json:"min_autostart_interval_ms"`
+	CreatedByID                uuid.UUID              `json:"created_by_id"`
+	CreatedByName              string                 `json:"created_by_name"`
+}
+
+type TemplateBuildTimeStats struct {
+	StartMillis  *int64 `json:"start_ms"`
+	StopMillis   *int64 `json:"stop_ms"`
+	DeleteMillis *int64 `json:"delete_ms"`
 }
 
 type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
+}
+
+type TemplateRole string
+
+const (
+	TemplateRoleAdmin   TemplateRole = "admin"
+	TemplateRoleUse     TemplateRole = "use"
+	TemplateRoleDeleted TemplateRole = ""
+)
+
+type TemplateACL struct {
+	Users  []TemplateUser  `json:"users"`
+	Groups []TemplateGroup `json:"group"`
+}
+
+type TemplateGroup struct {
+	Group
+	Role TemplateRole `json:"role"`
+}
+
+type TemplateUser struct {
+	User
+	Role TemplateRole `json:"role"`
+}
+
+type UpdateTemplateACL struct {
+	UserPerms  map[string]TemplateRole `json:"user_perms,omitempty"`
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty"`
 }
 
 type UpdateTemplateMeta struct {
@@ -84,6 +119,31 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	var updated Template
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
+}
+
+func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl", templateID), nil)
+	if err != nil {
+		return TemplateACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateACL{}, readBodyAsError(res)
+	}
+	var acl TemplateACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.

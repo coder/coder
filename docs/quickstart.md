@@ -12,8 +12,6 @@ Please [install Coder](../install) before proceeding with the steps below.
 1. Run `coder login <your Access URL>` in a new terminal and follow the
    interactive instructions to create your owner user and password.
 
-> If using `coder server --tunnel`, the Access URL appears in the terminal logs.
-
 ## Templates
 
 To get started using templates, run the following command to generate a sample template:

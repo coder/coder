@@ -61,13 +61,20 @@ const ErrorStateDescription = ({ emailBody }: { emailBody?: string }) => {
 /**
  * An error UI that is displayed when our error boundary (ErrorBoundary.tsx) is triggered
  */
-export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({ error }) => {
+export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({
+  error,
+}) => {
   const styles = useStyles()
-  const [reportState, dispatch] = useReducer(reducer, { error, mappedStack: null })
+  const [reportState, dispatch] = useReducer(reducer, {
+    error,
+    mappedStack: null,
+  })
 
   useEffect(() => {
     try {
-      mapStackTrace(error.stack, (mappedStack) => dispatch(stackTraceAvailable(mappedStack)))
+      mapStackTrace(error.stack, (mappedStack) =>
+        dispatch(stackTraceAvailable(mappedStack)),
+      )
     } catch {
       dispatch(stackTraceUnavailable)
     }
@@ -81,13 +88,17 @@ export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({ error }) =
           title={<ErrorStateTitle />}
           description={
             <ErrorStateDescription
-              emailBody={createFormattedStackTrace(reportState.error, reportState.mappedStack).join(
-                "\r\n",
-              )}
+              emailBody={createFormattedStackTrace(
+                reportState.error,
+                reportState.mappedStack,
+              ).join("\r\n")}
             />
           }
         >
-          <RuntimeErrorReport error={reportState.error} mappedStack={reportState.mappedStack} />
+          <RuntimeErrorReport
+            error={reportState.error}
+            mappedStack={reportState.mappedStack}
+          />
         </Section>
       </Margins>
     </Box>

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.5.0"
+      version = "0.5.3"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -29,7 +29,6 @@ variable "namespace" {
   type        = string
   sensitive   = true
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
-  default     = "coder-workspaces"
 }
 
 variable "home_disk_size" {
@@ -76,6 +75,7 @@ resource "coder_app" "code-server" {
   icon      = "/icon/code.svg"
   url       = "http://localhost:13337?folder=/home/coder"
   subdomain = false
+  share     = "owner"
 
   healthcheck {
     url       = "http://localhost:13337/healthz"
@@ -86,9 +86,10 @@ resource "coder_app" "code-server" {
 
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
+    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-home"
     namespace = var.namespace
   }
+  wait_until_bound = false
   spec {
     access_modes = ["ReadWriteOnce"]
     resources {
@@ -102,7 +103,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
 resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
   }
   spec {

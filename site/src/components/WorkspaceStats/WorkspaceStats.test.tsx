@@ -13,7 +13,10 @@ describe("WorkspaceStats", () => {
 
     const handleUpdateMock = jest.fn()
     renderWithAuth(
-      <WorkspaceStats handleUpdate={handleUpdateMock} workspace={MockOutdatedWorkspace} />,
+      <WorkspaceStats
+        handleUpdate={handleUpdateMock}
+        workspace={MockOutdatedWorkspace}
+      />,
       {
         route: `/@${MockOutdatedWorkspace.owner_name}/${MockOutdatedWorkspace.name}`,
         path: "/@:username/:workspace",
@@ -21,7 +24,9 @@ describe("WorkspaceStats", () => {
     )
     const tooltipButton = await screen.findByRole("button")
     fireEvent.click(tooltipButton)
-    expect(await screen.findByText(Language.versionTooltipText)).toBeInTheDocument()
+    expect(
+      await screen.findByText(Language.versionTooltipText),
+    ).toBeInTheDocument()
     const updateButton = screen.getByRole("button", {
       name: "update version",
     })

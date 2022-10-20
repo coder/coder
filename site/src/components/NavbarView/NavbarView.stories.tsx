@@ -10,7 +10,9 @@ export default {
   },
 }
 
-const Template: Story<NavbarViewProps> = (args: NavbarViewProps) => <NavbarView {...args} />
+const Template: Story<NavbarViewProps> = (args: NavbarViewProps) => (
+  <NavbarView {...args} />
+)
 
 export const ForAdmin = Template.bind({})
 ForAdmin.args = {

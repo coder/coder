@@ -139,6 +139,24 @@ Coder TLS environment variables.
 {{- end }}
 
 {{/*
+Coder ingress wildcard hostname with the wildcard suffix stripped.
+*/}}
+{{- define "coder.ingressWildcardHost" -}}
+{{/* This regex replace is required as the original input including the suffix
+   * is not a legal ingress host. We need to remove the suffix and keep the
+   * wildcard '*'.
+   *
+   *   - '\\*'     Starts with '*'
+   *   - '[^.]*'   Suffix is 0 or more characters, '-suffix'
+   *   - '('       Start domain capture group
+   *   -   '\\.'     The domain should be separated with a '.' from the subdomain
+   *   -   '.*'      Rest of the domain.
+   *   - ')'       $1 is the ''.example.com'
+   */}}
+{{- regexReplaceAll "\\*[^.]*(\\..*)" .Values.coder.ingress.wildcardHost "*${1}" -}}
+{{- end }}
+
+{{/*
 Fail on fully deprecated values or deprecated value combinations. This is
 included at the top of coder.yaml.
 */}}

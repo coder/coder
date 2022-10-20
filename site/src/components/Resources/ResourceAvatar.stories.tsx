@@ -7,7 +7,9 @@ export default {
   component: ResourceAvatar,
 }
 
-const Template: Story<ResourceAvatarProps> = (args) => <ResourceAvatar {...args} />
+const Template: Story<ResourceAvatarProps> = (args) => (
+  <ResourceAvatar {...args} />
+)
 
 export const VolumeResource = Template.bind({})
 VolumeResource.args = {

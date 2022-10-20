@@ -41,8 +41,9 @@ func TestEntitlements(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			UserLimit: 100,
-			AuditLog:  true,
+			UserLimit:    100,
+			AuditLog:     true,
+			TemplateRBAC: true,
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)
@@ -84,49 +85,7 @@ func TestEntitlements(t *testing.T) {
 		assert.False(t, res.HasLicense)
 		al = res.Features[codersdk.FeatureAuditLog]
 		assert.Equal(t, codersdk.EntitlementNotEntitled, al.Entitlement)
-		assert.True(t, al.Enabled)
-	})
-	t.Run("Warnings", func(t *testing.T) {
-		t.Parallel()
-		client := coderdenttest.New(t, &coderdenttest.Options{
-			AuditLogging: true,
-			BrowserOnly:  true,
-		})
-		first := coderdtest.CreateFirstUser(t, client)
-		for i := 0; i < 4; i++ {
-			coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		}
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			UserLimit:   4,
-			AuditLog:    true,
-			BrowserOnly: true,
-			GraceAt:     time.Now().Add(-time.Second),
-		})
-		res, err := client.Entitlements(context.Background())
-		require.NoError(t, err)
-		assert.True(t, res.HasLicense)
-		ul := res.Features[codersdk.FeatureUserLimit]
-		assert.Equal(t, codersdk.EntitlementGracePeriod, ul.Entitlement)
-		assert.Equal(t, int64(4), *ul.Limit)
-		assert.Equal(t, int64(5), *ul.Actual)
-		assert.True(t, ul.Enabled)
-		al := res.Features[codersdk.FeatureAuditLog]
-		assert.Equal(t, codersdk.EntitlementGracePeriod, al.Entitlement)
-		assert.True(t, al.Enabled)
-		assert.Nil(t, al.Limit)
-		assert.Nil(t, al.Actual)
-		bo := res.Features[codersdk.FeatureBrowserOnly]
-		assert.Equal(t, codersdk.EntitlementGracePeriod, bo.Entitlement)
-		assert.True(t, bo.Enabled)
-		assert.Nil(t, bo.Limit)
-		assert.Nil(t, bo.Actual)
-		assert.Len(t, res.Warnings, 3)
-		assert.Contains(t, res.Warnings,
-			"Your deployment has 5 active users but is only licensed for 4.")
-		assert.Contains(t, res.Warnings,
-			"Audit logging is enabled but your license for this feature is expired.")
-		assert.Contains(t, res.Warnings,
-			"Browser only connections are enabled but your license for this feature is expired.")
+		assert.False(t, al.Enabled)
 	})
 	t.Run("Pubsub", func(t *testing.T) {
 		t.Parallel()
@@ -199,6 +158,9 @@ func TestAuditLogging(t *testing.T) {
 		t.Parallel()
 		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			AuditLogging: true,
+			Options: &coderdtest.Options{
+				Auditor: audit.NewAuditor(audit.DefaultFilter),
+			},
 		})
 		coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{

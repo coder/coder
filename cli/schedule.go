@@ -58,6 +58,9 @@ func schedules() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 
 	scheduleCmd.AddCommand(

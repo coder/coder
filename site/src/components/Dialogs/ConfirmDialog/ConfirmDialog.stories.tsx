@@ -21,7 +21,9 @@ export default {
   },
 } as ComponentMeta<typeof ConfirmDialog>
 
-const Template: Story<ConfirmDialogProps> = (args) => <ConfirmDialog {...args} />
+const Template: Story<ConfirmDialogProps> = (args) => (
+  <ConfirmDialog {...args} />
+)
 
 export const DeleteDialog = Template.bind({})
 DeleteDialog.args = {

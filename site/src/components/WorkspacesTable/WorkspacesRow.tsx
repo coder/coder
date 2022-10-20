@@ -9,7 +9,10 @@ import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { LastUsed } from "../LastUsed/LastUsed"
-import { TableCellData, TableCellDataPrimary } from "../TableCellData/TableCellData"
+import {
+  TableCellData,
+  TableCellDataPrimary,
+} from "../TableCellData/TableCellData"
 import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
 
@@ -27,7 +30,8 @@ export const WorkspacesRow: FC<
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
-  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
+  const hasTemplateIcon =
+    workspace.template_icon && workspace.template_icon !== ""
 
   return (
     <TableRow
@@ -76,7 +80,9 @@ export const WorkspacesRow: FC<
             />
           </span>
         ) : (
-          <span style={{ color: theme.palette.text.secondary }}>{Language.upToDateLabel}</span>
+          <span style={{ color: theme.palette.text.secondary }}>
+            {Language.upToDateLabel}
+          </span>
         )}
       </TableCellLink>
 

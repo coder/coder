@@ -9,9 +9,25 @@ export default {
 
 const Template: Story<StackProps> = (args: StackProps) => (
   <Stack {...args}>
-    <TextField autoFocus autoComplete="name" fullWidth label="Name" variant="outlined" />
-    <TextField autoComplete="email" fullWidth label="Email" variant="outlined" />
-    <TextField autoComplete="username" fullWidth label="Username" variant="outlined" />
+    <TextField
+      autoFocus
+      autoComplete="name"
+      fullWidth
+      label="Name"
+      variant="outlined"
+    />
+    <TextField
+      autoComplete="email"
+      fullWidth
+      label="Email"
+      variant="outlined"
+    />
+    <TextField
+      autoComplete="username"
+      fullWidth
+      label="Username"
+      variant="outlined"
+    />
   </Stack>
 )
 

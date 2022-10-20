@@ -10,7 +10,9 @@ describe("Footer", () => {
     // Then
     await screen.findByText("Copyright", { exact: false })
     await screen.findByText(Language.buildInfoText(MockBuildInfo))
-    const reportBugLink = screen.getByText(Language.reportBugLink, { exact: false }).closest("a")
+    const reportBugLink = screen
+      .getByText(Language.reportBugLink, { exact: false })
+      .closest("a")
     if (!reportBugLink) {
       throw new Error("Bug report link not found in footer")
     }

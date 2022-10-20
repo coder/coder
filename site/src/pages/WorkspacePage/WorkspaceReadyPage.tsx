@@ -4,14 +4,25 @@ import dayjs from "dayjs"
 import { useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
+import {
+  getMaxDeadline,
+  getMaxDeadlineChange,
+  getMinDeadline,
+} from "util/schedule"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
-import { Workspace, WorkspaceErrors } from "../../components/Workspace/Workspace"
+import {
+  Workspace,
+  WorkspaceErrors,
+} from "../../components/Workspace/Workspace"
 import { pageTitle } from "../../util/page"
 import { getFaviconByStatus } from "../../util/workspace"
 import { XServiceContext } from "../../xServices/StateContext"
-import { WorkspaceEvent, workspaceMachine } from "../../xServices/workspace/workspaceXService"
+import {
+  WorkspaceEvent,
+  workspaceMachine,
+} from "../../xServices/workspace/workspaceXService"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -22,12 +33,19 @@ export const WorkspaceReadyPage = ({
   workspaceState,
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
-  const [bannerState, bannerSend] = useActor(workspaceState.children["scheduleBannerMachine"])
+  const [bannerState, bannerSend] = useActor(
+    workspaceState.children["scheduleBannerMachine"],
+  )
+  const deadline = bannerState.context.deadline
   const xServices = useContext(XServiceContext)
-  const featureVisibility = useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+  const featureVisibility = useSelector(
+    xServices.entitlementsXService,
+    selectFeatureVisibility,
+  )
   const [buildInfoState] = useActor(xServices.buildInfoXService)
   const {
     workspace,
+    template,
     refreshWorkspaceWarning,
     builds,
     getBuildsError,
@@ -47,8 +65,16 @@ export const WorkspaceReadyPage = ({
     <>
       <Helmet>
         <title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
-        <link rel="alternate icon" type="image/png" href={`/favicons/${favicon}.png`} />
-        <link rel="icon" type="image/svg+xml" href={`/favicons/${favicon}.svg`} />
+        <link
+          rel="alternate icon"
+          type="image/png"
+          href={`/favicons/${favicon}.png`}
+        />
+        <link
+          rel="icon"
+          type="image/svg+xml"
+          href={`/favicons/${favicon}.svg`}
+        />
       </Helmet>
 
       <Workspace
@@ -62,20 +88,30 @@ export const WorkspaceReadyPage = ({
           },
         }}
         scheduleProps={{
-          onDeadlineMinus: () => {
+          onDeadlineMinus: (hours: number) => {
             bannerSend({
               type: "DECREASE_DEADLINE",
-              hours: 1,
+              hours,
             })
           },
-          onDeadlinePlus: () => {
+          onDeadlinePlus: (hours: number) => {
             bannerSend({
               type: "INCREASE_DEADLINE",
-              hours: 1,
+              hours,
             })
           },
           deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),
           deadlinePlusEnabled: () => !bannerState.matches("atMaxDeadline"),
+          maxDeadlineDecrease: deadline
+            ? getMaxDeadlineChange(deadline, getMinDeadline())
+            : 0,
+          maxDeadlineIncrease:
+            deadline && template
+              ? getMaxDeadlineChange(
+                  getMaxDeadline(workspace, template),
+                  deadline,
+                )
+              : 0,
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}
@@ -96,11 +132,14 @@ export const WorkspaceReadyPage = ({
         }}
         buildInfo={buildInfoState.context.buildInfo}
         applicationsHost={applicationsHost}
+        template={template}
       />
       <DeleteDialog
         entity="workspace"
         name={workspace.name}
-        info={t("deleteDialog.info", { timeAgo: dayjs(workspace.created_at).fromNow() })}
+        info={t("deleteDialog.info", {
+          timeAgo: dayjs(workspace.created_at).fromNow(),
+        })}
         isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={() => {

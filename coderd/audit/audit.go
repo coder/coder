@@ -21,7 +21,9 @@ func (nop) Export(context.Context, database.AuditLog) error {
 	return nil
 }
 
-func (nop) diff(any, any) Map { return Map{} }
+func (nop) diff(any, any) Map {
+	return Map{}
+}
 
 func NewMock() *MockAuditor {
 	return &MockAuditor{}
@@ -36,4 +38,6 @@ func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
 	return nil
 }
 
-func (*MockAuditor) diff(any, any) Map { return Map{} }
+func (*MockAuditor) diff(any, any) Map {
+	return Map{}
+}

@@ -5,7 +5,7 @@ import utc from "dayjs/plugin/utc"
 import { FC } from "react"
 import * as TypesGen from "api/typesGenerated"
 import { isWorkspaceOn } from "util/workspace"
-import { WarningAlert } from "components/WarningAlert/WarningAlert"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 
 dayjs.extend(utc)
@@ -26,11 +26,9 @@ export const shouldDisplay = (workspace: TypesGen.Workspace): boolean => {
   return deadline.isSameOrBefore(thirtyMinutesFromNow)
 }
 
-export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceScheduleBannerProps>> = ({
-  isLoading,
-  onExtend,
-  workspace,
-}) => {
+export const WorkspaceScheduleBanner: FC<
+  React.PropsWithChildren<WorkspaceScheduleBannerProps>
+> = ({ isLoading, onExtend, workspace }) => {
   const { t } = useTranslation("workspacePage")
 
   if (!shouldDisplay(workspace)) {
@@ -38,15 +36,21 @@ export const WorkspaceScheduleBanner: FC<React.PropsWithChildren<WorkspaceSchedu
   }
 
   const ScheduleButton = (
-    <Button variant="outlined" disabled={isLoading} onClick={onExtend} size="small">
+    <Button
+      variant="outlined"
+      disabled={isLoading}
+      onClick={onExtend}
+      size="small"
+    >
       {t("ctas.extendScheduleCta")}
     </Button>
   )
 
   return (
-    <WarningAlert
+    <AlertBanner
       text={t("warningsAndErrors.workspaceShutdownWarning")}
       actions={[ScheduleButton]}
+      severity="warning"
     />
   )
 }

@@ -11,7 +11,9 @@ export default {
   },
 }
 
-const Template: Story<CodeExampleProps> = (args: CodeExampleProps) => <CodeExample {...args} />
+const Template: Story<CodeExampleProps> = (args: CodeExampleProps) => (
+  <CodeExample {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {
