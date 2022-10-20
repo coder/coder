@@ -368,6 +368,19 @@ func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := len(q.apiKeys) - 1; i >= 0; i-- {
+		if q.apiKeys[i].UserID == userID {
+			q.apiKeys = append(q.apiKeys[:i], q.apiKeys[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
 func (q *fakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

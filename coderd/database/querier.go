@@ -20,6 +20,7 @@ type sqlcQuerier interface {
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
+	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMember(ctx context.Context, userID uuid.UUID) error

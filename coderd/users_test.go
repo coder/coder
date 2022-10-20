@@ -644,6 +644,67 @@ func TestUpdateUserPassword(t *testing.T) {
 		assert.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[0].Action)
 	})
+
+	t.Run("ChangingPasswordDeletesKeys", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx, _ := testutil.Context(t)
+
+		apikey1, err := client.CreateToken(ctx, user.UserID.String(), codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+
+		apikey2, err := client.CreateToken(ctx, user.UserID.String(), codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+
+		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.NoError(t, err)
+
+		// Trying to get an API key should fail since our client's token
+		// has been deleted.
+		_, err = client.GetAPIKey(ctx, user.UserID.String(), apikey1.Key)
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
+
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: "newpassword",
+		})
+		require.NoError(t, err)
+
+		client.SessionToken = resp.SessionToken
+
+		// Trying to get an API key should fail since all keys are deleted
+		// on password change.
+		_, err = client.GetAPIKey(ctx, user.UserID.String(), apikey1.Key)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		_, err = client.GetAPIKey(ctx, user.UserID.String(), apikey2.Key)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	t.Run("PasswordsMustDiffer", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx, _ := testutil.Context(t)
+
+		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
 }
 
 func TestGrantSiteRoles(t *testing.T) {
