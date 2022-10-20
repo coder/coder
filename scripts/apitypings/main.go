@@ -768,7 +768,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 // isBuiltIn returns the string for a builtin type that we want to support
 // if the name is a reserved builtin type. This is for types like 'comparable'.
 // These types are not implemented in golang, so we just have to hardcode it.
-func (_ Generator) isBuiltIn(name string) (bool, string) {
+func (Generator) isBuiltIn(name string) (bool, string) {
 	// Note: @emyrk If we use constraints like Ordered, we can pull those
 	// dynamically from their respective packages. This is a method on Generator
 	// so if someone wants to implement that, they can find the respective package
