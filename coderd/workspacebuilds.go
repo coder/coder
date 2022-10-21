@@ -309,12 +309,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			auditAction = database.AuditActionWrite
 		}
 
+		// We pass the workspace name to the Auditor so that it
+		// can form a friendly string for the user.
+		workspaceResourceInfo := map[string]string{
+			"workspaceName": workspace.Name,
+		}
+
+		wri_bytes, _ := json.Marshal(workspaceResourceInfo)
+
 		var (
 			aReq, commitAudit = audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
-				Audit:   *auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  auditAction,
+				Audit:            *auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           auditAction,
+				AdditionalFields: wri_bytes,
 			})
 		)
 
