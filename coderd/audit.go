@@ -233,9 +233,9 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	// "{user} started workspace build for workspace {target}"
 	// where target is a workspace instead of the workspace build
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
-		workspace_bytes := []byte(alog.AdditionalFields)
+		workspaceBytes := []byte(alog.AdditionalFields)
 		var workspaceResourceInfo WorkspaceResourceInfo
-		json.Unmarshal(workspace_bytes, &workspaceResourceInfo)
+		_ = json.Unmarshal(workspaceBytes, &workspaceResourceInfo)
 		str += " for workspace " + workspaceResourceInfo.WorkspaceName
 	}
 
