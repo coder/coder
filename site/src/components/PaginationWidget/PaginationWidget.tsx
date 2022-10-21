@@ -6,38 +6,47 @@ import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CSSProperties } from "react"
+import { useSearchParams } from "react-router-dom"
 import { PageButton } from "./PageButton"
 import { buildPagedList, DEFAULT_RECORDS_PER_PAGE } from "./utils"
 
 export type PaginationWidgetProps = {
   prevLabel: string
   nextLabel: string
-  onPrevClick: () => void
-  onNextClick: () => void
-  onPageClick?: (page: number) => void
+  onPageChange: (offset: number, limit: number) => void
   numRecordsPerPage?: number
   numRecords?: number
-  activePage?: number
   containerStyle?: CSSProperties
 }
 
 export const PaginationWidget = ({
   prevLabel,
   nextLabel,
-  onPrevClick,
-  onNextClick,
-  onPageClick,
+  onPageChange,
   numRecords,
   numRecordsPerPage = DEFAULT_RECORDS_PER_PAGE,
-  activePage = 1,
   containerStyle,
 }: PaginationWidgetProps): JSX.Element | null => {
-  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
-  const firstPageActive = activePage === 1 && numPages !== 0
-  const lastPageActive = activePage === numPages && numPages !== 0
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const styles = useStyles()
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const currentPage = searchParams.get("page")
+    ? Number(searchParams.get("page"))
+    : 1
+
+  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
+  const firstPageActive = currentPage === 1 && numPages !== 0
+  const lastPageActive = currentPage === numPages && numPages !== 0
+
+  const changePage = (newPage: number) => {
+    // change the page in the url
+    setSearchParams({ page: newPage.toString() })
+    // fetch new page of records
+    const offset = (newPage - 1) * numRecordsPerPage
+    onPageChange(offset, numRecordsPerPage)
+  }
 
   // No need to display any pagination if we know the number of pages is 1
   if (numPages === 1 || numRecords === 0) {
@@ -50,7 +59,7 @@ export const PaginationWidget = ({
         className={styles.prevLabelStyles}
         aria-label="Previous page"
         disabled={firstPageActive}
-        onClick={onPrevClick}
+        onClick={() => changePage(currentPage - 1)}
       >
         <KeyboardArrowLeft />
         <div>{prevLabel}</div>
@@ -59,26 +68,22 @@ export const PaginationWidget = ({
         <ChooseOne>
           <Cond condition={isMobile}>
             <PageButton
-              activePage={activePage}
-              page={activePage}
+              activePage={currentPage}
+              page={currentPage}
               numPages={numPages}
             />
           </Cond>
           <Cond>
-            {buildPagedList(numPages, activePage).map((page) =>
+            {buildPagedList(numPages, currentPage).map((page) =>
               typeof page !== "number" ? (
-                <PageButton
-                  key={`Page${page}`}
-                  placeholder="..."
-                  disabled
-                />
+                <PageButton key={`Page${page}`} placeholder="..." disabled />
               ) : (
                 <PageButton
                   key={`Page${page}`}
-                  activePage={activePage}
+                  activePage={currentPage}
                   page={page}
                   numPages={numPages}
-                  onPageClick={onPageClick}
+                  onPageClick={() => changePage(page)}
                 />
               ),
             )}
@@ -88,7 +93,7 @@ export const PaginationWidget = ({
       <Button
         aria-label="Next page"
         disabled={lastPageActive}
-        onClick={onNextClick}
+        onClick={() => changePage(currentPage + 1)}
       >
         <div>{nextLabel}</div>
         <KeyboardArrowRight />
@@ -109,5 +114,4 @@ const useStyles = makeStyles((theme) => ({
   prevLabelStyles: {
     marginRight: `${theme.spacing(0.5)}px`,
   },
-
 }))

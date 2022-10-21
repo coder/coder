@@ -32,13 +32,9 @@ export interface WorkspacesPageViewProps {
   count?: number
   getWorkspacesError: Error | unknown
   getCountError: Error | unknown
-  page: number
-  limit: number
   filter?: string
   onFilter: (query: string) => void
-  onNext: () => void
-  onPrevious: () => void
-  onGoToPage: (page: number) => void
+  onPageChange: (offset: number, limit: number) => void
 }
 
 export const WorkspacesPageView: FC<
@@ -49,13 +45,9 @@ export const WorkspacesPageView: FC<
   count,
   getWorkspacesError,
   getCountError,
-  page,
-  limit,
   filter,
   onFilter,
-  onNext,
-  onPrevious,
-  onGoToPage,
+  onPageChange,
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
@@ -117,12 +109,8 @@ export const WorkspacesPageView: FC<
       <PaginationWidget
         prevLabel=""
         nextLabel=""
-        onPrevClick={onPrevious}
-        onNextClick={onNext}
-        onPageClick={onGoToPage}
         numRecords={count}
-        activePage={page}
-        numRecordsPerPage={limit}
+        onPageChange={onPageChange}
       />
     </Margins>
   )

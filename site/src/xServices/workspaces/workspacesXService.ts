@@ -1,4 +1,4 @@
-import { ActorRefFrom, assign, createMachine, spawn } from "xstate"
+import { ActorRefFrom, assign, createMachine, spawn, send } from "xstate"
 import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
@@ -424,6 +424,244 @@ export const workspacesMachine =
           API.getWorkspaces({
             ...queryToFilter(context.filter),
             offset: (context.page - 1) * context.limit,
+            limit: context.limit,
+          }),
+        updateWorkspaceRefs: (context, event) => {
+          const refsToKeep: WorkspaceItemMachineRef[] = []
+          context.workspaceRefs?.forEach((ref) => {
+            const matchingWorkspace = event.data.find(
+              (workspace) => ref.id === workspace.id,
+            )
+            if (matchingWorkspace) {
+              // if a workspace machine reference describes a workspace that has not been deleted,
+              // update its data and mark it as a refToKeep
+              ref.send({ type: "UPDATE_DATA", data: matchingWorkspace })
+              refsToKeep.push(ref)
+            } else {
+              // if it describes a workspace that has been deleted, stop the machine
+              ref.stop && ref.stop()
+            }
+          })
+
+          const newWorkspaces = event.data.filter(
+            (workspace) =>
+              !context.workspaceRefs?.find((ref) => ref.id === workspace.id),
+          )
+
+          return Promise.resolve({
+            refsToKeep,
+            newWorkspaces,
+          })
+        },
+        getWorkspacesCount: (context) =>
+          API.getWorkspacesCount({ q: context.filter }),
+      },
+    },
+  )
+
+interface WorkspacesContext2 {
+  workspaceRefs?: WorkspaceItemMachineRef[]
+  filter: string
+  count?: number
+  getWorkspacesError?: Error | unknown
+  getCountError?: Error | unknown
+  limit?: number
+  offset?: number
+}
+
+type WorkspacesEvent2 =
+  | { type: "GET_WORKSPACES"; limit: number; offset: number }
+  | { type: "UPDATE_VERSION"; workspaceId: string }
+  | { type: "UPDATE_FILTER"; query?: string }
+
+export const workspacesMachine2 =
+  /** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGM4BlAFz1LACYA6A1AVwDtSaZTSBLJqAYUZYBiCKiZga3AG6pM49gHUM2fEVj9mpANoAGALqJQOVLE5dRBkAA9EAFgDstABw2AbI5cBmAKx27L7QCMXjYANCAAnogeAbTaXgCcdl4BflRUSR52AL5ZYWhYuIQk5JS09BpsYBzcfAKkgmDo6Bg0OAA2FABmGAC2laSKBSpw6iw6+kggRiZmTBbWCPY2NDGO2olB7gHajmGRi+srdom+8QGOFzaOOXlKhapkFNQ0+cpFsDSw5OhcPAAKeCg3AonFEgnGFmmplBc0mC2SNH88W02j8KS8HniaT2iF8ywCNm0Lnijg86xcXhcNxAr3uxSetFpww+7F+UEGb1UwlE4ikMjkVQ5dNgEMmUNm80QQQ8NASxIumKo2io2y8OIQ8Xiyy1Hmirgx2m82VyNLuzMepReZve-TZQuZ3LEEiY0lk-Xt700AQmhmM0PMcKlXi8NExHkcdmi3jWLns6oCCbsNBJxwcAXDSSJ1KZ7wtzxzqltNQ9XMazXQrQ6pG66D6CmtqlFvpmMMlCC8Spoys8us10RSAXVjniMocSsVySo1xNBfpltnHwYOAgIJ4JbAACUwJ1YI7eS7+TQlyvKOutzum1M-RLAxrnIipy4XOcKTYPC47PHUSGvETEs+tnDKhswbOd81Aj5kDwUwABVUHPdA4AAC3XXdLC+J4aDwTpKHQAAKX8UQASkEBc80ZCCXmg0g4IQ5DUMvcVW1vSMXC7JIgmDd9ew8dVjhDCltn8OxnASYCZwg8irSGd5BAAcQAURggB9eQAHkNwAaWIP4AEFeAU4hGOvZjQAWAJEllMl7DsGwzineJKXVD8ZWCZItmOcNp1uGSHhKahBAAVT+AARXSYIU5SADUFI3YgAEk1IAOWMlsAzMqUUQCGhh0CD8STSJVdgiKUzllPxtBsAc3OHbzTV8sCqCC0LwsigAxeKABkIo3VL-VhDKEBiKgQ3sbxMmDfjHDVEqhuHFZNVyykNjJDwchNJhUAgOALDI-yyjqCQIDaMBIRM9KrFxe9priQl0wSYJiv2Dx7BoOxUTiZwqopNwbBAhrYCk8oWCLHhRlIM60oGy6EGORFAhJGx0mfEbpvVDwVTek4kccBMIwVf7OUaug6kh-q22ieGLOcZGYi8ZxP1mtIZTiRJ3yqs47BSQnhSkhdPm+NkASBJgQQupiLoWABaTEco7Xw4ifYN7CoUJZtfcqLPOEcePiHnzX26SiZZKo7Qgsmb0GzHnwJVE1h8BxEiHGxlhe4MdkyN96f13NDf549V3ZUDz3gMVzuh+EbBDTIE3iYlfwxlUv1JGgrjWW7NQJdIfb8hkjeFKjYPg7dENgFDzbDqG2y1RwVhcKgCsJNJfBm-Yx1T0kMfOdZ3D1iSAb5ivm3J28pYjOX0neykKWCBx1UpH8ubODth28VEc8ai3TJhqX7onhXp+V2z4xersEls4JdXTK51qyIA */
+  createMachine(
+    {
+      tsTypes: {} as import("./workspacesXService.typegen").Typegen2,
+      schema: {
+        context: {} as WorkspacesContext2,
+        events: {} as WorkspacesEvent2,
+        services: {} as {
+          getWorkspaces: {
+            data: TypesGen.Workspace[]
+          }
+          getWorkspacesCount: {
+            data: { count: number }
+          }
+          updateWorkspaceRefs: {
+            data: {
+              refsToKeep: WorkspaceItemMachineRef[]
+              newWorkspaces: TypesGen.Workspace[]
+            }
+          }
+        },
+      },
+      predictableActionArguments: true,
+      id: "workspacesState2",
+      on: {
+        UPDATE_VERSION: {
+          actions: "triggerUpdateVersion",
+        },
+        UPDATE_FILTER: {
+          actions: ["assignFilter", "sendResetPage"],
+        },
+      },
+      type: "parallel",
+      states: {
+        count: {
+          initial: "gettingCount",
+          states: {
+            idle: {},
+            gettingCount: {
+              entry: "clearGetCountError",
+              invoke: {
+                src: "getWorkspacesCount",
+                id: "getWorkspacesCount",
+                onDone: [
+                  {
+                    target: "idle",
+                    actions: "assignCount",
+                  },
+                ],
+                onError: [
+                  {
+                    target: "idle",
+                    actions: "assignGetCountError",
+                  },
+                ],
+              },
+            },
+          },
+        },
+        workspaces: {
+          initial: "startingPagination",
+          states: {
+            startingPagination: {
+              entry: "assignPaginationRef",
+              always: {
+                target: "gettingWorkspaces",
+              },
+            },
+            gettingWorkspaces: {
+              entry: "clearGetWorkspacesError",
+              invoke: {
+                src: "getWorkspaces",
+                id: "getWorkspaces",
+                onDone: [
+                  {
+                    target: "waitToRefreshWorkspaces",
+                    cond: "isEmpty",
+                    actions: "assignWorkspaceRefs",
+                  },
+                  {
+                    target: "updatingWorkspaceRefs",
+                  },
+                ],
+                onError: [
+                  {
+                    target: "waitToRefreshWorkspaces",
+                    actions: "assignGetWorkspacesError",
+                  },
+                ],
+              },
+            },
+            updatingWorkspaceRefs: {
+              invoke: {
+                src: "updateWorkspaceRefs",
+                id: "updateWorkspaceRefs",
+                onDone: [
+                  {
+                    target: "waitToRefreshWorkspaces",
+                    actions: "assignUpdatedWorkspaceRefs",
+                  },
+                ],
+              },
+            },
+            waitToRefreshWorkspaces: {
+              after: {
+                "5000": {
+                  target: "#workspacesState2.workspaces.gettingWorkspaces",
+                  actions: [],
+                  internal: false,
+                },
+              },
+            },
+          },
+          on: {
+            GET_WORKSPACES: {
+              target: ".gettingWorkspaces",
+              actions: "assignPagination",
+            },
+          },
+        },
+      },
+    },
+    {
+      guards: {
+        isEmpty: (context) => !context.workspaceRefs,
+      },
+      actions: {
+        assignWorkspaceRefs: assign({
+          workspaceRefs: (_, event) =>
+            event.data.map((data) => {
+              return spawn(workspaceItemMachine.withContext({ data }), data.id)
+            }),
+        }),
+        assignPaginationRef: assign({
+          paginationRef: spawn(paginationMachine, "workspacePagination"),
+        }),
+        assignFilter: assign({
+          filter: (context, event) => event.query ?? context.filter,
+        }),
+        sendResetPage: send("RESET_PAGE", { to: "workspacePagination" }),
+        // this page refreshes on its own, it needs to cache this data
+        assignPagination: assign({
+          limit: (_, event) => event.limit,
+          offset: (_, event) => event.offset,
+        }),
+        assignGetWorkspacesError: assign({
+          getWorkspacesError: (_, event) => event.data,
+        }),
+        clearGetWorkspacesError: (context) =>
+          assign({ ...context, getWorkspacesError: undefined }),
+        triggerUpdateVersion: (context, event) => {
+          const workspaceRef = context.workspaceRefs?.find(
+            (ref) => ref.id === event.workspaceId,
+          )
+
+          if (!workspaceRef) {
+            throw new Error(`No workspace ref found for ${event.workspaceId}.`)
+          }
+
+          workspaceRef.send("UPDATE_VERSION")
+        },
+        assignUpdatedWorkspaceRefs: assign({
+          workspaceRefs: (_, event) => {
+            const newWorkspaceRefs = event.data.newWorkspaces.map((workspace) =>
+              spawn(
+                workspaceItemMachine.withContext({ data: workspace }),
+                workspace.id,
+              ),
+            )
+            return event.data.refsToKeep.concat(newWorkspaceRefs)
+          },
+        }),
+        assignCount: assign({
+          count: (_, event) => event.data.count,
+        }),
+        assignGetCountError: assign({
+          getCountError: (_, event) => event.data,
+        }),
+        clearGetCountError: assign({
+          getCountError: (_) => undefined,
+        }),
+      },
+      services: {
+        getWorkspaces: (context) =>
+          API.getWorkspaces({
+            ...queryToFilter(context.filter),
+            offset: context.offset,
             limit: context.limit,
           }),
         updateWorkspaceRefs: (context, event) => {
