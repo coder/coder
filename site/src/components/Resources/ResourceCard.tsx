@@ -149,7 +149,13 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                   </div>
                 </Stack>
 
-                <Stack direction="row" alignItems="center" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  wrap="wrap"
+                  maxWidth="750px"
+                >
                   {showApps && agent.status === "connected" && (
                     <>
                       {applicationsHost !== undefined && (
