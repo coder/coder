@@ -49,7 +49,9 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
         <Sidebar />
         <main className={styles.content}>
           {deploymentConfig ? (
-            <DeploySettingsContext.Provider value={{ deploymentConfig: deploymentConfig }}>
+            <DeploySettingsContext.Provider
+              value={{ deploymentConfig: deploymentConfig }}
+            >
               {children}
             </DeploySettingsContext.Provider>
           ) : (
