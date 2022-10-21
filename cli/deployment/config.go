@@ -362,6 +362,7 @@ func NewViper() *viper.Viper {
 	v := viper.New()
 	v.SetEnvPrefix("coder")
 	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 	dcv := reflect.ValueOf(dc)
 	t := dcv.Type()
