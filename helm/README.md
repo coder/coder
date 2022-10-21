@@ -47,10 +47,10 @@ coder:
     # This env variable controls whether or not to auto-import the "kubernetes"
     # template on first startup. This will not work unless
     # coder.serviceAccount.workspacePerms is true.
-    - name: CODER_TEMPLATE_AUTOIMPORT
+    - name: CODER_AUTO_IMPORT_TEMPLATES
       value: "kubernetes"
 
   tls:
-    secretNames: 
+    secretNames:
       - my-tls-secret-name
 ```
