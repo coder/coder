@@ -297,7 +297,6 @@ export interface DeploymentConfig {
   readonly auto_import_templates: DeploymentConfigField<string[]>
   readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
-  readonly verbose: DeploymentConfigField<boolean>
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
   readonly user_workspace_quota: DeploymentConfigField<number>
