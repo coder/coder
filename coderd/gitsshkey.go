@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/coder/coder/coderd/audit"
@@ -18,10 +19,11 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.GitSSHKey](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
