@@ -92,7 +92,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
-	DeploymentFlags             *codersdk.DeploymentFlags
+	DeploymentConfig            *codersdk.DeploymentConfig
 }
 
 // New constructs a Coder API handler.
@@ -286,9 +286,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/flags", func(r chi.Router) {
+		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentFlags)
+			r.Get("/deployment", api.deploymentConfig)
 		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(

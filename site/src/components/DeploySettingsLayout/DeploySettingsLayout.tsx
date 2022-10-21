@@ -11,9 +11,9 @@ import React, {
 import { useActor } from "@xstate/react"
 import { XServiceContext } from "xServices/StateContext"
 import { Loader } from "components/Loader/Loader"
-import { DeploymentFlags } from "api/typesGenerated"
+import { DeploymentConfig } from "api/typesGenerated"
 
-type DeploySettingsContextValue = { deploymentFlags: DeploymentFlags }
+type DeploySettingsContextValue = { deploymentConfig: DeploymentConfig }
 
 const DeploySettingsContext = createContext<
   DeploySettingsContextValue | undefined
@@ -33,9 +33,9 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
   children,
 }) => {
   const xServices = useContext(XServiceContext)
-  const [state, send] = useActor(xServices.deploymentFlagsXService)
+  const [state, send] = useActor(xServices.deploymentConfigXService)
   const styles = useStyles()
-  const { deploymentFlags } = state.context
+  const { deploymentConfig } = state.context
 
   useEffect(() => {
     if (state.matches("idle")) {
@@ -48,8 +48,10 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
       <Stack className={styles.wrapper} direction="row" spacing={5}>
         <Sidebar />
         <main className={styles.content}>
-          {deploymentFlags ? (
-            <DeploySettingsContext.Provider value={{ deploymentFlags }}>
+          {deploymentConfig ? (
+            <DeploySettingsContext.Provider
+              value={{ deploymentConfig: deploymentConfig }}
+            >
               {children}
             </DeploySettingsContext.Provider>
           ) : (

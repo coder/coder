@@ -16,7 +16,7 @@ import { pageTitle } from "util/page"
 import { XServiceContext } from "xServices/StateContext"
 
 const SecuritySettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig: deploymentConfig } = useDeploySettings()
   const xServices = useContext(XServiceContext)
   const [entitlementsState] = useActor(xServices.entitlementsXService)
 
@@ -34,8 +34,8 @@ const SecuritySettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              ssh_keygen_algorithm: deploymentFlags.ssh_keygen_algorithm,
-              secure_auth_cookie: deploymentFlags.secure_auth_cookie,
+              ssh_keygen_algorithm: deploymentConfig.ssh_keygen_algorithm,
+              secure_auth_cookie: deploymentConfig.secure_auth_cookie,
             }}
           />
         </div>
@@ -89,10 +89,10 @@ const SecuritySettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              tls_enable: deploymentFlags.tls_enable,
-              tls_cert_files: deploymentFlags.tls_cert_files,
-              tls_key_files: deploymentFlags.tls_key_files,
-              tls_min_version: deploymentFlags.tls_min_version,
+              tls_enable: deploymentConfig.tls_enable,
+              tls_cert_files: deploymentConfig.tls_cert_files,
+              tls_key_files: deploymentConfig.tls_key_files,
+              tls_min_version: deploymentConfig.tls_min_version,
             }}
           />
         </div>
