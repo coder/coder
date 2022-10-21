@@ -70,14 +70,14 @@ type Flaggable interface {
 }
 
 type DeploymentConfigField[T Flaggable] struct {
-	Key        string
-	Name       string
-	Usage      string
-	Flag       string
-	Shorthand  string
-	Enterprise bool
-	Hidden     bool
-	Value      T
+	Key        string `json:"key"`
+	Name       string `json:"name"`
+	Usage      string `json:"usage"`
+	Flag       string `json:"flag"`
+	Shorthand  string `json:"shorthand"`
+	Enterprise bool   `json:"enterprise"`
+	Hidden     bool   `json:"hidden"`
+	Value      T      `json:"value"`
 }
 
 // DeploymentConfig returns the deployment config for the coder server.
