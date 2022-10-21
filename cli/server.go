@@ -214,22 +214,22 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
-			if dflags.AccessURL.Value == "" {
+			if cfg.AccessURL.Value == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				dflags.AccessURL.Value = tunnel.URL
+				cfg.AccessURL.Value = tunnel.URL
 
-				if dflags.WildcardAccessURL.Value == "" {
+				if cfg.WildcardAccessURL.Value == "" {
 					u, err := parseURL(ctx, tunnel.URL)
 					if err != nil {
 						return xerrors.Errorf("parse tunnel url: %w", err)
 					}
 
 					// Suffixed wildcard access URL.
-					dflags.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
+					cfg.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
 				}
 			}
 
