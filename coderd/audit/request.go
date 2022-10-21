@@ -20,8 +20,9 @@ type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	Request *http.Request
-	Action  database.AuditAction
+	Request          *http.Request
+	Action           database.AuditAction
+	AdditionalFields json.RawMessage
 }
 
 type Request[T Auditable] struct {
@@ -44,7 +45,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.Workspace:
 		return typed.Name
 	case database.WorkspaceBuild:
-		return string(typed.Transition)
+		// this isn't used
+		return string(typed.BuildNumber)
 	case database.GitSSHKey:
 		return typed.PublicKey
 	case database.Group:
@@ -149,7 +151,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
-			AdditionalFields: json.RawMessage("{}"),
+			AdditionalFields: p.AdditionalFields,
 		})
 		if err != nil {
 			p.Log.Error(logCtx, "export audit log", slog.Error(err))

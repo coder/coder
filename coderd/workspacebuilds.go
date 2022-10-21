@@ -300,12 +300,30 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	// if a user starts/stops a workspace, audit the workspace build
 	if action == rbac.ActionUpdate {
 
+		var auditAction database.AuditAction
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			auditAction = database.AuditActionStart
+		} else if createBuild.Transition == codersdk.WorkspaceTransitionStop {
+			auditAction = database.AuditActionStop
+		} else {
+			auditAction = database.AuditActionWrite
+		}
+
+		// We pass the workspace name to the Auditor so that it
+		// can form a friendly string for the user.
+		workspaceResourceInfo := map[string]string{
+			"workspaceName": workspace.Name,
+		}
+
+		wri_bytes, _ := json.Marshal(workspaceResourceInfo)
+
 		var (
 			aReq, commitAudit = audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
-				Audit:   *auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  database.AuditActionWrite,
+				Audit:            *auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           auditAction,
+				AdditionalFields: wri_bytes,
 			})
 		)
 

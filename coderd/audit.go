@@ -219,6 +219,10 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	}
 }
 
+type WorkspaceResourceInfo struct {
+	WorkspaceName string
+}
+
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	str := fmt.Sprintf("{user} %s %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
@@ -229,7 +233,10 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	// "{user} started workspace build for workspace {target}"
 	// where target is a workspace instead of the workspace build
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
-		str += " for workspace"
+		workspace_bytes := []byte(alog.AdditionalFields)
+		var workspaceResourceInfo WorkspaceResourceInfo
+		json.Unmarshal(workspace_bytes, &workspaceResourceInfo)
+		str += " for workspace " + workspaceResourceInfo.WorkspaceName
 	}
 
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
