@@ -20,7 +20,7 @@ func TestDeploymentConfig(t *testing.T) {
 	vip := deployment.NewViper()
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	fs.String("global-config", hi, "usage")
-	cfg, err := deployment.Config(fs, vip, false)
+	cfg, err := deployment.Config(fs, vip)
 	require.NoError(t, err)
 	// values should be returned
 	cfg.AccessURL.Value = hi

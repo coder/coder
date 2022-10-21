@@ -313,7 +313,7 @@ func newConfig() codersdk.DeploymentConfig {
 }
 
 //nolint:revive
-func Config(flagset *pflag.FlagSet, vip *viper.Viper, enterprise bool) (codersdk.DeploymentConfig, error) {
+func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig, error) {
 	dc := newConfig()
 	flg, err := flagset.GetString("global-config")
 	if err != nil {
