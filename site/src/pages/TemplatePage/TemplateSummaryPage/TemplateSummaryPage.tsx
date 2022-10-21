@@ -3,6 +3,7 @@ import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
+import { Loader } from "components/Loader/Loader"
 
 export const TemplateSummaryPage: FC = () => {
   const { context } = useTemplateLayoutContext()
@@ -16,9 +17,7 @@ export const TemplateSummaryPage: FC = () => {
   } = context
 
   if (!template || !activeTemplateVersion || !templateResources) {
-    throw new Error(
-      "This page should not be displayed until template, activeTemplateVersion or templateResources being loaded.",
-    )
+    return <Loader />
   }
 
   return (
