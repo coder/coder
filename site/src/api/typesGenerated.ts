@@ -304,14 +304,14 @@ export interface DeploymentConfig {
 
 // From codersdk/deploymentconfig.go
 export interface DeploymentConfigField<T extends Flaggable> {
-  readonly Key: string
-  readonly Name: string
-  readonly Usage: string
-  readonly Flag: string
-  readonly Shorthand: string
-  readonly Enterprise: boolean
-  readonly Hidden: boolean
-  readonly Value: T
+  readonly key: string
+  readonly name: string
+  readonly usage: string
+  readonly flag: string
+  readonly shorthand: string
+  readonly enterprise: boolean
+  readonly hidden: boolean
+  readonly value: T
 }
 
 // From codersdk/features.go
