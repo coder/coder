@@ -6,7 +6,7 @@ terraform {
     }
     coder = {
       source  = "coder/coder"
-      version = "0.5.3"
+      version = "0.6.0"
     }
   }
 }
