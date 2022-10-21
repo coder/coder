@@ -22,178 +22,144 @@ func TestConvertResources(t *testing.T) {
 	t.Parallel()
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
-
-	cases := []struct {
-		// name must correspond to ./testadata/<name>/<name>.*
-		name          string
-		expected      []*proto.Resource
-		errorContains string
-	}{
+	// nolint:paralleltest
+	for folderName, expected := range map[string][]*proto.Resource{
 		// When a resource depends on another, the shortest route
 		// to a resource should always be chosen for the agent.
-		{
-			name: "chaining-resources",
-			expected: []*proto.Resource{{
-				Name: "a",
-				Type: "null_resource",
-			}, {
-				Name: "b",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:            "main",
-					OperatingSystem: "linux",
-					Architecture:    "amd64",
-					Auth:            &proto.Agent_Token{},
-				}},
+		"chaining-resources": {{
+			Name: "a",
+			Type: "null_resource",
+		}, {
+			Name: "b",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "main",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_Token{},
 			}},
-		},
+		}},
 		// This can happen when resources hierarchically conflict.
 		// When multiple resources exist at the same level, the first
 		// listed in state will be chosen.
-		{
-			name: "conflicting-resources",
-			expected: []*proto.Resource{{
-				Name: "first",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:            "main",
-					OperatingSystem: "linux",
-					Architecture:    "amd64",
-					Auth:            &proto.Agent_Token{},
-				}},
-			}, {
-				Name: "second",
-				Type: "null_resource",
+		"conflicting-resources": {{
+			Name: "first",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "main",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_Token{},
 			}},
-		},
+		}, {
+			Name: "second",
+			Type: "null_resource",
+		}},
 		// Ensures the instance ID authentication type surfaces.
-		{
-			name: "instance-id",
-			expected: []*proto.Resource{{
-				Name: "main",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:            "main",
-					OperatingSystem: "linux",
-					Architecture:    "amd64",
-					Auth:            &proto.Agent_InstanceId{},
-				}},
+		"instance-id": {{
+			Name: "main",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "main",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_InstanceId{},
 			}},
-		},
-		{
-			name: "calling-module",
-			expected: []*proto.Resource{{
-				Name: "example",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:            "main",
-					OperatingSystem: "linux",
-					Architecture:    "amd64",
-					Auth:            &proto.Agent_Token{},
-				}},
+		}},
+		// Ensures that calls to resources through modules work
+		// as expected.
+		"calling-module": {{
+			Name: "example",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "main",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_Token{},
 			}},
-		},
+		}},
 		// Ensures the attachment of multiple agents to a single
 		// resource is successful.
-		{
-			name: "multiple-agents",
-			expected: []*proto.Resource{{
-				Name: "dev",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:            "dev1",
-					OperatingSystem: "linux",
-					Architecture:    "amd64",
-					Auth:            &proto.Agent_Token{},
-				}, {
-					Name:            "dev2",
-					OperatingSystem: "darwin",
-					Architecture:    "amd64",
-					Auth:            &proto.Agent_Token{},
-				}, {
-					Name:            "dev3",
-					OperatingSystem: "windows",
-					Architecture:    "arm64",
-					Auth:            &proto.Agent_Token{},
-				}},
+		"multiple-agents": {{
+			Name: "dev",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "dev1",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_Token{},
+			}, {
+				Name:            "dev2",
+				OperatingSystem: "darwin",
+				Architecture:    "amd64",
+				Auth:            &proto.Agent_Token{},
+			}, {
+				Name:            "dev3",
+				OperatingSystem: "windows",
+				Architecture:    "arm64",
+				Auth:            &proto.Agent_Token{},
 			}},
-		},
+		}},
 		// Ensures multiple applications can be set for a single agent.
-		{
-			name: "multiple-apps",
-			expected: []*proto.Resource{{
-				Name: "dev",
-				Type: "null_resource",
-				Agents: []*proto.Agent{{
-					Name:            "dev1",
-					OperatingSystem: "linux",
-					Architecture:    "amd64",
-					Apps: []*proto.App{
-						{
-							Slug:        "app1",
-							DisplayName: "app1",
-							// Subdomain defaults to false if unspecified.
-							Subdomain: false,
-						},
-						{
-							Slug:        "app2",
-							DisplayName: "app2",
-							Subdomain:   true,
-							Healthcheck: &proto.Healthcheck{
-								Url:       "http://localhost:13337/healthz",
-								Interval:  5,
-								Threshold: 6,
-							},
-						},
-						{
-							Slug:        "app3",
-							DisplayName: "app3",
-							Subdomain:   false,
+		"multiple-apps": {{
+			Name: "dev",
+			Type: "null_resource",
+			Agents: []*proto.Agent{{
+				Name:            "dev1",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				Apps: []*proto.App{
+					{
+						Slug:        "app1",
+						DisplayName: "app1",
+						// Subdomain defaults to false if unspecified.
+						Subdomain: false,
+					},
+					{
+						Slug:        "app2",
+						DisplayName: "app2",
+						Subdomain:   true,
+						Healthcheck: &proto.Healthcheck{
+							Url:       "http://localhost:13337/healthz",
+							Interval:  5,
+							Threshold: 6,
 						},
 					},
-					Auth: &proto.Agent_Token{},
-				}},
+					{
+						Slug:        "app3",
+						DisplayName: "app3",
+						Subdomain:   false,
+					},
+				},
+				Auth: &proto.Agent_Token{},
 			}},
-		},
+		}},
 		// Tests fetching metadata about workspace resources.
-		{
-			name: "resource-metadata",
-			expected: []*proto.Resource{{
-				Name: "about",
-				Type: "null_resource",
-				Hide: true,
-				Icon: "/icon/server.svg",
-				Metadata: []*proto.Resource_Metadata{{
-					Key:   "hello",
-					Value: "world",
-				}, {
-					Key:    "null",
-					IsNull: true,
-				}, {
-					Key: "empty",
-				}, {
-					Key:       "secret",
-					Value:     "squirrel",
-					Sensitive: true,
-				}},
+		"resource-metadata": {{
+			Name: "about",
+			Type: "null_resource",
+			Hide: true,
+			Icon: "/icon/server.svg",
+			Metadata: []*proto.Resource_Metadata{{
+				Key:   "hello",
+				Value: "world",
+			}, {
+				Key:    "null",
+				IsNull: true,
+			}, {
+				Key: "empty",
+			}, {
+				Key:       "secret",
+				Value:     "squirrel",
+				Sensitive: true,
 			}},
-		},
-		// Ensure that invalid app slugs fail.
-		{
-			name:          "invalid-app-slug",
-			expected:      nil,
-			errorContains: "invalid app slug",
-		},
-	}
-
-	for _, c := range cases {
-		c := c
-		t.Run(c.name, func(t *testing.T) {
+		}},
+	} {
+		folderName := folderName
+		expected := expected
+		t.Run(folderName, func(t *testing.T) {
 			t.Parallel()
-
-			folderName, expected := c.name, c.expected
 			dir := filepath.Join(filepath.Dir(filename), "testdata", folderName)
-
 			t.Run("Plan", func(t *testing.T) {
 				t.Parallel()
 
@@ -206,11 +172,6 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
-				if c.errorContains != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, c.errorContains)
-					return
-				}
 				require.NoError(t, err)
 				sortResources(resources)
 
@@ -224,16 +185,25 @@ func TestConvertResources(t *testing.T) {
 					expectedNoMetadata = append(expectedNoMetadata, resourceCopy)
 				}
 
-				resourcesWant, err := json.Marshal(expectedNoMetadata)
+				// Convert expectedNoMetadata and resources into a
+				// []map[string]interface{} so they can be compared easily.
+				data, err := json.Marshal(expectedNoMetadata)
 				require.NoError(t, err)
-				resourcesGot, err := json.Marshal(resources)
+				var expectedNoMetadataMap []map[string]interface{}
+				err = json.Unmarshal(data, &expectedNoMetadataMap)
 				require.NoError(t, err)
-				require.Equal(t, string(resourcesWant), string(resourcesGot))
+
+				data, err = json.Marshal(resources)
+				require.NoError(t, err)
+				var resourcesMap []map[string]interface{}
+				err = json.Unmarshal(data, &resourcesMap)
+				require.NoError(t, err)
+
+				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
 				t.Parallel()
-
 				tfStateRaw, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.json"))
 				require.NoError(t, err)
 				var tfState tfjson.State
@@ -243,14 +213,8 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 
 				resources, err := terraform.ConvertResources(tfState.Values.RootModule, string(tfStateGraph))
-				if c.errorContains != "" {
-					require.Error(t, err)
-					require.ErrorContains(t, err, c.errorContains)
-					return
-				}
 				require.NoError(t, err)
 				sortResources(resources)
-
 				for _, resource := range resources {
 					for _, agent := range resource.Agents {
 						agent.Id = ""
@@ -262,15 +226,65 @@ func TestConvertResources(t *testing.T) {
 						}
 					}
 				}
+				// Convert expectedNoMetadata and resources into a
+				// []map[string]interface{} so they can be compared easily.
+				data, err := json.Marshal(expected)
+				require.NoError(t, err)
+				var expectedMap []map[string]interface{}
+				err = json.Unmarshal(data, &expectedMap)
+				require.NoError(t, err)
 
-				resourcesWant, err := json.Marshal(expected)
+				data, err = json.Marshal(resources)
 				require.NoError(t, err)
-				resourcesGot, err := json.Marshal(resources)
+				var resourcesMap []map[string]interface{}
+				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-				require.Equal(t, string(resourcesWant), string(resourcesGot))
+
+				require.Equal(t, expectedMap, resourcesMap)
 			})
 		})
 	}
+}
+
+func TestAppSlugValidation(t *testing.T) {
+	t.Parallel()
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	// Load the multiple-apps state file and edit it.
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.dot"))
+	require.NoError(t, err)
+
+	// Change all slugs to be invalid.
+	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+		if resource.Type == "coder_app" {
+			resource.AttributeValues["slug"] = "$$$ invalid slug $$$"
+		}
+	}
+
+	resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
+	require.Nil(t, resources)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid app slug")
+
+	// Change all slugs to be identical and valid.
+	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+		if resource.Type == "coder_app" {
+			resource.AttributeValues["slug"] = "valid"
+		}
+	}
+
+	resources, err = terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
+	require.Nil(t, resources)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate app slug")
 }
 
 func TestInstanceIDAssociation(t *testing.T) {
@@ -354,7 +368,7 @@ func sortResources(resources []*proto.Resource) {
 	for _, resource := range resources {
 		for _, agent := range resource.Agents {
 			sort.Slice(agent.Apps, func(i, j int) bool {
-				return agent.Apps[i].DisplayName < agent.Apps[j].DisplayName
+				return agent.Apps[i].Slug < agent.Apps[j].Slug
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {

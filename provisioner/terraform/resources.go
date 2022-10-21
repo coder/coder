@@ -220,6 +220,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	}
 
 	// Associate Apps with agents.
+	appSlugs := make(map[string]struct{})
 	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_app" {
 			continue
@@ -247,6 +248,11 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
 			return nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
 		}
+
+		if _, exists := appSlugs[attrs.Slug]; exists {
+			return nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
+		}
+		appSlugs[attrs.Slug] = struct{}{}
 
 		var healthcheck *proto.Healthcheck
 		if len(attrs.Healthcheck) != 0 {
