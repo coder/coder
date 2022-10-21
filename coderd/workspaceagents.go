@@ -371,9 +371,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
-	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node)
-	})
+	sendNodes, _ := tailnet.ServeCoordinator(clientConn, conn.UpdateNodes)
 	conn.SetNodeCallback(sendNodes)
 	go func() {
 		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
