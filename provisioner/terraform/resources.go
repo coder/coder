@@ -265,6 +265,30 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 	}
 
+	// Associate "protected" status
+	resourceProtected := map[string]bool{}
+	for resourceName, resource := range tfResourceByLabel {
+		var lifecycleBlock struct {
+			Lifecycle struct {
+				// IgnoreChanges can be string or []string
+				IgnoreChanges interface{} `mapstructure:"ignore_changes"`
+			} `mapstructure:"lifecycle"`
+		}
+		err := mapstructure.Decode(resource.AttributeValues, &lifecycleBlock)
+		if err != nil {
+			return nil, xerrors.Errorf("decode lifecycle attributes: %w", err)
+		}
+
+		ignoreChangesString, ok := lifecycleBlock.Lifecycle.IgnoreChanges.(string)
+		if !ok {
+			continue
+		}
+
+		if ignoreChangesString == "all" {
+			resourceProtected[resourceName] = true
+		}
+	}
+
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}

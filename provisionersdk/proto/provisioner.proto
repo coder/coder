@@ -126,6 +126,7 @@ message Resource {
     repeated Metadata metadata = 4;
     bool hide = 5;
 	string icon = 6;
+    bool protected = 7;
 }
 
 // Parse consumes source-code from a directory to produce inputs.
