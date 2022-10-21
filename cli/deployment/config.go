@@ -284,12 +284,6 @@ func newConfig() codersdk.DeploymentConfig {
 			Hidden: true,
 			Value:  10 * time.Minute,
 		},
-		Verbose: codersdk.DeploymentConfigField[bool]{
-			Key:       "verbose",
-			Usage:     "Enables verbose logging.",
-			Flag:      "verbose",
-			Shorthand: "v",
-		},
 		AuditLogging: codersdk.DeploymentConfigField[bool]{
 			Key:        "audit_logging",
 			Usage:      "Specifies whether audit logging is enabled.",
@@ -319,70 +313,25 @@ func newConfig() codersdk.DeploymentConfig {
 }
 
 //nolint:revive
-func Config(flagset *pflag.FlagSet, enterprise bool) (codersdk.DeploymentConfig, error) {
+func Config(flagset *pflag.FlagSet, vip *viper.Viper, enterprise bool) (codersdk.DeploymentConfig, error) {
 	dc := newConfig()
 	flg, err := flagset.GetString("global-config")
 	if err != nil {
 		return dc, xerrors.Errorf("get global config from flag: %w", err)
 	}
-	vip := viper.New()
 	vip.SetEnvPrefix("coder")
 	vip.AutomaticEnv()
 
-	dcv := reflect.ValueOf(dc)
-	t := dcv.Type()
-	for i := 0; i < t.NumField(); i++ {
-		fv := dcv.Field(i)
-		key := fv.FieldByName("Key").String()
-		value := fv.FieldByName("Value").Interface()
-		vip.SetDefault(key, value)
-	}
 	if flg != "" {
-		vip.SetConfigFile(flg)
+		vip.SetConfigFile(flg + "/server.yaml")
 		err = vip.ReadInConfig()
-		if err != nil {
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
 			return dc, xerrors.Errorf("reading deployment config: %w", err)
 		}
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		fv := dcv.Field(i)
-		isEnt := fv.FieldByName("Enterprise").Bool()
-		if enterprise != isEnt {
-			continue
-		}
-		key := fv.FieldByName("Key").String()
-		flg := fv.FieldByName("Flag").String()
-		if flg == "" {
-			continue
-		}
-		usage := fv.FieldByName("Usage").String()
-		usage = fmt.Sprintf("%s\n%s", usage, cliui.Styles.Placeholder.Render("Consumes $"+formatEnv(key)))
-		shorthand := fv.FieldByName("Shorthand").String()
-		hidden := fv.FieldByName("Hidden").Bool()
-		value := fv.FieldByName("Value").Interface()
-
-		switch value.(type) {
-		case string:
-			_ = flagset.StringP(flg, shorthand, vip.GetString(key), usage)
-		case bool:
-			_ = flagset.BoolP(flg, shorthand, vip.GetBool(key), usage)
-		case int:
-			_ = flagset.IntP(flg, shorthand, vip.GetInt(key), usage)
-		case time.Duration:
-			_ = flagset.DurationP(flg, shorthand, vip.GetDuration(key), usage)
-		case []string:
-			_ = flagset.StringSliceP(flg, shorthand, vip.GetStringSlice(key), usage)
-		default:
-			continue
-		}
-
-		_ = vip.BindPFlag(key, flagset.Lookup(flg))
-		if hidden {
-			_ = flagset.MarkHidden(flg)
-		}
-	}
-
+	dcv := reflect.ValueOf(&dc).Elem()
+	t := dcv.Type()
 	for i := 0; i < t.NumField(); i++ {
 		fve := dcv.Field(i)
 		key := fve.FieldByName("Key").String()

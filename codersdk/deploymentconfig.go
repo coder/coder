@@ -59,7 +59,6 @@ type DeploymentConfig struct {
 	AutoImportTemplates              DeploymentConfigField[[]string]      `json:"auto_import_templates"`
 	MetricsCacheRefreshInterval      DeploymentConfigField[time.Duration] `json:"metrics_cache_refresh_interval"`
 	AgentStatRefreshInterval         DeploymentConfigField[time.Duration] `json:"agent_stat_refresh_interval"`
-	Verbose                          DeploymentConfigField[bool]          `json:"verbose"`
 	AuditLogging                     DeploymentConfigField[bool]          `json:"audit_logging"`
 	BrowserOnly                      DeploymentConfigField[bool]          `json:"browser_only"`
 	SCIMAuthHeader                   DeploymentConfigField[string]        `json:"-"`

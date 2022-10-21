@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -70,18 +71,18 @@ import (
 )
 
 // nolint:gocyclo
-func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
+func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := deployment.Config(cmd.Flags(), false)
+			cfg, err := deployment.Config(cmd.Flags(), vip, false)
 			if err != nil {
-				return xerrors.Errorf("getting up deployment config", err)
+				return xerrors.Errorf("getting deployment config", err)
 			}
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if cfg.Verbose.Value {
+			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -672,7 +673,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				go func() {
 					defer wg.Done()
 
-					if cfg.Verbose.Value {
+					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
@@ -685,7 +686,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
 						return
 					}
-					if cfg.Verbose.Value {
+					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
 					}
 				}()
@@ -735,13 +736,9 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dcfg, err := deployment.Config(cmd.Flags(), false)
-			if err != nil {
-				return xerrors.Errorf("getting up deployment config", err)
-			}
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if dcfg.Verbose.Value {
+			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -761,6 +758,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			return nil
 		},
 	})
+
+	deployment.AttachFlags(root.Flags(), vip, false)
 
 	return root
 }

@@ -12,6 +12,7 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -23,7 +24,8 @@ import (
 )
 
 func server() *cobra.Command {
-	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+	vip := deployment.NewViper()
+	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		if options.DeploymentConfig.DERPServerRelayAddress.Value != "" {
 			_, err := url.Parse(options.DeploymentConfig.DERPServerRelayAddress.Value)
 			if err != nil {
@@ -73,6 +75,8 @@ func server() *cobra.Command {
 		}
 		return api.AGPL, api, nil
 	})
+
+	deployment.AttachFlags(cmd.Flags(), vip, true)
 
 	return cmd
 }
