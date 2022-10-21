@@ -6,6 +6,7 @@ import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CSSProperties } from "react"
+import { PageButton } from "./PageButton"
 
 export type PaginationWidgetProps = {
   prevLabel: string
