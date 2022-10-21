@@ -77,38 +77,6 @@ export const buildPagedList = (
   return range(1, numPages)
 }
 
-interface PageButtonProps {
-  activePage: number
-  page: number
-  numPages: number
-  onPageClick?: (page: number) => void
-}
-
-const PageButton = ({
-  activePage,
-  page,
-  numPages,
-  onPageClick,
-}: PageButtonProps): JSX.Element => {
-  const styles = useStyles()
-  return (
-    <Button
-      className={
-        activePage === page
-          ? `${styles.pageButton} ${styles.activePageButton}`
-          : styles.pageButton
-      }
-      aria-label={`${page === activePage ? "Current Page" : ""} ${
-        page === numPages ? "Last Page" : ""
-      } Page${page}`}
-      name="Page button"
-      onClick={() => onPageClick && onPageClick(page)}
-    >
-      <div>{page}</div>
-    </Button>
-  )
-}
-
 export const PaginationWidget = ({
   prevLabel,
   nextLabel,
@@ -155,13 +123,11 @@ export const PaginationWidget = ({
           <Cond>
             {buildPagedList(numPages, activePage).map((page) =>
               typeof page !== "number" ? (
-                <Button
-                  className={styles.pageButton}
+                <PageButton
                   key={`Page${page}`}
+                  placeholder="..."
                   disabled
-                >
-                  <div>...</div>
-                </Button>
+                />
               ) : (
                 <PageButton
                   key={`Page${page}`}
@@ -200,14 +166,4 @@ const useStyles = makeStyles((theme) => ({
     marginRight: `${theme.spacing(0.5)}px`,
   },
 
-  pageButton: {
-    "&:not(:last-of-type)": {
-      marginRight: theme.spacing(0.5),
-    },
-  },
-
-  activePageButton: {
-    borderColor: `${theme.palette.info.main}`,
-    backgroundColor: `${theme.palette.info.dark}`,
-  },
 }))
