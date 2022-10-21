@@ -43,6 +43,7 @@ const (
 	varToken            = "token"
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
+	varGlobalConfig     = "global-config"
 	varHeader           = "header"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
@@ -100,7 +101,7 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(deployment.NewViper(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+	all := append(Core(), Server(deployment.Flags(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil
 	}))
@@ -183,7 +184,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
+	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
@@ -361,7 +362,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 
 // createConfig consumes the global configuration flag to produce a config root.
 func createConfig(cmd *cobra.Command) config.Root {
-	globalRoot, err := cmd.Flags().GetString(config.FlagName)
+	globalRoot, err := cmd.Flags().GetString(varGlobalConfig)
 	if err != nil {
 		panic(err)
 	}
