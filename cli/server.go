@@ -354,7 +354,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					cfg.OAuth2GithubClientID.Value,
 					cfg.OAuth2GithubClientSecret.Value,
 					cfg.OAuth2GithubAllowSignups.Value,
-					cfg.OAuth2GithubAllowedOrganizations.Value,
+					cfg.OAuth2GithubAllowedOrgs.Value,
 					cfg.OAuth2GithubAllowedTeams.Value,
 					cfg.OAuth2GithubEnterpriseBaseURL.Value,
 				)

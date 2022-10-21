@@ -75,10 +75,10 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:  "derp-server-stun-addresses",
 			Value: []string{"stun.l.google.com:19302"},
 		},
-		DERPServerRelayAddress: codersdk.DeploymentConfigField[string]{
-			Key:        "derp.server.relay_address",
-			Usage:      "An HTTP address that is accessible by other replicas to relay DERP traffic. Required for high availability.",
-			Flag:       "derp-server-relay-address",
+		DERPServerRelayURL: codersdk.DeploymentConfigField[string]{
+			Key:        "derp.server.relay_url",
+			Usage:      "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
+			Flag:       "derp-server-relay-url",
 			Enterprise: true,
 		},
 		DERPConfigURL: codersdk.DeploymentConfigField[string]{
@@ -146,8 +146,8 @@ func newConfig() codersdk.DeploymentConfig {
 			Usage: "Client secret for Login with GitHub.",
 			Flag:  "oauth2-github-client-secret",
 		},
-		OAuth2GithubAllowedOrganizations: codersdk.DeploymentConfigField[[]string]{
-			Key:   "oauth2.github.allowed_organizations",
+		OAuth2GithubAllowedOrgs: codersdk.DeploymentConfigField[[]string]{
+			Key:   "oauth2.github.allowed_orgs",
 			Usage: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:  "oauth2-github-allowed-orgs",
 		},
@@ -348,7 +348,19 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig
 		case time.Duration:
 			fve.FieldByName("Value").SetInt(int64(vip.GetDuration(key)))
 		case []string:
-			fve.FieldByName("Value").Set(reflect.ValueOf(vip.GetStringSlice(key)))
+			// As of October 21st, 2022 we supported delimiting a string
+			// with a comma, but Viper only supports with a space. This
+			// is a small hack around it!
+			rawSlice := reflect.ValueOf(vip.GetStringSlice(key)).Interface()
+			slice, ok := rawSlice.([]string)
+			if !ok {
+				return dc, xerrors.Errorf("string slice is of type %T", rawSlice)
+			}
+			value := make([]string, 0, len(slice))
+			for _, entry := range slice {
+				value = append(value, strings.Split(entry, ",")...)
+			}
+			fve.FieldByName("Value").Set(reflect.ValueOf(value))
 		default:
 			return dc, xerrors.Errorf("unsupported type %T", value)
 		}

@@ -273,7 +273,7 @@ export interface DeploymentConfig {
   readonly in_memory_database: DeploymentConfigField<boolean>
   readonly provisioner_daemon_count: DeploymentConfigField<number>
   readonly oauth2_github_client_id: DeploymentConfigField<string>
-  readonly oauth2_github_allowed_organizations: DeploymentConfigField<string[]>
+  readonly oauth2_github_allowed_orgs: DeploymentConfigField<string[]>
   readonly oauth2_github_allowed_teams: DeploymentConfigField<string[]>
   readonly oauth2_github_allow_signups: DeploymentConfigField<boolean>
   readonly oauth2_github_enterprise_base_url: DeploymentConfigField<string>

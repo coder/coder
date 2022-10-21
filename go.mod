@@ -164,13 +164,15 @@ require (
 
 require github.com/jmoiron/sqlx v1.3.5
 
-require github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+require (
+	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+	github.com/spf13/viper v1.13.0
+)
 
 require (
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/spf13/viper v1.13.0 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )

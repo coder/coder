@@ -74,8 +74,8 @@ const AuthSettingsPage: React.FC = () => {
                 deploymentConfig.oauth2_github_client_secret,
               oauth2_github_allow_signups:
                 deploymentConfig.oauth2_github_allow_signups,
-              oauth2_github_allowed_organizations:
-                deploymentConfig.oauth2_github_allowed_organizations,
+              oauth2_github_allowed_orgs:
+                deploymentConfig.oauth2_github_allowed_orgs,
               oauth2_github_allowed_teams:
                 deploymentConfig.oauth2_github_allowed_teams,
               oauth2_github_enterprise_base_url:
