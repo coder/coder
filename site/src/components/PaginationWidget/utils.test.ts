@@ -1,4 +1,4 @@
-import { buildPagedList } from "./PaginationWidget"
+import { buildPagedList } from "./utils"
 
 describe("unit/PaginationWidget", () => {
   describe("buildPagedList", () => {
