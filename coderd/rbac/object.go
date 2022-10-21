@@ -142,9 +142,9 @@ var (
 		Type: "license",
 	}
 
-	// ResourceDeploymentConfig
-	ResourceDeploymentConfig = Object{
-		Type: "deployment_config",
+	// ResourceDeploymentFlags
+	ResourceDeploymentFlags = Object{
+		Type: "deployment_flags",
 	}
 
 	ResourceReplicas = Object{

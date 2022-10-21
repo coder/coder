@@ -32,7 +32,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -71,18 +70,14 @@ import (
 )
 
 // nolint:gocyclo
-func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
+func Server(dflags *codersdk.DeploymentFlags, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := deployment.Config(cmd.Flags(), vip)
-			if err != nil {
-				return xerrors.Errorf("getting deployment config: %w", err)
-			}
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+			if dflags.Verbose.Value {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -111,21 +106,22 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			var (
 				tracerProvider trace.TracerProvider
+				err            error
 				sqlDriver      = "postgres"
 			)
 
 			// Coder tracing should be disabled if telemetry is disabled unless
 			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := cfg.TelemetryEnable.Value && !isTest()
+			shouldCoderTrace := dflags.TelemetryEnable.Value && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
 			if cmd.Flags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.TelemetryTrace.Value
+				shouldCoderTrace = dflags.TelemetryTraceEnable.Value
 			}
 
-			if cfg.TraceEnable.Value || shouldCoderTrace {
+			if dflags.TraceEnable.Value || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default: cfg.TraceEnable.Value,
+					Default: dflags.TraceEnable.Value,
 					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
@@ -150,10 +146,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			config := createConfig(cmd)
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if !cfg.InMemoryDatabase.Value && cfg.PostgresURL.Value == "" {
+			if !dflags.InMemoryDatabase.Value && dflags.PostgresURL.Value == "" {
 				var closeFunc func() error
 				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
-				cfg.PostgresURL.Value, closeFunc, err = startBuiltinPostgres(ctx, config, logger)
+				dflags.PostgresURL.Value, closeFunc, err = startBuiltinPostgres(ctx, config, logger)
 				if err != nil {
 					return err
 				}
@@ -166,20 +162,20 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}()
 			}
 
-			listener, err := net.Listen("tcp", cfg.Address.Value)
+			listener, err := net.Listen("tcp", dflags.Address.Value)
 			if err != nil {
-				return xerrors.Errorf("listen %q: %w", cfg.Address.Value, err)
+				return xerrors.Errorf("listen %q: %w", dflags.Address.Value, err)
 			}
 			defer listener.Close()
 
 			var tlsConfig *tls.Config
-			if cfg.TLSEnable.Value {
+			if dflags.TLSEnable.Value {
 				tlsConfig, err = configureTLS(
-					cfg.TLSMinVersion.Value,
-					cfg.TLSClientAuth.Value,
-					cfg.TLSCertFiles.Value,
-					cfg.TLSKeyFiles.Value,
-					cfg.TLSClientCAFile.Value,
+					dflags.TLSMinVersion.Value,
+					dflags.TLSClientAuth.Value,
+					dflags.TLSCertFiles.Value,
+					dflags.TLSKeyFiles.Value,
+					dflags.TLSClientCAFile.Value,
 				)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
@@ -201,7 +197,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Scheme: "http",
 				Host:   tcpAddr.String(),
 			}
-			if cfg.TLSEnable.Value {
+			if dflags.TLSEnable.Value {
 				localURL.Scheme = "https"
 			}
 
@@ -214,26 +210,26 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
-			if cfg.AccessURL.Value == "" {
+			if dflags.AccessURL.Value == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				cfg.AccessURL.Value = tunnel.URL
+				dflags.AccessURL.Value = tunnel.URL
 
-				if cfg.WildcardAccessURL.Value == "" {
+				if dflags.WildcardAccessURL.Value == "" {
 					u, err := parseURL(ctx, tunnel.URL)
 					if err != nil {
 						return xerrors.Errorf("parse tunnel url: %w", err)
 					}
 
 					// Suffixed wildcard access URL.
-					cfg.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
+					dflags.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
 				}
 			}
 
-			accessURLParsed, err := parseURL(ctx, cfg.AccessURL.Value)
+			accessURLParsed, err := parseURL(ctx, dflags.AccessURL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse URL: %w", err)
 			}
@@ -268,17 +264,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return err
 			}
 
-			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(cfg.SSHKeygenAlgorithm.Value)
+			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(dflags.SSHKeygenAlgorithm.Value)
 			if err != nil {
-				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
+				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", dflags.SSHKeygenAlgorithm.Value, err)
 			}
 
 			// Validate provided auto-import templates.
 			var (
-				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(cfg.AutoImportTemplates.Value))
-				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(cfg.AutoImportTemplates.Value))
+				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(dflags.AutoImportTemplates.Value))
+				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(dflags.AutoImportTemplates.Value))
 			)
-			for i, autoImportTemplate := range cfg.AutoImportTemplates.Value {
+			for i, autoImportTemplate := range dflags.AutoImportTemplates.Value {
 				var v coderd.AutoImportTemplate
 				switch autoImportTemplate {
 				case "kubernetes":
@@ -296,27 +292,27 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
-				RegionID:      cfg.DERPServerRegionID.Value,
-				RegionCode:    cfg.DERPServerRegionCode.Value,
-				RegionName:    cfg.DERPServerRegionName.Value,
+				RegionID:      dflags.DerpServerRegionID.Value,
+				RegionCode:    dflags.DerpServerRegionCode.Value,
+				RegionName:    dflags.DerpServerRegionName.Value,
 				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%db", cfg.DERPServerRegionID.Value),
-					RegionID:  cfg.DERPServerRegionID.Value,
+					Name:      fmt.Sprintf("%db", dflags.DerpServerRegionID.Value),
+					RegionID:  dflags.DerpServerRegionID.Value,
 					HostName:  accessURLParsed.Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: accessURLParsed.Scheme == "http",
 				}},
 			}
-			if !cfg.DERPServerEnable.Value {
+			if !dflags.DerpServerEnable.Value {
 				defaultRegion = nil
 			}
-			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, cfg.DERPServerSTUNAddresses.Value, cfg.DERPConfigURL.Value, cfg.DERPConfigPath.Value)
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, dflags.DerpServerSTUNAddresses.Value, dflags.DerpConfigURL.Value, dflags.DerpConfigPath.Value)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
-			appHostname := strings.TrimSpace(cfg.WildcardAccessURL.Value)
+			appHostname := strings.TrimSpace(dflags.WildcardAccessURL.Value)
 			var appHostnameRegex *regexp.Regexp
 			if appHostname != "" {
 				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
@@ -333,45 +329,45 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
 				Pubsub:                      database.NewPubsubInMemory(),
-				CacheDir:                    cfg.CacheDirectory.Value,
+				CacheDir:                    dflags.CacheDir.Value,
 				GoogleTokenValidator:        googleTokenValidator,
-				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
+				SecureAuthCookie:            dflags.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
 				AutoImportTemplates:         validatedAutoImportTemplates,
-				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
-				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
+				MetricsCacheRefreshInterval: dflags.MetricsCacheRefreshInterval.Value,
+				AgentStatsRefreshInterval:   dflags.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
-				DeploymentConfig:            &cfg,
+				DeploymentFlags:             dflags,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
-			if cfg.OAuth2GithubClientSecret.Value != "" {
+			if dflags.OAuth2GithubClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
-					cfg.OAuth2GithubClientID.Value,
-					cfg.OAuth2GithubClientSecret.Value,
-					cfg.OAuth2GithubAllowSignups.Value,
-					cfg.OAuth2GithubAllowedOrganizations.Value,
-					cfg.OAuth2GithubAllowedTeams.Value,
-					cfg.OAuth2GithubEnterpriseBaseURL.Value,
+					dflags.OAuth2GithubClientID.Value,
+					dflags.OAuth2GithubClientSecret.Value,
+					dflags.OAuth2GithubAllowSignups.Value,
+					dflags.OAuth2GithubAllowedOrganizations.Value,
+					dflags.OAuth2GithubAllowedTeams.Value,
+					dflags.OAuth2GithubEnterpriseBaseURL.Value,
 				)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
 			}
 
-			if cfg.OIDCClientSecret.Value != "" {
-				if cfg.OIDCClientID.Value == "" {
+			if dflags.OIDCClientSecret.Value != "" {
+				if dflags.OIDCClientID.Value == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
-				if cfg.OIDCIssuerURL.Value == "" {
+				if dflags.OIDCIssuerURL.Value == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDCIssuerURL.Value)
+				oidcProvider, err := oidc.NewProvider(ctx, dflags.OIDCIssuerURL.Value)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
@@ -381,25 +377,25 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
-						ClientID:     cfg.OIDCClientID.Value,
-						ClientSecret: cfg.OIDCClientSecret.Value,
+						ClientID:     dflags.OIDCClientID.Value,
+						ClientSecret: dflags.OIDCClientSecret.Value,
 						RedirectURL:  redirectURL.String(),
 						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       cfg.OIDCScopes.Value,
+						Scopes:       dflags.OIDCScopes.Value,
 					},
 					Verifier: oidcProvider.Verifier(&oidc.Config{
-						ClientID: cfg.OIDCClientID.Value,
+						ClientID: dflags.OIDCClientID.Value,
 					}),
-					EmailDomain:  cfg.OIDCEmailDomain.Value,
-					AllowSignups: cfg.OIDCAllowSignups.Value,
+					EmailDomain:  dflags.OIDCEmailDomain.Value,
+					AllowSignups: dflags.OIDCAllowSignups.Value,
 				}
 			}
 
-			if cfg.InMemoryDatabase.Value {
+			if dflags.InMemoryDatabase.Value {
 				options.Database = databasefake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
-				sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
+				sqlDB, err := sql.Open(sqlDriver, dflags.PostgresURL.Value)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
@@ -431,7 +427,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("migrate up: %w", err)
 				}
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.Value)
+				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, dflags.PostgresURL.Value)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
@@ -454,26 +450,26 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(ctx, cfg.TelemetryURL.Value)
+			telemetryURL, err := parseURL(ctx, dflags.TelemetryURL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
-			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.TelemetryEnable.Flag) {
-				cfg.TelemetryEnable.Value = false
+			if dflags.InMemoryDatabase.Value && !cmd.Flags().Changed(dflags.TelemetryEnable.Flag) {
+				dflags.TelemetryEnable.Value = false
 			}
-			if cfg.TelemetryEnable.Value {
+			if dflags.TelemetryEnable.Value {
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
 					Database:        options.Database,
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
-					GitHubOAuth:     cfg.OAuth2GithubClientID.Value != "",
-					OIDCAuth:        cfg.OIDCClientID.Value != "",
-					OIDCIssuerURL:   cfg.OIDCIssuerURL.Value,
-					Prometheus:      cfg.PrometheusEnable.Value,
-					STUN:            len(cfg.DERPServerSTUNAddresses.Value) != 0,
+					GitHubOAuth:     dflags.OAuth2GithubClientID.Value != "",
+					OIDCAuth:        dflags.OIDCClientID.Value != "",
+					OIDCIssuerURL:   dflags.OIDCIssuerURL.Value,
+					Prometheus:      dflags.PromEnabled.Value,
+					STUN:            len(dflags.DerpServerSTUNAddresses.Value) != 0,
 					Tunnel:          tunnel != nil,
 				})
 				if err != nil {
@@ -484,11 +480,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			if cfg.PprofEnable.Value {
+			if dflags.PprofEnabled.Value {
 				//nolint:revive
-				defer serveHandler(ctx, logger, nil, cfg.PprofAddress.Value, "pprof")()
+				defer serveHandler(ctx, logger, nil, dflags.PprofAddress.Value, "pprof")()
 			}
-			if cfg.PrometheusEnable.Value {
+			if dflags.PromEnabled.Value {
 				options.PrometheusRegistry = prometheus.NewRegistry()
 				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
@@ -505,7 +501,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				//nolint:revive
 				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				), cfg.PrometheusAddress.Value, "prometheus")()
+				), dflags.PromAddress.Value, "prometheus")()
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
@@ -517,7 +513,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			client := codersdk.New(localURL)
-			if cfg.TLSEnable.Value {
+			if dflags.TLSEnable.Value {
 				// Secure transport isn't needed for locally communicating!
 				client.HTTPClient.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{
@@ -541,8 +537,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					_ = daemon.Close()
 				}
 			}()
-			for i := 0; i < cfg.ProvisionerDaemons.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cfg.CacheDirectory.Value, errCh, false)
+			for i := 0; i < dflags.ProvisionerDaemonCount.Value; i++ {
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, dflags.CacheDir.Value, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -608,7 +604,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value)
+			autobuildPoller := time.NewTicker(dflags.AutobuildPollInterval.Value)
 			defer autobuildPoller.Stop()
 			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
@@ -673,7 +669,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				go func() {
 					defer wg.Done()
 
-					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+					if dflags.Verbose.Value {
 						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
@@ -686,7 +682,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
 						return
 					}
-					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+					if dflags.Verbose.Value {
 						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
 					}
 				}()
@@ -738,7 +734,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+			if dflags.Verbose.Value {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -759,7 +755,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		},
 	})
 
-	deployment.AttachFlags(root.Flags(), vip, false)
+	deployment.AttachFlags(root.Flags(), dflags, false)
 
 	return root
 }
