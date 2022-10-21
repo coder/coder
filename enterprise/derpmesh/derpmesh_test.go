@@ -74,6 +74,7 @@ func TestDERPMesh(t *testing.T) {
 		go func() {
 			defer close(closed)
 			ticker := time.NewTicker(50 * time.Millisecond)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-ctx.Done():
@@ -118,6 +119,7 @@ func TestDERPMesh(t *testing.T) {
 		go func() {
 			defer close(closed)
 			ticker := time.NewTicker(50 * time.Millisecond)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-ctx.Done():
@@ -169,6 +171,7 @@ func TestDERPMesh(t *testing.T) {
 		go func() {
 			defer close(closed)
 			ticker := time.NewTicker(50 * time.Millisecond)
+			defer ticker.Stop()
 			for {
 				select {
 				case <-ctx.Done():

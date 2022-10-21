@@ -280,10 +280,35 @@ export const getURLWithSearchParams = (
 }
 
 export const getWorkspaces = async (
-  filter?: TypesGen.WorkspaceFilter,
+  options: TypesGen.WorkspacesRequest,
 ): Promise<TypesGen.Workspace[]> => {
-  const url = getURLWithSearchParams("/api/v2/workspaces", filter)
-  const response = await axios.get<TypesGen.Workspace[]>(url)
+  const searchParams = new URLSearchParams()
+  if (options.limit) {
+    searchParams.set("limit", options.limit.toString())
+  }
+  if (options.offset) {
+    searchParams.set("offset", options.offset.toString())
+  }
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+
+  const response = await axios.get<TypesGen.Workspace[]>(
+    `/api/v2/workspaces?${searchParams.toString()}`,
+  )
+  return response.data
+}
+
+export const getWorkspacesCount = async (
+  options: TypesGen.WorkspaceCountRequest,
+): Promise<TypesGen.WorkspaceCountResponse> => {
+  const searchParams = new URLSearchParams()
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+  const response = await axios.get(
+    `/api/v2/workspaces/count?${searchParams.toString()}`,
+  )
   return response.data
 }
 

@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -212,12 +213,21 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SFTP", func(t *testing.T) {
 		t.Parallel()
+		u, err := user.Current()
+		require.NoError(t, err, "get current user")
+		home := u.HomeDir
+		if runtime.GOOS == "windows" {
+			home = "/" + strings.ReplaceAll(home, "\\", "/")
+		}
 		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 		sshClient, err := conn.SSHClient()
 		require.NoError(t, err)
 		defer sshClient.Close()
 		client, err := sftp.NewClient(sshClient)
 		require.NoError(t, err)
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, home, wd, "working directory should be home user home")
 		tempFile := filepath.Join(t.TempDir(), "sftp")
 		file, err := client.Create(tempFile)
 		require.NoError(t, err)

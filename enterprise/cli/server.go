@@ -14,6 +14,8 @@ import (
 
 	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/tailnet"
 
@@ -48,6 +50,13 @@ func server() *cobra.Command {
 		}
 		options.DERPServer.SetMeshKey(meshKey)
 
+		if dflags.AuditLogging.Value {
+			options.Auditor = audit.NewAuditor(audit.DefaultFilter,
+				backends.NewPostgres(options.Database, true),
+				backends.NewSlog(options.Logger),
+			)
+		}
+
 		o := &coderd.Options{
 			AuditLogging:           dflags.AuditLogging.Value,
 			BrowserOnly:            dflags.BrowserOnly.Value,
@@ -59,6 +68,7 @@ func server() *cobra.Command {
 
 			Options: options,
 		}
+
 		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, nil, err
