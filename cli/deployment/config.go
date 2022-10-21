@@ -223,7 +223,7 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:  "tls-enable",
 		},
 		TLSCertFiles: codersdk.DeploymentConfigField[[]string]{
-			Key:   "tls.cert_files",
+			Key:   "tls.cert_file",
 			Usage: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
 			Flag:  "tls-cert-file",
 		},
@@ -239,7 +239,7 @@ func newConfig() codersdk.DeploymentConfig {
 			Value: "request",
 		},
 		TLSKeyFiles: codersdk.DeploymentConfigField[[]string]{
-			Key:   "tls.key_files",
+			Key:   "tls.key_file",
 			Usage: "Paths to the private keys for each of the certificates. It requires a PEM-encoded file.",
 			Flag:  "tls-key-file",
 		},
