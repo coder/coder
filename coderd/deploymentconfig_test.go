@@ -29,7 +29,7 @@ func TestDeploymentConfig(t *testing.T) {
 	cfg.OAuth2GithubClientSecret.Value = hi
 	cfg.OIDCClientSecret.Value = hi
 	cfg.PostgresURL.Value = hi
-	cfg.SCIMAuthHeader.Value = hi
+	cfg.SCIMAPIKey.Value = hi
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig: &cfg,
@@ -43,5 +43,5 @@ func TestDeploymentConfig(t *testing.T) {
 	require.Empty(t, scrubbed.OAuth2GithubClientSecret.Value)
 	require.Empty(t, scrubbed.OIDCClientSecret.Value)
 	require.Empty(t, scrubbed.PostgresURL.Value)
-	require.Empty(t, scrubbed.SCIMAuthHeader.Value)
+	require.Empty(t, scrubbed.SCIMAPIKey.Value)
 }

@@ -120,7 +120,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
 			if cmd.Flags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.TelemetryTraceEnable.Value
+				shouldCoderTrace = cfg.TelemetryTrace.Value
 			}
 
 			if cfg.TraceEnable.Value || shouldCoderTrace {
@@ -333,7 +333,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
 				Pubsub:                      database.NewPubsubInMemory(),
-				CacheDir:                    cfg.CacheDir.Value,
+				CacheDir:                    cfg.CacheDirectory.Value,
 				GoogleTokenValidator:        googleTokenValidator,
 				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
@@ -541,8 +541,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					_ = daemon.Close()
 				}
 			}()
-			for i := 0; i < cfg.ProvisionerDaemonCount.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cfg.CacheDir.Value, errCh, false)
+			for i := 0; i < cfg.ProvisionerDaemons.Value; i++ {
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cfg.CacheDirectory.Value, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}

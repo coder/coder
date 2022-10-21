@@ -28,9 +28,9 @@ type DeploymentConfig struct {
 	PrometheusAddress                DeploymentConfigField[string]        `json:"prometheus_address"`
 	PprofEnable                      DeploymentConfigField[bool]          `json:"pprof_enabled"`
 	PprofAddress                     DeploymentConfigField[string]        `json:"pprof_address"`
-	CacheDir                         DeploymentConfigField[string]        `json:"cache_dir"`
+	CacheDirectory                   DeploymentConfigField[string]        `json:"cache_directory"`
 	InMemoryDatabase                 DeploymentConfigField[bool]          `json:"in_memory_database"`
-	ProvisionerDaemonCount           DeploymentConfigField[int]           `json:"provisioner_daemon_count"`
+	ProvisionerDaemons               DeploymentConfigField[int]           `json:"provisioner_daemon_count"`
 	PostgresURL                      DeploymentConfigField[string]        `json:"-"`
 	OAuth2GithubClientID             DeploymentConfigField[string]        `json:"oauth2_github_client_id"`
 	OAuth2GithubClientSecret         DeploymentConfigField[string]        `json:"-"`
@@ -45,7 +45,7 @@ type DeploymentConfig struct {
 	OIDCIssuerURL                    DeploymentConfigField[string]        `json:"oidc_issuer_url"`
 	OIDCScopes                       DeploymentConfigField[[]string]      `json:"oidc_scopes"`
 	TelemetryEnable                  DeploymentConfigField[bool]          `json:"telemetry_enable"`
-	TelemetryTraceEnable             DeploymentConfigField[bool]          `json:"telemetry_trace_enable"`
+	TelemetryTrace                   DeploymentConfigField[bool]          `json:"telemetry_trace_enable"`
 	TelemetryURL                     DeploymentConfigField[string]        `json:"telemetry_url"`
 	TLSEnable                        DeploymentConfigField[bool]          `json:"tls_enable"`
 	TLSCertFiles                     DeploymentConfigField[[]string]      `json:"tls_cert_files"`
@@ -61,7 +61,7 @@ type DeploymentConfig struct {
 	AgentStatRefreshInterval         DeploymentConfigField[time.Duration] `json:"agent_stat_refresh_interval"`
 	AuditLogging                     DeploymentConfigField[bool]          `json:"audit_logging"`
 	BrowserOnly                      DeploymentConfigField[bool]          `json:"browser_only"`
-	SCIMAuthHeader                   DeploymentConfigField[string]        `json:"-"`
+	SCIMAPIKey                       DeploymentConfigField[string]        `json:"-"`
 	UserWorkspaceQuota               DeploymentConfigField[int]           `json:"user_workspace_quota"`
 }
 

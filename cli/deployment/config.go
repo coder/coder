@@ -113,8 +113,8 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:  "pprof-address",
 			Value: "127.0.0.1:6060",
 		},
-		CacheDir: codersdk.DeploymentConfigField[string]{
-			Key:   "cache_dir",
+		CacheDirectory: codersdk.DeploymentConfigField[string]{
+			Key:   "cache_directory",
 			Usage: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
 			Flag:  "cache-dir",
 			Value: defaultCacheDir(),
@@ -125,44 +125,44 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:   "in-memory",
 			Hidden: true,
 		},
-		ProvisionerDaemonCount: codersdk.DeploymentConfigField[int]{
-			Key:   "provisioner.daemon_count",
+		ProvisionerDaemons: codersdk.DeploymentConfigField[int]{
+			Key:   "provisioner.daemons",
 			Usage: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
 			Flag:  "provisioner-daemons",
 			Value: 3,
 		},
 		PostgresURL: codersdk.DeploymentConfigField[string]{
-			Key:   "postgres_url",
+			Key:   "pg_connection_url",
 			Usage: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:  "postgres-url",
 		},
 		OAuth2GithubClientID: codersdk.DeploymentConfigField[string]{
-			Key:   "oauth2github.client_id",
+			Key:   "oauth2.github.client_id",
 			Usage: "Client ID for Login with GitHub.",
 			Flag:  "oauth2-github-client-id",
 		},
 		OAuth2GithubClientSecret: codersdk.DeploymentConfigField[string]{
-			Key:   "oauth2github.client_secret",
+			Key:   "oauth2.github.client_secret",
 			Usage: "Client secret for Login with GitHub.",
 			Flag:  "oauth2-github-client-secret",
 		},
 		OAuth2GithubAllowedOrganizations: codersdk.DeploymentConfigField[[]string]{
-			Key:   "oauth2github.allowed_organizations",
+			Key:   "oauth2.github.allowed_organizations",
 			Usage: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:  "oauth2-github-allowed-orgs",
 		},
 		OAuth2GithubAllowedTeams: codersdk.DeploymentConfigField[[]string]{
-			Key:   "oauth2github.allowed_teams",
+			Key:   "oauth2.github.allowed_teams",
 			Usage: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
 			Flag:  "oauth2-github-allowed-teams",
 		},
 		OAuth2GithubAllowSignups: codersdk.DeploymentConfigField[bool]{
-			Key:   "oauth2github.allow_signups",
+			Key:   "oauth2.github.allow_signups",
 			Usage: "Whether new users can sign up with GitHub.",
 			Flag:  "oauth2-github-allow-signups",
 		},
 		OAuth2GithubEnterpriseBaseURL: codersdk.DeploymentConfigField[string]{
-			Key:   "oauth2github.enterprise_base_url",
+			Key:   "oauth2.github.enterprise_base_url",
 			Usage: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
 			Flag:  "oauth2-github-enterprise-base-url",
 		},
@@ -204,8 +204,8 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:  "telemetry",
 			Value: flag.Lookup("test.v") == nil,
 		},
-		TelemetryTraceEnable: codersdk.DeploymentConfigField[bool]{
-			Key:   "telemetry.trace.enable",
+		TelemetryTrace: codersdk.DeploymentConfigField[bool]{
+			Key:   "telemetry.trace",
 			Usage: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
 			Flag:  "telemetry-trace",
 			Value: flag.Lookup("test.v") == nil,
@@ -298,8 +298,8 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:       "browser-only",
 			Enterprise: true,
 		},
-		SCIMAuthHeader: codersdk.DeploymentConfigField[string]{
-			Key:        "scim_auth_header",
+		SCIMAPIKey: codersdk.DeploymentConfigField[string]{
+			Key:        "scim_api_key",
 			Usage:      "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:       "scim-auth-header",
 			Enterprise: true,
