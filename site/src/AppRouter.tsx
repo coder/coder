@@ -256,7 +256,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
                 >
                   <DeploySettingsLayout>
                     <GeneralSettingsPage />
@@ -270,7 +270,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
                 >
                   <DeploySettingsLayout>
                     <SecuritySettingsPage />
@@ -284,7 +284,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
                 >
                   <DeploySettingsLayout>
                     <NetworkSettingsPage />
@@ -298,7 +298,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
                 >
                   <DeploySettingsLayout>
                     <AuthSettingsPage />

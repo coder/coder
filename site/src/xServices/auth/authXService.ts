@@ -16,7 +16,7 @@ export const checks = {
   createTemplates: "createTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
-  viewDeploymentConfig: "viewDeploymentConfig",
+  viewDeploymentFlags: "viewDeploymentFlags",
   createGroup: "createGroup",
 } as const
 
@@ -57,7 +57,7 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-  [checks.viewDeploymentConfig]: {
+  [checks.viewDeploymentFlags]: {
     object: {
       resource_type: "deployment_flags",
     },
