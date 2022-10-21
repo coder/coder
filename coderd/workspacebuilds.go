@@ -284,10 +284,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if action == rbac.ActionDelete {
 		var (
 			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-				Audit:   *auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  database.AuditActionDelete,
+				Audit:            *auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           database.AuditActionDelete,
+				AdditionalFields: json.RawMessage("{}"),
 			})
 		)
 

@@ -282,10 +282,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		auditor           = api.Auditor.Load()
 		user              = httpmw.UserParam(r)
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionCreate,
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionCreate,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
@@ -566,10 +567,11 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
@@ -644,10 +646,11 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
@@ -706,10 +709,11 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		workspace         = httpmw.WorkspaceParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()

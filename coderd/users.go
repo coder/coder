@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -256,10 +257,11 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
-		Audit:   auditor,
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionCreate,
+		Audit:            auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionCreate,
+		AdditionalFields: json.RawMessage("{}"),
 	})
 	defer commitAudit()
 
@@ -343,10 +345,11 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	auditor := *api.Auditor.Load()
 	user := httpmw.UserParam(r)
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
-		Audit:   auditor,
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionDelete,
+		Audit:            auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionDelete,
+		AdditionalFields: json.RawMessage("{}"),
 	})
 	aReq.Old = user
 	defer commitAudit()
@@ -420,10 +423,11 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
@@ -502,10 +506,11 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			apiKey            = httpmw.APIKey(r)
 			auditor           = *api.Auditor.Load()
 			aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-				Audit:   auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  database.AuditActionWrite,
+				Audit:            auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           database.AuditActionWrite,
+				AdditionalFields: json.RawMessage("{}"),
 			})
 		)
 		defer commitAudit()
@@ -570,10 +575,11 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		params            codersdk.UpdateUserPasswordRequest
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
@@ -732,10 +738,11 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		apiKey            = httpmw.APIKey(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 	)
 	defer commitAudit()
