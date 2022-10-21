@@ -34,7 +34,7 @@ spec:
           image: {{ include "coder.image" . | quote }}
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.coder.resources | nindent 12 }}
           env:
             - name: CODER_ADDRESS
               value: "0.0.0.0:{{ include "coder.port" . }}"
