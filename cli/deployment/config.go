@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -315,7 +316,7 @@ func newConfig() codersdk.DeploymentConfig {
 //nolint:revive
 func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig, error) {
 	dc := newConfig()
-	flg, err := flagset.GetString("global-config")
+	flg, err := flagset.GetString(config.FlagName)
 	if err != nil {
 		return dc, xerrors.Errorf("get global config from flag: %w", err)
 	}

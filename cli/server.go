@@ -78,7 +78,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := deployment.Config(cmd.Flags(), vip)
 			if err != nil {
-				return xerrors.Errorf("getting deployment config", err)
+				return xerrors.Errorf("getting deployment config: %w", err)
 			}
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))

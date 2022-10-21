@@ -6,6 +6,10 @@ import (
 	"path/filepath"
 )
 
+const (
+	FlagName = "global-config"
+)
+
 // Root represents the configuration directory.
 type Root string
 
