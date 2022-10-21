@@ -298,6 +298,8 @@ export interface DeploymentFlags {
   readonly oidc_email_domain: StringFlag
   readonly oidc_issuer_url: StringFlag
   readonly oidc_scopes: StringArrayFlag
+  readonly proxy_trusted_headers: StringArrayFlag
+  readonly proxy_trusted_origins: StringArrayFlag
   readonly telemetry_enable: BoolFlag
   readonly telemetry_trace_enable: BoolFlag
   readonly telemetry_url: StringFlag

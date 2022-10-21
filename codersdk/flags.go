@@ -42,6 +42,8 @@ type DeploymentFlags struct {
 	OIDCEmailDomain                  *StringFlag      `json:"oidc_email_domain" typescript:",notnull"`
 	OIDCIssuerURL                    *StringFlag      `json:"oidc_issuer_url" typescript:",notnull"`
 	OIDCScopes                       *StringArrayFlag `json:"oidc_scopes" typescript:",notnull"`
+	ProxyTrustedHeaders              *StringArrayFlag `json:"proxy_trusted_headers" typescript:",notnull"`
+	ProxyTrustedOrigins              *StringArrayFlag `json:"proxy_trusted_origins" typescript:",notnull"`
 	TelemetryEnable                  *BoolFlag        `json:"telemetry_enable" typescript:",notnull"`
 	TelemetryTraceEnable             *BoolFlag        `json:"telemetry_trace_enable" typescript:",notnull"`
 	TelemetryURL                     *StringFlag      `json:"telemetry_url" typescript:",notnull"`

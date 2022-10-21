@@ -236,6 +236,18 @@ func Flags() *codersdk.DeploymentFlags {
 			Description: "Scopes to grant when authenticating with OIDC.",
 			Default:     []string{oidc.ScopeOpenID, "profile", "email"},
 		},
+		ProxyTrustedHeaders: &codersdk.StringArrayFlag{
+			Name:        "Trusted HTTP Proxy Headers",
+			Flag:        "proxy-trusted-headers",
+			EnvVar:      "CODER_PROXY_TRUSTED_HEADERS",
+			Description: "Headers to trust for forwarding IP addresses. e.g. \"X-Forwarded-for\"",
+		},
+		ProxyTrustedOrigins: &codersdk.StringArrayFlag{
+			Name:        "Trusted HTTP Proxy Origins",
+			Flag:        "proxy-trusted-origins",
+			EnvVar:      "CODER_PROXY_TRUSTED_ORIGINS",
+			Description: "Origin addresses to respect \"proxy-trusted-headers\".",
+		},
 		TelemetryEnable: &codersdk.BoolFlag{
 			Name:        "Telemetry Enabled",
 			Flag:        "telemetry",
