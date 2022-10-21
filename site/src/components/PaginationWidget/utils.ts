@@ -1,4 +1,3 @@
-
 /**
  * Generates a ranged array with an option to step over values.
  * Shamelessly stolen from:

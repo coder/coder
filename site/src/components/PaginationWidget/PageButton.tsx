@@ -16,7 +16,7 @@ export const PageButton = ({
   placeholder = "...",
   numPages,
   onPageClick,
-  disabled = false
+  disabled = false,
 }: PageButtonProps): JSX.Element => {
   const styles = useStyles()
   return (
