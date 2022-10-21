@@ -90,8 +90,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace',
     'git_ssh_key',
     'api_key',
+    'group',
     'workspace_build'
-    'group'
 );
 
 CREATE TYPE user_status AS ENUM (
