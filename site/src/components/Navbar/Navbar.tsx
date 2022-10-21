@@ -22,7 +22,7 @@ export const Navbar: React.FC = () => {
     featureVisibility[FeatureNames.AuditLog] &&
     Boolean(permissions?.viewAuditLog)
   const canViewDeployment =
-    experimental && Boolean(permissions?.viewDeploymentFlags)
+    experimental && Boolean(permissions?.viewDeploymentConfig)
   const onSignOut = () => authSend("SIGN_OUT")
 
   return (

@@ -164,7 +164,18 @@ require (
 
 require github.com/jmoiron/sqlx v1.3.5
 
-require github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+require (
+	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+	github.com/spf13/viper v1.13.0
+)
+
+require (
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/magiconair/properties v1.8.6 // indirect
+	github.com/pelletier/go-toml v1.9.5 // indirect
+	github.com/subosito/gotenv v1.4.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
+)
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
@@ -252,7 +263,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
-	github.com/pelletier/go-toml/v2 v2.0.4 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/pion/transport v0.13.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

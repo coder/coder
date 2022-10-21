@@ -441,6 +441,10 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			jsonOptional bool
 		)
 		if err == nil {
+			if jsonTag.Name == "-" {
+				// Completely ignore this field.
+				continue
+			}
 			jsonName = jsonTag.Name
 			if len(jsonTag.Options) > 0 && jsonTag.Options[0] == "omitempty" {
 				jsonOptional = true
