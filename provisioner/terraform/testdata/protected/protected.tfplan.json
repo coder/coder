@@ -5,27 +5,10 @@
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.main",
-          "mode": "managed",
-          "type": "coder_agent",
-          "name": "main",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "arch": "amd64",
-            "auth": "token",
-            "dir": null,
-            "env": null,
-            "os": "linux",
-            "startup_script": null
-          },
-          "sensitive_values": {}
-        },
-        {
-          "address": "null_resource.a",
+          "address": "null_resource.oops",
           "mode": "managed",
           "type": "null_resource",
-          "name": "a",
+          "name": "oops",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -34,10 +17,10 @@
           "sensitive_values": {}
         },
         {
-          "address": "null_resource.b",
+          "address": "null_resource.whew",
           "mode": "managed",
           "type": "null_resource",
-          "name": "b",
+          "name": "whew",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -50,40 +33,10 @@
   },
   "resource_changes": [
     {
-      "address": "coder_agent.main",
-      "mode": "managed",
-      "type": "coder_agent",
-      "name": "main",
-      "provider_name": "registry.terraform.io/coder/coder",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "arch": "amd64",
-          "auth": "token",
-          "dir": null,
-          "env": null,
-          "os": "linux",
-          "startup_script": null
-        },
-        "after_unknown": {
-          "id": true,
-          "init_script": true,
-          "token": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {
-          "token": true
-        }
-      }
-    },
-    {
-      "address": "null_resource.a",
+      "address": "null_resource.oops",
       "mode": "managed",
       "type": "null_resource",
-      "name": "a",
+      "name": "oops",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -101,10 +54,10 @@
       }
     },
     {
-      "address": "null_resource.b",
+      "address": "null_resource.whew",
       "mode": "managed",
       "type": "null_resource",
-      "name": "b",
+      "name": "whew",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -137,42 +90,20 @@
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.main",
+          "address": "null_resource.oops",
           "mode": "managed",
-          "type": "coder_agent",
-          "name": "main",
-          "provider_config_key": "coder",
-          "expressions": {
-            "arch": {
-              "constant_value": "amd64"
-            },
-            "os": {
-              "constant_value": "linux"
-            }
-          },
+          "type": "null_resource",
+          "name": "oops",
+          "provider_config_key": "null",
           "schema_version": 0
         },
         {
-          "address": "null_resource.a",
+          "address": "null_resource.whew",
           "mode": "managed",
           "type": "null_resource",
-          "name": "a",
+          "name": "whew",
           "provider_config_key": "null",
-          "schema_version": 0,
-          "depends_on": [
-            "null_resource.b"
-          ]
-        },
-        {
-          "address": "null_resource.b",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "b",
-          "provider_config_key": "null",
-          "schema_version": 0,
-          "depends_on": [
-            "coder_agent.main"
-          ]
+          "schema_version": 0
         }
       ]
     }

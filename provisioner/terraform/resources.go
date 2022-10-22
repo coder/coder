@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -269,24 +270,20 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	resourceProtected := map[string]bool{}
 	for resourceName, resource := range tfResourceByLabel {
 		var lifecycleBlock struct {
-			Lifecycle struct {
-				// IgnoreChanges can be string or []string
-				IgnoreChanges interface{} `mapstructure:"ignore_changes"`
-			} `mapstructure:"lifecycle"`
+			Lifecycle map[string]string `mapstructure:"lifecycle"`
 		}
 		err := mapstructure.Decode(resource.AttributeValues, &lifecycleBlock)
 		if err != nil {
 			return nil, xerrors.Errorf("decode lifecycle attributes: %w", err)
 		}
+		fmt.Printf("%+v\n", resource)
 
-		ignoreChangesString, ok := lifecycleBlock.Lifecycle.IgnoreChanges.(string)
-		if !ok {
-			continue
-		}
+		_ = resourceName
+		// ignoreChangesString := lifecycleBlock.Lifecycle.IgnoreChanges
 
-		if ignoreChangesString == "all" {
-			resourceProtected[resourceName] = true
-		}
+		// if ignoreChangesString == "all" {
+		// 	resourceProtected[resourceName] = true
+		// }
 	}
 
 	// Associate metadata blocks with resources.
@@ -378,12 +375,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		resources = append(resources, &proto.Resource{
-			Name:     resource.Name,
-			Type:     resource.Type,
-			Agents:   agents,
-			Hide:     resourceHidden[label],
-			Icon:     resourceIcon[label],
-			Metadata: resourceMetadata[label],
+			Name:      resource.Name,
+			Type:      resource.Type,
+			Agents:    agents,
+			Hide:      resourceHidden[label],
+			Icon:      resourceIcon[label],
+			Metadata:  resourceMetadata[label],
+			Protected: resourceProtected[label],
 		})
 	}
 

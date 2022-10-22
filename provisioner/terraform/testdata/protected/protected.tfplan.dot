@@ -1,0 +1,15 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] null_resource.oops (expand)" [label = "null_resource.oops", shape = "box"]
+		"[root] null_resource.whew (expand)" [label = "null_resource.whew", shape = "box"]
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+		"[root] null_resource.oops (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] null_resource.whew (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.oops (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.whew (expand)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
+	}
+}
+

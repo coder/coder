@@ -151,6 +151,18 @@ func TestConvertResources(t *testing.T) {
 				Sensitive: true,
 			}},
 		}},
+		// Protected label correctly applied
+		"protected": {{
+			Name:      "oops",
+			Type:      "null_resource",
+			Protected: false,
+		},
+			{
+				Name:      "whew",
+				Type:      "null_resource",
+				Protected: true,
+			},
+		},
 	} {
 		folderName := folderName
 		expected := expected

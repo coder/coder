@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.2.8",
+  "terraform_version": "1.3.2",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -34,6 +34,7 @@
             "icon": null,
             "name": null,
             "relative_path": null,
+            "share": "owner",
             "subdomain": null,
             "url": null
           },
@@ -60,11 +61,14 @@
             "icon": null,
             "name": null,
             "relative_path": null,
+            "share": "owner",
             "subdomain": true,
             "url": null
           },
           "sensitive_values": {
-            "healthcheck": [{}]
+            "healthcheck": [
+              {}
+            ]
           }
         },
         {
@@ -80,6 +84,7 @@
             "icon": null,
             "name": null,
             "relative_path": null,
+            "share": "owner",
             "subdomain": false,
             "url": null
           },
@@ -110,7 +115,9 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -138,7 +145,9 @@
       "name": "app1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -146,6 +155,7 @@
           "icon": null,
           "name": null,
           "relative_path": null,
+          "share": "owner",
           "subdomain": null,
           "url": null
         },
@@ -167,7 +177,9 @@
       "name": "app2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -181,17 +193,22 @@
           "icon": null,
           "name": null,
           "relative_path": null,
+          "share": "owner",
           "subdomain": true,
           "url": null
         },
         "after_unknown": {
           "agent_id": true,
-          "healthcheck": [{}],
+          "healthcheck": [
+            {}
+          ],
           "id": true
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "healthcheck": [{}]
+          "healthcheck": [
+            {}
+          ]
         }
       }
     },
@@ -202,7 +219,9 @@
       "name": "app3",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -210,6 +229,7 @@
           "icon": null,
           "name": null,
           "relative_path": null,
+          "share": "owner",
           "subdomain": false,
           "url": null
         },
@@ -231,7 +251,9 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -249,7 +271,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.5.0"
+        "version_constraint": "0.5.3"
       },
       "null": {
         "name": "null",
@@ -282,7 +304,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             }
           },
           "schema_version": 0
@@ -295,7 +320,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             },
             "healthcheck": [
               {
@@ -324,7 +352,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             },
             "subdomain": {
               "constant_value": false
@@ -339,7 +370,9 @@
           "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         }
       ]
     }
@@ -347,7 +380,9 @@
   "relevant_attributes": [
     {
       "resource": "coder_agent.dev1",
-      "attribute": ["id"]
+      "attribute": [
+        "id"
+      ]
     }
   ]
 }
