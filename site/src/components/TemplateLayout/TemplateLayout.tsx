@@ -9,7 +9,6 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DropdownButton } from "components/DropdownButton/DropdownButton"
-import { Loader } from "components/Loader/Loader"
 import {
   PageHeader,
   PageHeaderSubtitle,
@@ -53,7 +52,7 @@ const useTemplateName = () => {
 
 type TemplateLayoutContextValue = {
   context: TemplateContext
-  permissions: Permissions
+  permissions?: Permissions
 }
 
 const TemplateLayoutContext = createContext<
@@ -97,23 +96,23 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
     !templateDAUs ||
     !templatePermissions
 
-  if (isLoading) {
-    return <Loader />
-  }
-
   if (templateState.matches("deleted")) {
     return <Navigate to="/templates" />
   }
 
-  const hasIcon = template.icon && template.icon !== ""
+  const hasIcon = template && template.icon && template.icon !== ""
 
   const createWorkspaceButton = (className?: string) => (
     <Link
       underline="none"
       component={RouterLink}
-      to={`/templates/${template.name}/workspace`}
+      to={`/templates/${templateName}/workspace`}
     >
-      <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
+      <Button
+        className={className ?? ""}
+        startIcon={<AddCircleOutline />}
+        disabled={isLoading}
+      >
         {Language.createButton}
       </Button>
     </Link>
@@ -128,89 +127,98 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
       <Margins>
         <PageHeader
           actions={
-            <ChooseOne>
-              <Cond condition={templatePermissions.canUpdateTemplate}>
-                <Link
-                  underline="none"
-                  component={RouterLink}
-                  to={`/templates/${template.name}/settings`}
-                >
-                  <Button variant="outlined" startIcon={<SettingsOutlined />}>
-                    {Language.settingsButton}
-                  </Button>
-                </Link>
+            isLoading ? undefined : (
+              <ChooseOne>
+                <Cond condition={templatePermissions.canUpdateTemplate}>
+                  <Link
+                    underline="none"
+                    component={RouterLink}
+                    to={`/templates/${template.name}/settings`}
+                  >
+                    <Button variant="outlined" startIcon={<SettingsOutlined />}>
+                      {Language.settingsButton}
+                    </Button>
+                  </Link>
 
-                <DropdownButton
-                  primaryAction={createWorkspaceButton(styles.actionButton)}
-                  secondaryActions={[
-                    {
-                      action: "delete",
-                      button: (
-                        <DeleteButton handleAction={handleDeleteTemplate} />
-                      ),
-                    },
-                  ]}
-                  canCancel={false}
-                />
-              </Cond>
+                  <DropdownButton
+                    primaryAction={createWorkspaceButton(styles.actionButton)}
+                    secondaryActions={[
+                      {
+                        action: "delete",
+                        button: (
+                          <DeleteButton handleAction={handleDeleteTemplate} />
+                        ),
+                      },
+                    ]}
+                    canCancel={false}
+                  />
+                </Cond>
 
-              <Cond>{createWorkspaceButton()}</Cond>
-            </ChooseOne>
+                <Cond>{createWorkspaceButton()}</Cond>
+              </ChooseOne>
+            )
           }
         >
           <Stack direction="row" spacing={3} className={styles.pageTitle}>
-            <div>
-              {hasIcon ? (
-                <div className={styles.iconWrapper}>
-                  <img src={template.icon} alt="" />
-                </div>
-              ) : (
-                <Avatar className={styles.avatar}>
-                  {firstLetter(template.name)}
-                </Avatar>
-              )}
-            </div>
-            <div>
-              <PageHeaderTitle>{template.name}</PageHeaderTitle>
-              <PageHeaderSubtitle condensed>
-                {template.description === ""
-                  ? Language.noDescription
-                  : template.description}
-              </PageHeaderSubtitle>
-            </div>
+            {!isLoading && (
+              <div>
+                {hasIcon ? (
+                  <div className={styles.iconWrapper}>
+                    <img src={template.icon} alt="" />
+                  </div>
+                ) : (
+                  <Avatar className={styles.avatar}>
+                    {firstLetter(templateName)}
+                  </Avatar>
+                )}
+              </div>
+            )}
+
+            {!isLoading && (
+              <div>
+                <PageHeaderTitle>{templateName}</PageHeaderTitle>
+                <PageHeaderSubtitle condensed>
+                  {template.description === ""
+                    ? Language.noDescription
+                    : template.description}
+                </PageHeaderSubtitle>
+              </div>
+            )}
           </Stack>
         </PageHeader>
       </Margins>
 
-      <div className={styles.tabs}>
-        <Margins>
-          <Stack direction="row" spacing={0.25}>
-            <NavLink
-              end
-              to={`/templates/${template.name}`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Summary
-            </NavLink>
-            <NavLink
-              to={`/templates/${template.name}/permissions`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Permissions
-            </NavLink>
-          </Stack>
-        </Margins>
-      </div>
+      {!isLoading && (
+        <div className={styles.tabs}>
+          <Margins>
+            <Stack direction="row" spacing={0.25}>
+              <NavLink
+                end
+                to={`/templates/${template.name}`}
+                className={({ isActive }) =>
+                  combineClasses([
+                    styles.tabItem,
+                    isActive ? styles.tabItemActive : undefined,
+                  ])
+                }
+              >
+                Summary
+              </NavLink>
+              <NavLink
+                to={`/templates/${template.name}/permissions`}
+                className={({ isActive }) =>
+                  combineClasses([
+                    styles.tabItem,
+                    isActive ? styles.tabItemActive : undefined,
+                  ])
+                }
+              >
+                Permissions
+              </NavLink>
+            </Stack>
+          </Margins>
+        </div>
+      )}
 
       <Margins>
         <TemplateLayoutContext.Provider
@@ -220,18 +228,20 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
         </TemplateLayoutContext.Provider>
       </Margins>
 
-      <DeleteDialog
-        isOpen={templateState.matches("confirmingDelete")}
-        confirmLoading={templateState.matches("deleting")}
-        onConfirm={() => {
-          templateSend("CONFIRM_DELETE")
-        }}
-        onCancel={() => {
-          templateSend("CANCEL_DELETE")
-        }}
-        entity="template"
-        name={template.name}
-      />
+      {!isLoading && (
+        <DeleteDialog
+          isOpen={templateState.matches("confirmingDelete")}
+          confirmLoading={templateState.matches("deleting")}
+          onConfirm={() => {
+            templateSend("CONFIRM_DELETE")
+          }}
+          onCancel={() => {
+            templateSend("CANCEL_DELETE")
+          }}
+          entity="template"
+          name={template.name}
+        />
+      )}
     </>
   )
 }

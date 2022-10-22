@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database"
 )
 
 func structName(t reflect.Type) string {
@@ -137,7 +138,8 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		}
 
 		return leftInt64Ptr, rightInt64Ptr, true
-
+	case database.TemplateACL:
+		return fmt.Sprintf("%+v", left), fmt.Sprintf("%+v", right), true
 	default:
 		return left, right, false
 	}

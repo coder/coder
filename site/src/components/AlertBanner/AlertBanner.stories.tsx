@@ -1,7 +1,8 @@
 import { Story } from "@storybook/react"
-import { AlertBanner, AlertBannerProps } from "./AlertBanner"
+import { AlertBanner } from "./AlertBanner"
 import Button from "@material-ui/core/Button"
 import { makeMockApiError } from "testHelpers/entities"
+import { AlertBannerProps } from "./alertTypes"
 
 export default {
   title: "components/AlertBanner",
@@ -98,4 +99,10 @@ ErrorWithActionRetryAndDismiss.args = {
   retry: () => null,
   dismissible: true,
   severity: "error",
+}
+
+export const ErrorAsWarning = Template.bind({})
+ErrorAsWarning.args = {
+  error: mockError,
+  severity: "warning",
 }

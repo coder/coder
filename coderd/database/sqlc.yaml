@@ -19,6 +19,12 @@ packages:
 overrides:
   - column: "users.rbac_roles"
     go_type: "github.com/lib/pq.StringArray"
+  - column: "templates.user_acl"
+    go_type:
+      type: "TemplateACL"
+  - column: "templates.group_acl"
+    go_type:
+      type: "TemplateACL"
 
 rename:
   api_key: APIKey
@@ -39,5 +45,5 @@ rename:
   ip_addresses: IPAddresses
   ids: IDs
   jwt: JWT
-  user_acl: userACL
-  group_acl: groupACL
+  user_acl: UserACL
+  group_acl: GroupACL

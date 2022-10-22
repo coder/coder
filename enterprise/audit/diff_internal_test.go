@@ -256,7 +256,6 @@ func Test_diff(t *testing.T) {
 			},
 			exp: audit.Map{
 				"id":                     audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"organization_id":        audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
 				"name":                   audit.OldNew{Old: "", New: "rust"},
 				"provisioner":            audit.OldNew{Old: database.ProvisionerType(""), New: database.ProvisionerTypeTerraform},
 				"active_version_id":      audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
@@ -281,11 +280,10 @@ func Test_diff(t *testing.T) {
 				CreatedBy:      uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
 			},
 			exp: audit.Map{
-				"id":              audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"template_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
-				"organization_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
-				"created_by":      audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
-				"name":            audit.OldNew{Old: "", New: "rust"},
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"template_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"created_by":  audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
+				"name":        audit.OldNew{Old: "", New: "rust"},
 			},
 		},
 		{
@@ -301,10 +299,9 @@ func Test_diff(t *testing.T) {
 				CreatedBy:      uuid.NullUUID{UUID: uuid.UUID{4}, Valid: true},
 			},
 			exp: audit.Map{
-				"id":              audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"organization_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
-				"created_by":      audit.OldNew{Old: "null", New: uuid.UUID{4}.String()},
-				"name":            audit.OldNew{Old: "", New: "rust"},
+				"id":         audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"created_by": audit.OldNew{Old: "null", New: uuid.UUID{4}.String()},
+				"name":       audit.OldNew{Old: "", New: "rust"},
 			},
 		},
 	})

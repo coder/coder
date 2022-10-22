@@ -47,7 +47,7 @@ to log in and manage templates.
 
    The cluster-internal DB URL for the above database is:
 
-   ```
+   ```console
    postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
    ```
 
@@ -59,6 +59,10 @@ to log in and manage templates.
 
 1. Download the latest `coder_helm` package from
    [GitHub releases](https://github.com/coder/coder/releases).
+
+   ```console
+   wget https://github.com/coder/coder/releases/download/<release>/coder_helm_<release>.tgz
+   ```
 
 1. Create a secret with the database URL:
 
@@ -98,11 +102,11 @@ to log in and manage templates.
        # This env variable controls whether or not to auto-import the
        # "kubernetes" template on first startup. This will not work unless
        # coder.serviceAccount.workspacePerms is true.
-       - name: CODER_TEMPLATE_AUTOIMPORT
+       - name: CODER_AUTO_IMPORT_TEMPLATES
          value: "kubernetes"
 
      #tls:
-     #  secretNames: 
+     #  secretNames:
      #    - my-tls-secret-name
    ```
 

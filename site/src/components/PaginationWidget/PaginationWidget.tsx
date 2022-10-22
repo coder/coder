@@ -1,7 +1,10 @@
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, useTheme } from "@material-ui/core/styles"
+import useMediaQuery from "@material-ui/core/useMediaQuery"
 import KeyboardArrowLeft from "@material-ui/icons/KeyboardArrowLeft"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
+import { Maybe } from "components/Conditionals/Maybe"
 import { CSSProperties } from "react"
 
 export type PaginationWidgetProps = {
@@ -24,7 +27,7 @@ export type PaginationWidgetProps = {
 const range = (start: number, stop: number, step = 1) =>
   Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step)
 
-const DEFAULT_RECORDS_PER_PAGE = 25
+export const DEFAULT_RECORDS_PER_PAGE = 25
 // Number of pages to the left or right of the current page selection.
 const PAGE_NEIGHBORS = 1
 // Number of pages displayed for cases where there are multiple ellipsis showing. This can be
@@ -74,6 +77,38 @@ export const buildPagedList = (
   return range(1, numPages)
 }
 
+interface PageButtonProps {
+  activePage: number
+  page: number
+  numPages: number
+  onPageClick?: (page: number) => void
+}
+
+const PageButton = ({
+  activePage,
+  page,
+  numPages,
+  onPageClick,
+}: PageButtonProps): JSX.Element => {
+  const styles = useStyles()
+  return (
+    <Button
+      className={
+        activePage === page
+          ? `${styles.pageButton} ${styles.activePageButton}`
+          : styles.pageButton
+      }
+      aria-label={`${page === activePage ? "Current Page" : ""} ${
+        page === numPages ? "Last Page" : ""
+      } Page${page}`}
+      name="Page button"
+      onClick={() => onPageClick && onPageClick(page)}
+    >
+      <div>{page}</div>
+    </Button>
+  )
+}
+
 export const PaginationWidget = ({
   prevLabel,
   nextLabel,
@@ -88,11 +123,12 @@ export const PaginationWidget = ({
   const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
   const firstPageActive = activePage === 1 && numPages !== 0
   const lastPageActive = activePage === numPages && numPages !== 0
-
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const styles = useStyles()
 
   // No need to display any pagination if we know the number of pages is 1
-  if (numPages === 1) {
+  if (numPages === 1 || numRecords === 0) {
     return null
   }
 
@@ -107,30 +143,38 @@ export const PaginationWidget = ({
         <KeyboardArrowLeft />
         <div>{prevLabel}</div>
       </Button>
-      {numPages > 0 &&
-        buildPagedList(numPages, activePage).map((page) =>
-          typeof page !== "number" ? (
-            <Button className={styles.pageButton} key={`Page${page}`} disabled>
-              <div>...</div>
-            </Button>
-          ) : (
-            <Button
-              className={
-                activePage === page
-                  ? `${styles.pageButton} ${styles.activePageButton}`
-                  : styles.pageButton
-              }
-              aria-label={`${page === activePage ? "Current Page" : ""} ${
-                page === numPages ? "Last Page" : ""
-              } Page${page}`}
-              name="Page button"
-              key={`Page${page}`}
-              onClick={() => onPageClick && onPageClick(page)}
-            >
-              <div>{page}</div>
-            </Button>
-          ),
-        )}
+      <Maybe condition={numPages > 0}>
+        <ChooseOne>
+          <Cond condition={isMobile}>
+            <PageButton
+              activePage={activePage}
+              page={activePage}
+              numPages={numPages}
+            />
+          </Cond>
+          <Cond>
+            {buildPagedList(numPages, activePage).map((page) =>
+              typeof page !== "number" ? (
+                <Button
+                  className={styles.pageButton}
+                  key={`Page${page}`}
+                  disabled
+                >
+                  <div>...</div>
+                </Button>
+              ) : (
+                <PageButton
+                  key={`Page${page}`}
+                  activePage={activePage}
+                  page={page}
+                  numPages={numPages}
+                  onPageClick={onPageClick}
+                />
+              ),
+            )}
+          </Cond>
+        </ChooseOne>
+      </Maybe>
       <Button
         aria-label="Next page"
         disabled={lastPageActive}

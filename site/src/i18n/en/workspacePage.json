@@ -33,5 +33,10 @@
     "canceling": "Canceling",
     "deleted": "Deleted",
     "pending": "Pending"
+  },
+  "agentStatus": {
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "disconnected": "Disconnected"
   }
 }

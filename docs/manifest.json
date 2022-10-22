@@ -51,6 +51,11 @@
           "path": "./install/binary.md"
         },
         {
+          "title": "Offline deployments",
+          "description": "Run Coder in offline / air-gapped environments",
+          "path": "./install/offline.md"
+        },
+        {
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
@@ -68,6 +73,12 @@
           "description": "Setup Coder with Docker",
           "icon_path": "./images/icons/docker.svg",
           "path": "./quickstart/docker.md"
+        },
+        {
+          "title": "Google Cloud Platform",
+          "description": "Setup Coder with Google Cloud Platform",
+          "icon_path": "./images/google-cloud.svg",
+          "path": "./quickstart/google-cloud-platform.md"
         },
         {
           "title": "AWS",

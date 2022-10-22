@@ -157,6 +157,58 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, wss)
 }
 
+func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := workspaceSearchQuery(queryStr, codersdk.Pagination{})
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid audit search query.",
+			Validations: errs,
+		})
+		return
+	}
+
+	if filter.OwnerUsername == "me" {
+		filter.OwnerID = apiKey.UserID
+		filter.OwnerUsername = ""
+	}
+
+	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	countFilter := database.GetWorkspaceCountParams{
+		Deleted:       filter.Deleted,
+		OwnerUsername: filter.OwnerUsername,
+		OwnerID:       filter.OwnerID,
+		Name:          filter.Name,
+		Status:        filter.Status,
+		TemplateIds:   filter.TemplateIds,
+		TemplateName:  filter.TemplateName,
+	}
+
+	count, err := api.Database.GetAuthorizedWorkspaceCount(ctx, countFilter, sqlFilter)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace count.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceCountResponse{
+		Count: count,
+	})
+}
+
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)

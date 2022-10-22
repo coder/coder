@@ -448,7 +448,18 @@ func (a *agent) init(ctx context.Context) {
 			"sftp": func(session ssh.Session) {
 				session.DisablePTYEmulation()
 
-				server, err := sftp.NewServer(session)
+				var opts []sftp.ServerOption
+				// Change current working directory to the users home
+				// directory so that SFTP connections land there.
+				// https://github.com/coder/coder/issues/3620
+				u, err := user.Current()
+				if err != nil {
+					a.logger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+				} else {
+					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
+				}
+
+				server, err := sftp.NewServer(session, opts...)
 				if err != nil {
 					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
 					return

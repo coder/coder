@@ -140,8 +140,12 @@ func TestEntitlements(t *testing.T) {
 	t.Run("TooManyUsers", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		db.InsertUser(context.Background(), database.InsertUserParams{})
-		db.InsertUser(context.Background(), database.InsertUserParams{})
+		db.InsertUser(context.Background(), database.InsertUserParams{
+			Username: "test1",
+		})
+		db.InsertUser(context.Background(), database.InsertUserParams{
+			Username: "test2",
+		})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				UserLimit: 1,

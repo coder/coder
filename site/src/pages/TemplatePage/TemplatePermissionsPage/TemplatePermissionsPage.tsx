@@ -13,6 +13,7 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { templateACLMachine } from "xServices/template/templateACLXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
+import { Loader } from "components/Loader/Loader"
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
@@ -20,16 +21,14 @@ export const TemplatePermissionsPage: FC<
   const organizationId = useOrganizationId()
   const { context } = useTemplateLayoutContext()
   const { template, permissions } = context
-  if (!template || !permissions) {
-    throw new Error(
-      "This page should not be displayed until template or permissions being loaded.",
-    )
-  }
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
   const [state, send] = useMachine(templateACLMachine, {
-    context: { templateId: template.id },
+    context: { templateId: template?.id },
   })
   const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
+  if (!template || !permissions) {
+    return <Loader />
+  }
 
   return (
     <>

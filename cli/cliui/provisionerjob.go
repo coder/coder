@@ -134,7 +134,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 
 	logs, closer, err := opts.Logs()
 	if err != nil {
-		return xerrors.Errorf("logs: %w", err)
+		return xerrors.Errorf("begin streaming logs: %w", err)
 	}
 	defer closer.Close()
 

@@ -370,6 +370,19 @@ func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := len(q.apiKeys) - 1; i >= 0; i-- {
+		if q.apiKeys[i].UserID == userID {
+			q.apiKeys = append(q.apiKeys[:i], q.apiKeys[i+1:]...)
+		}
+	}
+
+	return nil
+}
+
 func (q *fakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -775,6 +788,156 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 
 	return workspaces, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceCount(ctx context.Context, arg database.GetWorkspaceCountParams) (int64, error) {
+	count, err := q.GetAuthorizedWorkspaceCount(ctx, arg, nil)
+	return count, err
+}
+
+//nolint:gocyclo
+func (q *fakeQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg database.GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+
+		if arg.OwnerUsername != "" {
+			owner, err := q.GetUserByID(ctx, workspace.OwnerID)
+			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
+				continue
+			}
+		}
+
+		if arg.TemplateName != "" {
+			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
+				continue
+			}
+		}
+
+		if !arg.Deleted && workspace.Deleted {
+			continue
+		}
+
+		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
+			continue
+		}
+
+		if arg.Status != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return 0, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return 0, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			switch arg.Status {
+			case "pending":
+				if !job.StartedAt.Valid {
+					continue
+				}
+
+			case "starting":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "running":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "stopping":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "stopped":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "failed":
+				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
+					(!job.CompletedAt.Valid && !job.Error.Valid) {
+					continue
+				}
+
+			case "canceling":
+				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
+					continue
+				}
+
+			case "canceled":
+				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
+					continue
+				}
+
+			case "deleted":
+				if !job.StartedAt.Valid &&
+					job.CanceledAt.Valid &&
+					!job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			case "deleting":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid &&
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			default:
+				return 0, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+			}
+		}
+
+		if len(arg.TemplateIds) > 0 {
+			match := false
+			for _, id := range arg.TemplateIds {
+				if workspace.TemplateID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	return int64(len(workspaces)), nil
 }
 
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
@@ -1459,34 +1622,6 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
-func (q *fakeQuerier) UpdateTemplateUserACLByID(_ context.Context, id uuid.UUID, acl database.TemplateACL) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for i, t := range q.templates {
-		if t.ID == id {
-			t = t.SetUserACL(acl)
-			q.templates[i] = t
-			return nil
-		}
-	}
-	return sql.ErrNoRows
-}
-
-func (q *fakeQuerier) UpdateTemplateGroupACLByID(_ context.Context, id uuid.UUID, acl database.TemplateACL) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for i, t := range q.templates {
-		if t.ID == id {
-			t = t.SetGroupACL(acl)
-			q.templates[i] = t
-			return nil
-		}
-	}
-	return sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1503,10 +1638,8 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 		return nil, sql.ErrNoRows
 	}
 
-	acl := template.UserACL()
-
-	users := make([]database.TemplateUser, 0, len(acl))
-	for k, v := range acl {
+	users := make([]database.TemplateUser, 0, len(template.UserACL))
+	for k, v := range template.UserACL {
 		user, err := q.GetUserByID(context.Background(), uuid.MustParse(k))
 		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get user by ID: %w", err)
@@ -1546,10 +1679,8 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 		return nil, sql.ErrNoRows
 	}
 
-	acl := template.GroupACL()
-
-	groups := make([]database.TemplateGroup, 0, len(acl))
-	for k, v := range acl {
+	groups := make([]database.TemplateGroup, 0, len(template.GroupACL))
+	for k, v := range template.GroupACL {
 		group, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get group by ID: %w", err)
@@ -2049,11 +2180,9 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		MaxTtl:               arg.MaxTtl,
 		MinAutostartInterval: arg.MinAutostartInterval,
 		CreatedBy:            arg.CreatedBy,
+		UserACL:              arg.UserACL,
+		GroupACL:             arg.GroupACL,
 	}
-	template = template.SetUserACL(database.TemplateACL{})
-	template = template.SetGroupACL(database.TemplateACL{
-		arg.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
-	})
 	q.templates = append(q.templates, template)
 	return template, nil
 }
@@ -2222,6 +2351,12 @@ func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	for _, user := range q.users {
+		if user.Username == arg.Username && !user.Deleted {
+			return database.User{}, errDuplicateKey
+		}
+	}
 
 	user := database.User{
 		ID:             arg.ID,
@@ -2464,6 +2599,23 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, template := range q.templates {
+		if template.ID == arg.ID {
+			template.GroupACL = arg.GroupACL
+			template.UserACL = arg.UserACL
+
+			q.templates[i] = template
+			return template, nil
+		}
+	}
+
+	return database.Template{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
