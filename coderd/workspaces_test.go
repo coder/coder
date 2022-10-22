@@ -822,6 +822,33 @@ func TestOffsetLimit(t *testing.T) {
 	require.Len(t, ws, 0)
 }
 
+func TestWorkspaceCount(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
+	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
+
+	response, err := client.WorkspaceCount(ctx, codersdk.WorkspaceCountRequest{})
+	require.NoError(t, err, "fetch workspace count")
+	// counts all
+	require.Equal(t, int(response.Count), 3)
+
+	response2, err2 := client.WorkspaceCount(ctx, codersdk.WorkspaceCountRequest{
+		SearchQuery: fmt.Sprintf("template:%s", template.Name),
+	})
+	require.NoError(t, err2, "fetch workspace count")
+	// counts only those that pass filter
+	require.Equal(t, int(response2.Count), 1)
+}
+
 func TestPostWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("NoTemplateVersion", func(t *testing.T) {

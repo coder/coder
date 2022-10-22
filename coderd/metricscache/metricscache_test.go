@@ -330,7 +330,7 @@ func TestCache_BuildTime(t *testing.T) {
 			if tt.want.loads {
 				require.Eventuallyf(t, func() bool {
 					stats := cache.TemplateBuildTimeStats(template.ID)
-					return assert.NotEmpty(t, stats)
+					return stats != codersdk.TemplateBuildTimeStats{}
 				}, testutil.WaitLong, testutil.IntervalMedium,
 					"BuildTime never populated",
 				)

@@ -235,10 +235,15 @@ linters:
     - noctx
     - paralleltest
     - revive
-    - rowserrcheck
-    - sqlclosecheck
+
+    # These don't work until the following issue is solved.
+    # https://github.com/golangci/golangci-lint/issues/2649
+    # - rowserrcheck
+    # - sqlclosecheck
+    # - structcheck
+    # - wastedassign
+
     - staticcheck
-    - structcheck
     - tenv
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
@@ -253,4 +258,3 @@ linters:
     - unconvert
     - unused
     - varcheck
-    - wastedassign

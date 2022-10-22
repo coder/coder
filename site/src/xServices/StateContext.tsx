@@ -3,7 +3,7 @@ import { createContext, FC, ReactNode } from "react"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
-import { deploymentFlagsMachine } from "./deploymentFlags/deploymentFlagsMachine"
+import { deploymentConfigMachine } from "./deploymentConfig/deploymentConfigMachine"
 import { entitlementsMachine } from "./entitlements/entitlementsXService"
 import { siteRolesMachine } from "./roles/siteRolesXService"
 
@@ -13,7 +13,7 @@ interface XServiceContextType {
   entitlementsXService: ActorRefFrom<typeof entitlementsMachine>
   siteRolesXService: ActorRefFrom<typeof siteRolesMachine>
   // Since the info here is used by multiple deployment settings page and we don't want to refetch them every time
-  deploymentFlagsXService: ActorRefFrom<typeof deploymentFlagsMachine>
+  deploymentConfigXService: ActorRefFrom<typeof deploymentConfigMachine>
 }
 
 /**
@@ -34,7 +34,7 @@ export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         buildInfoXService: useInterpret(buildInfoMachine),
         entitlementsXService: useInterpret(entitlementsMachine),
         siteRolesXService: useInterpret(siteRolesMachine),
-        deploymentFlagsXService: useInterpret(deploymentFlagsMachine),
+        deploymentConfigXService: useInterpret(deploymentConfigMachine),
       }}
     >
       {children}
