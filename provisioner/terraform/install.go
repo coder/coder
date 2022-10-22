@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,7 +28,7 @@ var (
 
 // Install implements a thread-safe, idempotent Terraform Install
 // operation.
-func Install(ctx context.Context, log slog.Logger, dir string, version *version.Version) (string, error) {
+func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *version.Version) (string, error) {
 	err := os.MkdirAll(dir, 0750)
 	if err != nil {
 		return "", err
@@ -46,16 +45,11 @@ func Install(ctx context.Context, log slog.Logger, dir string, version *version.
 	}
 	defer lock.Close()
 
-	versionFilePath := filepath.Join(dir, "version")
-	versionFileContents, err := os.ReadFile(versionFilePath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", xerrors.Errorf("read file: %w", err)
-	}
-
 	binPath := filepath.Join(dir, product.Terraform.BinaryName())
-	_, err = os.Stat(binPath)
-	if err == nil && version.String() == string(versionFileContents) {
-		return binPath, nil
+
+	hasVersion, err := versionFromBinaryPath(ctx, binPath)
+	if err == nil && hasVersion.Equal(wantVersion) {
+		return binPath, err
 	}
 
 	installer := &releases.ExactVersion{
@@ -76,10 +70,10 @@ func Install(ctx context.Context, log slog.Logger, dir string, version *version.
 		return "", xerrors.Errorf("install: %w", err)
 	}
 
-	// nolint: gosec
-	err = os.WriteFile(versionFilePath, []byte(version.String()), 0700)
-	if err != nil {
-		return "", xerrors.Errorf("write %s: %w", versionFilePath, err)
+	// Sanity-check: if path != binPath then future invocations of Install
+	// will fail.
+	if path != binPath {
+		return "", xerrors.Errorf("%s should be %s", path, binPath)
 	}
 
 	return path, nil
