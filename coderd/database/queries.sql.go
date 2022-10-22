@@ -866,8 +866,8 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 }
 
 const deleteGroupByID = `-- name: DeleteGroupByID :exec
-DELETE FROM
-	groups
+DELETE FROM 
+	groups 
 WHERE
 	id = $1
 `
@@ -878,8 +878,8 @@ func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 }
 
 const deleteGroupMember = `-- name: DeleteGroupMember :exec
-DELETE FROM
-	group_members
+DELETE FROM 
+	group_members 
 WHERE
 	user_id = $1
 `

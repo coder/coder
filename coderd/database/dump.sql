@@ -533,7 +533,7 @@ ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_apps
-    ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, display_name);
+    ADD CONSTRAINT workspace_apps_agent_id_slug_key UNIQUE (agent_id, slug);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);
