@@ -5,6 +5,7 @@ package terraform_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -43,7 +44,9 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		_ = server.Close()
 		cancelFunc()
 		err := <-serverErr
-		assert.NoError(t, err)
+		if !errors.Is(err, context.Canceled) {
+			assert.NoError(t, err)
+		}
 	})
 	go func() {
 		serverErr <- terraform.Serve(ctx, &terraform.ServeOptions{
