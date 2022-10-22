@@ -256,35 +256,35 @@ resource "kubernetes_manifest" "clusterresourceset_capi_init" {
 # Need to find a way for it to wait before running, so that the secret exists
 
 # We'll need to use the kubeconfig from above to provision the coder/pair environment
-resource "kubernetes_manifest" "ingress_vcluster" {
-  manifest = {
-    "apiVersion" = "projectcontour.io/v1"
-    "kind"       = "HTTPProxy"
-    "metadata" = {
-      "name"      = "${data.coder_workspace.me.name}-apiserver"
-      "namespace" = data.coder_workspace.me.name
-      "annotations" = {
-        "projectcontour.io/ingress.class" = "contour-external"
-      }
-    }
-    "spec" = {
-      "tcpproxy" = {
-        "services" = [
-          {
-            "name" = "${data.coder_workspace.me.name}"
-            "port" = 443
-          },
-        ]
-      }
-      "virtualhost" = {
-        "fqdn" = "${data.coder_workspace.me.name}.${var.base_domain}"
-        "tls" = {
-          "passthrough" = true
-        }
-      }
-    }
-  }
-}
+# resource "kubernetes_manifest" "ingress_vcluster" {
+#   manifest = {
+#     "apiVersion" = "projectcontour.io/v1"
+#     "kind"       = "HTTPProxy"
+#     "metadata" = {
+#       "name"      = "${data.coder_workspace.me.name}-apiserver"
+#       "namespace" = data.coder_workspace.me.name
+#       "annotations" = {
+#         "projectcontour.io/ingress.class" = "contour-external"
+#       }
+#     }
+#     "spec" = {
+#       "tcpproxy" = {
+#         "services" = [
+#           {
+#             "name" = "${data.coder_workspace.me.name}"
+#             "port" = 443
+#           },
+#         ]
+#       }
+#       "virtualhost" = {
+#         "fqdn" = "${data.coder_workspace.me.name}.${var.base_domain}"
+#         "tls" = {
+#           "passthrough" = true
+#         }
+#       }
+#     }
+#   }
+# }
 
 resource "coder_app" "vcluster-apiserver" {
   agent_id      = coder_agent.main.id

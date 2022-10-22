@@ -49,11 +49,16 @@ resource "coder_agent" "main" {
     echo 'export PATH="$PATH:$HOME/bin"' >> $HOME/.bashrc
     mkdir -p bin
     curl -o bin/kubectl -L https://dl.k8s.io/v1.25.2/bin/linux/amd64/kubectl
+    curl -o bin/ttyd -L https://github.com/tsl0922/ttyd/releases/download/1.7.2/ttyd.x86_64
     chmod +x bin/*
+    # install tmux
+    sudo apt update -y
+    sudo apt install -y tmux
 
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log
     code-server --auth none --port 13337 | tee code-server-install.log &
+    /home/coder/bin/ttyd tmux | tee ttyd.log &
   EOT
 }
 
@@ -168,7 +173,7 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
     "apiVersion" = "infrastructure.cluster.x-k8s.io/v1alpha1"
     "kind"       = "KubevirtMachineTemplate"
     "metadata" = {
-      "name"      = "${data.coder_workspace.me.name}-cp"
+      "name"      = data.coder_workspace.me.name
       "namespace" = data.coder_workspace.me.name
     }
     "spec" = {
@@ -180,41 +185,6 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
             }
             "spec" = {
               "runStrategy" = "Always"
-              "dataVolumeTemplates" = [
-                {
-                  "metadata" = {
-                    "name" = "vmdisk-dv"
-                  }
-                  "spec" = {
-                    "pvc" = {
-                      "accessModes" = ["ReadWriteOnce"]
-                      "resources" = {
-                        "requests" = {
-                          "storage" = "10Gi"
-                        }
-                      }
-                    }
-                    "source" = {
-                      # https://github.com/kubevirt/containerized-data-importer/blob/main/doc/datavolumes.md#https3registry-source
-                      #  kubectl explain DataVolume.spec.source.registry.url
-                      # KIND:     DataVolume
-                      # VERSION:  cdi.kubevirt.io/v1beta1
-
-                      # FIELD:    url <string>
-
-                      # DESCRIPTION:
-                      #      URL is the url of the registry source (starting with the scheme: docker,
-                      #      oci-archive)
-                      "registry" = {
-                        "url" = "docker://quay.io/capk/ubuntu-2004-container-disk:v1.23.10"
-                      }
-                      # "http" = {
-                      #   "url" = "https://www.talos.pair.sharing.io/ubuntu-2004-kube-v1.23.10.gz"
-                      # }
-                    }
-                  }
-                },
-              ]
               "template" = {
                 "spec" = {
                   "domain" = {
@@ -222,8 +192,6 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       "cores" = 2
                     }
                     "devices" = {
-                      # "autoattachGraphicsDevice" = false
-                      "autoattachSerialConsole" = true
                       "disks" = [
                         {
                           "disk" = {
@@ -234,16 +202,16 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       ]
                     }
                     "memory" = {
-                      "guest" = "4Gi"
+                      "guest" = "12Gi"
                     }
                   }
                   "evictionStrategy" = "External"
                   "volumes" = [
                     {
-                      "dataVolume" = {
-                        "name" = "vmdisk-dv"
+                      "containerDisk" = {
+                        "image" = "quay.io/capk/ubuntu-2004-container-disk:v1.22.0"
                       }
-                      "name" = "vmdisk"
+                      "name" = "containervolume"
                     },
                   ]
                 }
@@ -267,10 +235,9 @@ resource "kubernetes_manifest" "kubeadmcontrolplane_control_plane" {
     "spec" = {
       "kubeadmConfigSpec" = {
         "clusterConfiguration" = {
-          "imageRepository" = "k8s.gcr.io"
+          "imageRepository" = "registry.k8s.io"
           "networking" = {
-            "dnsDomain"     = "kv1.default.local"
-            "podSubnet"     = "10.243.0.0/16"
+            "podSubnet"     = "10.244.0.0/16"
             "serviceSubnet" = "10.95.0.0/16"
           }
         }
@@ -284,6 +251,9 @@ resource "kubernetes_manifest" "kubeadmcontrolplane_control_plane" {
             "criSocket" = "{CRI_PATH}"
           }
         }
+        "postKubeadmCommands" = [
+          "kubectl --kubeconfig=/etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/master-"
+        ]
       }
       "machineTemplate" = {
         "infrastructureRef" = {
@@ -316,32 +286,6 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
             }
             "spec" = {
               "runStrategy" = "Always"
-              "dataVolumeTemplates" = [
-                {
-                  "metadata" = {
-                    "name" = "vmdisk-dv"
-                  }
-                  "spec" = {
-                    "pvc" = {
-                      "accessModes" = ["ReadWriteOnce"]
-                      "resources" = {
-                        "requests" = {
-                          "storage" = "50Gi"
-                        }
-                      }
-                    }
-                    "source" = {
-                      "registry" = {
-                        "url" = "docker://quay.io/capk/ubuntu-2004-container-disk:v1.23.10"
-                      }
-                      # "http" = {
-                      #   # https://quay.io/repository/capk/ubuntu-2004-container-disk?tab=tags&tag=latest
-                      #   "url" = "quay.io/capk/ubuntu-2004-container-disk:v1.23.10"
-                      # }
-                    }
-                  }
-                },
-              ]
               "template" = {
                 "spec" = {
                   "domain" = {
@@ -349,7 +293,6 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       "cores" = 2
                     }
                     "devices" = {
-                      "autoattachSerialConsole" = true
                       "disks" = [
                         {
                           "disk" = {
@@ -360,16 +303,16 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       ]
                     }
                     "memory" = {
-                      "guest" = "4Gi"
+                      "guest" = "12Gi"
                     }
                   }
                   "evictionStrategy" = "External"
                   "volumes" = [
                     {
-                      "dataVolume" = {
-                        "name" = "vmdisk-dv"
+                      "containerDisk" = {
+                        "image" = "quay.io/capk/ubuntu-2004-container-disk:v1.22.0"
                       }
-                      "name" = "vmdisk"
+                      "name" = "containervolume"
                     },
                   ]
                 }
@@ -458,6 +401,7 @@ resource "kubernetes_manifest" "configmap_capi_init" {
           coder_token   = coder_agent.main.token
           instance_name = data.coder_workspace.me.name
       })
+      "flannel.yaml" = templatefile("flannel.yaml", {})
     }
   }
 }
@@ -585,14 +529,32 @@ resource "kubernetes_manifest" "clusterresourceset_capi_init" {
 #   }
 # }
 
-# resource "coder_app" "vcluster-apiserver" {
-#   agent_id      = coder_agent.main.id
-#   name          = "APIServer"
-#   url           = "https://kubernetes.default.svc:443"
-#   relative_path = true
-#   healthcheck {
-#     url       = "https://kubernetes.default.svc:443/healthz"
-#     interval  = 5
-#     threshold = 6
-#   }
-# }
+resource "coder_app" "tmux-cmd" {
+  agent_id = coder_agent.main.id
+  name     = "tmux"
+  command  = "tmux at"
+}
+
+resource "coder_app" "tmux" {
+  agent_id      = coder_agent.main.id
+  name          = "tmux"
+  url           = "http://localhost:7681"
+  relative_path = true
+  healthcheck {
+    url       = "http://localhost:7681"
+    interval  = 5
+    threshold = 6
+  }
+}
+
+resource "coder_app" "vcluster-apiserver" {
+  agent_id      = coder_agent.main.id
+  name          = "APIServer"
+  url           = "https://kubernetes.default.svc:443"
+  relative_path = true
+  healthcheck {
+    url       = "https://kubernetes.default.svc:443/healthz"
+    interval  = 5
+    threshold = 6
+  }
+}

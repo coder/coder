@@ -166,8 +166,8 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_control_plane" {
                       }
                     }
                     "source" = {
-                      "http" = {
-                        "url" = "https://github.com/siderolabs/talos/releases/download/v1.2.5/nocloud-amd64.raw.xz"
+                      "registry" = {
+                        "url" = "docker://docker.io/katamo/talos:latest"
                       }
                     }
                   }
@@ -225,6 +225,11 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
         "controlplane" = {
           "generateType" = "controlplane"
           "configPatches" = [
+            {
+              "op"    = "add"
+              "path"  = "/debug"
+              "value" = true
+            },
             # {
             #   "op"   = "replace"
             #   "path" = "/machine/install"
@@ -261,7 +266,7 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
               "op"    = "add"
               "path"  = "/cluster/allowSchedulingOnControlPlanes"
               "value" = true
-            },
+            }
           ]
         }
         "init" = {
@@ -276,6 +281,11 @@ resource "kubernetes_manifest" "taloscontrolplane_talos_em_control_plane" {
                 "image"           = "ghcr.io/siderolabs/installer:v1.2.5"
                 "extraKernelArgs" = ["console=ttyS0"]
               }
+            },
+            {
+              "op"    = "add"
+              "path"  = "/debug"
+              "value" = true
             },
             # {
             #   "op"   = "add"
@@ -352,8 +362,8 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       }
                     }
                     "source" = {
-                      "http" = {
-                        "url" = "https://github.com/siderolabs/talos/releases/download/v1.2.5/nocloud-amd64.raw.xz"
+                      "registry" = {
+                        "url" = "docker://docker.io/katamo/talos:latest"
                       }
                     }
                   }
@@ -362,6 +372,18 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
               "template" = {
                 "spec" = {
                   "domain" = {
+                    # "firmware" = {
+                    #   "kernelBoot" = {
+                    #     "container" = {
+                    #       "image"           = "ghcr.io/siderolabs/installer:v1.2.5"
+                    #       "initrdPath"      = "/usr/install/amd64/initramfs.xz"
+                    #       "kernelPath"      = "/usr/install/amd64/vmlinuz"
+                    #       "imagePullPolicy" = "Always"
+                    #       "imagePullSecret" = "IfNotPresent"
+                    #     }
+                    #     "kernelArgs" = "console=ttyS0"
+                    #   }
+                    # }
                     "cpu" = {
                       "cores" = 2
                     }
@@ -369,7 +391,7 @@ resource "kubernetes_manifest" "kubevirtmachinetemplate_md_0" {
                       "disks" = [
                         {
                           "disk" = {
-                            "bus" = "scsi"
+                            "bus" = "virtio"
                           }
                           "name" = "vmdisk"
                         },

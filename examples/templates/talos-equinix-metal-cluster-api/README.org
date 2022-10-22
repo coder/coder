@@ -11,7 +11,7 @@ This is currently in exploration and may go away.
 
 * Initialise
 
-#+begin_src tmate
+#+begin_src tmate :window
 EXP_CLUSTER_RESOURCE_SET=true clusterctl init --infrastructure=packet
 #+end_src
 
