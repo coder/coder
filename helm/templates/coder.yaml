@@ -28,6 +28,8 @@ spec:
     spec:
       serviceAccountName: coder
       restartPolicy: Always
+      imagePullSecrets:
+      - name: {{ .Values.coder.image.pullSecret | quote }}
       terminationGracePeriodSeconds: 60
       containers:
         - name: coder
