@@ -101,6 +101,12 @@
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
+          "title": "Resource Persistence",
+          "description": "Learn how to resource persistence works in Coder",
+          "path": "./templates/resource-persistence.md",
+          "icon_path": "./images/icons/infinity.svg"
+        },
+        {
           "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
           "path": "./templates/authentication.md",
