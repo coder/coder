@@ -756,6 +756,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
+	var appSlugs = make(map[string]struct{})
 	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
@@ -814,6 +815,10 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			if !provisioner.AppSlugRegex.MatchString(slug) {
 				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
 			}
+			if _, exists := appSlugs[slug]; exists {
+				return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
+			}
+			appSlugs[slug] = struct{}{}
 
 			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
