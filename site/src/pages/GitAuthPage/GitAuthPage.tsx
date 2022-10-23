@@ -10,9 +10,9 @@ const GitAuthPage: React.FC = () => {
 
   return (
     <SignInLayout>
-      <Welcome message="Your Git is authenticated!" />
+      <Welcome message="Authenticated with Git!" />
       <p className={styles.text}>
-        Return to your terminal to keep coding.
+        Your Git authentication token will be refreshed to keep you signed in.
       </p>
 
       <div className={styles.links}>
