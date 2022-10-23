@@ -114,7 +114,9 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 				IP:   net.ParseIP("127.0.0.1"),
 				Mask: net.CIDRMask(8, 32),
 			}},
-			CloudflareConnectingIP: true,
+			TrustedHeaders: []string{
+				"CF-Connecting-IP",
+			},
 		},
 	})
 	user := coderdtest.CreateFirstUser(t, client)

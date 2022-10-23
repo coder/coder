@@ -37,20 +37,9 @@ type RealIPConfig struct {
 	// ignored.
 	TrustedOrigins []*net.IPNet
 
-	// CloudflareConnectingIP trusts the CF-Connecting-IP header.
-	// https://support.cloudflare.com/hc/en-us/articles/206776727-Understanding-the-True-Client-IP-Header
-	CloudflareConnectingIP bool
-
-	// TrueClientIP trusts the True-Client-IP header.
-	TrueClientIP bool
-
-	// XRealIP trusts the X-Real-IP header.
-	XRealIP bool
-
-	// X-Forwarded-For trusts the X-Forwarded-For and X-Forwarded-Proto
-	// headers.
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto
-	XForwardedFor bool
+	// TrustedHeaders lists headers that are trusted for forwarding
+	// IP addresses. e.g. "CF-Connecting-IP", "True-Client-IP", etc.
+	TrustedHeaders []string
 }
 
 // ExtractRealIP is a middleware that uses headers from reverse proxies to
@@ -90,34 +79,8 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 		return getRemoteAddress(req.RemoteAddr), nil
 	}
 
-	// We want to prefer (in order):
-	// - CF-Connecting-IP
-	// - True-Client-IP
-	// - X-Real-IP
-	// - X-Forwarded-For
-	if config.CloudflareConnectingIP {
-		addr := getRemoteAddress(req.Header.Get(headerCFConnectingIP))
-		if addr != nil {
-			return addr, nil
-		}
-	}
-
-	if config.TrueClientIP {
-		addr := getRemoteAddress(req.Header.Get(headerTrueClientIP))
-		if addr != nil {
-			return addr, nil
-		}
-	}
-
-	if config.XRealIP {
-		addr := getRemoteAddress(req.Header.Get(headerXRealIP))
-		if addr != nil {
-			return addr, nil
-		}
-	}
-
-	if config.XForwardedFor {
-		addr := getRemoteAddress(req.Header.Get(headerXForwardedFor))
+	for _, trustedHeader := range config.TrustedHeaders {
+		addr := getRemoteAddress(req.Header.Get(trustedHeader))
 		if addr != nil {
 			return addr, nil
 		}
@@ -138,36 +101,14 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	if !cf {
 		// Address is not valid or the origin is not trusted; clear
 		// all known proxy headers and return
-		for _, header := range headersAll {
+		for _, header := range config.TrustedHeaders {
 			req.Header.Del(header)
 		}
 		return
 	}
 
-	if config.CloudflareConnectingIP {
-		req.Header.Set(headerCFConnectingIP, req.Header.Get(headerCFConnectingIP))
-	} else {
-		req.Header.Del(headerCFConnectingIP)
-	}
-
-	if config.TrueClientIP {
-		req.Header.Set(headerTrueClientIP, req.Header.Get(headerTrueClientIP))
-	} else {
-		req.Header.Del(headerTrueClientIP)
-	}
-
-	if config.XRealIP {
-		req.Header.Set(headerXRealIP, req.Header.Get(headerXRealIP))
-	} else {
-		req.Header.Del(headerXRealIP)
-	}
-
-	if config.XForwardedFor {
-		req.Header.Set(headerXForwardedFor, req.Header.Get(headerXForwardedFor))
-		req.Header.Set(headerXForwardedProto, req.Header.Get(headerXForwardedProto))
-	} else {
-		req.Header.Del(headerXForwardedFor)
-		req.Header.Del(headerXForwardedProto)
+	for _, header := range config.TrustedHeaders {
+		req.Header.Set(header, req.Header.Get(header))
 	}
 }
 
@@ -280,8 +221,6 @@ func RealIP(ctx context.Context) *RealIPState {
 // ParseRealIPConfig takes a raw string array of headers and origins
 // to produce a config.
 func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
-	// If PROXY_TRUSTED_ORIGINS is set, assume we have a comma-separated
-	// list of CIDRs and parse them.
 	config := &RealIPConfig{}
 	for _, origin := range origins {
 		_, network, err := net.ParseCIDR(origin)
@@ -290,21 +229,10 @@ func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
 		}
 		config.TrustedOrigins = append(config.TrustedOrigins, network)
 	}
-
-	for _, header := range headers {
-		header = http.CanonicalHeaderKey(header)
-		switch header {
-		case "Cf-Connecting-Ip":
-			config.CloudflareConnectingIP = true
-		case "True-Client-Ip":
-			config.TrueClientIP = true
-		case "X-Real-Ip":
-			config.XRealIP = true
-		case "X-Forwarded-For":
-			config.XForwardedFor = true
-		default:
-			return nil, xerrors.Errorf("unsupported trusted proxy header %q", header)
-		}
+	for index, header := range headers {
+		headers[index] = http.CanonicalHeaderKey(header)
 	}
+	config.TrustedHeaders = headers
+
 	return config, nil
 }

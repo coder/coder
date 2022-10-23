@@ -67,7 +67,9 @@ func TestExtractAddress(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				XForwardedFor: true,
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
 			},
 			RemoteAddr: "123.45.67.89",
 			Header: http.Header{
@@ -88,7 +90,9 @@ func TestExtractAddress(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				XRealIP: true,
+				TrustedHeaders: []string{
+					"X-Real-Ip",
+				},
 			},
 			RemoteAddr: "123.45.67.89",
 			TLS:        true,
@@ -107,7 +111,9 @@ func TestExtractAddress(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				XRealIP: true,
+				TrustedHeaders: []string{
+					"X-Real-Ip",
+				},
 			},
 			RemoteAddr: "123.45.67.89",
 			Header: http.Header{
@@ -125,10 +131,10 @@ func TestExtractAddress(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				CloudflareConnectingIP: true,
-				TrueClientIP:           true,
-				XRealIP:                true,
-				XForwardedFor:          true,
+				TrustedHeaders: []string{
+					"X-Real-Ip",
+					"X-Forwarded-For",
+				},
 			},
 			RemoteAddr: "123.45.67.89",
 			Header: http.Header{
@@ -148,10 +154,11 @@ func TestExtractAddress(t *testing.T) {
 						Mask: net.CIDRMask(16, 32),
 					},
 				},
-				CloudflareConnectingIP: true,
-				TrueClientIP:           true,
-				XRealIP:                true,
-				XForwardedFor:          true,
+				TrustedHeaders: []string{
+					"True-Client-Ip",
+					"X-Forwarded-For",
+					"X-Real-Ip",
+				},
 			},
 			RemoteAddr: "123.45.67.89",
 			TLS:        true,
@@ -174,10 +181,12 @@ func TestExtractAddress(t *testing.T) {
 						Mask: net.CIDRMask(32, 32),
 					},
 				},
-				CloudflareConnectingIP: true,
-				TrueClientIP:           true,
-				XRealIP:                true,
-				XForwardedFor:          true,
+				TrustedHeaders: []string{
+					"Cf-Connecting-Ip",
+					"X-Forwarded-For",
+					"X-Real-Ip",
+					"True-Client-Ip",
+				},
 			},
 			RemoteAddr: "123.45.67.89",
 			Header: http.Header{
@@ -238,10 +247,12 @@ func TestTrustedOrigins(t *testing.T) {
 					actualAddr := "12.34.56.78"
 
 					config := &httpmw.RealIPConfig{
-						CloudflareConnectingIP: true,
-						TrueClientIP:           true,
-						XRealIP:                true,
-						XForwardedFor:          true,
+						TrustedHeaders: []string{
+							"Cf-Connecting-Ip",
+							"X-Forwarded-For",
+							"X-Real-Ip",
+							"True-Client-Ip",
+						},
 					}
 					switch trusted {
 					case "none":
@@ -315,10 +326,12 @@ func TestCorruptedHeaders(t *testing.T) {
 						Mask: net.CIDRMask(8, 32),
 					},
 				},
-				CloudflareConnectingIP: true,
-				TrueClientIP:           true,
-				XRealIP:                true,
-				XForwardedFor:          true,
+				TrustedHeaders: []string{
+					"Cf-Connecting-Ip",
+					"X-Forwarded-For",
+					"X-Real-Ip",
+					"True-Client-Ip",
+				},
 			}
 
 			middleware := httpmw.ExtractRealIP(config)
@@ -380,10 +393,12 @@ func TestAddressFamilies(t *testing.T) {
 								Mask: net.CIDRMask(0, 128),
 							},
 						},
-						CloudflareConnectingIP: true,
-						TrueClientIP:           true,
-						XRealIP:                true,
-						XForwardedFor:          true,
+						TrustedHeaders: []string{
+							"Cf-Connecting-Ip",
+							"X-Forwarded-For",
+							"X-Real-Ip",
+							"True-Client-Ip",
+						},
 					}
 
 					middleware := httpmw.ExtractRealIP(config)
@@ -424,37 +439,13 @@ func TestFilterUntrusted(t *testing.T) {
 		{
 			Name: "untrusted-origin",
 			Config: &httpmw.RealIPConfig{
-				TrustedOrigins:         nil,
-				CloudflareConnectingIP: true,
-				TrueClientIP:           true,
-				XRealIP:                true,
-				XForwardedFor:          true,
-			},
-			Header: http.Header{
-				"X-Forwarded-For":   []string{"1.2.3.4,123.45.67.89"},
-				"X-Forwarded-Proto": []string{"https"},
-				"X-Real-Ip":         []string{"4.4.4.4"},
-				"True-Client-Ip":    []string{"5.6.7.8"},
-				"Authorization":     []string{"Bearer 123"},
-				"Accept-Encoding":   []string{"gzip", "compress", "deflate", "identity"},
-			},
-			RemoteAddr: "1.2.3.4",
-			ExpectedHeader: http.Header{
-				"Authorization":   []string{"Bearer 123"},
-				"Accept-Encoding": []string{"gzip", "compress", "deflate", "identity"},
-			},
-			ExpectedRemoteAddr: "1.2.3.4",
-		},
-		{
-			Name: "untrusted-header",
-			Config: &httpmw.RealIPConfig{
-				TrustedOrigins: []*net.IPNet{
-					{
-						IP:   net.ParseIP("0.0.0.0"),
-						Mask: net.CIDRMask(0, 32),
-					},
+				TrustedOrigins: nil,
+				TrustedHeaders: []string{
+					"Cf-Connecting-Ip",
+					"X-Forwarded-For",
+					"X-Real-Ip",
+					"True-Client-Ip",
 				},
-				XRealIP: true,
 			},
 			Header: http.Header{
 				"X-Forwarded-For":   []string{"1.2.3.4,123.45.67.89"},
@@ -466,36 +457,8 @@ func TestFilterUntrusted(t *testing.T) {
 			},
 			RemoteAddr: "1.2.3.4",
 			ExpectedHeader: http.Header{
-				"Authorization":   []string{"Bearer 123"},
-				"Accept-Encoding": []string{"gzip", "compress", "deflate", "identity"},
-				"X-Real-Ip":       []string{"4.4.4.4"},
-			},
-			ExpectedRemoteAddr: "1.2.3.4",
-		},
-		{
-			Name: "keep-first-header",
-			Config: &httpmw.RealIPConfig{
-				TrustedOrigins: []*net.IPNet{
-					{
-						IP:   net.ParseIP("0.0.0.0"),
-						Mask: net.CIDRMask(0, 32),
-					},
-				},
-				XForwardedFor: true,
-			},
-			Header: http.Header{
-				"X-Forwarded-For":   []string{"1.2.3.4,123.45.67.89", "::1", "2001:4860:4860::8844"},
-				"X-Forwarded-Proto": []string{"https"},
-				"X-Real-Ip":         []string{"4.4.4.4"},
-				"True-Client-Ip":    []string{"5.6.7.8"},
 				"Authorization":     []string{"Bearer 123"},
 				"Accept-Encoding":   []string{"gzip", "compress", "deflate", "identity"},
-			},
-			RemoteAddr: "1.2.3.4",
-			ExpectedHeader: http.Header{
-				"Authorization":     []string{"Bearer 123"},
-				"Accept-Encoding":   []string{"gzip", "compress", "deflate", "identity"},
-				"X-Forwarded-For":   []string{"1.2.3.4,123.45.67.89"},
 				"X-Forwarded-Proto": []string{"https"},
 			},
 			ExpectedRemoteAddr: "1.2.3.4",
@@ -568,7 +531,9 @@ func TestApplicationProxy(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				XRealIP: true,
+				TrustedHeaders: []string{
+					"X-Real-Ip",
+				},
 			},
 			Header: http.Header{
 				"X-Real-Ip":         []string{"99.88.77.66"},
@@ -593,8 +558,10 @@ func TestApplicationProxy(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				XRealIP:       true,
-				XForwardedFor: true,
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+					"X-Real-Ip",
+				},
 			},
 			Header: http.Header{
 				"X-Real-Ip":         []string{"99.88.77.66"},
@@ -607,10 +574,10 @@ func TestApplicationProxy(t *testing.T) {
 				"X-Real-Ip": []string{"99.88.77.66"},
 				// Even though X-Real-Ip and X-Forwarded-For are both trusted,
 				// ignore the value of X-Forwarded-For, since they conflict
-				"X-Forwarded-For":   []string{"99.88.77.66,17.18.19.20"},
+				"X-Forwarded-For":   []string{"123.45.67.89,10.10.10.10,17.18.19.20"},
 				"X-Forwarded-Proto": []string{"https"},
 			},
-			ExpectedRemoteAddr: "99.88.77.66",
+			ExpectedRemoteAddr: "123.45.67.89",
 		},
 		{
 			Name: "trusted-real-ip-and-forwarded-same",
@@ -621,8 +588,10 @@ func TestApplicationProxy(t *testing.T) {
 						Mask: net.CIDRMask(0, 32),
 					},
 				},
-				XRealIP:       true,
-				XForwardedFor: true,
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+					"X-Real-Ip",
+				},
 			},
 			Header: http.Header{
 				"X-Real-Ip": []string{"99.88.77.66"},
