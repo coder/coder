@@ -104,7 +104,8 @@
           "title": "Resource Persistence",
           "description": "Learn how resource persistence works in Coder",
           "path": "./templates/resource-persistence.md",
-          "icon_path": "./images/icons/infinity.svg"
+          "icon_path": "./images/icons/infinity.svg",
+          "last_updated": "2022-10-23"
         },
         {
           "title": "Provider Authentication",

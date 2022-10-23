@@ -1,6 +1,6 @@
 # Resource Persistence
 
-Coder doesn't prescribe your workspace's level of ephemerality. In a 
+Coder templates have full control over workspace ephemerality. In a 
 completely ephemeral workspace, there are zero resources in the On state. In
 a completely persistent workspace, there is no difference between the Off and
 On states.
@@ -9,13 +9,14 @@ Most workspaces fall somewhere in the middle, persisting user data
 such as filesystem volumes, but deleting expensive, reproducible resources
 such as compute instances.
 
-By default, all Coder resources are persistent, but there are practices all
-production templates **must** employ to prevent accidental deletion.
+By default, all Coder resources are persistent, but
+production templates **must** employ the practices laid out in this document
+to prevent accidental deletion.
 
 ## Disabling Persistence
 
 The [`coder_workspace` data source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) exposes the `start_count = [0 | 1]` attribute that other
-resources use to become ephemeral.
+resources reference to become ephemeral.
 
 For example:
 
@@ -24,7 +25,7 @@ data "coder_workspace" "me" {
 }
 
 resource "docker_container" "workspace" {
-  # ephemeral resource (deleted when workspace is stopped, created when started)
+  # When `start_count` is 0, `count` is 0, so no `docker_container` is created.
   count = data.coder_workspace.me.start_count # 0 (stopped), 1 (started)
   # ... other config
 }
@@ -39,16 +40,15 @@ data "coder_workspace" "me" {
 }
 
 resource "docker_volume" "home_volume" {
-  # Coder will recreate and wipe this volume if the owner changes their username.
   name = "coder-${data.coder_workspace.me.owner}-home"
 }
 ```
 
-Because we depend on `coder_workspace.me.owner`, if the owner changed their
-username, Terraform would recreate the volume (wiping the data) the next
-time the workspace restarted. 
+Because we depend on `coder_workspace.me.owner`, if the owner changes their
+username, Terraform would recreate the volume (wiping its data!) the next
+time the workspace restarts. 
 
-Thus, persistent resource names must depend on immutable IDs such as:
+Therefore, persistent resource names must only depend on immutable IDs such as:
 * `coder_workspace.me.owner_id`
 * `coder_workspace.me.id`
 
@@ -63,13 +63,11 @@ resource "docker_volume" "home_volume" {
 }
 ```
 
-## Bulletproofing
-Even if we depend exclusively static IDs, a change to the `name` format or other
-attributes would cause Terraform to rebuild the resource.
+## 🛡 Bulletproofing
+Even if our persistent resource depends exclusively on static IDs, a change to
+the `name` format or other attributes would cause Terraform to rebuild the resource.
 
-Bulletproof persistent resources by setting the [`ignore_changes = all` directive in the `lifecycle` block](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes). This 
-setting prevents Terraform from recreating the resource under any circumstance.
-
+Prevent Terraform from recreating the resource under any circumstance by setting the [`ignore_changes = all` directive in the `lifecycle` block](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
 
 ```hcl
 data "coder_workspace" "me" {
