@@ -6,7 +6,7 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 
 const GeneralSettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig: deploymentConfig } = useDeploySettings()
 
   return (
     <>
@@ -22,9 +22,9 @@ const GeneralSettingsPage: React.FC = () => {
 
       <OptionsTable
         options={{
-          access_url: deploymentFlags.access_url,
-          address: deploymentFlags.address,
-          wildcard_access_url: deploymentFlags.wildcard_access_url,
+          access_url: deploymentConfig.access_url,
+          address: deploymentConfig.address,
+          wildcard_access_url: deploymentConfig.wildcard_access_url,
         }}
       />
     </>

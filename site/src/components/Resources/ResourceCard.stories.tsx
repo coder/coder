@@ -2,6 +2,7 @@ import { Story } from "@storybook/react"
 import {
   MockWorkspace,
   MockWorkspaceAgent,
+  MockWorkspaceApp,
   MockWorkspaceResource,
 } from "testHelpers/entities"
 import { ResourceCard, ResourceCardProps } from "./ResourceCard"
@@ -33,6 +34,29 @@ export const HideSSHButton = Template.bind({})
 HideSSHButton.args = {
   ...Example.args,
   hideSSHButton: true,
+}
+
+export const BunchOfApps = Template.bind({})
+BunchOfApps.args = {
+  ...Example.args,
+  resource: {
+    ...MockWorkspaceResource,
+    agents: [
+      {
+        ...MockWorkspaceAgent,
+        apps: [
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+          MockWorkspaceApp,
+        ],
+      },
+    ],
+  },
 }
 
 export const BunchOfMetadata = Template.bind({})

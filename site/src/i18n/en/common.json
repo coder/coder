@@ -31,5 +31,8 @@
   },
   "warningsAndErrors": {
     "somethingWentWrong": "Something went wrong."
+  },
+  "emojiPicker": {
+    "select": "Select emoji"
   }
 }

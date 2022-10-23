@@ -12,7 +12,7 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 
 const AuthSettingsPage: React.FC = () => {
-  const { deploymentFlags } = useDeploySettings()
+  const { deploymentConfig: deploymentConfig } = useDeploySettings()
 
   return (
     <>
@@ -32,7 +32,7 @@ const AuthSettingsPage: React.FC = () => {
           />
 
           <Badges>
-            {deploymentFlags.oidc_client_id.value ? (
+            {deploymentConfig.oidc_client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -41,12 +41,12 @@ const AuthSettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              oidc_client_id: deploymentFlags.oidc_client_id,
-              oidc_client_secret: deploymentFlags.oidc_client_secret,
-              oidc_allow_signups: deploymentFlags.oidc_allow_signups,
-              oidc_email_domain: deploymentFlags.oidc_email_domain,
-              oidc_issuer_url: deploymentFlags.oidc_issuer_url,
-              oidc_scopes: deploymentFlags.oidc_scopes,
+              oidc_client_id: deploymentConfig.oidc_client_id,
+              oidc_client_secret: deploymentConfig.oidc_client_secret,
+              oidc_allow_signups: deploymentConfig.oidc_allow_signups,
+              oidc_email_domain: deploymentConfig.oidc_email_domain,
+              oidc_issuer_url: deploymentConfig.oidc_issuer_url,
+              oidc_scopes: deploymentConfig.oidc_scopes,
             }}
           />
         </div>
@@ -60,7 +60,7 @@ const AuthSettingsPage: React.FC = () => {
           />
 
           <Badges>
-            {deploymentFlags.oauth2_github_client_id.value ? (
+            {deploymentConfig.oauth2_github_client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -69,17 +69,17 @@ const AuthSettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              oauth2_github_client_id: deploymentFlags.oauth2_github_client_id,
+              oauth2_github_client_id: deploymentConfig.oauth2_github_client_id,
               oauth2_github_client_secret:
-                deploymentFlags.oauth2_github_client_secret,
+                deploymentConfig.oauth2_github_client_secret,
               oauth2_github_allow_signups:
-                deploymentFlags.oauth2_github_allow_signups,
-              oauth2_github_allowed_organizations:
-                deploymentFlags.oauth2_github_allowed_organizations,
+                deploymentConfig.oauth2_github_allow_signups,
+              oauth2_github_allowed_orgs:
+                deploymentConfig.oauth2_github_allowed_orgs,
               oauth2_github_allowed_teams:
-                deploymentFlags.oauth2_github_allowed_teams,
+                deploymentConfig.oauth2_github_allowed_teams,
               oauth2_github_enterprise_base_url:
-                deploymentFlags.oauth2_github_enterprise_base_url,
+                deploymentConfig.oauth2_github_enterprise_base_url,
             }}
           />
         </div>
