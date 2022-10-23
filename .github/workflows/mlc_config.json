@@ -8,6 +8,9 @@
         },
         {
             "pattern": "developer.github.com"
+        },
+        {
+            "pattern": "tailscale.com"
         }
     ]
 }
