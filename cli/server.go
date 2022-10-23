@@ -424,6 +424,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if err != nil {
 					return xerrors.Errorf("scan version: %w", err)
 				}
+				_ = version.Close()
 				versionStr = strings.Split(versionStr, " ")[0]
 				if semver.Compare("v"+versionStr, "v13") < 0 {
 					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
