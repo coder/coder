@@ -28,6 +28,8 @@ type DeploymentConfig struct {
 	PrometheusAddress             DeploymentConfigField[string]        `json:"prometheus_address"`
 	PprofEnable                   DeploymentConfigField[bool]          `json:"pprof_enabled"`
 	PprofAddress                  DeploymentConfigField[string]        `json:"pprof_address"`
+	ProxyTrustedHeaders           DeploymentConfigField[[]string]      `json:"proxy_trusted_headers"`
+	ProxyTrustedOrigins           DeploymentConfigField[[]string]      `json:"proxy_trusted_origins"`
 	CacheDirectory                DeploymentConfigField[string]        `json:"cache_directory"`
 	InMemoryDatabase              DeploymentConfigField[bool]          `json:"in_memory_database"`
 	ProvisionerDaemons            DeploymentConfigField[int]           `json:"provisioner_daemon_count"`

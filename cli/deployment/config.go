@@ -113,6 +113,16 @@ func newConfig() codersdk.DeploymentConfig {
 			Flag:  "pprof-address",
 			Value: "127.0.0.1:6060",
 		},
+		ProxyTrustedHeaders: codersdk.DeploymentConfigField[[]string]{
+			Key:   "proxy.trusted_headers",
+			Flag:  "proxy-trusted-headers",
+			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-IP True-Client-Ip, X-Forwarded-for",
+		},
+		ProxyTrustedOrigins: codersdk.DeploymentConfigField[[]string]{
+			Key:   "proxy.trusted_origins",
+			Flag:  "proxy-trusted-origins",
+			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. example.com",
+		},
 		CacheDirectory: codersdk.DeploymentConfigField[string]{
 			Key:   "cache_directory",
 			Usage: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",

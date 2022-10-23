@@ -512,7 +512,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.RemoteAddr = "1.1.1.1:3555"
+		r.RemoteAddr = "1.1.1.1"
 		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{

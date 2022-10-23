@@ -580,6 +580,15 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
+	// Filter IP headers from untrusted origins!
+	httpmw.FilterUntrustedOriginHeaders(api.RealIPConfig, r)
+	// Ensure proper IP headers get sent to the forwarded application.
+	err := httpmw.EnsureXForwardedForHeader(r)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	// If the app does not exist, but the app name is a port number, then
 	// route to the port as an "anonymous app". We only support HTTP for
 	// port-based URLs.
