@@ -94,7 +94,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
 ## Generating wildcard certificates
 
-By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`). When users visit new subdomains, such as accessing [ports on a workspace](../../networking/port-forwarding.md), the request will take an additional 5-30 seconds since a new certificate is being generated.
+By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`). When users visit new subdomains, such as accessing [ports on a workspace](../../../docs/networking/port-forwarding.md), the request will take an additional 5-30 seconds since a new certificate is being generated.
 
 For production deployments, we recommend configuring Caddy to generate a wildcard certificate, which requires an explicit DNS challenge and additional Caddy modules.
 
