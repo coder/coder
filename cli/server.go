@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/prometheusmetrics"
@@ -325,17 +326,22 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
+			gitAuthConfigs, err := gitauth.ConvertConfig(cfg.GitAuth.Value, accessURLParsed)
+			if err != nil {
+				return xerrors.Errorf("parse git auth config: %w", err)
+			}
+
 			options := &coderd.Options{
-				AccessURL:            accessURLParsed,
-				AppHostname:          appHostname,
-				AppHostnameRegex:     appHostnameRegex,
-				Logger:               logger.Named("coderd"),
-				Database:             databasefake.New(),
-				DERPMap:              derpMap,
-				Pubsub:               database.NewPubsubInMemory(),
-				CacheDir:             cfg.CacheDirectory.Value,
-				GoogleTokenValidator: googleTokenValidator,
-				// GitAuthConfigs:              serverConfig.GitAuth,
+				AccessURL:                   accessURLParsed,
+				AppHostname:                 appHostname,
+				AppHostnameRegex:            appHostnameRegex,
+				Logger:                      logger.Named("coderd"),
+				Database:                    databasefake.New(),
+				DERPMap:                     derpMap,
+				Pubsub:                      database.NewPubsubInMemory(),
+				CacheDir:                    cfg.CacheDirectory.Value,
+				GoogleTokenValidator:        googleTokenValidator,
+				GitAuthConfigs:              gitAuthConfigs,
 				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -617,7 +623,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
 			// such as via the systemd service.
-			_ = cfg.URL().Write(client.URL.String())
+			_ = config.URL().Write(client.URL.String())
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero

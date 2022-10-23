@@ -24,20 +24,9 @@ type Config struct {
 	Type codersdk.GitProvider
 }
 
-// YAML represents a serializable config.
-type YAML struct {
-	ID           string `yaml:"id"`
-	Type         string `yaml:"type"`
-	ClientID     string `yaml:"client_id"`
-	ClientSecret string `yaml:"client_secret"`
-	AuthURL      string `yaml:"auth_url"`
-	TokenURL     string `yaml:"token_url"`
-	Regex        string `yaml:"regex"`
-}
-
-// ConvertYAML converts the YAML configuration entry to the
+// ConvertConfig converts the YAML configuration entry to the
 // parsed and ready-to-consume provider type.
-func ConvertYAML(entries []*YAML, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(entries []codersdk.DeploymentConfigGitAuth, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {

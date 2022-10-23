@@ -270,6 +270,7 @@ export interface DeploymentConfig {
   readonly pprof_enabled: DeploymentConfigField<boolean>
   readonly pprof_address: DeploymentConfigField<string>
   readonly cache_directory: DeploymentConfigField<string>
+  readonly gitauth: DeploymentConfigField<DeploymentConfigGitAuth[]>
   readonly in_memory_database: DeploymentConfigField<boolean>
   readonly provisioner_daemon_count: DeploymentConfigField<number>
   readonly oauth2_github_client_id: DeploymentConfigField<string>
@@ -312,6 +313,16 @@ export interface DeploymentConfigField<T extends Flaggable> {
   readonly enterprise: boolean
   readonly hidden: boolean
   readonly value: T
+}
+
+// From codersdk/deploymentconfig.go
+export interface DeploymentConfigGitAuth {
+  readonly id: string
+  readonly type: string
+  readonly client_id: string
+  readonly auth_url: string
+  readonly token_url: string
+  readonly regex: string
 }
 
 // From codersdk/features.go
@@ -947,4 +958,9 @@ export type WorkspaceStatus =
 export type WorkspaceTransition = "delete" | "start" | "stop"
 
 // From codersdk/deploymentconfig.go
-export type Flaggable = string | boolean | number | string[]
+export type Flaggable =
+  | string
+  | number
+  | boolean
+  | string[]
+  | DeploymentConfigGitAuth[]

@@ -91,6 +91,12 @@ func newConfig() codersdk.DeploymentConfig {
 			Usage: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/",
 			Flag:  "derp-config-path",
 		},
+		GitAuth: codersdk.DeploymentConfigField[[]codersdk.DeploymentConfigGitAuth]{
+			Key:   "gitauth",
+			Usage: "Git Authentication",
+			Flag:  "gitauth",
+			Value: []codersdk.DeploymentConfigGitAuth{},
+		},
 		PrometheusEnable: codersdk.DeploymentConfigField[bool]{
 			Key:   "prometheus.enable",
 			Usage: "Serve prometheus metrics on the address defined by prometheus address.",
@@ -361,6 +367,9 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig
 				value = append(value, strings.Split(entry, ",")...)
 			}
 			fve.FieldByName("Value").Set(reflect.ValueOf(value))
+		case []codersdk.DeploymentConfigGitAuth:
+			values := readSliceFromViper[codersdk.DeploymentConfigGitAuth](vip, key, value)
+			fve.FieldByName("Value").Set(reflect.ValueOf(values))
 		default:
 			return dc, xerrors.Errorf("unsupported type %T", value)
 		}
@@ -369,12 +378,47 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig
 	return dc, nil
 }
 
+// readSliceFromViper reads a typed mapping from the key provided.
+// This enables environment variables like CODER_GITAUTH_<index>_CLIENT_ID.
+func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
+	elementType := reflect.TypeOf(value).Elem()
+	returnValues := make([]T, 0)
+	for entry := 0; true; entry++ {
+		// Only create an instance when the entry exists in viper...
+		// otherwise we risk
+		var instance *reflect.Value
+		for i := 0; i < elementType.NumField(); i++ {
+			fve := elementType.Field(i)
+			prop := fve.Tag.Get("json")
+			// For fields that are omitted in JSON, we use a YAML tag.
+			if prop == "-" {
+				prop = fve.Tag.Get("yaml")
+			}
+			value := vip.Get(fmt.Sprintf("%s.%d.%s", key, entry, prop))
+			if value == nil {
+				continue
+			}
+			if instance == nil {
+				newType := reflect.Indirect(reflect.New(elementType))
+				instance = &newType
+			}
+			instance.Field(i).Set(reflect.ValueOf(value))
+		}
+		if instance == nil {
+			break
+		}
+		returnValues = append(returnValues, instance.Interface().(T))
+	}
+	return returnValues
+}
+
 func NewViper() *viper.Viper {
 	dc := newConfig()
 	v := viper.New()
 	v.SetEnvPrefix("coder")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	v.SetTypeByDefaultValue(true)
 
 	dcv := reflect.ValueOf(dc)
 	t := dcv.Type()
