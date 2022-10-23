@@ -12,22 +12,9 @@ import (
 )
 
 const (
-	// Note: these should be canonicalized (see http.CanonicalHeaderKey)
-	// or else things will not work correctly
-	headerCFConnectingIP  string = "Cf-Connecting-Ip"
-	headerTrueClientIP    string = "True-Client-Ip"
-	headerXRealIP         string = "X-Real-Ip"
 	headerXForwardedFor   string = "X-Forwarded-For"
 	headerXForwardedProto string = "X-Forwarded-Proto"
 )
-
-var headersAll = []string{
-	headerCFConnectingIP,
-	headerTrueClientIP,
-	headerXRealIP,
-	headerXForwardedFor,
-	headerXForwardedProto,
-}
 
 // RealIPConfig configures the search order for the function, which controls
 // which headers to consider trusted.
