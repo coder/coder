@@ -16,7 +16,7 @@ All user <-> workspace connections are end-to-end encrypted.
 ## coder server
 
 Workspaces connect to the coder server via the server's external address,
-set via [`ACCESS_URL`](./admin/configure#access-url). There must not be a
+set via [`ACCESS_URL`](./admin/configure.md#access-url). There must not be a
 NAT between workspaces and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
