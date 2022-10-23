@@ -104,6 +104,7 @@ jobs:
           go mod download
 
           version="$(./scripts/version.sh)"
+          echo "CODER_RELEASE_VERSION=$version" >> $GITHUB_ENV
           make gen/mark-fresh
           make -j \
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
@@ -180,3 +181,10 @@ jobs:
             ./build/*.deb
             ./build/*.rpm
           retention-days: 7
+
+      - name: Publish to Chocolatey
+        uses: ./.github/actions/chocolatey
+        with:
+          publish: ${{ ! (github.event.inputs.dry_run || github.event.inputs.snapshot) }}
+          version: ${{ env.CODER_RELEASE_VERSION }}
+          chocolateyKey: ${{ secrets.CHOCOLATEY_KEY }}

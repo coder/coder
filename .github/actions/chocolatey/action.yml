@@ -1,0 +1,16 @@
+name: 'Chocolatey publish action'
+description: 'Creates package for Chocolatey and pushes it'
+inputs:
+  version:
+    description: 'Package version'
+    required: false
+  chocolateyKey:
+    description: 'Chocolatey API key'
+    required: false
+  publish:
+    description: 'Whether package should be published'
+    required: false
+    default: 'false'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
