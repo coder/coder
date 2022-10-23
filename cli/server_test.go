@@ -71,10 +71,9 @@ func TestServer(t *testing.T) {
 		client := codersdk.New(accessURL)
 
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-			Email:            "some@one.com",
-			Username:         "example",
-			Password:         "password",
-			OrganizationName: "example",
+			Email:    "some@one.com",
+			Username: "example",
+			Password: "password",
 		})
 		require.NoError(t, err)
 		cancelFunc()

@@ -13,11 +13,9 @@ export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   usernameLabel: "Username",
-  organizationLabel: "Organization name",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   passwordRequired: "Please enter a password.",
-  organizationRequired: "Please enter an organization name.",
   create: "Setup account",
   welcomeMessage: (
     <>
@@ -32,7 +30,6 @@ const validationSchema = Yup.object({
     .email(Language.emailInvalid)
     .required(Language.emailRequired),
   password: Yup.string().required(Language.passwordRequired),
-  organization: Yup.string().required(Language.organizationRequired),
   username: nameValidator(Language.usernameLabel),
 })
 
@@ -55,7 +52,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
         email: "",
         password: "",
         username: "",
-        organization: "",
       },
       validationSchema,
       onSubmit,
@@ -70,14 +66,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
       <Welcome message={Language.welcomeMessage} />
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          <TextField
-            {...getFieldHelpers("organization")}
-            onChange={onChangeTrimmed(form)}
-            autoFocus
-            fullWidth
-            label={Language.organizationLabel}
-            variant="outlined"
-          />
           <TextField
             {...getFieldHelpers("username")}
             onChange={onChangeTrimmed(form)}

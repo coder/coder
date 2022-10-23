@@ -49,10 +49,9 @@ func TestFirstUser(t *testing.T) {
 		defer cancel()
 
 		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-			Email:            "some@email.com",
-			Username:         "exampleuser",
-			Password:         "password",
-			OrganizationName: "someorg",
+			Email:    "some@email.com",
+			Username: "exampleuser",
+			Password: "password",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -249,10 +248,9 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.CreateFirstUserRequest{
-			Email:            "testuser@coder.com",
-			Username:         "testuser",
-			Password:         "testpass",
-			OrganizationName: "testorg",
+			Email:    "testuser@coder.com",
+			Username: "testuser",
+			Password: "testpass",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)

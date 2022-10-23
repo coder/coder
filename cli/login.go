@@ -163,10 +163,9 @@ func login() *cobra.Command {
 				}
 
 				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-					Email:            email,
-					Username:         username,
-					OrganizationName: username,
-					Password:         password,
+					Email:    email,
+					Username: username,
+					Password: password,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)

@@ -346,10 +346,9 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 }
 
 var FirstUserParams = codersdk.CreateFirstUserRequest{
-	Email:            "testuser@coder.com",
-	Username:         "testuser",
-	Password:         "testpass",
-	OrganizationName: "testorg",
+	Email:    "testuser@coder.com",
+	Username: "testuser",
+	Password: "testpass",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates

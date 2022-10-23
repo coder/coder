@@ -143,7 +143,6 @@ export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
-  readonly organization: string
 }
 
 // From codersdk/users.go
