@@ -124,7 +124,7 @@ type DeploymentConfigField[T Flaggable] struct {
 }
 
 // MarshalJSON removes the Value field from the JSON output of any fields marked Secret.
-// nolint: revive
+// nolint:revive
 func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 	if !f.Secret {
 		return json.Marshal(struct {
