@@ -283,7 +283,7 @@ export interface DeploymentConfig {
   readonly prometheus: PrometheusConfig
   readonly pprof: PprofConfig
   readonly proxy_trusted_headers: DeploymentConfigField<string[]>
-  readonly proxy_trusted_origin: DeploymentConfigField<string[]>
+  readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
   readonly provisioner_daemons: DeploymentConfigField<number>

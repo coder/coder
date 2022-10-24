@@ -10,7 +10,6 @@ import (
 )
 
 // DeploymentConfig is the central configuration for the coder server.
-// Secret values should specify `json:"-"` to prevent them from being returned by the API.
 type DeploymentConfig struct {
 	AccessURL                   *DeploymentConfigField[string]        `json:"access_url" typescript:",notnull"`
 	WildcardAccessURL           *DeploymentConfigField[string]        `json:"wildcard_access_url" typescript:",notnull"`
@@ -20,7 +19,7 @@ type DeploymentConfig struct {
 	Prometheus                  *PrometheusConfig                     `json:"prometheus" typescript:",notnull"`
 	Pprof                       *PprofConfig                          `json:"pprof" typescript:",notnull"`
 	ProxyTrustedHeaders         *DeploymentConfigField[[]string]      `json:"proxy_trusted_headers" typescript:",notnull"`
-	ProxyTrustedOrigins         *DeploymentConfigField[[]string]      `json:"proxy_trusted_origin" typescript:",notnull"`
+	ProxyTrustedOrigins         *DeploymentConfigField[[]string]      `json:"proxy_trusted_origins" typescript:",notnull"`
 	CacheDirectory              *DeploymentConfigField[string]        `json:"cache_directory" typescript:",notnull"`
 	InMemoryDatabase            *DeploymentConfigField[bool]          `json:"in_memory_database" typescript:",notnull"`
 	ProvisionerDaemons          *DeploymentConfigField[int]           `json:"provisioner_daemons" typescript:",notnull"`
@@ -126,31 +125,7 @@ type DeploymentConfigField[T Flaggable] struct {
 // MarshalJSON removes the Value field from the JSON output of any fields marked Secret.
 // nolint:revive
 func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
-	if !f.Secret {
-		return json.Marshal(struct {
-			Name       string `json:"name"`
-			Usage      string `json:"usage"`
-			Flag       string `json:"flag"`
-			Shorthand  string `json:"shorthand"`
-			Enterprise bool   `json:"enterprise"`
-			Hidden     bool   `json:"hidden"`
-			Secret     bool   `json:"secret"`
-			Default    T      `json:"default"`
-			Value      T      `json:"value"`
-		}{
-			Name:       f.Name,
-			Usage:      f.Usage,
-			Flag:       f.Flag,
-			Shorthand:  f.Shorthand,
-			Enterprise: f.Enterprise,
-			Hidden:     f.Hidden,
-			Secret:     f.Secret,
-			Default:    f.Default,
-			Value:      f.Value,
-		})
-	}
-
-	return json.Marshal(struct {
+	copy := struct {
 		Name       string `json:"name"`
 		Usage      string `json:"usage"`
 		Flag       string `json:"flag"`
@@ -158,6 +133,8 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 		Enterprise bool   `json:"enterprise"`
 		Hidden     bool   `json:"hidden"`
 		Secret     bool   `json:"secret"`
+		Default    T      `json:"default"`
+		Value      T      `json:"value"`
 	}{
 		Name:       f.Name,
 		Usage:      f.Usage,
@@ -166,7 +143,14 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 		Enterprise: f.Enterprise,
 		Hidden:     f.Hidden,
 		Secret:     f.Secret,
-	})
+	}
+
+	if !f.Secret {
+		copy.Default = f.Default
+		copy.Value = f.Value
+	}
+
+	return json.Marshal(copy)
 }
 
 // DeploymentConfig returns the deployment config for the coder server.
