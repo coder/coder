@@ -38,7 +38,7 @@ Name "${APP_NAME}"
 Caption "${APP_NAME}"
 OutFile "${INSTALLER_NAME}"
 BrandingText "${APP_NAME}"
-InstallDirRegKey "${REG_ROOT}" "${REG_APP_PATH}" ""
+InstallDirRegKey "${REG_ROOT}" "${REG_APP_PATH}" "Path"
 InstallDir "${INSTALL_DIR}"
 
 ######################################################################
@@ -94,6 +94,7 @@ Section "Coder CLI" SecInstall
 	WriteUninstaller "$INSTDIR\uninstall.exe"
 
 	WriteRegStr ${REG_ROOT} "${REG_APP_PATH}" "" "$INSTDIR\${MAIN_APP_EXE_PATH}"
+	WriteRegStr ${REG_ROOT} "${REG_APP_PATH}" "Path" "$INSTDIR"
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "DisplayName" "${APP_NAME}"
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "UninstallString" "$INSTDIR\uninstall.exe"
 	WriteRegStr ${REG_ROOT} "${UNINSTALL_PATH}" "DisplayIcon" "$INSTDIR\${MAIN_APP_EXE_PATH}"
