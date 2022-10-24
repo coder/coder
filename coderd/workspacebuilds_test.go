@@ -561,6 +561,10 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusStopped, workspace.LatestBuild.Status)
 
+	// assert an audit log has been created for workspace stopping
+	require.Len(t, auditor.AuditLogs, 5)
+	assert.Equal(t, database.AuditActionStop, auditor.AuditLogs[4].Action)
+
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
 	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
