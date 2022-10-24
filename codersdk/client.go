@@ -105,6 +105,9 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 // readBodyAsError reads the response as an .Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
+	if res == nil {
+		return xerrors.Errorf("no body returned")
+	}
 	defer res.Body.Close()
 	contentType := res.Header.Get("Content-Type")
 

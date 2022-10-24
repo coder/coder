@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/spf13/cobra"
@@ -78,6 +79,8 @@ func workspaceAgent() *cobra.Command {
 				slog.F("version", version),
 			)
 			client := codersdk.New(coderURL)
+			// Set a reasonable timeout so requests can't hang forever!
+			client.HTTPClient.Timeout = 10 * time.Second
 
 			if pprofEnabled {
 				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")

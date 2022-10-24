@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -503,6 +504,45 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
 	})
+
+	t.Run("Reconnect", func(t *testing.T) {
+		t.Parallel()
+		// After the agent is disconnected from a coordinator, it's supposed
+		// to reconnect!
+		coordinator := tailnet.NewCoordinator()
+		agentID := uuid.New()
+		statsCh := make(chan *codersdk.AgentStats)
+		derpMap := tailnettest.RunDERPAndSTUN(t)
+		client := &client{
+			t:       t,
+			agentID: agentID,
+			metadata: codersdk.WorkspaceAgentMetadata{
+				DERPMap: derpMap,
+			},
+			statsChan:   statsCh,
+			coordinator: coordinator,
+		}
+		initialized := atomic.Int32{}
+		closer := agent.New(agent.Options{
+			ExchangeToken: func(ctx context.Context) error {
+				initialized.Add(1)
+				return nil
+			},
+			Client: client,
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+
+		require.Eventually(t, func() bool {
+			return coordinator.Node(agentID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+		client.lastWorkspaceAgent()
+		require.Eventually(t, func() bool {
+			return initialized.Load() == 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
@@ -639,11 +679,12 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 }
 
 type client struct {
-	t           *testing.T
-	agentID     uuid.UUID
-	metadata    codersdk.WorkspaceAgentMetadata
-	statsChan   chan *codersdk.AgentStats
-	coordinator tailnet.Coordinator
+	t                  *testing.T
+	agentID            uuid.UUID
+	metadata           codersdk.WorkspaceAgentMetadata
+	statsChan          chan *codersdk.AgentStats
+	coordinator        tailnet.Coordinator
+	lastWorkspaceAgent func()
 }
 
 func (c *client) WorkspaceAgentMetadata(_ context.Context) (codersdk.WorkspaceAgentMetadata, error) {
@@ -653,11 +694,12 @@ func (c *client) WorkspaceAgentMetadata(_ context.Context) (codersdk.WorkspaceAg
 func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
 	clientConn, serverConn := net.Pipe()
 	closed := make(chan struct{})
-	c.t.Cleanup(func() {
+	c.lastWorkspaceAgent = func() {
 		_ = serverConn.Close()
 		_ = clientConn.Close()
 		<-closed
-	})
+	}
+	c.t.Cleanup(c.lastWorkspaceAgent)
 	go func() {
 		_ = c.coordinator.ServeAgent(serverConn, c.agentID)
 		close(closed)

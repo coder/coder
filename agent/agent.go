@@ -115,21 +115,23 @@ type agent struct {
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop(ctx context.Context) {
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		ctx, cancelFunc := context.WithCancel(ctx)
+		a.logger.Info(ctx, "running loop")
 		err := a.run(ctx)
 		// Cancel after the run is complete to clean up any leaked resources!
-		cancelFunc()
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if a.isClosed() {
-				return
-			}
-			a.logger.Warn(context.Background(), "failed to run loop", slog.Error(err))
+		if err == nil {
 			continue
 		}
-		a.logger.Info(ctx, "running loop")
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if a.isClosed() {
+			return
+		}
+		if errors.Is(err, io.EOF) {
+			a.logger.Info(ctx, "likely disconnected from coder", slog.Error(err))
+			continue
+		}
+		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
 	}
 }
 
@@ -170,8 +172,10 @@ func (a *agent) run(ctx context.Context) error {
 	}
 
 	// This automatically closes when the context ends!
+	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
+	defer appReporterCtxCancel()
 	go NewWorkspaceAppHealthReporter(
-		a.logger, metadata.Apps, a.client.PostWorkspaceAgentAppHealth)(ctx)
+		a.logger, metadata.Apps, a.client.PostWorkspaceAgentAppHealth)(appReporterCtx)
 
 	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", metadata.DERPMap))
 
@@ -179,6 +183,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if a.network == nil {
+		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
@@ -191,8 +196,10 @@ func (a *agent) run(ctx context.Context) error {
 		network.SetDERPMap(metadata.DERPMap)
 	}
 
+	a.logger.Debug(ctx, "running coordinator")
 	err = a.runCoordinator(ctx, network)
 	if err != nil {
+		a.logger.Debug(ctx, "coordinator exited", slog.Error(err))
 		return xerrors.Errorf("run coordinator: %w", err)
 	}
 	return nil
@@ -315,11 +322,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
 func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
-	var coordinator net.Conn
-	var err error
-	// An exponential back-off occurs when the connection is failing to dial.
-	// This is to prevent server spam in case of a coderd outage.
-	coordinator, err = a.client.ListenWorkspaceAgent(ctx)
+	coordinator, err := a.client.ListenWorkspaceAgent(ctx)
 	if err != nil {
 		return err
 	}
@@ -683,7 +686,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID))
+			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID), slog.Error(err))
 			return
 		}
 
