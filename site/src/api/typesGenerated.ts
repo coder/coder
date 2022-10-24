@@ -975,6 +975,7 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+  | "workspace_build"
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"

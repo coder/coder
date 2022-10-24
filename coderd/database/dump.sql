@@ -14,7 +14,9 @@ CREATE TYPE app_sharing_level AS ENUM (
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
-    'delete'
+    'delete',
+    'start',
+    'stop'
 );
 
 CREATE TYPE build_reason AS ENUM (
