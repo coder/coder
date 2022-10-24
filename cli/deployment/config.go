@@ -168,7 +168,7 @@ func newConfig() codersdk.DeploymentConfig {
 					Usage: "Client secret for Login with GitHub.",
 					Flag:  "oauth2-github-client-secret",
 				},
-				AllowedOrganizations: codersdk.DeploymentConfigField[[]string]{
+				AllowedOrgs: codersdk.DeploymentConfigField[[]string]{
 					Name:  "OAuth2 GitHub Allowed Orgs",
 					Usage: "Organizations the user must be a member of to Login with GitHub.",
 					Flag:  "oauth2-github-allowed-orgs",

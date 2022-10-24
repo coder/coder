@@ -75,12 +75,12 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID             DeploymentConfigField[string]   `json:"client_id"`
-	ClientSecret         DeploymentConfigField[string]   `json:"client_secret"`
-	AllowedOrganizations DeploymentConfigField[[]string] `json:"allowed_organizations"`
-	AllowedTeams         DeploymentConfigField[[]string] `json:"allowed_teams"`
-	AllowSignups         DeploymentConfigField[bool]     `json:"allow_signups"`
-	EnterpriseBaseURL    DeploymentConfigField[string]   `json:"enterprise_base_url"`
+	ClientID          DeploymentConfigField[string]   `json:"client_id"`
+	ClientSecret      DeploymentConfigField[string]   `json:"client_secret"`
+	AllowedOrgs       DeploymentConfigField[[]string] `json:"allowed_orgs"`
+	AllowedTeams      DeploymentConfigField[[]string] `json:"allowed_teams"`
+	AllowSignups      DeploymentConfigField[bool]     `json:"allow_signups"`
+	EnterpriseBaseURL DeploymentConfigField[string]   `json:"enterprise_base_url"`
 }
 
 type OIDCConfig struct {
