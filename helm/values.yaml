@@ -17,6 +17,10 @@ coder:
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
+    # coder.image.pullSecret -- The secret used for pulling the Coder image from
+    # a private registry.
+    pullSecrets: []
+    #  - name: "pull-secret"
 
   # coder.annotations -- The Deployment annotations. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/

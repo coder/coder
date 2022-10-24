@@ -28,6 +28,10 @@ spec:
     spec:
       serviceAccountName: coder
       restartPolicy: Always
+      {{- with .Values.coder.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       terminationGracePeriodSeconds: 60
       containers:
         - name: coder
