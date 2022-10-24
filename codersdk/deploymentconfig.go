@@ -23,7 +23,7 @@ type DeploymentConfig struct {
 	ProxyTrustedOrigins         *DeploymentConfigField[[]string]      `json:"proxy_trusted_origin"`
 	CacheDirectory              *DeploymentConfigField[string]        `json:"cache_directory"`
 	InMemoryDatabase            *DeploymentConfigField[bool]          `json:"in_memory_database"`
-	ProvisionerDaemons          *DeploymentConfigField[int]           `json:"provisioner_daemon_count"`
+	ProvisionerDaemons          *DeploymentConfigField[int]           `json:"provisioner_daemons"`
 	PostgresURL                 *DeploymentConfigField[string]        `json:"pg_connection_url"`
 	OAuth2                      *OAuth2Config                         `json:"oauth2"`
 	OIDC                        *OIDCConfig                           `json:"oidc"`
@@ -47,12 +47,12 @@ type DERP struct {
 }
 
 type DERPServerConfig struct {
-	Enable        *DeploymentConfigField[bool]     `json:"enabled"`
+	Enable        *DeploymentConfigField[bool]     `json:"enable"`
 	RegionID      *DeploymentConfigField[int]      `json:"region_id"`
 	RegionCode    *DeploymentConfigField[string]   `json:"region_code"`
 	RegionName    *DeploymentConfigField[string]   `json:"region_name"`
-	STUNAddresses *DeploymentConfigField[[]string] `json:"stun_address"`
-	RelayURL      *DeploymentConfigField[string]   `json:"relay_address"`
+	STUNAddresses *DeploymentConfigField[[]string] `json:"stun_addresses"`
+	RelayURL      *DeploymentConfigField[string]   `json:"relay_url"`
 }
 
 type DERPConfig struct {
@@ -61,12 +61,12 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable  *DeploymentConfigField[bool]   `json:"enabled"`
+	Enable  *DeploymentConfigField[bool]   `json:"enable"`
 	Address *DeploymentConfigField[string] `json:"address"`
 }
 
 type PprofConfig struct {
-	Enable  *DeploymentConfigField[bool]   `json:"enabled"`
+	Enable  *DeploymentConfigField[bool]   `json:"enable"`
 	Address *DeploymentConfigField[string] `json:"address"`
 }
 
@@ -93,17 +93,17 @@ type OIDCConfig struct {
 }
 
 type TelemetryConfig struct {
-	Enable *DeploymentConfigField[bool]   `json:"enabled"`
+	Enable *DeploymentConfigField[bool]   `json:"enable"`
 	Trace  *DeploymentConfigField[bool]   `json:"trace"`
 	URL    *DeploymentConfigField[string] `json:"url"`
 }
 
 type TLSConfig struct {
 	Enable       *DeploymentConfigField[bool]     `json:"enable"`
-	CertFiles    *DeploymentConfigField[[]string] `json:"cert_files"`
+	CertFiles    *DeploymentConfigField[[]string] `json:"cert_file"`
 	ClientAuth   *DeploymentConfigField[string]   `json:"client_auth"`
 	ClientCAFile *DeploymentConfigField[string]   `json:"client_ca_file"`
-	KeyFiles     *DeploymentConfigField[[]string] `json:"key_files"`
+	KeyFiles     *DeploymentConfigField[[]string] `json:"key_file"`
 	MinVersion   *DeploymentConfigField[string]   `json:"min_version"`
 }
 
