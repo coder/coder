@@ -152,9 +152,10 @@ func newConfig() *codersdk.DeploymentConfig {
 			Default: 3,
 		},
 		PostgresURL: &codersdk.DeploymentConfigField[string]{
-			Name:  "Postgres Connection URL",
-			Usage: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
-			Flag:  "postgres-url",
+			Name:   "Postgres Connection URL",
+			Usage:  "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Flag:   "postgres-url",
+			Secret: true,
 		},
 		OAuth2: &codersdk.OAuth2Config{
 			Github: &codersdk.OAuth2GithubConfig{
@@ -164,9 +165,10 @@ func newConfig() *codersdk.DeploymentConfig {
 					Flag:  "oauth2-github-client-id",
 				},
 				ClientSecret: &codersdk.DeploymentConfigField[string]{
-					Name:  "OAuth2 GitHub Client Secret",
-					Usage: "Client secret for Login with GitHub.",
-					Flag:  "oauth2-github-client-secret",
+					Name:   "OAuth2 GitHub Client Secret",
+					Usage:  "Client secret for Login with GitHub.",
+					Flag:   "oauth2-github-client-secret",
+					Secret: true,
 				},
 				AllowedOrgs: &codersdk.DeploymentConfigField[[]string]{
 					Name:  "OAuth2 GitHub Allowed Orgs",
@@ -203,9 +205,10 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "oidc-client-id",
 			},
 			ClientSecret: &codersdk.DeploymentConfigField[string]{
-				Name:  "OIDC Client Secret",
-				Usage: "Client secret to use for Login with OIDC.",
-				Flag:  "oidc-client-secret",
+				Name:   "OIDC Client Secret",
+				Usage:  "Client secret to use for Login with OIDC.",
+				Flag:   "oidc-client-secret",
+				Secret: true,
 			},
 			EmailDomain: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Email Domain",
@@ -334,6 +337,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:      "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:       "scim-auth-header",
 			Enterprise: true,
+			Secret:     true,
 		},
 		UserWorkspaceQuota: &codersdk.DeploymentConfigField[int]{
 			Name:       "User Workspace Quota",
@@ -440,7 +444,7 @@ func NewViper() *viper.Viper {
 	vip.AutomaticEnv()
 	vip.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
-	setViperDefaults("", vip, &dc)
+	setViperDefaults("", vip, dc)
 
 	return vip
 }

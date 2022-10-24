@@ -118,8 +118,28 @@ type DeploymentConfigField[T Flaggable] struct {
 	Shorthand  string `json:"shorthand"`
 	Enterprise bool   `json:"enterprise"`
 	Hidden     bool   `json:"hidden"`
+	Secret     bool   `json:"secret"`
 	Default    T      `json:"default"`
 	Value      T      `json:"value"`
+}
+
+// MarshalJSON removes the Value field from the JSON output of any fields marked Secret.
+// nolint: revive
+func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
+	if !f.Secret {
+		return json.Marshal(f)
+	}
+
+	return json.Marshal(DeploymentConfigField[T]{
+		Name:       f.Name,
+		Usage:      f.Usage,
+		Flag:       f.Flag,
+		Shorthand:  f.Shorthand,
+		Enterprise: f.Enterprise,
+		Hidden:     f.Hidden,
+		Secret:     f.Secret,
+		Default:    f.Default,
+	})
 }
 
 // DeploymentConfig returns the deployment config for the coder server.
