@@ -57,7 +57,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/apps":                   {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
@@ -243,7 +242,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
-		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/":      {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/count": {StatusCode: http.StatusOK, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand

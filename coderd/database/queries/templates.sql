@@ -68,10 +68,12 @@ INSERT INTO
 		max_ttl,
 		min_autostart_interval,
 		created_by,
-		icon
+		icon,
+		user_acl,
+		group_acl
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -103,6 +105,17 @@ SET
 	icon = $7
 WHERE
 	id = $1
+RETURNING
+	*;
+
+-- name: UpdateTemplateACLByID :one
+UPDATE
+	templates
+SET
+	group_acl = $1,
+	user_acl = $2
+WHERE
+	id = $3
 RETURNING
 	*;
 

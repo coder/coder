@@ -118,6 +118,7 @@ type PostWorkspaceAgentVersionRequest struct {
 
 // @typescript-ignore WorkspaceAgentMetadata
 type WorkspaceAgentMetadata struct {
+	Apps                 []WorkspaceApp    `json:"apps"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
@@ -301,7 +302,7 @@ func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (WorkspaceAgentMeta
 	return agentMetadata, nil
 }
 
-func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
+func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -460,20 +461,6 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
-// MyWorkspaceAgent returns the requesting agent.
-func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/apps", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var workspaceApps []WorkspaceApp
-	return workspaceApps, json.NewDecoder(res.Body).Decode(&workspaceApps)
-}
-
 // PostWorkspaceAgentAppHealth updates the workspace agent app health status.
 func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorkspaceAppHealthsRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/app-health", req)
@@ -580,7 +567,8 @@ func (c *Client) AgentReportStats(
 	}})
 
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 
 	doneCh := make(chan struct{})

@@ -145,6 +145,135 @@ OFFSET
     @offset_
 ;
 
+-- this duplicates the filtering in GetWorkspaces
+-- name: GetWorkspaceCount :one
+SELECT
+	COUNT(*) as count
+FROM
+	workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_builds.transition,
+		provisioner_jobs.started_at,
+		provisioner_jobs.updated_at,
+		provisioner_jobs.canceled_at,
+		provisioner_jobs.completed_at,
+		provisioner_jobs.error
+	FROM
+		workspace_builds
+	LEFT JOIN
+		provisioner_jobs
+	ON
+		provisioner_jobs.id = workspace_builds.job_id
+	WHERE
+		workspace_builds.workspace_id = workspaces.id
+	ORDER BY
+		build_number DESC
+	LIMIT
+		1
+) latest_build ON TRUE
+WHERE
+	-- Optionally include deleted workspaces
+	workspaces.deleted = @deleted
+	AND CASE
+		WHEN @status :: text != '' THEN
+			CASE
+				WHEN @status = 'pending' THEN
+					latest_build.started_at IS NULL
+				WHEN @status = 'starting' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'start'::workspace_transition
+
+				WHEN @status = 'running' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'start'::workspace_transition
+
+				WHEN @status = 'stopping' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'stop'::workspace_transition
+
+				WHEN @status = 'stopped' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'stop'::workspace_transition
+
+				WHEN @status = 'failed' THEN
+					(latest_build.canceled_at IS NOT NULL AND
+						latest_build.error IS NOT NULL) OR
+					(latest_build.completed_at IS NOT NULL AND
+						latest_build.error IS NOT NULL)
+
+				WHEN @status = 'canceling' THEN
+					latest_build.canceled_at IS NOT NULL AND
+					latest_build.completed_at IS NULL
+
+				WHEN @status = 'canceled' THEN
+					latest_build.canceled_at IS NOT NULL AND
+					latest_build.completed_at IS NOT NULL
+
+				WHEN @status = 'deleted' THEN
+					latest_build.started_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.transition = 'delete'::workspace_transition
+
+				WHEN @status = 'deleting' THEN
+					latest_build.completed_at IS NOT NULL AND
+					latest_build.canceled_at IS NULL AND
+					latest_build.error IS NULL AND
+					latest_build.transition = 'delete'::workspace_transition
+
+				ELSE
+					true
+			END
+		ELSE true
+	END
+	-- Filter by owner_id
+	AND CASE
+		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			owner_id = @owner_id
+		ELSE true
+	END
+	-- Filter by owner_name
+	AND CASE
+		WHEN @owner_username :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
+		ELSE true
+	END
+	-- Filter by template_name
+	-- There can be more than 1 template with the same name across organizations.
+	-- Use the organization filter to restrict to 1 org if needed.
+	AND CASE
+		WHEN @template_name :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name)  AND deleted = false)
+		ELSE true
+	END
+	-- Filter by template_ids
+	AND CASE
+		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
+			template_id = ANY(@template_ids)
+		ELSE true
+	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN @name :: text != '' THEN
+			name ILIKE '%' || @name || '%'
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaceCount
+	-- @authorize_filter
+;
+
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
 	*

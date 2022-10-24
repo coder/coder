@@ -3,12 +3,14 @@ package wsconncache_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -148,17 +150,11 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	coordinator := tailnet.NewCoordinator()
 	agentID := uuid.New()
 	closer := agent.New(agent.Options{
-		FetchMetadata: func(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error) {
-			return metadata, nil
-		},
-		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
-			clientConn, serverConn := net.Pipe()
-			t.Cleanup(func() {
-				_ = serverConn.Close()
-				_ = clientConn.Close()
-			})
-			go coordinator.ServeAgent(serverConn, agentID)
-			return clientConn, nil
+		Client: &client{
+			t:           t,
+			agentID:     agentID,
+			metadata:    metadata,
+			coordinator: coordinator,
 		},
 		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
 		ReconnectingPTYTimeout: ptyTimeout,
@@ -186,4 +182,42 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	return &codersdk.AgentConn{
 		Conn: conn,
 	}
+}
+
+type client struct {
+	t           *testing.T
+	agentID     uuid.UUID
+	metadata    codersdk.WorkspaceAgentMetadata
+	coordinator tailnet.Coordinator
+}
+
+func (c *client) WorkspaceAgentMetadata(_ context.Context) (codersdk.WorkspaceAgentMetadata, error) {
+	return c.metadata, nil
+}
+
+func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
+	clientConn, serverConn := net.Pipe()
+	closed := make(chan struct{})
+	c.t.Cleanup(func() {
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+		<-closed
+	})
+	go func() {
+		_ = c.coordinator.ServeAgent(serverConn, c.agentID)
+		close(closed)
+	}()
+	return clientConn, nil
+}
+
+func (*client) AgentReportStats(_ context.Context, _ slog.Logger, _ func() *codersdk.AgentStats) (io.Closer, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (*client) PostWorkspaceAgentAppHealth(_ context.Context, _ codersdk.PostWorkspaceAppHealthsRequest) error {
+	return nil
+}
+
+func (*client) PostWorkspaceAgentVersion(_ context.Context, _ string) error {
+	return nil
 }

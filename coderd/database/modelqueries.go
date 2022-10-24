@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -23,8 +22,6 @@ type customQuerier interface {
 }
 
 type templateQuerier interface {
-	UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error
-	UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error
 	GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error)
 	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
 }
@@ -32,28 +29,6 @@ type templateQuerier interface {
 type TemplateUser struct {
 	User
 	Actions Actions `db:"actions"`
-}
-
-func (q *sqlQuerier) UpdateTemplateUserACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
-	raw, err := json.Marshal(acl)
-	if err != nil {
-		return xerrors.Errorf("marshal user acl: %w", err)
-	}
-
-	const query = `
-UPDATE
-	templates
-SET
-	user_acl = $2
-WHERE
-	id = $1`
-
-	_, err = q.db.ExecContext(ctx, query, id.String(), raw)
-	if err != nil {
-		return xerrors.Errorf("update user acl: %w", err)
-	}
-
-	return nil
 }
 
 func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error) {
@@ -100,28 +75,6 @@ type TemplateGroup struct {
 	Actions Actions `db:"actions"`
 }
 
-func (q *sqlQuerier) UpdateTemplateGroupACLByID(ctx context.Context, id uuid.UUID, acl TemplateACL) error {
-	raw, err := json.Marshal(acl)
-	if err != nil {
-		return xerrors.Errorf("marshal user acl: %w", err)
-	}
-
-	const query = `
-UPDATE
-	templates
-SET
-	group_acl = $2
-WHERE
-	id = $1`
-
-	_, err = q.db.ExecContext(ctx, query, id.String(), raw)
-	if err != nil {
-		return xerrors.Errorf("update user acl: %w", err)
-	}
-
-	return nil
-}
-
 func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error) {
 	const query = `
 	SELECT
@@ -159,6 +112,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
+	GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -212,4 +166,24 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, err
 	}
 	return items, nil
+}
+
+func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
+	// authorizedFilter between the end of the where clause and those statements.
+	filter := strings.Replace(getWorkspaceCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceCount :one\n%s", filter)
+	row := q.db.QueryRowContext(ctx, query,
+		arg.Deleted,
+		arg.Status,
+		arg.OwnerID,
+		arg.OwnerUsername,
+		arg.TemplateName,
+		pq.Array(arg.TemplateIds),
+		arg.Name,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }

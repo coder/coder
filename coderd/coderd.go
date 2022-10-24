@@ -82,6 +82,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
+	RealIPConfig         *httpmw.RealIPConfig
 
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
@@ -92,7 +93,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
-	DeploymentFlags             *codersdk.DeploymentFlags
+	DeploymentConfig            *codersdk.DeploymentConfig
 }
 
 // New constructs a Coder API handler.
@@ -198,13 +199,14 @@ func New(options *Options) *API {
 	r.Use(
 		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
+		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
 		api.handleSubdomainApplications(
 			// Middleware to impose on the served application.
-			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
 				OAuth2Configs: oauthConfigs,
@@ -229,7 +231,7 @@ func New(options *Options) *API {
 	apps := func(r chi.Router) {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
-			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
 				OAuth2Configs: oauthConfigs,
@@ -267,7 +269,7 @@ func New(options *Options) *API {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
-			httpmw.RateLimitPerMinute(options.APIRateLimit),
+			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
@@ -286,9 +288,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/flags", func(r chi.Router) {
+		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentFlags)
+			r.Get("/deployment", api.deploymentConfig)
 		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
@@ -304,7 +306,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
-				httpmw.RateLimitPerMinute(12),
+				httpmw.RateLimit(12, time.Minute),
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
@@ -391,7 +393,15 @@ func New(options *Options) *API {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
-			r.Post("/login", api.postLogin)
+			r.Group(func(r chi.Router) {
+				// We use a tight limit for password login to protect
+				// against audit-log write DoS, pbkdf2 DoS, and simple
+				// brute-force attacks.
+				//
+				// Making this too small can break tests.
+				r.Use(httpmw.RateLimit(60, time.Minute))
+				r.Post("/login", api.postLogin)
+			})
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
@@ -461,7 +471,6 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
@@ -495,6 +504,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.workspaces)
+			r.Get("/count", api.workspaceCount)
 			r.Route("/{workspace}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractWorkspaceParam(options.Database),

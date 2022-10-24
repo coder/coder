@@ -203,7 +203,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 					return
 				}
 				// Check if the OAuth token is expired
-				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() {
+				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
 					var oauthConfig OAuth2Config
 					switch key.LoginType {
 					case database.LoginTypeGithub:
@@ -250,8 +250,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			// Only update LastUsed once an hour to prevent database spam.
 			if now.Sub(key.LastUsed) > time.Hour {
 				key.LastUsed = now
-				host, _, _ := net.SplitHostPort(r.RemoteAddr)
-				remoteIP := net.ParseIP(host)
+				remoteIP := net.ParseIP(r.RemoteAddr)
 				if remoteIP == nil {
 					remoteIP = net.IPv4(0, 0, 0, 0)
 				}
