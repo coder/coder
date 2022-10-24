@@ -1,17 +1,23 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"os/signal"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/gitauth"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
 )
 
+// gitAskpass is used by the Coder agent to automatically authenticate
+// with Git providers based on a hostname.
 func gitAskpass() *cobra.Command {
 	return &cobra.Command{
 		Use:    "gitaskpass",
@@ -22,7 +28,6 @@ func gitAskpass() *cobra.Command {
 
 			ctx, stop := signal.NotifyContext(ctx, interruptSignals...)
 			defer stop()
-
 			defer func() {
 				if ctx.Err() != nil {
 					err = ctx.Err()
@@ -41,17 +46,23 @@ func gitAskpass() *cobra.Command {
 
 			token, err := client.WorkspaceAgentGitAuth(ctx, host, false)
 			if err != nil {
+				var apiError *codersdk.Error
+				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
+					// This prevents the "Run 'coder --help' for usage"
+					// message from occurring.
+					cmd.Printf("%s\n", apiError.Message)
+					return cliui.Canceled
+				}
 				return xerrors.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
-				cmd.Printf("Visit the following URL to authenticate with Git:\n%s\n", token.URL)
-
-				err = openURL(cmd, token.URL)
-				if err != nil {
-					return xerrors.Errorf("open url: %w", err)
+				if err := openURL(cmd, token.URL); err != nil {
+					cmd.Printf("Your browser has been opened to visit:\n\n\t%s\n\n", token.URL)
+				} else {
+					cmd.Printf("Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				}
 
-				for r := retry.New(time.Second, 10*time.Second); r.Wait(ctx); {
+				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 					token, err = client.WorkspaceAgentGitAuth(ctx, host, true)
 					if err != nil {
 						continue
