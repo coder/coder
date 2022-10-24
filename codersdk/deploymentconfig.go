@@ -19,6 +19,8 @@ type DeploymentConfig struct {
 	DERP                        DERP                                 `json:"derp"`
 	Prometheus                  PrometheusConfig                     `json:"prometheus"`
 	Pprof                       PprofConfig                          `json:"pprof"`
+	ProxyTrustedHeaders         DeploymentConfigField[[]string]      `json:"proxy_trusted_headers"`
+	ProxyTrustedOrigins         DeploymentConfigField[[]string]      `json:"proxy_trusted_origin"`
 	CacheDirectory              DeploymentConfigField[string]        `json:"cache_directory"`
 	InMemoryDatabase            DeploymentConfigField[bool]          `json:"in_memory_database"`
 	ProvisionerDaemons          DeploymentConfigField[int]           `json:"provisioner_daemon_count"`
@@ -50,7 +52,7 @@ type DERPServerConfig struct {
 	RegionCode    DeploymentConfigField[string]   `json:"region_code"`
 	RegionName    DeploymentConfigField[string]   `json:"region_name"`
 	STUNAddresses DeploymentConfigField[[]string] `json:"stun_address"`
-	RelayAddress  DeploymentConfigField[string]   `json:"relay_address"`
+	RelayURL      DeploymentConfigField[string]   `json:"relay_address"`
 }
 
 type DERPConfig struct {
@@ -110,7 +112,6 @@ type Flaggable interface {
 }
 
 type DeploymentConfigField[T Flaggable] struct {
-	// Key        string `json:"key"`
 	Name       string `json:"name"`
 	Usage      string `json:"usage"`
 	Flag       string `json:"flag"`
