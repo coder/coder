@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -24,11 +23,10 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		org               = httpmw.OrganizationParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionCreate,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
 		})
 	)
 	defer commitAudit()
@@ -77,11 +75,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionWrite,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -228,11 +225,10 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionDelete,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
 		})
 	)
 	defer commitAudit()

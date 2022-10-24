@@ -137,6 +137,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			}
 		}
 
+		if p.AdditionalFields == nil {
+			p.AdditionalFields = json.RawMessage("{}")
+		}
+
 		ip := parseIP(p.Request.RemoteAddr)
 		err := p.Audit.Export(ctx, database.AuditLog{
 			ID:               uuid.New(),

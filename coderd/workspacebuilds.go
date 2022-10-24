@@ -282,15 +282,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	// if user deletes a workspace, audit the workspace
 	if action == rbac.ActionDelete {
-		var (
-			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-				Audit:            *auditor,
-				Log:              api.Logger,
-				Request:          r,
-				Action:           database.AuditActionDelete,
-				AdditionalFields: json.RawMessage("{}"),
-			})
-		)
+		aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
 
 		defer commitAudit()
 		aReq.Old = workspace
@@ -317,15 +314,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 		wriBytes, _ := json.Marshal(workspaceResourceInfo)
 
-		var (
-			aReq, commitAudit = audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
-				Audit:            *auditor,
-				Log:              api.Logger,
-				Request:          r,
-				Action:           auditAction,
-				AdditionalFields: wriBytes,
-			})
-		)
+		aReq, commitAudit := audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           auditAction,
+			AdditionalFields: wriBytes,
+		})
 
 		defer commitAudit()
 		aReq.Old = latestBuild

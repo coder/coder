@@ -599,11 +599,10 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:            auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionWrite,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
@@ -674,11 +673,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		organization      = httpmw.OrganizationParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
-			Audit:            auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionCreate,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
 		})
 
 		req codersdk.CreateTemplateVersionRequest

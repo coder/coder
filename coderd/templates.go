@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -85,11 +84,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:            auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionDelete,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
 		})
 	)
 	defer commitAudit()
@@ -446,11 +444,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:            auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionWrite,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()

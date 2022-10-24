@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -99,11 +98,10 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		template          = httpmw.TemplateParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionWrite,
-			AdditionalFields: json.RawMessage("{}"),
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	defer commitAudit()
