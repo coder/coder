@@ -77,7 +77,7 @@ Use the following `make` commands and scripts in development:
 
 ### Documentation
 
-Our style guide for authoring documentation can be found [./contributing/documentation.md](here).
+Our style guide for authoring documentation can be found [here](./contributing/documentation.md).
 
 ### Backend
 

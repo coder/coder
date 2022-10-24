@@ -33,7 +33,7 @@ const OptionsTable: React.FC<{ options: Partial<DeploymentConfig> }> = ({
               <TableRow key={option.flag}>
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
-                  <OptionDescription>{option.description}</OptionDescription>
+                  <OptionDescription>{option.usage}</OptionDescription>
                 </TableCell>
 
                 <TableCell>

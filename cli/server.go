@@ -57,6 +57,7 @@ import (
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -325,6 +326,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
+			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders.Value, cfg.ProxyTrustedOrigins.Value)
+			if err != nil {
+				return xerrors.Errorf("parse real ip config: %w", err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
 				AppHostname:                 appHostname,
@@ -335,6 +341,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Pubsub:                      database.NewPubsubInMemory(),
 				CacheDir:                    cfg.CacheDirectory.Value,
 				GoogleTokenValidator:        googleTokenValidator,
+				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,

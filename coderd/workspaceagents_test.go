@@ -111,9 +111,8 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 		agentCloser := agent.New(agent.Options{
-			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Client: agentClient,
+			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		defer func() {
 			_ = agentCloser.Close()
@@ -204,7 +203,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 
-		_, err = agentClient.ListenWorkspaceAgentTailnet(ctx)
+		_, err = agentClient.ListenWorkspaceAgent(ctx)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "build is outdated")
 	})
@@ -244,9 +243,8 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer agentCloser.Close()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -311,9 +309,8 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer func() {
 		_ = agentCloser.Close()
@@ -409,9 +406,8 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = authToken
 		agentCloser := agent.New(agent.Options{
-			FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-			CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-			Logger:            slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			Client: agentClient,
+			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		t.Cleanup(func() {
 			_ = agentCloser.Close()
@@ -671,10 +667,10 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 
-	apiApps, err := agentClient.WorkspaceAgentApps(ctx)
+	metadata, err := agentClient.WorkspaceAgentMetadata(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, apiApps[0].Health)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, apiApps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, metadata.Apps[0].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, metadata.Apps[1].Health)
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{})
 	require.Error(t, err)
 	// empty
@@ -708,9 +704,9 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	apiApps, err = agentClient.WorkspaceAgentApps(ctx)
+	metadata, err = agentClient.WorkspaceAgentMetadata(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, apiApps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, metadata.Apps[1].Health)
 	// update to unhealthy
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
 		Healths: map[string]codersdk.WorkspaceAppHealth{
@@ -718,7 +714,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	apiApps, err = agentClient.WorkspaceAgentApps(ctx)
+	metadata, err = agentClient.WorkspaceAgentMetadata(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, apiApps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, metadata.Apps[1].Health)
 }
