@@ -1,5 +1,5 @@
 # PATH utilities. Taken from:
-# https://www.smartmontools.org/browser/trunk/smartmontools/os_win32/installer.nsi?rev=4110#L619
+# https://www.smartmontools.org/browser/trunk/smartmontools/os_win32/installer.nsi?rev=5310#L689
 
 
 ;--------------------------------------------------------------------
@@ -44,16 +44,19 @@ Function AddToPath
   System::Call "advapi32::RegQueryValueEx(i $3, t'PATH', i 0, i 0, t.r1, *i ${NSIS_MAX_STRLEN} r2) i.r4"
   System::Call "advapi32::RegCloseKey(i $3)"
 
-  IntCmp $4 234 0 +4 +4 ; $4 == ERROR_MORE_DATA
+  ${If} $4 = 234 ; ERROR_MORE_DATA
     DetailPrint "AddToPath: original length $2 > ${NSIS_MAX_STRLEN}"
-    MessageBox MB_OK "PATH not updated, original length $2 > ${NSIS_MAX_STRLEN}"
+    MessageBox MB_OK "PATH not updated, original length $2 > ${NSIS_MAX_STRLEN}" /SD IDOK
     Goto done
+  ${EndIf}
 
-  IntCmp $4 0 +5 ; $4 != NO_ERROR
-    IntCmp $4 2 +3 ; $4 != ERROR_FILE_NOT_FOUND
+  ${If} $4 <> 0 ; NO_ERROR
+    ${If} $4 <> 2 ; ERROR_FILE_NOT_FOUND
       DetailPrint "AddToPath: unexpected error code $4"
       Goto done
+    ${EndIf}
     StrCpy $1 ""
+  ${EndIf}
 
   ; Check if already in PATH
   Push "$1;"
@@ -72,18 +75,21 @@ Function AddToPath
   StrLen $3 $1
   IntOp $2 $2 + $3
   IntOp $2 $2 + 2 ; $2 = strlen(dir) + strlen(PATH) + sizeof(";")
-  IntCmp $2 ${NSIS_MAX_STRLEN} +4 +4 0
+  ${If} $2 > ${NSIS_MAX_STRLEN}
     DetailPrint "AddToPath: new length $2 > ${NSIS_MAX_STRLEN}"
-    MessageBox MB_OK "PATH not updated, new length $2 > ${NSIS_MAX_STRLEN}."
+    MessageBox MB_OK "PATH not updated, new length $2 > ${NSIS_MAX_STRLEN}." /SD IDOK
     Goto done
+  ${EndIf}
 
   ; Append dir to PATH
   DetailPrint "Add to PATH: $0"
   StrCpy $2 $1 1 -1
-  StrCmp $2 ";" 0 +2
+  ${If} $2 == ";"
     StrCpy $1 $1 -1 ; remove trailing ';'
-  StrCmp $1 "" +2   ; no leading ';'
+  ${EndIf}
+  ${If} $1 != "" ; no leading ';'
     StrCpy $0 "$1;$0"
+  ${EndIf}
   WriteRegExpandStr ${Environ} "PATH" $0
   SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
 
@@ -113,8 +119,9 @@ Function un.RemoveFromPath
 
   ReadRegStr $1 ${Environ} "PATH"
   StrCpy $5 $1 1 -1
-  StrCmp $5 ";" +2
+  ${If} $5 != ";"
     StrCpy $1 "$1;" ; ensure trailing ';'
+  ${EndIf}
   Push $1
   Push "$0;"
   Call un.StrStr
@@ -128,8 +135,9 @@ Function un.RemoveFromPath
   StrCpy $6 $2 "" $3 ; $6 is now the part after the path to remove
   StrCpy $3 "$5$6"
   StrCpy $5 $3 1 -1
-  StrCmp $5 ";" 0 +2
+  ${If} $5 == ";"
     StrCpy $3 $3 -1 ; remove trailing ';'
+  ${EndIf}
   WriteRegExpandStr ${Environ} "PATH" $3
   SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
 
@@ -164,13 +172,12 @@ Function ${un}StrStr
   StrCpy $R4 0
   ; $R1=substring, $R2=string, $R3=strlen(substring)
   ; $R4=count, $R5=tmp
-  loop:
+  ${Do}
     StrCpy $R5 $R2 $R3 $R4
-    StrCmp $R5 $R1 done
-    StrCmp $R5 "" done
+    ${IfThen} $R5 == $R1 ${|} ${ExitDo} ${|}
+    ${IfThen} $R5 == ""  ${|} ${ExitDo} ${|}
     IntOp $R4 $R4 + 1
-    Goto loop
-done:
+  ${Loop}
   StrCpy $R1 $R2 "" $R4
   Pop $R5
   Pop $R4
