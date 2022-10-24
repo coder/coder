@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -85,6 +86,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, err := r.Cookie(codersdk.SessionTokenKey)
 			assert.ErrorIs(t, err, http.ErrNoCookie)
+			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(proxyTestAppBody))
 		}),
@@ -107,6 +109,15 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
 		MetricsCacheRefreshInterval: time.Millisecond * 100,
+		RealIPConfig: &httpmw.RealIPConfig{
+			TrustedOrigins: []*net.IPNet{{
+				IP:   net.ParseIP("127.0.0.1"),
+				Mask: net.CIDRMask(8, 32),
+			}},
+			TrustedHeaders: []string{
+				"CF-Connecting-IP",
+			},
+		},
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -184,10 +195,8 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent"),
-		StatsReporter:     agentClient.AgentReportStats,
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
@@ -278,6 +287,24 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("ForwardsIP", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil, func(r *http.Request) {
+			r.Header.Set("Cf-Connecting-IP", "1.1.1.1")
+		})
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, proxyTestAppBody, string(body))
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "1.1.1.1,127.0.0.1", resp.Header.Get("X-Forwarded-For"))
 	})
 
 	t.Run("ProxyError", func(t *testing.T) {

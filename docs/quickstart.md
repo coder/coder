@@ -5,7 +5,7 @@ possible way to use Coder.
 
 ## Generic Quickstart
 
-Please [install Coder](../install) before proceeding with the steps below.
+Please [install Coder](./install/index.md) before proceeding with the steps below.
 
 ## First time owner user setup
 
@@ -42,7 +42,7 @@ Connect to your workspace via SSH:
 coder ssh <workspaceName>
 ```
 
-To access your workspace in the Coder dashboard, navigate to the [configured access URL](../admin/configure#access-url),
+To access your workspace in the Coder dashboard, navigate to the [configured access URL](./admin/configure.md#access-url),
 and log in with the owner credentials provided to you by Coder.
 
 ![Coder Web UI with code-server](./images/code-server.png)
@@ -65,4 +65,4 @@ coder templates push gcp-linux # updates the template
 
 ## Up Next
 
-Learn about [templates](../templates.md).
+Learn about [templates](./templates.md).

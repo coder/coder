@@ -82,6 +82,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
+	RealIPConfig         *httpmw.RealIPConfig
 
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
@@ -198,6 +199,7 @@ func New(options *Options) *API {
 	r.Use(
 		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
+		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
@@ -469,7 +471,6 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
