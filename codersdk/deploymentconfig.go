@@ -72,7 +72,8 @@ type Flaggable interface {
 }
 
 type DeploymentConfigField[T Flaggable] struct {
-	Key        string `json:"key"`
+	Key string `json:"key"`
+	// Name appears in the deployment UI.
 	Name       string `json:"name"`
 	Usage      string `json:"usage"`
 	Flag       string `json:"flag"`
