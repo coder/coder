@@ -50,7 +50,7 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
               <Stack direction="row" alignItems="center">
                 <Link
                   underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/enterprise"
+                  href="https://coder.com/docs/coder-oss/latest/enterprise"
                   target="_blank"
                   rel="noreferrer"
                 >

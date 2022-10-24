@@ -31,4 +31,4 @@ The supported filters are:
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license. [Learn more](./enterprise.md)
+This feature is only available with an enterprise license. [Learn more](../enterprise.md)

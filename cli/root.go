@@ -116,12 +116,14 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	// to check if the command was invoked.
 	isGitAskpass := false
 
+	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
+`
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: `Coder — A tool for provisioning self-hosted development environments with Terraform.
-`, Args: func(cmd *cobra.Command, args []string) error {
+		Long:          fmt.Sprintf(fmtLong, buildinfo.Version()),
+		Args: func(cmd *cobra.Command, args []string) error {
 			if gitauth.CheckCommand(args, os.Environ()) {
 				isGitAskpass = true
 				return nil
