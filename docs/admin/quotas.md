@@ -21,5 +21,5 @@ This feature is only available with an enterprise license. [Learn more](./enterp
 
 ## Up next
 
-- [Enterprise](./enterprise.md)
+- [Enterprise](../enterprise.md)
 - [Configuring](./configure.md)
