@@ -31,6 +31,8 @@ type DeploymentConfig struct {
 	CacheDirectory                DeploymentConfigField[string]                    `json:"cache_directory"`
 	GitAuth                       DeploymentConfigField[[]DeploymentConfigGitAuth] `json:"gitauth"`
 	InMemoryDatabase              DeploymentConfigField[bool]                      `json:"in_memory_database"`
+	ProxyTrustedHeaders           DeploymentConfigField[[]string]                  `json:"proxy_trusted_headers"`
+	ProxyTrustedOrigins           DeploymentConfigField[[]string]                  `json:"proxy_trusted_origins"`
 	ProvisionerDaemons            DeploymentConfigField[int]                       `json:"provisioner_daemon_count"`
 	PostgresURL                   DeploymentConfigField[string]                    `json:"-"`
 	OAuth2GithubClientID          DeploymentConfigField[string]                    `json:"oauth2_github_client_id"`

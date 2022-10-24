@@ -119,9 +119,8 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	}
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent"),
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

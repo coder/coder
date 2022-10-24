@@ -81,7 +81,7 @@ journalctl -u coder.service -b
 To restart Coder after applying system changes:
 
 ```sh
-sudo systemctl restart Coder
+sudo systemctl restart coder
 ```
 
 ## Up Next

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -503,6 +504,45 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
 	})
+
+	t.Run("Reconnect", func(t *testing.T) {
+		t.Parallel()
+		// After the agent is disconnected from a coordinator, it's supposed
+		// to reconnect!
+		coordinator := tailnet.NewCoordinator()
+		agentID := uuid.New()
+		statsCh := make(chan *codersdk.AgentStats)
+		derpMap := tailnettest.RunDERPAndSTUN(t)
+		client := &client{
+			t:       t,
+			agentID: agentID,
+			metadata: codersdk.WorkspaceAgentMetadata{
+				DERPMap: derpMap,
+			},
+			statsChan:   statsCh,
+			coordinator: coordinator,
+		}
+		initialized := atomic.Int32{}
+		closer := agent.New(agent.Options{
+			ExchangeToken: func(ctx context.Context) error {
+				initialized.Add(1)
+				return nil
+			},
+			Client: client,
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+
+		require.Eventually(t, func() bool {
+			return coordinator.Node(agentID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+		client.lastWorkspaceAgent()
+		require.Eventually(t, func() bool {
+			return initialized.Load() == 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
@@ -572,57 +612,15 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	agentID := uuid.New()
 	statsCh := make(chan *codersdk.AgentStats)
 	closer := agent.New(agent.Options{
-		FetchMetadata: func(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error) {
-			return metadata, nil
-		},
-		CoordinatorDialer: func(ctx context.Context) (net.Conn, error) {
-			clientConn, serverConn := net.Pipe()
-			closed := make(chan struct{})
-			t.Cleanup(func() {
-				_ = serverConn.Close()
-				_ = clientConn.Close()
-				<-closed
-			})
-			go func() {
-				_ = coordinator.ServeAgent(serverConn, agentID)
-				close(closed)
-			}()
-			return clientConn, nil
+		Client: &client{
+			t:           t,
+			agentID:     agentID,
+			metadata:    metadata,
+			statsChan:   statsCh,
+			coordinator: coordinator,
 		},
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
-		StatsReporter: func(ctx context.Context, log slog.Logger, statsFn func() *codersdk.AgentStats) (io.Closer, error) {
-			doneCh := make(chan struct{})
-			ctx, cancel := context.WithCancel(ctx)
-
-			go func() {
-				defer close(doneCh)
-
-				t := time.NewTicker(time.Millisecond * 100)
-				defer t.Stop()
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-t.C:
-					}
-					select {
-					case statsCh <- statsFn():
-					case <-ctx.Done():
-						return
-					default:
-						// We don't want to send old stats.
-						continue
-					}
-				}
-			}()
-			return closeFunc(func() error {
-				cancel()
-				<-doneCh
-				close(statsCh)
-				return nil
-			}), nil
-		},
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
@@ -678,4 +676,74 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
+}
+
+type client struct {
+	t                  *testing.T
+	agentID            uuid.UUID
+	metadata           codersdk.WorkspaceAgentMetadata
+	statsChan          chan *codersdk.AgentStats
+	coordinator        tailnet.Coordinator
+	lastWorkspaceAgent func()
+}
+
+func (c *client) WorkspaceAgentMetadata(_ context.Context) (codersdk.WorkspaceAgentMetadata, error) {
+	return c.metadata, nil
+}
+
+func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
+	clientConn, serverConn := net.Pipe()
+	closed := make(chan struct{})
+	c.lastWorkspaceAgent = func() {
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+		<-closed
+	}
+	c.t.Cleanup(c.lastWorkspaceAgent)
+	go func() {
+		_ = c.coordinator.ServeAgent(serverConn, c.agentID)
+		close(closed)
+	}()
+	return clientConn, nil
+}
+
+func (c *client) AgentReportStats(ctx context.Context, _ slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error) {
+	doneCh := make(chan struct{})
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		defer close(doneCh)
+
+		t := time.NewTicker(time.Millisecond * 100)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+			select {
+			case c.statsChan <- stats():
+			case <-ctx.Done():
+				return
+			default:
+				// We don't want to send old stats.
+				continue
+			}
+		}
+	}()
+	return closeFunc(func() error {
+		cancel()
+		<-doneCh
+		close(c.statsChan)
+		return nil
+	}), nil
+}
+
+func (*client) PostWorkspaceAgentAppHealth(_ context.Context, _ codersdk.PostWorkspaceAppHealthsRequest) error {
+	return nil
+}
+
+func (*client) PostWorkspaceAgentVersion(_ context.Context, _ string) error {
+	return nil
 }
