@@ -13,9 +13,9 @@ import {
 } from "components/DeploySettingsLayout/Option"
 import React from "react"
 
-const OptionsTable: React.FC<{ options: Record<string, DeploymentConfigField<Flaggable>> }> = ({
-  options,
-}) => {
+const OptionsTable: React.FC<{
+  options: Record<string, DeploymentConfigField<Flaggable>>
+}> = ({ options }) => {
   const styles = useStyles()
 
   return (

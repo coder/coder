@@ -69,15 +69,12 @@ const AuthSettingsPage: React.FC = () => {
           <OptionsTable
             options={{
               client_id: deploymentConfig.oauth2.github.client_id,
-              allow_signups:
-                deploymentConfig.oauth2.github.allow_signups,
-              allowed_orgs:
-                deploymentConfig.oauth2.github.allowed_orgs,
-              allowed_teams:
-                deploymentConfig.oauth2.github.allowed_teams,
+              allow_signups: deploymentConfig.oauth2.github.allow_signups,
+              allowed_orgs: deploymentConfig.oauth2.github.allowed_orgs,
+              allowed_teams: deploymentConfig.oauth2.github.allowed_teams,
               enterprise_base_url:
                 deploymentConfig.oauth2.github.enterprise_base_url,
-              }}
+            }}
           />
         </div>
       </Stack>
