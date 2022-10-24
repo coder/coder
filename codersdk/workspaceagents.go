@@ -119,6 +119,10 @@ type PostWorkspaceAgentVersionRequest struct {
 
 // @typescript-ignore WorkspaceAgentMetadata
 type WorkspaceAgentMetadata struct {
+	// GitAuthConfigs stores the number of Git configurations
+	// the Coder deployment has. If this number is >0, we
+	// set up special configuration in the workspace.
+	GitAuthConfigs       int               `json:"git_auth_configs"`
 	Apps                 []WorkspaceApp    `json:"apps"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`

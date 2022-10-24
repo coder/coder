@@ -26,6 +26,7 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
 	"github.com/pkg/sftp"
+	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -35,6 +36,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
@@ -53,6 +55,7 @@ const (
 )
 
 type Options struct {
+	Filesystem             afero.Fs
 	ExchangeToken          func(ctx context.Context) error
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
@@ -72,6 +75,9 @@ func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
+	if options.Filesystem == nil {
+		options.Filesystem = afero.NewOsFs()
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
@@ -81,6 +87,7 @@ func New(options Options) io.Closer {
 		envVars:                options.EnvironmentVariables,
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
+		filesystem:             options.Filesystem,
 		stats:                  &Stats{},
 	}
 	server.init(ctx)
@@ -91,6 +98,7 @@ type agent struct {
 	logger        slog.Logger
 	client        Client
 	exchangeToken func(ctx context.Context) error
+	filesystem    afero.Fs
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -169,6 +177,13 @@ func (a *agent) run(ctx context.Context) error {
 				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
 			}
 		}()
+	}
+
+	if metadata.GitAuthConfigs > 0 {
+		err = gitauth.OverrideVSCodeConfigs(a.filesystem)
+		if err != nil {
+			return xerrors.Errorf("override vscode configuration for git auth: %w", err)
+		}
 	}
 
 	// This automatically closes when the context ends!

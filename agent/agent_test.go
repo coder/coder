@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -541,6 +542,38 @@ func TestAgent(t *testing.T) {
 		client.lastWorkspaceAgent()
 		require.Eventually(t, func() bool {
 			return initialized.Load() == 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("WriteVSCodeConfigs", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: codersdk.WorkspaceAgentMetadata{
+				GitAuthConfigs: 1,
+			},
+			statsChan:   make(chan *codersdk.AgentStats),
+			coordinator: tailnet.NewCoordinator(),
+		}
+		filesystem := afero.NewMemMapFs()
+		closer := agent.New(agent.Options{
+			ExchangeToken: func(ctx context.Context) error {
+				return nil
+			},
+			Client:     client,
+			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Filesystem: filesystem,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		path := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
+		require.Eventually(t, func() bool {
+			_, err := filesystem.Stat(path)
+			return err == nil
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }

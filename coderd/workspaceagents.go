@@ -87,6 +87,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentMetadata{
 		Apps:                 convertApps(dbApps),
 		DERPMap:              api.DERPMap,
+		GitAuthConfigs:       len(api.GitAuthConfigs),
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,
