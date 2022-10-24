@@ -667,9 +667,9 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
-export const getDeploymentFlags =
-  async (): Promise<TypesGen.DeploymentFlags> => {
-    const response = await axios.get(`/api/v2/flags/deployment`)
+export const getDeploymentConfig =
+  async (): Promise<TypesGen.DeploymentConfig> => {
+    const response = await axios.get(`/api/v2/config/deployment`)
     return response.data
   }
 

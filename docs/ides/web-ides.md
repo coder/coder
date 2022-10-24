@@ -197,11 +197,9 @@ resource "coder_app" "intellij" {
 
 You can also reference/use to these pre-built templates with JetBrains projector:
 
-- IntelliJ ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-intellij))
+- IntelliJ ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij), [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
 
-- PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-pycharm)
-
-- GoLand ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-goland), [Kubernetes](https://github.com/mark-theshark/v2-templates/tree/main/pod-with-goland))
+- PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm)
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
 

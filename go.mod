@@ -128,14 +128,14 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	github.com/tabbed/pqtype v0.1.1
-	github.com/u-root/u-root v0.9.0
+	github.com/u-root/u-root v0.10.0
 	github.com/unrolled/secure v1.13.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.opentelemetry.io/otel v1.11.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.10.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.10.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.10.0
-	go.opentelemetry.io/otel/sdk v1.10.0
+	go.opentelemetry.io/otel/sdk v1.11.0
 	go.opentelemetry.io/otel/trace v1.11.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/goleak v1.2.0
@@ -144,7 +144,7 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab
+	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.8-0.20211105212822-18b340fc7af2
 	golang.org/x/tools v0.1.11
@@ -164,7 +164,18 @@ require (
 
 require github.com/jmoiron/sqlx v1.3.5
 
-require github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+require (
+	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+	github.com/spf13/viper v1.13.0
+)
+
+require (
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/magiconair/properties v1.8.6 // indirect
+	github.com/pelletier/go-toml v1.9.5 // indirect
+	github.com/subosito/gotenv v1.4.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
+)
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
@@ -252,7 +263,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
-	github.com/pelletier/go-toml/v2 v2.0.4 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/pion/transport v0.13.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -286,7 +297,7 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.10.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.0 // indirect
 	go.opentelemetry.io/otel/metric v0.31.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect

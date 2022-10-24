@@ -82,6 +82,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
+	RealIPConfig         *httpmw.RealIPConfig
 
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
@@ -92,7 +93,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
-	DeploymentFlags             *codersdk.DeploymentFlags
+	DeploymentConfig            *codersdk.DeploymentConfig
 }
 
 // New constructs a Coder API handler.
@@ -198,6 +199,7 @@ func New(options *Options) *API {
 	r.Use(
 		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
+		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
@@ -286,9 +288,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/flags", func(r chi.Router) {
+		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentFlags)
+			r.Get("/deployment", api.deploymentConfig)
 		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
@@ -469,7 +471,6 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/apps", api.workspaceAgentApps)
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Post("/app-health", api.postWorkspaceAppHealth)

@@ -6,5 +6,5 @@ Groups can be used with [template RBAC](./rbac.md) to give groups of users acces
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license. [Learn more](./enterprise.md)
+This feature is only available with an enterprise license. [Learn more](../enterprise.md)
 
