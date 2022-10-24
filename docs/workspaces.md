@@ -58,7 +58,7 @@ and day(s) of the week. In addition, users can select their preferred timezone.
 
 The auto-stop feature shuts off workspaces after given number of hours in the "on"
 state. If Coder detects workspace connection activity, the auto-stop timer is bumped up
-one hour. IDE, SSH, Port Forwarding, and app activity trigger this bump.
+one hour. IDE, SSH, Port Forwarding, and coder_app activity trigger this bump.
 
 ![auto-stop UI](./images/auto-stop.png)
 
