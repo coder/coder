@@ -65,7 +65,7 @@ version="${version#v}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
-version="$(echo "$version" | sed 's/-.*//')"
+version="${version//-*/}"
 version+=".$(date -u +%Y%m%d%H%M)"
 
 # Check dependencies
@@ -87,24 +87,24 @@ cp "$(realpath scripts/installer/banner.bmp)" "$temp_dir/banner.bmp"
 license_path="$temp_dir/license.txt"
 
 if [[ "$agpl" == 0 ]]; then
-	cat <<- EOF  > "$license_path"
-This distribution of Coder includes some enterprise-licensed code which is not
-licensed under the AGPL license:
+	cat <<-EOF >"$license_path"
+		This distribution of Coder includes some enterprise-licensed code which is not
+		licensed under the AGPL license:
 
-$(cat "$(realpath LICENSE.enterprise)" | sed 's/^/  /')
+		$(sed 's/^/  /' "$(realpath LICENSE.enterprise)")
 
 
 
-The non-enterprise code in this distribution is licensed under the AGPL license:
+		The non-enterprise code in this distribution is licensed under the AGPL license:
 
-$(cat "$(realpath LICENSE)" | sed 's/^/  /')
+		$(sed 's/^/  /' "$(realpath LICENSE)")
 	EOF
 else
-	cat <<- EOF  > "$license_path"
-This distribution of Coder is free software and is licensed under the AGPL
-license:
+	cat <<-EOF >"$license_path"
+		This distribution of Coder is free software and is licensed under the AGPL
+		license:
 
-$(cat "$(realpath LICENSE)" | sed 's/^/  /')
+		$(sed 's/^/  /' "$(realpath LICENSE)")
 	EOF
 fi
 
