@@ -42,7 +42,6 @@ const AuthSettingsPage: React.FC = () => {
           <OptionsTable
             options={{
               oidc_client_id: deploymentConfig.oidc_client_id,
-              oidc_client_secret: deploymentConfig.oidc_client_secret,
               oidc_allow_signups: deploymentConfig.oidc_allow_signups,
               oidc_email_domain: deploymentConfig.oidc_email_domain,
               oidc_issuer_url: deploymentConfig.oidc_issuer_url,
@@ -70,8 +69,6 @@ const AuthSettingsPage: React.FC = () => {
           <OptionsTable
             options={{
               oauth2_github_client_id: deploymentConfig.oauth2_github_client_id,
-              oauth2_github_client_secret:
-                deploymentConfig.oauth2_github_client_secret,
               oauth2_github_allow_signups:
                 deploymentConfig.oauth2_github_allow_signups,
               oauth2_github_allowed_orgs:
