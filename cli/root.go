@@ -108,12 +108,13 @@ func AGPL() []*cobra.Command {
 }
 
 func Root(subcommands []*cobra.Command) *cobra.Command {
+	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
+`
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: `Coder — A tool for provisioning self-hosted development environments with Terraform.
-`,
+		Long: fmt.Sprintf(fmtLong, buildinfo.Version()),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
 				cliflag.IsSetBool(cmd, varNoFeatureWarning) {
