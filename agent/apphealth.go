@@ -23,16 +23,8 @@ type PostWorkspaceAgentAppHealth func(context.Context, codersdk.PostWorkspaceApp
 type WorkspaceAppHealthReporter func(ctx context.Context)
 
 // NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
-func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps WorkspaceAgentApps, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
+func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.WorkspaceApp, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
 	runHealthcheckLoop := func(ctx context.Context) error {
-		apps, err := workspaceAgentApps(ctx)
-		if err != nil {
-			if xerrors.Is(err, context.Canceled) {
-				return nil
-			}
-			return xerrors.Errorf("getting workspace apps: %w", err)
-		}
-
 		// no need to run this loop if no apps for this workspace.
 		if len(apps) == 0 {
 			return nil
