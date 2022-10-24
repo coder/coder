@@ -127,10 +127,30 @@ type DeploymentConfigField[T Flaggable] struct {
 // nolint: revive
 func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 	if !f.Secret {
-		return json.Marshal(f)
+		return json.Marshal(struct {
+			Name       string `json:"name"`
+			Usage      string `json:"usage"`
+			Flag       string `json:"flag"`
+			Shorthand  string `json:"shorthand"`
+			Enterprise bool   `json:"enterprise"`
+			Hidden     bool   `json:"hidden"`
+			Secret     bool   `json:"secret"`
+			Default    T      `json:"default"`
+			Value      T      `json:"value"`
+		}{
+			Name:       f.Name,
+			Usage:      f.Usage,
+			Flag:       f.Flag,
+			Shorthand:  f.Shorthand,
+			Enterprise: f.Enterprise,
+			Hidden:     f.Hidden,
+			Secret:     f.Secret,
+			Default:    f.Default,
+			Value:      f.Value,
+		})
 	}
 
-	type SafeField[T Flaggable] struct {
+	return json.Marshal(struct {
 		Name       string `json:"name"`
 		Usage      string `json:"usage"`
 		Flag       string `json:"flag"`
@@ -138,9 +158,7 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 		Enterprise bool   `json:"enterprise"`
 		Hidden     bool   `json:"hidden"`
 		Secret     bool   `json:"secret"`
-	}
-
-	return json.Marshal(SafeField[T]{
+	}{
 		Name:       f.Name,
 		Usage:      f.Usage,
 		Flag:       f.Flag,
