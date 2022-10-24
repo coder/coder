@@ -65,13 +65,14 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install nsis and zstd
+        run: sudo apt-get install -y nsis zstd
+
       - name: Install nfpm
         run: |
           set -euo pipefail
           wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
           sudo dpkg -i /tmp/nfpm.deb
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
 
       - name: Install rcodesign
         run: |
