@@ -45,6 +45,12 @@ func gitAskpass() *cobra.Command {
 			}
 			if token.URL != "" {
 				cmd.Printf("Visit the following URL to authenticate with Git:\n%s\n", token.URL)
+
+				err = openURL(cmd, token.URL)
+				if err != nil {
+					return xerrors.Errorf("open url: %w", err)
+				}
+
 				for r := retry.New(time.Second, 10*time.Second); r.Wait(ctx); {
 					token, err = client.WorkspaceAgentGitAuth(ctx, host, true)
 					if err != nil {

@@ -269,11 +269,11 @@ export interface DeploymentConfig {
   readonly prometheus_address: DeploymentConfigField<string>
   readonly pprof_enabled: DeploymentConfigField<boolean>
   readonly pprof_address: DeploymentConfigField<string>
-  readonly proxy_trusted_headers: DeploymentConfigField<string[]>
-  readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly gitauth: DeploymentConfigField<DeploymentConfigGitAuth[]>
   readonly in_memory_database: DeploymentConfigField<boolean>
+  readonly proxy_trusted_headers: DeploymentConfigField<string[]>
+  readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly provisioner_daemon_count: DeploymentConfigField<number>
   readonly oauth2_github_client_id: DeploymentConfigField<string>
   readonly oauth2_github_allowed_orgs: DeploymentConfigField<string[]>
