@@ -4,7 +4,7 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableRow from "@material-ui/core/TableRow"
-import { FC } from "react"
+import { FC, Fragment } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableLoader } from "../TableLoader/TableLoader"
@@ -64,12 +64,12 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
               const builds = buildsByDate[dateStr]
 
               return (
-                <>
+                <Fragment key={dateStr}>
                   <BuildDateRow date={new Date(dateStr)} />
                   {builds.map((build) => (
                     <BuildRow key={build.id} build={build} />
                   ))}
-                </>
+                </Fragment>
               )
             })}
 

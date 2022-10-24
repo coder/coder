@@ -23,7 +23,6 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
   return (
     <TableRow
       hover
-      key={build.id}
       data-testid={`build-${build.id}`}
       className={styles.buildRow}
     >

@@ -288,7 +288,8 @@ describe("WorkspacePage", () => {
       // Wait for the results to be loaded
       await waitFor(async () => {
         const rows = table.querySelectorAll("tbody > tr")
-        expect(rows).toHaveLength(MockBuilds.length)
+        // Added +1 because of the date row
+        expect(rows).toHaveLength(MockBuilds.length + 1)
       })
     })
   })
