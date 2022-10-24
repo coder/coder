@@ -36,46 +36,46 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:     "Bind address of the server.",
 			Flag:      "address",
 			Shorthand: "a",
-			Value:     "127.0.0.1:3000",
+			Default:   "127.0.0.1:3000",
 		},
 		AutobuildPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
-			Name:   "Autobuild Poll Interval",
-			Usage:  "Interval to poll for scheduled workspace builds.",
-			Flag:   "autobuild-poll-interval",
-			Hidden: true,
-			Value:  time.Minute,
+			Name:    "Autobuild Poll Interval",
+			Usage:   "Interval to poll for scheduled workspace builds.",
+			Flag:    "autobuild-poll-interval",
+			Hidden:  true,
+			Default: time.Minute,
 		},
 		DERP: &codersdk.DERP{
 			Server: &codersdk.DERPServerConfig{
 				Enable: &codersdk.DeploymentConfigField[bool]{
-					Name:  "DERP Server Enable",
-					Usage: "Whether to enable or disable the embedded DERP relay server.",
-					Flag:  "derp-server-enable",
-					Value: true,
+					Name:    "DERP Server Enable",
+					Usage:   "Whether to enable or disable the embedded DERP relay server.",
+					Flag:    "derp-server-enable",
+					Default: true,
 				},
 				RegionID: &codersdk.DeploymentConfigField[int]{
-					Name:  "DERP Server Region ID",
-					Usage: "Region ID to use for the embedded DERP server.",
-					Flag:  "derp-server-region-id",
-					Value: 999,
+					Name:    "DERP Server Region ID",
+					Usage:   "Region ID to use for the embedded DERP server.",
+					Flag:    "derp-server-region-id",
+					Default: 999,
 				},
 				RegionCode: &codersdk.DeploymentConfigField[string]{
-					Name:  "DERP Server Region Code",
-					Usage: "Region code to use for the embedded DERP server.",
-					Flag:  "derp-server-region-code",
-					Value: "coder",
+					Name:    "DERP Server Region Code",
+					Usage:   "Region code to use for the embedded DERP server.",
+					Flag:    "derp-server-region-code",
+					Default: "coder",
 				},
 				RegionName: &codersdk.DeploymentConfigField[string]{
-					Name:  "DERP Server Region Name",
-					Usage: "Region name that for the embedded DERP server.",
-					Flag:  "derp-server-region-name",
-					Value: "Coder Embedded Relay",
+					Name:    "DERP Server Region Name",
+					Usage:   "Region name that for the embedded DERP server.",
+					Flag:    "derp-server-region-name",
+					Default: "Coder Embedded Relay",
 				},
 				STUNAddresses: &codersdk.DeploymentConfigField[[]string]{
-					Name:  "DERP Server STUN Addresses",
-					Usage: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
-					Flag:  "derp-server-stun-addresses",
-					Value: []string{"stun.l.google.com:19302"},
+					Name:    "DERP Server STUN Addresses",
+					Usage:   "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
+					Flag:    "derp-server-stun-addresses",
+					Default: []string{"stun.l.google.com:19302"},
 				},
 				RelayURL: &codersdk.DeploymentConfigField[string]{
 					Name:       "DERP Server Relay URL",
@@ -104,10 +104,10 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "prometheus-enable",
 			},
 			Address: &codersdk.DeploymentConfigField[string]{
-				Name:  "Prometheus Address",
-				Usage: "The bind address to serve prometheus metrics.",
-				Flag:  "prometheus-address",
-				Value: "127.0.0.1:2112",
+				Name:    "Prometheus Address",
+				Usage:   "The bind address to serve prometheus metrics.",
+				Flag:    "prometheus-address",
+				Default: "127.0.0.1:2112",
 			},
 		},
 		Pprof: &codersdk.PprofConfig{
@@ -117,10 +117,10 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "pprof-enable",
 			},
 			Address: &codersdk.DeploymentConfigField[string]{
-				Name:  "Pprof Address",
-				Usage: "The bind address to serve pprof.",
-				Flag:  "pprof-address",
-				Value: "127.0.0.1:6060",
+				Name:    "Pprof Address",
+				Usage:   "The bind address to serve pprof.",
+				Flag:    "pprof-address",
+				Default: "127.0.0.1:6060",
 			},
 		},
 		ProxyTrustedHeaders: &codersdk.DeploymentConfigField[[]string]{
@@ -134,10 +134,10 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. example.com",
 		},
 		CacheDirectory: &codersdk.DeploymentConfigField[string]{
-			Name:  "Cache Directory",
-			Usage: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
-			Flag:  "cache-dir",
-			Value: defaultCacheDir(),
+			Name:    "Cache Directory",
+			Usage:   "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
+			Flag:    "cache-dir",
+			Default: defaultCacheDir(),
 		},
 		InMemoryDatabase: &codersdk.DeploymentConfigField[bool]{
 			Name:   "In Memory Database",
@@ -146,10 +146,10 @@ func newConfig() *codersdk.DeploymentConfig {
 			Hidden: true,
 		},
 		ProvisionerDaemons: &codersdk.DeploymentConfigField[int]{
-			Name:  "Provisioner Daemons",
-			Usage: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
-			Flag:  "provisioner-daemons",
-			Value: 3,
+			Name:    "Provisioner Daemons",
+			Usage:   "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+			Flag:    "provisioner-daemons",
+			Default: 3,
 		},
 		PostgresURL: &codersdk.DeploymentConfigField[string]{
 			Name:  "Postgres Connection URL",
@@ -192,10 +192,10 @@ func newConfig() *codersdk.DeploymentConfig {
 		},
 		OIDC: &codersdk.OIDCConfig{
 			AllowSignups: &codersdk.DeploymentConfigField[bool]{
-				Name:  "OIDC Allow Signups",
-				Usage: "Whether new users can sign up with OIDC.",
-				Flag:  "oidc-allow-signups",
-				Value: true,
+				Name:    "OIDC Allow Signups",
+				Usage:   "Whether new users can sign up with OIDC.",
+				Flag:    "oidc-allow-signups",
+				Default: true,
 			},
 			ClientID: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Client ID",
@@ -218,32 +218,32 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "oidc-issuer-url",
 			},
 			Scopes: &codersdk.DeploymentConfigField[[]string]{
-				Name:  "OIDC Scopes",
-				Usage: "Scopes to grant when authenticating with OIDC.",
-				Flag:  "oidc-scopes",
-				Value: []string{oidc.ScopeOpenID, "profile", "email"},
+				Name:    "OIDC Scopes",
+				Usage:   "Scopes to grant when authenticating with OIDC.",
+				Flag:    "oidc-scopes",
+				Default: []string{oidc.ScopeOpenID, "profile", "email"},
 			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{
-				Name:  "Telemetry Enable",
-				Usage: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
-				Flag:  "telemetry",
-				Value: flag.Lookup("test.v") == nil,
+				Name:    "Telemetry Enable",
+				Usage:   "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
+				Flag:    "telemetry",
+				Default: flag.Lookup("test.v") == nil,
 			},
 			Trace: &codersdk.DeploymentConfigField[bool]{
-				Name:  "Telemetry Trace",
-				Usage: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
-				Flag:  "telemetry-trace",
-				Value: flag.Lookup("test.v") == nil,
+				Name:    "Telemetry Trace",
+				Usage:   "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
+				Flag:    "telemetry-trace",
+				Default: flag.Lookup("test.v") == nil,
 			},
 			URL: &codersdk.DeploymentConfigField[string]{
-				Name:   "Telemetry URL",
-				Usage:  "URL to send telemetry.",
-				Flag:   "telemetry-url",
-				Hidden: true,
-				Value:  "https://telemetry.coder.com",
+				Name:    "Telemetry URL",
+				Usage:   "URL to send telemetry.",
+				Flag:    "telemetry-url",
+				Hidden:  true,
+				Default: "https://telemetry.coder.com",
 			},
 		},
 		TLS: &codersdk.TLSConfig{
@@ -263,10 +263,10 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "tls-client-ca-file",
 			},
 			ClientAuth: &codersdk.DeploymentConfigField[string]{
-				Name:  "TLS Client Auth",
-				Usage: "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
-				Flag:  "tls-client-auth",
-				Value: "request",
+				Name:    "TLS Client Auth",
+				Usage:   "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
+				Flag:    "tls-client-auth",
+				Default: "request",
 			},
 			KeyFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Key Files",
@@ -274,10 +274,10 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "tls-key-file",
 			},
 			MinVersion: &codersdk.DeploymentConfigField[string]{
-				Name:  "TLS Minimum Version",
-				Usage: "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\"",
-				Flag:  "tls-min-version",
-				Value: "tls12",
+				Name:    "TLS Minimum Version",
+				Usage:   "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\"",
+				Flag:    "tls-min-version",
+				Default: "tls12",
 			},
 		},
 		TraceEnable: &codersdk.DeploymentConfigField[bool]{
@@ -291,10 +291,10 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:  "secure-auth-cookie",
 		},
 		SSHKeygenAlgorithm: &codersdk.DeploymentConfigField[string]{
-			Name:  "SSH Keygen Algorithm",
-			Usage: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
-			Flag:  "ssh-keygen-algorithm",
-			Value: "ed25519",
+			Name:    "SSH Keygen Algorithm",
+			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
+			Flag:    "ssh-keygen-algorithm",
+			Default: "ed25519",
 		},
 		AutoImportTemplates: &codersdk.DeploymentConfigField[[]string]{
 			Name:   "Auto Import Templates",
@@ -303,24 +303,24 @@ func newConfig() *codersdk.DeploymentConfig {
 			Hidden: true,
 		},
 		MetricsCacheRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
-			Name:   "Metrics Cache Refresh Interval",
-			Usage:  "How frequently metrics are refreshed",
-			Flag:   "metrics-cache-refresh-interval",
-			Hidden: true,
-			Value:  time.Hour,
+			Name:    "Metrics Cache Refresh Interval",
+			Usage:   "How frequently metrics are refreshed",
+			Flag:    "metrics-cache-refresh-interval",
+			Hidden:  true,
+			Default: time.Hour,
 		},
 		AgentStatRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
-			Name:   "Agent Stat Refresh Interval",
-			Usage:  "How frequently agent stats are recorded",
-			Flag:   "agent-stats-refresh-interval",
-			Hidden: true,
-			Value:  10 * time.Minute,
+			Name:    "Agent Stat Refresh Interval",
+			Usage:   "How frequently agent stats are recorded",
+			Flag:    "agent-stats-refresh-interval",
+			Hidden:  true,
+			Default: 10 * time.Minute,
 		},
 		AuditLogging: &codersdk.DeploymentConfigField[bool]{
 			Name:       "Audit Logging",
 			Usage:      "Specifies whether audit logging is enabled.",
 			Flag:       "audit-logging",
-			Value:      true,
+			Default:    true,
 			Enterprise: true,
 		},
 		BrowserOnly: &codersdk.DeploymentConfigField[bool]{
@@ -450,7 +450,7 @@ func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 	val = reflect.Indirect(val)
 	typ := val.Type()
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField") {
-		value := val.FieldByName("Value").Interface()
+		value := val.FieldByName("Default").Interface()
 		vip.SetDefault(prefix, value)
 		return
 	}
@@ -499,7 +499,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 		usage = fmt.Sprintf("%s\n%s", usage, cliui.Styles.Placeholder.Render("Consumes $"+formatEnv(prefix)))
 		shorthand := val.FieldByName("Shorthand").String()
 		hidden := val.FieldByName("Hidden").Bool()
-		value := val.FieldByName("Value").Interface()
+		value := val.FieldByName("Default").Interface()
 
 		switch value.(type) {
 		case string:

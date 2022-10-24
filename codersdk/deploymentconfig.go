@@ -118,6 +118,7 @@ type DeploymentConfigField[T Flaggable] struct {
 	Shorthand  string `json:"shorthand"`
 	Enterprise bool   `json:"enterprise"`
 	Hidden     bool   `json:"hidden"`
+	Default    T      `json:"default"`
 	Value      T      `json:"value"`
 }
 
