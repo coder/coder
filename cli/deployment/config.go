@@ -374,6 +374,10 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 		val = val.Elem()
 		typ = val.Type()
 	}
+
+	// Manually bind to env to support CODER_$INDEX_$FIELD format for structured slices.
+	_ = vip.BindEnv(prefix, formatEnv(prefix))
+
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		value := val.FieldByName("Value").Interface()
 		switch value.(type) {
@@ -421,8 +425,7 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 		case reflect.Slice:
 			for j := 0; j < fv.Len(); j++ {
 				key := fmt.Sprintf("%s.%d", key, j)
-				v := fv.Index(j)
-				setConfig(key, vip, v)
+				setConfig(key, vip, fv.Index(j).Interface())
 			}
 		default:
 			panic(fmt.Sprintf("unsupported type %T", ft))
@@ -466,10 +469,8 @@ func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 		case reflect.Ptr:
 			setViperDefaults(key, vip, fv.Interface())
 		case reflect.Slice:
-			for j := 0; j < fv.Len(); j++ {
-				key := fmt.Sprintf("%s.%d", key, j)
-				setViperDefaults(key, vip, fv.Index(j))
-			}
+			// we currently don't support default values on structured slices
+			continue
 		default:
 			panic(fmt.Sprintf("unsupported type %T", ft))
 		}
@@ -539,7 +540,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 		case reflect.Slice:
 			for j := 0; j < fv.Len(); j++ {
 				key := fmt.Sprintf("%s.%d", key, j)
-				setFlags(key, flagset, vip, fv.Index(j), enterprise)
+				setFlags(key, flagset, vip, fv.Index(j).Interface(), enterprise)
 			}
 		default:
 			panic(fmt.Sprintf("unsupported type %T", ft))
