@@ -19,7 +19,7 @@ coder:
     pullPolicy: IfNotPresent
     # coder.image.pullSecret -- The secret used for pulling the Coder image from
     # a private registry.
-    pullSecrets:
+    pullSecrets: []
     #  - name: "pull-secret"
 
   # coder.annotations -- The Deployment annotations. See:
