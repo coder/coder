@@ -77,10 +77,10 @@ cdroot
 temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
 mkdir -p "$temp_dir/bin"
 ln "$input_file" "$temp_dir/bin/coder.exe"
-cp "$(realpath scripts/installer/installer.nsi)" "$temp_dir/installer.nsi"
-cp "$(realpath scripts/installer/path.nsh)" "$temp_dir/path.nsh"
-cp "$(realpath scripts/installer/coder.ico)" "$temp_dir/coder.ico"
-cp "$(realpath scripts/installer/banner.bmp)" "$temp_dir/banner.bmp"
+cp "$(realpath scripts/win-installer/installer.nsi)" "$temp_dir/installer.nsi"
+cp "$(realpath scripts/win-installer/path.nsh)" "$temp_dir/path.nsh"
+cp "$(realpath scripts/win-installer/coder.ico)" "$temp_dir/coder.ico"
+cp "$(realpath scripts/win-installer/banner.bmp)" "$temp_dir/banner.bmp"
 
 # Craft a license document by combining the AGPL license and optionally the
 # enterprise license.
