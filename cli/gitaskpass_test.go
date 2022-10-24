@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,14 +61,15 @@ func TestGitAskpass(t *testing.T) {
 	})
 
 	t.Run("Poll", func(t *testing.T) {
-		resp := codersdk.WorkspaceAgentGitAuthResponse{
+		resp := atomic.Pointer[codersdk.WorkspaceAgentGitAuthResponse]{}
+		resp.Store(&codersdk.WorkspaceAgentGitAuthResponse{
 			URL: "https://something.org",
-		}
+		})
 		poll := make(chan struct{}, 10)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Query().Has("listen") {
 				poll <- struct{}{}
-				if resp.URL != "" {
+				if resp.Load().URL != "" {
 					httpapi.Write(context.Background(), w, http.StatusInternalServerError, resp)
 					return
 				}
@@ -85,10 +87,10 @@ func TestGitAskpass(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 		<-poll
-		resp = codersdk.WorkspaceAgentGitAuthResponse{
+		resp.Store(&codersdk.WorkspaceAgentGitAuthResponse{
 			Username: "username",
 			Password: "password",
-		}
+		})
 		pty.ExpectMatch("username")
 	})
 }

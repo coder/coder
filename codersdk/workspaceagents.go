@@ -655,13 +655,14 @@ type WorkspaceAgentGitAuthResponse struct {
 }
 
 // WorkspaceAgentGitAuth submits a URL to fetch a GIT_ASKPASS username
-// and password for. If the URL doesn't match
+// and password for.
+// nolint:revive
 func (c *Client) WorkspaceAgentGitAuth(ctx context.Context, gitURL string, listen bool) (WorkspaceAgentGitAuthResponse, error) {
-	url := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
+	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
 	if listen {
-		url += "&listen"
+		reqURL += "&listen"
 	}
-	res, err := c.Request(ctx, http.MethodGet, url, nil)
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return WorkspaceAgentGitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
 	}

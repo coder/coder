@@ -26,6 +26,7 @@ func TestEntitlements(t *testing.T) {
 		codersdk.FeatureWorkspaceQuota:   true,
 		codersdk.FeatureHighAvailability: true,
 		codersdk.FeatureTemplateRBAC:     true,
+		codersdk.FeatureMultipleGitAuth:  true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -68,6 +69,7 @@ func TestEntitlements(t *testing.T) {
 				WorkspaceQuota:   true,
 				HighAvailability: true,
 				TemplateRBAC:     true,
+				MultipleGitAuth:  true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})

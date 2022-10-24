@@ -470,7 +470,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 		if instance == nil {
 			break
 		}
-		returnValues = append(returnValues, instance.Interface().(T))
+		value, ok := instance.Interface().(T)
+		if !ok {
+			continue
+		}
+		returnValues = append(returnValues, value)
 	}
 	return returnValues
 }
