@@ -19,205 +19,205 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func newConfig() codersdk.DeploymentConfig {
-	return codersdk.DeploymentConfig{
-		AccessURL: codersdk.DeploymentConfigField[string]{
+func newConfig() *codersdk.DeploymentConfig {
+	return &codersdk.DeploymentConfig{
+		AccessURL: &codersdk.DeploymentConfigField[string]{
 			Name:  "Access URL",
 			Usage: "External URL to access your deployment. This must be accessible by all provisioned workspaces.",
 			Flag:  "access-url",
 		},
-		WildcardAccessURL: codersdk.DeploymentConfigField[string]{
+		WildcardAccessURL: &codersdk.DeploymentConfigField[string]{
 			Name:  "Wildcard Access URL",
 			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:  "wildcard-access-url",
 		},
-		Address: codersdk.DeploymentConfigField[string]{
+		Address: &codersdk.DeploymentConfigField[string]{
 			Name:      "Address",
 			Usage:     "Bind address of the server.",
 			Flag:      "address",
 			Shorthand: "a",
 			Value:     "127.0.0.1:3000",
 		},
-		AutobuildPollInterval: codersdk.DeploymentConfigField[time.Duration]{
+		AutobuildPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:   "Autobuild Poll Interval",
 			Usage:  "Interval to poll for scheduled workspace builds.",
 			Flag:   "autobuild-poll-interval",
 			Hidden: true,
 			Value:  time.Minute,
 		},
-		DERP: codersdk.DERP{
-			Server: codersdk.DERPServerConfig{
-				Enable: codersdk.DeploymentConfigField[bool]{
+		DERP: &codersdk.DERP{
+			Server: &codersdk.DERPServerConfig{
+				Enable: &codersdk.DeploymentConfigField[bool]{
 					Name:  "DERP Server Enable",
 					Usage: "Whether to enable or disable the embedded DERP relay server.",
 					Flag:  "derp-server-enable",
 					Value: true,
 				},
-				RegionID: codersdk.DeploymentConfigField[int]{
+				RegionID: &codersdk.DeploymentConfigField[int]{
 					Name:  "DERP Server Region ID",
 					Usage: "Region ID to use for the embedded DERP server.",
 					Flag:  "derp-server-region-id",
 					Value: 999,
 				},
-				RegionCode: codersdk.DeploymentConfigField[string]{
+				RegionCode: &codersdk.DeploymentConfigField[string]{
 					Name:  "DERP Server Region Code",
 					Usage: "Region code to use for the embedded DERP server.",
 					Flag:  "derp-server-region-code",
 					Value: "coder",
 				},
-				RegionName: codersdk.DeploymentConfigField[string]{
+				RegionName: &codersdk.DeploymentConfigField[string]{
 					Name:  "DERP Server Region Name",
 					Usage: "Region name that for the embedded DERP server.",
 					Flag:  "derp-server-region-name",
 					Value: "Coder Embedded Relay",
 				},
-				STUNAddresses: codersdk.DeploymentConfigField[[]string]{
+				STUNAddresses: &codersdk.DeploymentConfigField[[]string]{
 					Name:  "DERP Server STUN Addresses",
 					Usage: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
 					Flag:  "derp-server-stun-addresses",
 					Value: []string{"stun.l.google.com:19302"},
 				},
-				RelayURL: codersdk.DeploymentConfigField[string]{
+				RelayURL: &codersdk.DeploymentConfigField[string]{
 					Name:       "DERP Server Relay URL",
 					Usage:      "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 					Flag:       "derp-server-relay-url",
 					Enterprise: true,
 				},
 			},
-			Config: codersdk.DERPConfig{
-				URL: codersdk.DeploymentConfigField[string]{
+			Config: &codersdk.DERPConfig{
+				URL: &codersdk.DeploymentConfigField[string]{
 					Name:  "DERP Config URL",
 					Usage: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/",
 					Flag:  "derp-config-url",
 				},
-				Path: codersdk.DeploymentConfigField[string]{
+				Path: &codersdk.DeploymentConfigField[string]{
 					Name:  "DERP Config Path",
 					Usage: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/",
 					Flag:  "derp-config-path",
 				},
 			},
 		},
-		Prometheus: codersdk.PrometheusConfig{
-			Enable: codersdk.DeploymentConfigField[bool]{
+		Prometheus: &codersdk.PrometheusConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:  "Prometheus Enable",
 				Usage: "Serve prometheus metrics on the address defined by prometheus address.",
 				Flag:  "prometheus-enable",
 			},
-			Address: codersdk.DeploymentConfigField[string]{
+			Address: &codersdk.DeploymentConfigField[string]{
 				Name:  "Prometheus Address",
 				Usage: "The bind address to serve prometheus metrics.",
 				Flag:  "prometheus-address",
 				Value: "127.0.0.1:2112",
 			},
 		},
-		Pprof: codersdk.PprofConfig{
-			Enable: codersdk.DeploymentConfigField[bool]{
+		Pprof: &codersdk.PprofConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:  "Pprof Enable",
 				Usage: "Serve pprof metrics on the address defined by pprof address.",
 				Flag:  "pprof-enable",
 			},
-			Address: codersdk.DeploymentConfigField[string]{
+			Address: &codersdk.DeploymentConfigField[string]{
 				Name:  "Pprof Address",
 				Usage: "The bind address to serve pprof.",
 				Flag:  "pprof-address",
 				Value: "127.0.0.1:6060",
 			},
 		},
-		ProxyTrustedHeaders: codersdk.DeploymentConfigField[[]string]{
+		ProxyTrustedHeaders: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Headers",
 			Flag:  "proxy-trusted-headers",
 			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-IP True-Client-Ip, X-Forwarded-for",
 		},
-		ProxyTrustedOrigins: codersdk.DeploymentConfigField[[]string]{
+		ProxyTrustedOrigins: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Origins",
 			Flag:  "proxy-trusted-origins",
 			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. example.com",
 		},
-		CacheDirectory: codersdk.DeploymentConfigField[string]{
+		CacheDirectory: &codersdk.DeploymentConfigField[string]{
 			Name:  "Cache Directory",
 			Usage: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
 			Flag:  "cache-dir",
 			Value: defaultCacheDir(),
 		},
-		InMemoryDatabase: codersdk.DeploymentConfigField[bool]{
+		InMemoryDatabase: &codersdk.DeploymentConfigField[bool]{
 			Name:   "In Memory Database",
 			Usage:  "Controls whether data will be stored in an in-memory database.",
 			Flag:   "in-memory",
 			Hidden: true,
 		},
-		ProvisionerDaemons: codersdk.DeploymentConfigField[int]{
+		ProvisionerDaemons: &codersdk.DeploymentConfigField[int]{
 			Name:  "Provisioner Daemons",
 			Usage: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
 			Flag:  "provisioner-daemons",
 			Value: 3,
 		},
-		PostgresURL: codersdk.DeploymentConfigField[string]{
+		PostgresURL: &codersdk.DeploymentConfigField[string]{
 			Name:  "Postgres Connection URL",
 			Usage: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:  "postgres-url",
 		},
-		OAuth2: codersdk.OAuth2Config{
-			Github: codersdk.OAuth2GithubConfig{
-				ClientID: codersdk.DeploymentConfigField[string]{
+		OAuth2: &codersdk.OAuth2Config{
+			Github: &codersdk.OAuth2GithubConfig{
+				ClientID: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Client ID",
 					Usage: "Client ID for Login with GitHub.",
 					Flag:  "oauth2-github-client-id",
 				},
-				ClientSecret: codersdk.DeploymentConfigField[string]{
+				ClientSecret: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Client Secret",
 					Usage: "Client secret for Login with GitHub.",
 					Flag:  "oauth2-github-client-secret",
 				},
-				AllowedOrgs: codersdk.DeploymentConfigField[[]string]{
+				AllowedOrgs: &codersdk.DeploymentConfigField[[]string]{
 					Name:  "OAuth2 GitHub Allowed Orgs",
 					Usage: "Organizations the user must be a member of to Login with GitHub.",
 					Flag:  "oauth2-github-allowed-orgs",
 				},
-				AllowedTeams: codersdk.DeploymentConfigField[[]string]{
+				AllowedTeams: &codersdk.DeploymentConfigField[[]string]{
 					Name:  "OAuth2 GitHub Allowed Teams",
 					Usage: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
 					Flag:  "oauth2-github-allowed-teams",
 				},
-				AllowSignups: codersdk.DeploymentConfigField[bool]{
+				AllowSignups: &codersdk.DeploymentConfigField[bool]{
 					Name:  "OAuth2 GitHub Allow Signups",
 					Usage: "Whether new users can sign up with GitHub.",
 					Flag:  "oauth2-github-allow-signups",
 				},
-				EnterpriseBaseURL: codersdk.DeploymentConfigField[string]{
+				EnterpriseBaseURL: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Enterprise Base URL",
 					Usage: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
 					Flag:  "oauth2-github-enterprise-base-url",
 				},
 			},
 		},
-		OIDC: codersdk.OIDCConfig{
-			AllowSignups: codersdk.DeploymentConfigField[bool]{
+		OIDC: &codersdk.OIDCConfig{
+			AllowSignups: &codersdk.DeploymentConfigField[bool]{
 				Name:  "OIDC Allow Signups",
 				Usage: "Whether new users can sign up with OIDC.",
 				Flag:  "oidc-allow-signups",
 				Value: true,
 			},
-			ClientID: codersdk.DeploymentConfigField[string]{
+			ClientID: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Client ID",
 				Usage: "Client ID to use for Login with OIDC.",
 				Flag:  "oidc-client-id",
 			},
-			ClientSecret: codersdk.DeploymentConfigField[string]{
+			ClientSecret: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Client Secret",
 				Usage: "Client secret to use for Login with OIDC.",
 				Flag:  "oidc-client-secret",
 			},
-			EmailDomain: codersdk.DeploymentConfigField[string]{
+			EmailDomain: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Email Domain",
 				Usage: "Email domain that clients logging in with OIDC must match.",
 				Flag:  "oidc-email-domain",
 			},
-			IssuerURL: codersdk.DeploymentConfigField[string]{
+			IssuerURL: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Issuer URL",
 				Usage: "Issuer URL to use for Login with OIDC.",
 				Flag:  "oidc-issuer-url",
 			},
-			Scopes: codersdk.DeploymentConfigField[[]string]{
+			Scopes: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "OIDC Scopes",
 				Usage: "Scopes to grant when authenticating with OIDC.",
 				Flag:  "oidc-scopes",
@@ -225,20 +225,20 @@ func newConfig() codersdk.DeploymentConfig {
 			},
 		},
 
-		Telemetry: codersdk.TelemetryConfig{
-			Enable: codersdk.DeploymentConfigField[bool]{
+		Telemetry: &codersdk.TelemetryConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:  "Telemetry Enable",
 				Usage: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
 				Flag:  "telemetry",
 				Value: flag.Lookup("test.v") == nil,
 			},
-			Trace: codersdk.DeploymentConfigField[bool]{
+			Trace: &codersdk.DeploymentConfigField[bool]{
 				Name:  "Telemetry Trace",
 				Usage: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
 				Flag:  "telemetry-trace",
 				Value: flag.Lookup("test.v") == nil,
 			},
-			URL: codersdk.DeploymentConfigField[string]{
+			URL: &codersdk.DeploymentConfigField[string]{
 				Name:   "Telemetry URL",
 				Usage:  "URL to send telemetry.",
 				Flag:   "telemetry-url",
@@ -246,96 +246,96 @@ func newConfig() codersdk.DeploymentConfig {
 				Value:  "https://telemetry.coder.com",
 			},
 		},
-		TLS: codersdk.TLSConfig{
-			Enable: codersdk.DeploymentConfigField[bool]{
+		TLS: &codersdk.TLSConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:  "TLS Enable",
 				Usage: "Whether TLS will be enabled.",
 				Flag:  "tls-enable",
 			},
-			CertFiles: codersdk.DeploymentConfigField[[]string]{
+			CertFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Certificate Files",
 				Usage: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
 				Flag:  "tls-cert-file",
 			},
-			ClientCAFile: codersdk.DeploymentConfigField[string]{
+			ClientCAFile: &codersdk.DeploymentConfigField[string]{
 				Name:  "TLS Client CA Files",
 				Usage: "PEM-encoded Certificate Authority file used for checking the authenticity of client",
 				Flag:  "tls-client-ca-file",
 			},
-			ClientAuth: codersdk.DeploymentConfigField[string]{
+			ClientAuth: &codersdk.DeploymentConfigField[string]{
 				Name:  "TLS Client Auth",
 				Usage: "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
 				Flag:  "tls-client-auth",
 				Value: "request",
 			},
-			KeyFiles: codersdk.DeploymentConfigField[[]string]{
+			KeyFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Key Files",
 				Usage: "Paths to the private keys for each of the certificates. It requires a PEM-encoded file.",
 				Flag:  "tls-key-file",
 			},
-			MinVersion: codersdk.DeploymentConfigField[string]{
+			MinVersion: &codersdk.DeploymentConfigField[string]{
 				Name:  "TLS Minimum Version",
 				Usage: "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\"",
 				Flag:  "tls-min-version",
 				Value: "tls12",
 			},
 		},
-		TraceEnable: codersdk.DeploymentConfigField[bool]{
+		TraceEnable: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Trace Enable",
 			Usage: "Whether application tracing data is collected.",
 			Flag:  "trace",
 		},
-		SecureAuthCookie: codersdk.DeploymentConfigField[bool]{
+		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Secure Auth Cookie",
 			Usage: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:  "secure-auth-cookie",
 		},
-		SSHKeygenAlgorithm: codersdk.DeploymentConfigField[string]{
+		SSHKeygenAlgorithm: &codersdk.DeploymentConfigField[string]{
 			Name:  "SSH Keygen Algorithm",
 			Usage: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
 			Flag:  "ssh-keygen-algorithm",
 			Value: "ed25519",
 		},
-		AutoImportTemplates: codersdk.DeploymentConfigField[[]string]{
+		AutoImportTemplates: &codersdk.DeploymentConfigField[[]string]{
 			Name:   "Auto Import Templates",
 			Usage:  "Templates to auto-import. Available auto-importable templates are: kubernetes",
 			Flag:   "auto-import-template",
 			Hidden: true,
 		},
-		MetricsCacheRefreshInterval: codersdk.DeploymentConfigField[time.Duration]{
+		MetricsCacheRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:   "Metrics Cache Refresh Interval",
 			Usage:  "How frequently metrics are refreshed",
 			Flag:   "metrics-cache-refresh-interval",
 			Hidden: true,
 			Value:  time.Hour,
 		},
-		AgentStatRefreshInterval: codersdk.DeploymentConfigField[time.Duration]{
+		AgentStatRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:   "Agent Stat Refresh Interval",
 			Usage:  "How frequently agent stats are recorded",
 			Flag:   "agent-stats-refresh-interval",
 			Hidden: true,
 			Value:  10 * time.Minute,
 		},
-		AuditLogging: codersdk.DeploymentConfigField[bool]{
+		AuditLogging: &codersdk.DeploymentConfigField[bool]{
 			Name:       "Audit Logging",
 			Usage:      "Specifies whether audit logging is enabled.",
 			Flag:       "audit-logging",
 			Value:      true,
 			Enterprise: true,
 		},
-		BrowserOnly: codersdk.DeploymentConfigField[bool]{
+		BrowserOnly: &codersdk.DeploymentConfigField[bool]{
 			Name:       "Browser Only",
 			Usage:      "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:       "browser-only",
 			Enterprise: true,
 		},
-		SCIMAPIKey: codersdk.DeploymentConfigField[string]{
+		SCIMAPIKey: &codersdk.DeploymentConfigField[string]{
 			Name:       "SCIM API Key",
 			Usage:      "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:       "scim-auth-header",
 			Enterprise: true,
 		},
-		UserWorkspaceQuota: codersdk.DeploymentConfigField[int]{
+		UserWorkspaceQuota: &codersdk.DeploymentConfigField[int]{
 			Name:       "User Workspace Quota",
 			Usage:      "Enables and sets a limit on how many workspaces each user can create.",
 			Flag:       "user-workspace-quota",
@@ -345,11 +345,11 @@ func newConfig() codersdk.DeploymentConfig {
 }
 
 //nolint:revive
-func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig, error) {
+func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfig, error) {
 	dc := newConfig()
 	flg, err := flagset.GetString(config.FlagName)
 	if err != nil {
-		return dc, xerrors.Errorf("get global config from flag: %w", err)
+		return nil, xerrors.Errorf("get global config from flag: %w", err)
 	}
 	vip.SetEnvPrefix("coder")
 	vip.AutomaticEnv()
@@ -368,9 +368,13 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (codersdk.DeploymentConfig
 }
 
 func setConfig(prefix string, vip *viper.Viper, target interface{}) {
-	val := reflect.ValueOf(target).Elem()
+	val := reflect.Indirect(reflect.ValueOf(target))
 	typ := val.Type()
-	if strings.HasPrefix(typ.Name(), "DeploymentConfigField") {
+	if typ.Kind() != reflect.Struct {
+		val = val.Elem()
+		typ = val.Type()
+	}
+	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		value := val.FieldByName("Value").Interface()
 		switch value.(type) {
 		case string:
@@ -412,14 +416,13 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			key = fmt.Sprintf("%s.%s", prefix, tag)
 		}
 		switch ft.Kind() {
-		case reflect.Struct:
-			v := fv.Interface()
-			setConfig(key, vip, &v)
+		case reflect.Ptr:
+			setConfig(key, vip, fv.Interface())
 		case reflect.Slice:
 			for j := 0; j < fv.Len(); j++ {
 				key := fmt.Sprintf("%s.%d", key, j)
 				v := fv.Index(j)
-				setConfig(key, vip, &v)
+				setConfig(key, vip, v)
 			}
 		default:
 			panic(fmt.Sprintf("unsupported type %T", ft))
@@ -434,13 +437,14 @@ func NewViper() *viper.Viper {
 	vip.AutomaticEnv()
 	vip.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
-	setViperDefaults("", vip, dc)
+	setViperDefaults("", vip, &dc)
 
 	return vip
 }
 
 func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
-	val := reflect.ValueOf(target)
+	val := reflect.ValueOf(target).Elem()
+	val = reflect.Indirect(val)
 	typ := val.Type()
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField") {
 		value := val.FieldByName("Value").Interface()
@@ -459,7 +463,7 @@ func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 			key = fmt.Sprintf("%s.%s", prefix, tag)
 		}
 		switch ft.Kind() {
-		case reflect.Struct:
+		case reflect.Ptr:
 			setViperDefaults(key, vip, fv.Interface())
 		case reflect.Slice:
 			for j := 0; j < fv.Len(); j++ {
@@ -479,9 +483,8 @@ func AttachFlags(flagset *pflag.FlagSet, vip *viper.Viper, enterprise bool) {
 
 //nolint:revive
 func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target interface{}, enterprise bool) {
-	val := reflect.ValueOf(target)
+	val := reflect.Indirect(reflect.ValueOf(target))
 	typ := val.Type()
-	fmt.Println(typ.Name())
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField") {
 		isEnt := val.FieldByName("Enterprise").Bool()
 		if enterprise != isEnt {
@@ -531,7 +534,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 			key = fmt.Sprintf("%s.%s", prefix, tag)
 		}
 		switch ft.Kind() {
-		case reflect.Struct:
+		case reflect.Ptr:
 			setFlags(key, flagset, vip, fv.Interface(), enterprise)
 		case reflect.Slice:
 			for j := 0; j < fv.Len(); j++ {

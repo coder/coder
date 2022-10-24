@@ -350,7 +350,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
-				DeploymentConfig:            &cfg,
+				DeploymentConfig:            cfg,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates

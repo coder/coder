@@ -32,7 +32,7 @@ func TestDeploymentConfig(t *testing.T) {
 	cfg.SCIMAPIKey.Value = hi
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig: &cfg,
+		DeploymentConfig: cfg,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 	scrubbed, err := client.DeploymentConfig(ctx)
