@@ -17,9 +17,9 @@ Then, when users create workspaces they would see:
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license. [Learn more](./enterprise.md)
+This feature is only available with an enterprise license. [Learn more](../enterprise.md)
 
 ## Up next
 
-- [Enterprise](./enterprise.md)
+- [Enterprise](../enterprise.md)
 - [Configuring](./configure.md)

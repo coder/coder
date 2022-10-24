@@ -257,18 +257,18 @@
           "state": "enterprise"
         },
         {
-          "title": "Enterprise",
-          "description": "Learn how to enable Enterprise features",
-          "icon_path": "./images/icons/group.svg",
-          "path": "./admin/enterprise.md"
-        },
-        {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }
       ]
+    },
+    {
+      "title": "Enterprise",
+      "description": "Learn how to enable Enterprise features",
+      "icon_path": "./images/icons/group.svg",
+      "path": "./enterprise.md"
     },
     {
       "title": "Contributing",
