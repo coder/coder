@@ -1012,30 +1012,35 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 		defer cancelFunc()
-		select {
-		case <-r.Context().Done():
-			return
-		case <-authChan:
-		}
-
-		gitAuthLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
-			ProviderID: gitAuthConfig.ID,
-			UserID:     workspace.OwnerID,
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get git auth link.",
-				Detail:  err.Error(),
+		ticker := time.NewTicker(time.Second)
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+			case <-authChan:
+			}
+			gitAuthLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+				ProviderID: gitAuthConfig.ID,
+				UserID:     workspace.OwnerID,
 			})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to get git auth link.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			if gitAuthLink.OAuthExpiry.Before(database.Now()) {
+				continue
+			}
+			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
 			return
 		}
-
-		httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
-		return
 	}
 
 	// This is the URL that will redirect the user with a state token.
-	url, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", gitAuthConfig.ID))
+	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", gitAuthConfig.ID))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to parse access URL.",
@@ -1058,7 +1063,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
-			URL: url.String(),
+			URL: redirectURL.String(),
 		})
 		return
 	}
@@ -1070,7 +1075,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}).Token()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
-			URL: url.String(),
+			URL: redirectURL.String(),
 		})
 		return
 	}
