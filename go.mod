@@ -132,10 +132,10 @@ require (
 	github.com/unrolled/secure v1.13.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.opentelemetry.io/otel v1.11.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.10.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.10.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.10.0
-	go.opentelemetry.io/otel/sdk v1.10.0
+	go.opentelemetry.io/otel/sdk v1.11.0
 	go.opentelemetry.io/otel/trace v1.11.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/goleak v1.2.0
@@ -144,7 +144,7 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab
+	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.8-0.20211105212822-18b340fc7af2
 	golang.org/x/tools v0.1.11
@@ -297,7 +297,7 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.10.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.0 // indirect
 	go.opentelemetry.io/otel/metric v0.31.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
