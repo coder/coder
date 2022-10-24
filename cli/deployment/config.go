@@ -93,7 +93,7 @@ func newConfig() codersdk.DeploymentConfig {
 		},
 		GitAuth: codersdk.DeploymentConfigField[[]codersdk.DeploymentConfigGitAuth]{
 			Key:   "gitauth",
-			Usage: "Git Authentication",
+			Usage: "Automatically authenticate Git inside workspaces.",
 			Flag:  "gitauth",
 			Value: []codersdk.DeploymentConfigGitAuth{},
 		},
