@@ -1,7 +1,7 @@
 import { ProvisionerJobLog } from "api/typesGenerated"
 import { groupLogsByStage } from "./WorkspaceBuildLogs"
 
-describe("groupLogsByStage", ()=> {
+describe("groupLogsByStage", () => {
   it("should group them by stage", () => {
     const input: ProvisionerJobLog[] = [
       {
@@ -10,7 +10,7 @@ describe("groupLogsByStage", ()=> {
         log_source: "provisioner",
         log_level: "debug",
         stage: "build",
-        output: "test"
+        output: "test",
       },
       {
         id: "2",
@@ -18,7 +18,7 @@ describe("groupLogsByStage", ()=> {
         log_source: "provisioner",
         log_level: "debug",
         stage: "cleanup",
-        output: "test"
+        output: "test",
       },
       {
         id: "3",
@@ -26,9 +26,8 @@ describe("groupLogsByStage", ()=> {
         log_source: "provisioner",
         log_level: "debug",
         stage: "cleanup",
-        output: "done"
-      }
-
+        output: "done",
+      },
     ]
 
     const actual = groupLogsByStage(input)
