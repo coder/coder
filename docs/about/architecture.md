@@ -25,7 +25,7 @@ It offers:
 provisionerd is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
-> At the moment, provisionerd cannot be seperated from coderd. Follow [this GitHub issue](https://github.com/coder/coder/issues/44) for more details.
+> At the moment, provisionerd cannot be separated from coderd. Follow [this GitHub issue](https://github.com/coder/coder/issues/44) for more details.
 
 ## Agents
 
