@@ -38,5 +38,9 @@
     "connected": "Connected",
     "connecting": "Connecting...",
     "disconnected": "Disconnected"
+  },
+  "buildTransitionMessage": {
+    "start": "started",
+    "stop": "stopped"
   }
 }
