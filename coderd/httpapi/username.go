@@ -14,18 +14,18 @@ var (
 )
 
 // UsernameValid returns whether the input string is a valid username.
-func UsernameValid(str string) (bool, error) {
+func UsernameValid(str string) error {
 	if len(str) > 32 {
-		return false, xerrors.New("must be <= 32 characters")
+		return xerrors.New("must be <= 32 characters")
 	}
 	if len(str) < 1 {
-		return false, xerrors.New("must be >= 1 character")
+		return xerrors.New("must be >= 1 character")
 	}
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
-		return false, xerrors.New("must be alphanumeric with hyphens")
+		return xerrors.New("must be alphanumeric with hyphens")
 	}
-	return true, nil
+	return nil
 }
 
 // UsernameFrom returns a best-effort username from the provided string.
@@ -35,7 +35,7 @@ func UsernameValid(str string) (bool, error) {
 // the username from an email address. If no success happens during
 // these steps, a random username will be returned.
 func UsernameFrom(str string) string {
-	if valid, _ := UsernameValid(str); valid {
+	if valid := UsernameValid(str); valid == nil {
 		return str
 	}
 	emailAt := strings.LastIndex(str, "@")
@@ -43,7 +43,7 @@ func UsernameFrom(str string) string {
 		str = str[:emailAt]
 	}
 	str = usernameReplace.ReplaceAllString(str, "")
-	if valid, _ := UsernameValid(str); valid {
+	if valid := UsernameValid(str); valid == nil {
 		return str
 	}
 	return strings.ReplaceAll(namesgenerator.GetRandomName(1), "_", "-")

@@ -47,8 +47,8 @@ func ConvertConfig(entries []codersdk.DeploymentConfigGitAuth, accessURL *url.UR
 			// Default to the type.
 			entry.ID = string(typ)
 		}
-		if valid, err := httpapi.UsernameValid(entry.ID); !valid {
-			return nil, xerrors.Errorf("git auth provider %q doesn't have a valid id: %w", entry.ID, err)
+		if valid := httpapi.UsernameValid(entry.ID); valid != nil {
+			return nil, xerrors.Errorf("git auth provider %q doesn't have a valid id: %w", entry.ID, valid)
 		}
 
 		_, exists := ids[entry.ID]

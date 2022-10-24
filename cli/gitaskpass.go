@@ -23,16 +23,11 @@ func gitAskpass() *cobra.Command {
 		Use:    "gitaskpass",
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
 			ctx, stop := signal.NotifyContext(ctx, interruptSignals...)
 			defer stop()
-			defer func() {
-				if ctx.Err() != nil {
-					err = ctx.Err()
-				}
-			}()
 
 			user, host, err := gitauth.ParseAskpass(args[0])
 			if err != nil {
@@ -57,7 +52,7 @@ func gitAskpass() *cobra.Command {
 			}
 			if token.URL != "" {
 				if err := openURL(cmd, token.URL); err != nil {
-					cmd.Printf("Your browser has been opened to visit:\n\n\t%s\n\n", token.URL)
+					cmd.Printf("Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				} else {
 					cmd.Printf("Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				}

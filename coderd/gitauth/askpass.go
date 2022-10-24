@@ -32,7 +32,7 @@ func CheckCommand(args, env []string) bool {
 // For details on how the prompt is formatted, see `credential_ask_one`:
 // https://github.com/git/git/blob/bbe21b64a08f89475d8a3818e20c111378daa621/credential.c#L173-L191
 func ParseAskpass(prompt string) (user string, host string, err error) {
-	parts := strings.Split(prompt, " ")
+	parts := strings.Fields(prompt)
 	if len(parts) < 3 {
 		return "", "", xerrors.Errorf("askpass prompt must contain 3 words; got %d: %q", len(parts), prompt)
 	}
