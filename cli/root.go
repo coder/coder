@@ -108,7 +108,7 @@ func AGPL() []*cobra.Command {
 }
 
 func Root(subcommands []*cobra.Command) *cobra.Command {
-	fmtLong := `Coder v%s — A tool for provisioning self-hosted development environments with Terraform.
+	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	cmd := &cobra.Command{
 		Use:           "coder",
