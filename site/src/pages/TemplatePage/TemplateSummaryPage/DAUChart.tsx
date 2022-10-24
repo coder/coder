@@ -71,7 +71,7 @@ export const DAUChart: FC<DAUChartProps> = ({
   defaults.font.family = theme.typography.fontFamily as string
   defaults.color = theme.palette.text.secondary
 
-  const options: ChartOptions<'line'> = {
+  const options: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: {
@@ -123,7 +123,7 @@ export const DAUChart: FC<DAUChartProps> = ({
                 backgroundColor: theme.palette.secondary.dark,
                 borderColor: theme.palette.secondary.dark,
               },
-            ]
+            ],
           }}
           options={options}
           height={400}
