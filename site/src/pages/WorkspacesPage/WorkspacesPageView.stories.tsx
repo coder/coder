@@ -89,7 +89,7 @@ export default {
   component: WorkspacesPageView,
   argTypes: {
     paginationRef: {
-      defaultValue: createPaginationRef({ page: 1, limit: 25 })
+      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
     },
     workspaceRefs: {
       options: [

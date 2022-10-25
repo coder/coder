@@ -14,9 +14,9 @@ export default {
       defaultValue: 1000,
     },
     paginationRef: {
-      defaultValue: createPaginationRef({ page: 1, limit: 25 })
-    }
-  }
+      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
+    },
+  },
 } as ComponentMeta<typeof AuditPageView>
 
 const Template: Story<AuditPageViewProps> = (args) => (

@@ -7,18 +7,18 @@ export default {
   component: PaginationWidget,
   argTypes: {
     prevLabel: {
-      defaultValue: "Previous"
+      defaultValue: "Previous",
     },
     nextLabel: {
-      defaultValue: "Next"
+      defaultValue: "Next",
     },
     paginationRef: {
-      defaultValue: createPaginationRef({ page: 1, limit: 12 })
+      defaultValue: createPaginationRef({ page: 1, limit: 12 }),
     },
     numRecords: {
-      defaultValue: 200
-    }
-  }
+      defaultValue: 200,
+    },
+  },
 }
 
 const Template: Story<PaginationWidgetProps> = (
@@ -27,7 +27,7 @@ const Template: Story<PaginationWidgetProps> = (
 
 export const UnknownPageNumbers = Template.bind({})
 UnknownPageNumbers.args = {
-  numRecords: undefined
+  numRecords: undefined,
 }
 
 export const LessThan8Pages = Template.bind({})
@@ -39,15 +39,15 @@ export const MoreThan8Pages = Template.bind({})
 
 export const MoreThan7PagesWithActivePageCloseToStart = Template.bind({})
 MoreThan7PagesWithActivePageCloseToStart.args = {
-  paginationRef: createPaginationRef({ page: 2, limit: 12 })
+  paginationRef: createPaginationRef({ page: 2, limit: 12 }),
 }
 
 export const MoreThan7PagesWithActivePageFarFromBoundaries = Template.bind({})
 MoreThan7PagesWithActivePageFarFromBoundaries.args = {
-  paginationRef: createPaginationRef({ page: 4, limit: 12 })
+  paginationRef: createPaginationRef({ page: 4, limit: 12 }),
 }
 
 export const MoreThan7PagesWithActivePageCloseToEnd = Template.bind({})
 MoreThan7PagesWithActivePageCloseToEnd.args = {
-  paginationRef: createPaginationRef({ page: 17, limit: 12 })
+  paginationRef: createPaginationRef({ page: 17, limit: 12 }),
 }

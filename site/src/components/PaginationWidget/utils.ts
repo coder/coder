@@ -97,6 +97,8 @@ export const getPaginationContext = (
 })
 
 // for storybook
-export const createPaginationRef = (context: PaginationContext): PaginationMachineRef => {
+export const createPaginationRef = (
+  context: PaginationContext,
+): PaginationMachineRef => {
   return spawn(paginationMachine.withContext(context))
 }
