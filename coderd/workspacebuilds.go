@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -312,7 +313,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			"workspaceName": workspace.Name,
 		}
 
-		wriBytes, _ := json.Marshal(workspaceResourceInfo)
+		wriBytes, err := json.Marshal(workspaceResourceInfo)
+		if err != nil {
+			api.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+		}
 
 		aReq, commitAudit := audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
 			Audit:            *auditor,
