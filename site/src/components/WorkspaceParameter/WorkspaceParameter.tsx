@@ -110,7 +110,8 @@ export const WorkspaceParameter: FC<
             setValue(event.target.value)
           }}
           inputProps={{
-            pattern: templateParameter.validation_regex,
+            // Empty strings break the pattern matching!
+            pattern: templateParameter.validation_regex || undefined,
           }}
           onBlur={(event) => {
             if (event.target.checkValidity()) {

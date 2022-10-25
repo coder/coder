@@ -57,12 +57,16 @@ export const CreateWorkspacePageView: FC<
   const [deprecatedParameterValues, setDeprecatedParameterValues] = useState<
     Record<string, string>
   >({})
+  const [parameterValues, setParameterValues] = useState<
+    Record<string, string>
+  >({})
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
         name: "",
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
+        parameters: [],
       },
       enableReinitialize: true,
       validationSchema,
@@ -85,9 +89,16 @@ export const CreateWorkspacePageView: FC<
             source_value: value,
           })
         })
+        const parameters: TypesGen.WorkspaceBuildParameter[] = []
+        Object.keys(parameterValues).forEach((key) => parameters.push({
+          name: key,
+          value: parameterValues[key],
+        }))
+
         props.onSubmit({
           ...request,
-          parameter_values: createRequests,
+          deprecated_parameter_values: createRequests,
+          parameters: parameters,
         })
         form.setSubmitting(false)
       },
@@ -223,6 +234,12 @@ export const CreateWorkspacePageView: FC<
                   <WorkspaceParameter
                     templateParameter={parameter}
                     key={parameter.name}
+                    onChange={(value) => {
+                      setParameterValues({
+                        ...parameterValues,
+                        [parameter.name]: value,
+                      })
+                    }}
                   />
                 ))}
 

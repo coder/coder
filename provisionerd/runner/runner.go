@@ -515,23 +515,23 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("write log: %s", err)
 	}
-	parameterSchemas, err := r.runTemplateImportParse(ctx)
+	deprecatedParameterSchemas, err := r.runTemplateImportParse(ctx)
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
 	updateResponse, err := r.update(ctx, &proto.UpdateJobRequest{
-		JobId:            r.job.JobId,
-		ParameterSchemas: parameterSchemas,
+		JobId:                      r.job.JobId,
+		DeprecatedParameterSchemas: deprecatedParameterSchemas,
 	})
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
 	}
 
 	valueByName := map[string]*sdkproto.ParameterValue{}
-	for _, parameterValue := range updateResponse.ParameterValues {
+	for _, parameterValue := range updateResponse.DeprecatedParameterValues {
 		valueByName[parameterValue.Name] = parameterValue
 	}
-	for _, parameterSchema := range parameterSchemas {
+	for _, parameterSchema := range deprecatedParameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
 			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
@@ -551,7 +551,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("write log: %s", err)
 	}
-	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.DeprecatedParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
@@ -572,7 +572,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	if err != nil {
 		return nil, r.failedJobf("write log: %s", err)
 	}
-	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.DeprecatedParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
@@ -834,10 +834,11 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	err = stream.Send(&sdkproto.Provision_Request{
 		Type: &sdkproto.Provision_Request_Start{
 			Start: &sdkproto.Provision_Start{
-				Directory:       r.workDirectory,
-				ParameterValues: r.job.GetWorkspaceBuild().ParameterValues,
-				Metadata:        r.job.GetWorkspaceBuild().Metadata,
-				State:           r.job.GetWorkspaceBuild().State,
+				Directory:                 r.workDirectory,
+				ParameterValues:           r.job.GetWorkspaceBuild().ParameterValues,
+				DeprecatedParameterValues: r.job.GetWorkspaceBuild().DeprecatedParameterValues,
+				Metadata:                  r.job.GetWorkspaceBuild().Metadata,
+				State:                     r.job.GetWorkspaceBuild().State,
 			},
 		},
 	})

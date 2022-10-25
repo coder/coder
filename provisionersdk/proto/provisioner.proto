@@ -130,10 +130,11 @@ message Provision {
     }
     message Start {
         string directory = 1;
-        repeated ParameterValue parameter_values = 2;
-        Metadata metadata = 3;
-        bytes state = 4;
-        bool dry_run = 5;
+        repeated ParameterValue deprecated_parameter_values = 2;
+        repeated ParameterValue parameter_values = 3;
+        Metadata metadata = 4;
+        bytes state = 5;
+        bool dry_run = 6;
     }
     message Cancel {}
     message Request {

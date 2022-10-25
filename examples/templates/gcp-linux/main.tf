@@ -11,22 +11,52 @@ terraform {
   }
 }
 
-variable "project_id" {
+data "coder_parameter" "project_id" {
+  name = "Project ID"
+  icon = "/icon/folder.svg"
   description = "Which Google Compute Project should your workspace live in?"
+  default = "something"
 }
 
-variable "zone" {
-  description = "What region should your workspace live in?"
-  default     = "us-central1-a"
-  validation {
-    condition     = contains(["northamerica-northeast1-a", "us-central1-a", "us-west2-c", "europe-west4-b", "southamerica-east1-a"], var.zone)
-    error_message = "Invalid zone!"
+data "coder_parameter" "region" {
+  name = "Region"
+  description = "Select a location for your workspace to live."
+  icon = "/emojis/1f30e.png"
+  option {
+    name = "Toronto, Canada"
+    value = "northamerica-northeast1-a"
+    icon = "/emojis/1f1e8-1f1e6.png"
+  }
+  option {
+    name = "Council Bluff, Iowa, USA"
+    value = "us-central1-a"
+    icon = "/emojis/1f920.png"
+  }
+  option {
+    name = "Hamina, Finland"
+    value = "europe-north1-a"
+    icon = "/emojis/1f1eb-1f1ee.png"
+  }
+  option {
+    name = "Warsaw, Poland"
+    value = "europe-central2-a"
+    icon = "/emojis/1f1f5-1f1f1.png"
+  }
+  option {
+    name = "Madrid, Spain"
+    value = "europe-southwest1-a"
+    icon = "/emojis/1f1ea-1f1f8.png"
+  }
+  option {
+    name = "London, England"
+    value = "europe-west2-a"
+    icon = "/emojis/1f1ec-1f1e7.png"
   }
 }
 
 provider "google" {
-  zone    = var.zone
-  project = var.project_id
+  zone    = data.coder_parameter.region.value
+  project = data.coder_parameter.project_id.value
 }
 
 data "google_compute_default_service_account" "default" {
@@ -38,7 +68,7 @@ data "coder_workspace" "me" {
 resource "google_compute_disk" "root" {
   name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   type  = "pd-ssd"
-  zone  = var.zone
+  zone  = data.coder_parameter.region.value
   image = "debian-cloud/debian-11"
   lifecycle {
     ignore_changes = [image]
@@ -75,7 +105,7 @@ resource "coder_app" "code-server" {
 }
 
 resource "google_compute_instance" "dev" {
-  zone         = var.zone
+  zone         = data.coder_parameter.region.value
   count        = data.coder_workspace.me.start_count
   name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type = "e2-medium"

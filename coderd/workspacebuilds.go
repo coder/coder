@@ -481,21 +481,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		workspaceBuildID := uuid.New()
-		names := make([]string, 0, len(parameters))
-		values := make([]string, 0, len(parameters))
-		for _, param := range parameters {
-			names = append(names, param.Name)
-			values = append(values, param.Value)
-		}
-		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
-			WorkspaceBuildID: workspaceBuildID,
-			Name:             names,
-			Value:            values,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace build parameter: %w", err)
-		}
-
 		input, err := json.Marshal(workspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
 		})
@@ -533,6 +518,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		names := make([]string, 0, len(parameters))
+		values := make([]string, 0, len(parameters))
+		for _, param := range parameters {
+			names = append(names, param.Name)
+			values = append(values, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameter: %w", err)
 		}
 
 		return nil

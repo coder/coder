@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/terraform-provider-coder/provider"
 )
 
 // Provision executes `terraform apply` or `terraform plan` for dry runs.
@@ -174,7 +175,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 
 func provisionVars(start *proto.Provision_Start) ([]string, error) {
 	vars := []string{}
-	for _, param := range start.ParameterValues {
+	for _, param := range start.DeprecatedParameterValues {
 		vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
 	}
 	return vars, nil
@@ -193,6 +194,9 @@ func provisionEnv(start *proto.Provision_Start) ([]string, error) {
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
+	}
+	for _, parameter := range start.ParameterValues {
+		env = append(env, provider.ParameterEnvironmentVariable(parameter.Name)+"="+parameter.Value)
 	}
 	return env, nil
 }

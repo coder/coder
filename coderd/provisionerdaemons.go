@@ -227,8 +227,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
 
-		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+		// Compute deprecatedParameters for the workspace to consume.
+		deprecatedParameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
@@ -244,18 +244,31 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Convert types to their corresponding protobuf types.
-		protoParameters := convertComputedParameterValues(parameters)
+		deprecatedProtoParameters := convertComputedParameterValues(deprecatedParameters)
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
+		protoParameters := make([]*sdkproto.ParameterValue, 0)
+		parameters, err := server.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
+		}
+		for _, parameter := range parameters {
+			protoParameters = append(protoParameters, &sdkproto.ParameterValue{
+				Name:  parameter.Name,
+				Value: parameter.Value,
+			})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId: workspaceBuild.ID.String(),
-				WorkspaceName:    workspace.Name,
-				State:            workspaceBuild.ProvisionerState,
-				ParameterValues:  protoParameters,
+				WorkspaceBuildId:          workspaceBuild.ID.String(),
+				WorkspaceName:             workspace.Name,
+				State:                     workspaceBuild.ProvisionerState,
+				ParameterValues:           protoParameters,
+				DeprecatedParameterValues: deprecatedProtoParameters,
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            server.AccessURL.String(),
 					WorkspaceTransition: transition,
@@ -404,8 +417,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		}
 	}
 
-	if len(request.ParameterSchemas) > 0 {
-		for index, protoParameter := range request.ParameterSchemas {
+	if len(request.DeprecatedParameterSchemas) > 0 {
+		for index, protoParameter := range request.DeprecatedParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
@@ -472,8 +485,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		}
 
 		return &proto.UpdateJobResponse{
-			Canceled:        job.CanceledAt.Valid,
-			ParameterValues: protoParameters,
+			Canceled:                  job.CanceledAt.Valid,
+			DeprecatedParameterValues: protoParameters,
 		}, nil
 	}
 

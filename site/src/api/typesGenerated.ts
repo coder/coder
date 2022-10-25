@@ -221,7 +221,8 @@ export interface CreateWorkspaceRequest {
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
-  readonly parameter_values?: DeprecatedCreateParameterRequest[]
+  readonly deprecated_parameter_values?: DeprecatedCreateParameterRequest[]
+  readonly parameters: WorkspaceBuildParameter[]
 }
 
 // From codersdk/templates.go

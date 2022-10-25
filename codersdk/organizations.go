@@ -84,7 +84,8 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// DeprecatedParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	DeprecatedParameterValues []DeprecatedCreateParameterRequest `json:"parameter_values,omitempty"`
+	DeprecatedParameterValues []DeprecatedCreateParameterRequest `json:"deprecated_parameter_values,omitempty"`
+	Parameters                []WorkspaceBuildParameter          `json:"parameters"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

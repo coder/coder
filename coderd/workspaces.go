@@ -509,6 +509,22 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
+
+		parameterNames := make([]string, 0, len(createWorkspace.Parameters))
+		parameterValues := make([]string, 0, len(createWorkspace.Parameters))
+		for _, param := range createWorkspace.Parameters {
+			parameterNames = append(parameterNames, param.Name)
+			parameterValues = append(parameterValues, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             parameterNames,
+			Value:            parameterValues,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameter: %w", err)
+		}
+
 		return nil
 	})
 	if err != nil {
