@@ -14,8 +14,9 @@ kubectl create ns vclusters
 Don't use "heredoc" strings to generate JSON or YAML. Instead, use the jsonencode function or the yamlencode function so that Terraform can be responsible for guaranteeing valid JSON or YAML syntax.
 - https://www.terraform.io/language/expressions/strings#generating-json-or-yaml
 * build coder
-#+begin_src shell :dir "../../.."
-go build cmd/coder
+#+begin_src tmate :window compile
+cd ~/sharingio/coder
+go build ./cmd/coder
 sudo cp coder /usr/local/bin
 ls -la /usr/local/bin/coder
 /usr/local/bin/coder version
@@ -23,9 +24,6 @@ ls -la /usr/local/bin/coder
 
 #+RESULTS:
 #+begin_example
--rwxr-xr-x 1 root root 63885468 Oct  2 22:19 /usr/local/bin/coder
-Coder v0.0.0-devel+8850ed7 Thu Sep 29 18:49:51 UTC 2022
-https://github.com/coder/coder/commit/8850ed7e5eda8979030b3affd7e1cfebac7d632c
 #+end_example
 
 * Coder Iteration Loop

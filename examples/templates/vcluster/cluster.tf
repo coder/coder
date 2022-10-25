@@ -101,6 +101,7 @@ resource "kubernetes_manifest" "cluster" {
     }
   }
 }
+#   - --tls-san="${data.coder_workspace.me.name}.${var.base_domain}"
 
 resource "kubernetes_manifest" "vcluster" {
   manifest = {
@@ -131,7 +132,6 @@ resource "kubernetes_manifest" "vcluster" {
           privileged: false
         syncer:
           extraArgs:
-            - --tls-san="${data.coder_workspace.me.name}.${var.base_domain}"
             - --tls-san="${data.coder_workspace.me.name}.${data.coder_workspace.me.name}.svc"
         EOT
       }
