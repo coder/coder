@@ -1,7 +1,9 @@
 import {
   PaginationContext,
+  paginationMachine,
   PaginationMachineRef,
 } from "xServices/pagination/paginationXService"
+import { spawn } from "xstate"
 
 /**
  * Generates a ranged array with an option to step over values.
@@ -61,9 +63,10 @@ export const buildPagedList = (
   return range(1, numPages)
 }
 
-export const getInitialPage = (page: string | null): number =>
+const getInitialPage = (page: string | null): number =>
   page ? Number(page) : 1
 
+// pages count from 1
 export const getOffset = (page: number, limit: number): number =>
   (page - 1) * limit
 
@@ -92,3 +95,8 @@ export const getPaginationContext = (
   page: getInitialPage(searchParams.get("page")),
   limit,
 })
+
+// for storybook
+export const createPaginationRef = (context: PaginationContext): PaginationMachineRef => {
+  return spawn(paginationMachine.withContext(context))
+}
