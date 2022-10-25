@@ -14,34 +14,33 @@ export type PaginationEvent =
 
 export type PaginationMachineRef = ActorRefFrom<typeof paginationMachine>
 
-export const paginationMachine = createMachine(
+export const paginationMachine =
+/** @xstate-layout N4IgpgJg5mDOIC5QAcCGUCWA7VAXDA9lgLKoDGAFtmAMQByAogBoAqA+gAoCCA4gwNoAGALqIUBWBnxExIAB6IATADZBAOgAcGgCwBWDYMEHBAdm2KANCACeiEwEZ7axboCcbkw8-3XGgL5+VmiYONIk5FRYtBwASgwAagCSAPIAqgDKnLwCIrLIElKEWLIKCAC09hrKarq6AMwarsraGormuiYaVrYIDk4u7q7e3r4BQejYeEWklNQ0PMlsLIvcfEKiSCD5kmElduq69vrKyiaCjqfu3YgauupatYp1eia+o4FbE6HTEXNx6Qx2KschtxDsintyvZqlVzmdGs0tIpbtcENplIoanV7M8jrpFCZntoAh8sAQIHA8l8pkQZpEwGoAE5gVAQHpgwoyTalZSuNTuV6CFzabSCFqdVFmdTPMU+dHnZrKMafEI08KzKJ5Aq7blKJwC1xC3QisUaCU2RDKQ5qGXaOWqaHokl+IA */
+createMachine(
   {
-    id: "paginationMachine",
-    predictableActionArguments: true,
-    tsTypes: {} as import("./paginationXService.typegen").Typegen0,
-    schema: {
-      context: {} as PaginationContext,
-      events: {} as PaginationEvent,
+  tsTypes: {} as import("./paginationXService.typegen").Typegen0,
+  schema: { context: {} as PaginationContext, events: {} as PaginationEvent },
+  predictableActionArguments: true,
+  id: "paginationMachine",
+  initial: "ready",
+  on: {
+    NEXT_PAGE: {
+      actions: ["assignNextPage", "updateURL", "sendRefreshData"],
     },
-    initial: "idle",
-    on: {
-      NEXT_PAGE: {
-        actions: ["assignNextPage", "updateURL", "sendRefreshData"],
-      },
-      PREVIOUS_PAGE: {
-        actions: ["assignPreviousPage", "updateURL", "sendRefreshData"],
-      },
-      GO_TO_PAGE: {
-        actions: ["assignPage", "updateURL", "sendRefreshData"],
-      },
-      RESET_PAGE: {
-        actions: ["resetPage", "updateURL", "sendRefreshData"],
-      },
+    PREVIOUS_PAGE: {
+      actions: ["assignPreviousPage", "updateURL", "sendRefreshData"],
     },
-    states: {
-      idle: {},
+    GO_TO_PAGE: {
+      actions: ["assignPage", "updateURL", "sendRefreshData"],
+    },
+    RESET_PAGE: {
+      actions: ["logReset", "resetPage", "updateURL", "sendRefreshData"],
     },
   },
+  states: {
+    ready: {},
+  },
+},
   {
     actions: {
       sendRefreshData: (_) => sendParent("REFRESH_DATA"),
