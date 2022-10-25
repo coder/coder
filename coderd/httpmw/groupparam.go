@@ -55,6 +55,7 @@ func ExtractGroupByNameParam(db database.Store) func(http.Handler) http.Handler 
 			}
 
 			ctx = context.WithValue(ctx, groupParamContextKey{}, group)
+			chi.RouteContext(ctx).URLParams.Add("organization", group.OrganizationID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
