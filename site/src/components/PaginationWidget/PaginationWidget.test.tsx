@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react"
 import { render } from "../../testHelpers/renderHelpers"
 import { PaginationWidget } from "./PaginationWidget"
+import { createPaginationRef } from "./utils"
 
 describe("PaginatedList", () => {
   it("displays an accessible previous and next button regardless of the number of pages", async () => {
@@ -8,8 +9,7 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
+        paginationRef={createPaginationRef({ page: 1, limit: 25 })}
       />,
     )
 
@@ -30,12 +30,8 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
-        onPageClick={(_) => jest.fn()}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={1}
+        paginationRef={createPaginationRef({ page: 1, limit: 12 })}
       />,
     )
 
@@ -50,12 +46,8 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
-        onPageClick={(_) => jest.fn()}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={6}
+        paginationRef={createPaginationRef({ page: 6, limit: 12 })}
       />,
     )
 

@@ -29,7 +29,7 @@ export const PageButton = ({
       aria-label={`${page === activePage ? "Current Page" : ""} ${
         page === numPages ? "Last Page" : ""
       } Page${page}`}
-      name="Page button"
+      name={page === undefined ? undefined : "Page button"}
       onClick={() => onPageClick && page && onPageClick(page)}
       disabled={disabled}
     >
