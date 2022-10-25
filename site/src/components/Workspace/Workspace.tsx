@@ -179,7 +179,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <Stack
         direction="column"
         className={styles.firstColumnSpacer}
-        spacing={6}
+        spacing={4}
       >
         {buildError}
         {cancellationError}
