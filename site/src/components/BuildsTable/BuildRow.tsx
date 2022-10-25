@@ -3,7 +3,9 @@ import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
+import { useClickable } from "hooks/useClickable"
 import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router-dom"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import {
   displayWorkspaceBuildDuration,
@@ -19,12 +21,15 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build)
+  const navigate = useNavigate()
+  const clickableProps = useClickable(() => navigate(`builds/${build.id}`))
 
   return (
     <TableRow
       hover
       data-testid={`build-${build.id}`}
       className={styles.buildRow}
+      {...clickableProps}
     >
       <TableCell className={styles.buildCell}>
         <Stack
