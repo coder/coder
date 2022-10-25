@@ -7,10 +7,9 @@ import { useActor } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CSSProperties } from "react"
-import { useSearchParams } from "react-router-dom"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { PageButton } from "./PageButton"
-import { buildPagedList, getInitialPage } from "./utils"
+import { buildPagedList } from "./utils"
 
 export type PaginationWidgetProps = {
   prevLabel?: string
@@ -32,8 +31,7 @@ export const PaginationWidget = ({
   const styles = useStyles()
   const [paginationState, send] = useActor(paginationRef)
 
-  const [searchParams, _] = useSearchParams()
-  const currentPage = getInitialPage(searchParams.get("page"))
+  const currentPage = paginationState.context.page
   const numRecordsPerPage = paginationState.context.limit
 
   const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
