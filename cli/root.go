@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	caret = cliui.Styles.Prompt.String()
+	Caret = cliui.Styles.Prompt.String()
 
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
@@ -114,7 +114,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: fmt.Sprintf(fmtLong, buildinfo.Version()),
+		Long:          fmt.Sprintf(fmtLong, buildinfo.Version()),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
 				cliflag.IsSetBool(cmd, varNoFeatureWarning) {
@@ -328,8 +328,8 @@ func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	return client, nil
 }
 
-// currentOrganization returns the currently active organization for the authenticated user.
-func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.Organization, error) {
+// CurrentOrganization returns the currently active organization for the authenticated user.
+func CurrentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.Organization, error) {
 	orgs, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
 	if err != nil {
 		return codersdk.Organization{}, nil

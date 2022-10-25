@@ -67,7 +67,7 @@ func logout() *cobra.Command {
 				errorString := strings.TrimRight(errorStringBuilder.String(), "\n")
 				return xerrors.New("Failed to log out.\n" + errorString)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
 			return nil
 		},
 	}
