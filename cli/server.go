@@ -907,7 +907,7 @@ func newProvisionerDaemon(
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
 	}
-	return provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+	return provisionerd.New(coderAPI.CreateInMemoryProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
 		PollInterval:   500 * time.Millisecond,
 		UpdateInterval: 500 * time.Millisecond,

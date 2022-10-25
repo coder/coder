@@ -320,7 +320,7 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+	closer := provisionerd.New(coderAPI.CreateInMemoryProvisionerDaemon, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,

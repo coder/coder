@@ -521,6 +521,7 @@ type ProvisionerDaemon struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
+	AuthToken    uuid.NullUUID     `db:"auth_token" json:"auth_token"`
 }
 
 type ProvisionerJob struct {

@@ -2192,9 +2192,33 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 	return items, nil
 }
 
+const getProvisionerDaemonByAuthToken = `-- name: GetProvisionerDaemonByAuthToken :one
+SELECT
+	id, created_at, updated_at, name, provisioners, replica_id, auth_token
+FROM
+	provisioner_daemons
+WHERE
+	auth_token = $1
+`
+
+func (q *sqlQuerier) GetProvisionerDaemonByAuthToken(ctx context.Context, authToken uuid.NullUUID) (ProvisionerDaemon, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByAuthToken, authToken)
+	var i ProvisionerDaemon
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		pq.Array(&i.Provisioners),
+		&i.ReplicaID,
+		&i.AuthToken,
+	)
+	return i, err
+}
+
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id
+	id, created_at, updated_at, name, provisioners, replica_id, auth_token
 FROM
 	provisioner_daemons
 WHERE
@@ -2211,13 +2235,14 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.Name,
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
+		&i.AuthToken,
 	)
 	return i, err
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id
+	id, created_at, updated_at, name, provisioners, replica_id, auth_token
 FROM
 	provisioner_daemons
 `
@@ -2238,6 +2263,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.Name,
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
+			&i.AuthToken,
 		); err != nil {
 			return nil, err
 		}
@@ -2258,10 +2284,11 @@ INSERT INTO
 		id,
 		created_at,
 		"name",
-		provisioners
+		provisioners,
+		auth_token
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners, replica_id
+	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, auth_token
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -2269,6 +2296,7 @@ type InsertProvisionerDaemonParams struct {
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	AuthToken    uuid.NullUUID     `db:"auth_token" json:"auth_token"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -2277,6 +2305,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		arg.CreatedAt,
 		arg.Name,
 		pq.Array(arg.Provisioners),
+		arg.AuthToken,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -2286,6 +2315,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.Name,
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
+		&i.AuthToken,
 	)
 	return i, err
 }

@@ -18,10 +18,11 @@ INSERT INTO
 		id,
 		created_at,
 		"name",
-		provisioners
+		provisioners,
+		auth_token
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING *;
+	($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: UpdateProvisionerDaemonByID :exec
 UPDATE
@@ -31,3 +32,11 @@ SET
 	provisioners = $3
 WHERE
 	id = $1;
+
+-- name: GetProvisionerDaemonByAuthToken :one
+SELECT
+	*
+FROM
+	provisioner_daemons
+WHERE
+	auth_token = $1;
