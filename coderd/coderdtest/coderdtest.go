@@ -75,6 +75,7 @@ type Options struct {
 	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
+	Experimental         bool
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	RealIPConfig         *httpmw.RealIPConfig
@@ -233,7 +234,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
-
+			Experimental:                   options.Experimental,
+			
 			Auditor:              options.Auditor,
 			AWSCertificates:      options.AWSCertificates,
 			AzureCertificates:    options.AzureCertificates,
