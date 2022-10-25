@@ -82,14 +82,14 @@ describe("util > workspace", () => {
           ...Mocks.MockWorkspaceBuild,
           reason: "autostart",
         },
-        "system/autostart",
+        "Coder",
       ],
       [
         {
           ...Mocks.MockWorkspaceBuild,
           reason: "autostop",
         },
-        "system/autostop",
+        "Coder",
       ],
     ])(
       `getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`,
