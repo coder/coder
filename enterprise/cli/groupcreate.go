@@ -8,6 +8,7 @@ import (
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -42,7 +43,7 @@ func groupCreate() *cobra.Command {
 				return xerrors.Errorf("create group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully created group %s", group.Name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully created group %s!\n", cliui.Styles.Keyword.Render(group.Name))
 			return nil
 		},
 	}

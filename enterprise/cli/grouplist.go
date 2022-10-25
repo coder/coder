@@ -16,7 +16,7 @@ import (
 func groupList() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List user groups.",
+		Short: "List user groups",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (

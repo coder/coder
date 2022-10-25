@@ -23,7 +23,7 @@ func groupEdit() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <name>",
-		Short: "Edit a user group.",
+		Short: "Edit a user group",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (
