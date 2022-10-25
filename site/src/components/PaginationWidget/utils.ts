@@ -87,10 +87,8 @@ export const getPaginationData = (
 
 export const getPaginationContext = (
   searchParams: URLSearchParams,
-  setSearchParams: ({ page }: { page: string }) => void,
-  limit = DEFAULT_RECORDS_PER_PAGE,
+  limit: number = DEFAULT_RECORDS_PER_PAGE,
 ): PaginationContext => ({
   page: getInitialPage(searchParams.get("page")),
   limit,
-  updateURL: (page) => setSearchParams({ page: page.toString() }),
 })

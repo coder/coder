@@ -15,7 +15,12 @@ const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
       filter,
-      paginationContext: getPaginationContext(searchParams, setSearchParams),
+      paginationContext: getPaginationContext(searchParams),
+    },
+    actions: {
+      // Filter updates always cause page updates (to page 1), so only UPDATE_PAGE triggers updateURL
+      updateURL: (context, event) =>
+        setSearchParams({ page: event.page, filter: context.filter }),
     },
   })
 
@@ -38,7 +43,6 @@ const WorkspacesPage: FC = () => {
         getWorkspacesError={getWorkspacesError}
         getCountError={getCountError}
         onFilter={(query) => {
-          setSearchParams({ filter: query })
           send({
             type: "UPDATE_FILTER",
             query,

@@ -221,12 +221,12 @@ interface WorkspacesContext {
 }
 
 type WorkspacesEvent =
-  | { type: "REFRESH_DATA" }
+  | { type: "UPDATE_PAGE"; page: string }
   | { type: "UPDATE_VERSION"; workspaceId: string }
   | { type: "UPDATE_FILTER"; query?: string }
 
 export const workspacesMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGM4BlAFz1LADoDUBXAO1KoEsIAbMAYgFUAFACIBBACoBRAPoAxAJIAZcQCUA2gAYAuolA5UsFqRaoGWkAA9EARgCsANioBmAEw37q+1YDsLgBwAWbx4ANCAAnohOVFZWjvYeFr5WAJxeThYAvmnBaFi4hCTklDT0TFQwpAYMUADCxaRcEEbULAwAbqiY1GUA6hjY+ESwNYykappIIDp6BkYm5gi+Ho5UjraOqhaq3jYbNsFhCNa+VDYJqp72iX423jEZWb25A2QU1LTDpWDlzdW1XGDo6AwVBw7AoADMMABbD6kHo5fpwIZMUYmSb6QzGcZzGyORJUDYJOIeKzeWKJPaIFZWKjeRKqYluOJWXw2VQ2O4gbJ9PKwZ6FLmPOBUWDkdAVKB8PBQZoUDFcFHjNHTTGgOYAWm8Fjx9i1jl8Tn83gC5NCiDVvgsy1UiUcjg8HiNuKNxI5AoRvIK1DdPJh4rh3IG9UarFa7U6n39gtgCu0unRMyxZts1McG281tShosFIORqoxNJLkcpL8Fscroe7r5XsrPrKftrgYaDCaoY6MMj7uUFjGsamGNmZq2lsSvlU-isGZsiSs9hzxY8VDOtrpNg8l2tvgr8J51ao3oGvu+nZ5fwBQJB4KhHcbcBjEzjysHCDVzKW10SFnsmuLiSc3hzPMYk2VNfH8BYom3AN8hefdb1gKg6BwCBZUqE8iEUMAwVgIMWxDNp2yQlDKHQsBMOw+8lQHRMX1cOx1hZDZU1sDZ7DnU0EDYpYwM3CwthiB1vCsKCoz3A8hWQPB9BEVByPQOAAAtSJw0wRVgvAwUodAAApJ1UVQAEouHEj1YJM-cpNIGS5MU5TKMfajVSTO0l3WGJ3CSUlEhNfYLmONlNVpVMHRsZkRKrT04J3QNFDEKRYuIAAJCRhBEIR7P7BMnJfadvAcWl9Q2cdxzXHNzUtNYbTtQSnQCYTMk5eDq14QRREkAA1MRFGIGQAHkADkMvjFUzHCalokSE54k8L8LC8MrnCWG4-EWNj4gtDwMgahhUAgOATBMvc3hKNhOFRBystG+ZR0iekyQ8a1WKsHMHqXX87TXGwcXscLd0i47mHrb4kVIc7MpG7FqU-G1SVY+xWWeji+KWJJthtM4GQSLcGsO-7ajB4bnzmqhoeLHU3Hhs4ytsKgwK8MmDRtX6nki8y1LFb5JWlBhZUuqjLvVI07GsS4Vj8TxfE-Mr4lUZY-0m+wwOcM5fHLHGmtZ+CjzQ+CCafGiNRnZYhPcNj9TWPj5zsVGtW8i1xfcdl1eimD+S1ojUKgUjyPgRULohs04ktKw01V5lSScHNFbxac31yvivGsZnXZrF2EMk6TZKw+TYCU3W-fB581XcS1FnXe0blcDwxyCDi2OWcvcU-L6ziSZPTLdtO9ccq61VHexjdnWdFacdYAI4tUVzli4i0VrY2R+53oI7sBu4Fs1vIqk3h-Nseyp1PLcRn1w7QsaxvC2tIgA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGM4BlAFz1LADoDUBXAO1KplNIEsGoBhepgYgioG1TgDdUmaqwDqGbPiKxejUgG0ADAF1EoHKljsOw3SAAeiAIyWNVAMwA2AJwAOACyWnAJjsuvGty8AGhAAT0QfWxcAVm9ohwcXAHYkp0sXFwBfTJC0LFxCEnJKGj5mVg4uFQEwdHQMKhwAGwoAMwwAWxYwUjl8xThq9W1TfUNjBlMLBDsnaKovaMtfDQ00jLckhxDwhEiqGO9-OxPZk69s3PkCpTIKalpVfgBVAAUAEQBBABUAUQB9ABiAEkADJ-ABKmh0SBAYyM7BMsOmbm8VA00Q0KRcli2di86TcOwiDioDk8DjcMS8Lm8dg0LgclxAeQUhVgdxKrJucCosHI6EqUFeeCgnAoiIY-GhowMCKRoGmAFocU57J4vG58VSMqliQglR4FmsvF5sX5XMloszuQMOcVqLb2d02JwoH02UpBMJRAwJFIXR6ebAZbD4RMpoglfF5gSGWt8ZYdZZ9ekXFQktEXI58dn3B4LjkWdc7ZzHSXnRU3UG7d6RFRxJJpD0a+y1JYYXo5RHkVHGZYqE43AEYgnnNE7PqaUl0dFTU4NA5Ui41m4bRXbg6qE6lC6ha2vbV6uhGi1SO10F1ZBu4KGu+NJZGDdFAmTacscTSnLn9RkFvS-CTKlNmia0ix3Ip7m3G9YCoOgcAgCUuAPMAITAVpYDrX1-WoeDEMoFC0Iwu84W7R9ewNelSQ0JNyQ0Al4hsE59XOKg3GHId0gcHwkgyMCrn6dky2gwTd2QPAjG+VAiPQOAAAsUMwsx+SgvBWkodAAApMVWABKfgIPtKDDO3CTSCkmT5MUkjw3IxUoznGdVksHw7FA1xZicFi1QcRccVpAleIcF911EyCuRgl4Ph+AFXk+ABxX4bLIhVzAc78DjsawHDc7wdW2MIo2WNVeNNTMaTNLLF1Cz1wrAKKvj+f4ADVfghYhgQAeQAOWSh9UumWYM2cWjVixdxJ0Kg1NXmXzEhcjF3Bo7IiwYVAIDgUxDOEx4mAbCAmjAWV+smCj-HTLK50xZxFg0WZgimxwSrcSkkheuY3GiJJCwE2qjJKXbyh6IUhmO+VTvshBuIORJKQJHx4esKcfOOfwEi-OxUhq4MdrKMGe0hpMYcZQIXMTAkXP1JVoZWNyGSTQkMX44swv+8tWb5AUhRFMUGAlVLbIGvtGSoSxYj8LNPretIqaTWwvG-JwcvYrxfJfH6Wb+4STKrZCYPxuy0oNWlYxiNyTi1fx0inUlYnJJwHY8dwJ3ibHSy3Ey8KQ90byI+AwxSiGjaVJJrCoJYGUCF9s3xFjUTJD7VdcdItjFt2hI9mDTMk6T0Nk2AFP1gOTqfJU3IHb7UmxSI3qxFi7AWKuFbSBImacdPN2Mov73B0uhwbmkXYt-EaJcKn5wWRXuN4r6XNAju6oNoWDQdgdB-NuxLdHqmsvTBXZm4lyMgpJkVqAA */
   createMachine(
     {
       tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
@@ -259,12 +259,6 @@ export const workspacesMachine =
       states: {
         count: {
           initial: "gettingCount",
-          on: {
-            UPDATE_FILTER: {
-              target: ".gettingCount",
-              actions: ["assignFilter", "sendResetPage"],
-            },
-          },
           states: {
             idle: {},
             gettingCount: {
@@ -287,14 +281,15 @@ export const workspacesMachine =
               },
             },
           },
+          on: {
+            UPDATE_FILTER: {
+              target: ".gettingCount",
+              actions: ["assignFilter", "sendResetPage"],
+            },
+          },
         },
         workspaces: {
           initial: "startingPagination",
-          on: {
-            REFRESH_DATA: {
-              target: ".gettingWorkspaces",
-            },
-          },
           states: {
             startingPagination: {
               entry: "assignPaginationRef",
@@ -341,9 +336,16 @@ export const workspacesMachine =
               after: {
                 "5000": {
                   target: "#workspacesState.workspaces.gettingWorkspaces",
-                  internal: true
+                  actions: [],
+                  internal: false,
                 },
               },
+            },
+          },
+          on: {
+            UPDATE_PAGE: {
+              target: ".gettingWorkspaces",
+              actions: "updateURL",
             },
           },
         },

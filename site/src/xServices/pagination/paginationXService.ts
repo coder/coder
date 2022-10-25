@@ -3,7 +3,6 @@ import { ActorRefFrom, createMachine, sendParent, assign } from "xstate"
 export interface PaginationContext {
   page: number
   limit: number
-  updateURL: (page: number) => void
 }
 
 export type PaginationEvent =
@@ -28,16 +27,16 @@ export const paginationMachine =
       initial: "ready",
       on: {
         NEXT_PAGE: {
-          actions: ["assignNextPage", "updateURL", "sendRefreshData"],
+          actions: ["assignNextPage", "sendUpdatePage"],
         },
         PREVIOUS_PAGE: {
-          actions: ["assignPreviousPage", "updateURL", "sendRefreshData"],
+          actions: ["assignPreviousPage", "sendUpdatePage"],
         },
         GO_TO_PAGE: {
-          actions: ["assignPage", "updateURL", "sendRefreshData"],
+          actions: ["assignPage", "sendUpdatePage"],
         },
         RESET_PAGE: {
-          actions: ["logReset", "resetPage", "updateURL", "sendRefreshData"],
+          actions: ["resetPage", "sendUpdatePage"],
         },
       },
       states: {
@@ -46,7 +45,10 @@ export const paginationMachine =
     },
     {
       actions: {
-        sendRefreshData: sendParent("REFRESH_DATA"),
+        sendUpdatePage: sendParent((context) => ({
+          type: "UPDATE_PAGE",
+          page: context.page.toString(),
+        })),
         assignNextPage: assign({
           page: (context) => context.page + 1,
         }),
@@ -59,9 +61,6 @@ export const paginationMachine =
         resetPage: assign({
           page: (_) => 1,
         }),
-        updateURL: (context) => {
-          context.updateURL(context.page)
-        },
       },
     },
   )
