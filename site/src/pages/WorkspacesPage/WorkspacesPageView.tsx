@@ -4,6 +4,7 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -34,7 +35,7 @@ export interface WorkspacesPageViewProps {
   getCountError: Error | unknown
   filter?: string
   onFilter: (query: string) => void
-  onPageChange: (offset: number, limit: number) => void
+  paginationRef: PaginationMachineRef
 }
 
 export const WorkspacesPageView: FC<
@@ -47,7 +48,7 @@ export const WorkspacesPageView: FC<
   getCountError,
   filter,
   onFilter,
-  onPageChange,
+  paginationRef,
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
@@ -110,7 +111,7 @@ export const WorkspacesPageView: FC<
         prevLabel=""
         nextLabel=""
         numRecords={count}
-        onPageChange={onPageChange}
+        paginationRef={paginationRef}
       />
     </Margins>
   )

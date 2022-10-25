@@ -1,21 +1,31 @@
 import { useMachine } from "@xstate/react"
+import { getPaginationContext } from "components/PaginationWidget/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
 import { workspaceFilterQuery } from "util/filters"
 import { pageTitle } from "util/page"
-import { workspacesMachine2 } from "xServices/workspaces/workspacesXService"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
+import {
+  workspacesMachine,
+} from "xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get("filter") ?? workspaceFilterQuery.me
-  const [workspacesState, send] = useMachine(workspacesMachine2, {
-    context: { filter },
+  const [workspacesState, send] = useMachine(workspacesMachine, {
+    context: {
+      filter,
+      paginationContext: getPaginationContext(searchParams, setSearchParams)
+    },
   })
 
   const { workspaceRefs, count, getWorkspacesError, getCountError } =
     workspacesState.context
+  const paginationRef = workspacesState.context.paginationRef as PaginationMachineRef
+
+  console.log(workspacesState.value, workspacesState.event)
 
   return (
     <>
@@ -37,9 +47,7 @@ const WorkspacesPage: FC = () => {
             query,
           })
         }}
-        onPageChange={(offset: number, limit: number) =>
-          send({ type: "GET_WORKSPACES", offset, limit })
-        }
+        paginationRef={paginationRef}
       />
     </>
   )

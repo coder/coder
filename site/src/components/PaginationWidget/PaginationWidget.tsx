@@ -3,50 +3,46 @@ import { makeStyles, useTheme } from "@material-ui/core/styles"
 import useMediaQuery from "@material-ui/core/useMediaQuery"
 import KeyboardArrowLeft from "@material-ui/icons/KeyboardArrowLeft"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import { useActor } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CSSProperties } from "react"
 import { useSearchParams } from "react-router-dom"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { PageButton } from "./PageButton"
-import { buildPagedList, DEFAULT_RECORDS_PER_PAGE } from "./utils"
+import {
+  buildPagedList,
+  getInitialPage,
+} from "./utils"
 
 export type PaginationWidgetProps = {
   prevLabel: string
   nextLabel: string
-  onPageChange: (offset: number, limit: number) => void
-  numRecordsPerPage?: number
   numRecords?: number
   containerStyle?: CSSProperties
+  paginationRef: PaginationMachineRef
 }
 
 export const PaginationWidget = ({
   prevLabel,
   nextLabel,
-  onPageChange,
   numRecords,
-  numRecordsPerPage = DEFAULT_RECORDS_PER_PAGE,
   containerStyle,
+  paginationRef,
 }: PaginationWidgetProps): JSX.Element | null => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const styles = useStyles()
+  const [paginationState, send] = useActor(paginationRef)
+  console.log(paginationState.context, paginationState.event)
 
-  const [searchParams, setSearchParams] = useSearchParams()
-  const currentPage = searchParams.get("page")
-    ? Number(searchParams.get("page"))
-    : 1
+  const [searchParams, _] = useSearchParams()
+  const currentPage = getInitialPage(searchParams.get("page"))
+  const numRecordsPerPage = paginationState.context.limit
 
   const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
   const firstPageActive = currentPage === 1 && numPages !== 0
   const lastPageActive = currentPage === numPages && numPages !== 0
-
-  const changePage = (newPage: number) => {
-    // change the page in the url
-    setSearchParams({ page: newPage.toString() })
-    // fetch new page of records
-    const offset = (newPage - 1) * numRecordsPerPage
-    onPageChange(offset, numRecordsPerPage)
-  }
 
   // No need to display any pagination if we know the number of pages is 1
   if (numPages === 1 || numRecords === 0) {
@@ -59,7 +55,7 @@ export const PaginationWidget = ({
         className={styles.prevLabelStyles}
         aria-label="Previous page"
         disabled={firstPageActive}
-        onClick={() => changePage(currentPage - 1)}
+        onClick={() => send({ type: "PREVIOUS_PAGE" })}
       >
         <KeyboardArrowLeft />
         <div>{prevLabel}</div>
@@ -83,7 +79,7 @@ export const PaginationWidget = ({
                   activePage={currentPage}
                   page={page}
                   numPages={numPages}
-                  onPageClick={() => changePage(page)}
+                  onPageClick={() => send({ type: "GO_TO_PAGE", page })}
                 />
               ),
             )}
@@ -93,7 +89,7 @@ export const PaginationWidget = ({
       <Button
         aria-label="Next page"
         disabled={lastPageActive}
-        onClick={() => changePage(currentPage + 1)}
+        onClick={() => send({ type: "NEXT_PAGE" })}
       >
         <div>{nextLabel}</div>
         <KeyboardArrowRight />
