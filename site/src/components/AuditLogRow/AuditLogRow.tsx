@@ -130,11 +130,13 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
             </Stack>
           </Stack>
 
-          {shouldDisplayDiff ? (
-            <div> {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}</div>
-          ) : (
-            <div className={styles.columnWithoutDiff}></div>
-          )}
+          <div
+            className={
+              shouldDisplayDiff ? undefined : styles.disabledDropdownIcon
+            }
+          >
+            {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}
+          </div>
         </Stack>
 
         {shouldDisplayDiff && (
@@ -188,8 +190,8 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     whiteSpace: "nowrap",
   },
-  // offset the absence of the arrow icon on diff-less logs
-  columnWithoutDiff: {
-    marginLeft: "24px",
+
+  disabledDropdownIcon: {
+    opacity: 0.5,
   },
 }))
