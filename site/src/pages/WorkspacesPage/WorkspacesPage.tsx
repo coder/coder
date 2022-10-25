@@ -25,8 +25,6 @@ const WorkspacesPage: FC = () => {
     workspacesState.context
   const paginationRef = workspacesState.context.paginationRef as PaginationMachineRef
 
-  console.log(workspacesState.value, workspacesState.event)
-
   return (
     <>
       <Helmet>

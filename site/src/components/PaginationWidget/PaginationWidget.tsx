@@ -16,16 +16,16 @@ import {
 } from "./utils"
 
 export type PaginationWidgetProps = {
-  prevLabel: string
-  nextLabel: string
+  prevLabel?: string
+  nextLabel?: string
   numRecords?: number
   containerStyle?: CSSProperties
   paginationRef: PaginationMachineRef
 }
 
 export const PaginationWidget = ({
-  prevLabel,
-  nextLabel,
+  prevLabel="",
+  nextLabel="",
   numRecords,
   containerStyle,
   paginationRef,
@@ -34,7 +34,6 @@ export const PaginationWidget = ({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const styles = useStyles()
   const [paginationState, send] = useActor(paginationRef)
-  console.log(paginationState.context, paginationState.event)
 
   const [searchParams, _] = useSearchParams()
   const currentPage = getInitialPage(searchParams.get("page"))

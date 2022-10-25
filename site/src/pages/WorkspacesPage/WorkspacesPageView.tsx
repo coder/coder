@@ -108,8 +108,6 @@ export const WorkspacesPageView: FC<
       />
 
       <PaginationWidget
-        prevLabel=""
-        nextLabel=""
         numRecords={count}
         paginationRef={paginationRef}
       />
