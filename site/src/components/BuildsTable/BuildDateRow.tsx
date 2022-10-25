@@ -8,7 +8,7 @@ export interface BuildDateRow {
   date: Date
 }
 
-export const BuildDateRow: React.FC<BuildDateRow> = ({ date }) => {
+export const BuildDateRow: FC<BuildDateRow> = ({ date }) => {
   const styles = useStyles()
   // We only want the message related to the date since the time is displayed
   // inside of the build row
