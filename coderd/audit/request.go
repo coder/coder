@@ -20,9 +20,8 @@ type RequestParams struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	Request          *http.Request
-	Action           database.AuditAction
-	AdditionalFields json.RawMessage
+	Request *http.Request
+	Action  database.AuditAction
 }
 
 type Request[T Auditable] struct {
@@ -44,9 +43,6 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Username
 	case database.Workspace:
 		return typed.Name
-	case database.WorkspaceBuild:
-		// this isn't used
-		return string(typed.BuildNumber)
 	case database.GitSSHKey:
 		return typed.PublicKey
 	case database.Group:
@@ -67,8 +63,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.User:
 		return typed.ID
 	case database.Workspace:
-		return typed.ID
-	case database.WorkspaceBuild:
 		return typed.ID
 	case database.GitSSHKey:
 		return typed.UserID
@@ -91,8 +85,6 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUser
 	case database.Workspace:
 		return database.ResourceTypeWorkspace
-	case database.WorkspaceBuild:
-		return database.ResourceTypeWorkspaceBuild
 	case database.GitSSHKey:
 		return database.ResourceTypeGitSshKey
 	case database.Group:
@@ -137,10 +129,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			}
 		}
 
-		if p.AdditionalFields == nil {
-			p.AdditionalFields = json.RawMessage("{}")
-		}
-
 		ip := parseIP(p.Request.RemoteAddr)
 		err := p.Audit.Export(ctx, database.AuditLog{
 			ID:               uuid.New(),
@@ -155,7 +143,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
-			AdditionalFields: p.AdditionalFields,
+			AdditionalFields: json.RawMessage("{}"),
 		})
 		if err != nil {
 			p.Log.Error(logCtx, "export audit log", slog.Error(err))

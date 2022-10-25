@@ -278,59 +278,28 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auditor := api.Auditor.Load()
-
-	// if user deletes a workspace, audit the workspace
+	// we only want to create audit logs for delete builds right now
 	if action == rbac.ActionDelete {
-		aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionDelete,
-		})
+		var (
+			auditor           = api.Auditor.Load()
+			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+				Audit:   *auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionDelete,
+			})
+		)
 
 		defer commitAudit()
 		aReq.Old = workspace
 	}
 
-	latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-
-	// if a user starts/stops a workspace, audit the workspace build
-	if action == rbac.ActionUpdate {
-		var auditAction database.AuditAction
-		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
-			auditAction = database.AuditActionStart
-		} else if createBuild.Transition == codersdk.WorkspaceTransitionStop {
-			auditAction = database.AuditActionStop
-		} else {
-			auditAction = database.AuditActionWrite
-		}
-
-		// We pass the workspace name to the Auditor so that it
-		// can form a friendly string for the user.
-		workspaceResourceInfo := map[string]string{
-			"workspaceName": workspace.Name,
-		}
-
-		wriBytes, _ := json.Marshal(workspaceResourceInfo)
-
-		aReq, commitAudit := audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           auditAction,
-			AdditionalFields: wriBytes,
-		})
-
-		defer commitAudit()
-		aReq.Old = latestBuild
-	}
-
 	if createBuild.TemplateVersionID == uuid.Nil {
-		if latestBuildErr != nil {
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching the latest workspace build.",
-				Detail:  latestBuildErr.Error(),
+				Detail:  err.Error(),
 			})
 			return
 		}

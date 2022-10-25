@@ -1,2 +1,0 @@
--- It's not possible to drop enum values from enum types, so the UP has "IF NOT
--- EXISTS".

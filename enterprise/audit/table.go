@@ -103,21 +103,6 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
 	},
-	// We don't show any diff for the WorkspaceBuild resource
-	&database.WorkspaceBuild{}: {
-		"id":                  ActionIgnore,
-		"created_at":          ActionIgnore,
-		"updated_at":          ActionIgnore,
-		"workspace_id":        ActionIgnore,
-		"template_version_id": ActionIgnore,
-		"build_number":        ActionIgnore,
-		"transition":          ActionIgnore,
-		"initiator_id":        ActionIgnore,
-		"provisioner_state":   ActionIgnore,
-		"job_id":              ActionIgnore,
-		"deadline":            ActionIgnore,
-		"reason":              ActionIgnore,
-	},
 	&database.Group{}: {
 		"id":              ActionTrack,
 		"name":            ActionTrack,
