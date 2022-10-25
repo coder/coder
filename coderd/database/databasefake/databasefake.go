@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -280,10 +281,31 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 		sort.Float64s(fs)
 		return fs[len(fs)/2]
 	}
+
+	tryStddev := func(fs []float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		var sum float64
+		for _, f := range fs {
+			sum += f
+		}
+		mean := sum / float64(len(fs))
+
+		var sumSqDiff float64
+		for _, f := range fs {
+			sumSqDiff += math.Pow(mean-f, 2)
+		}
+		return sumSqDiff / float64(len(fs))
+	}
+
 	var row database.GetTemplateAverageBuildTimeRow
 	row.DeleteMedian = tryMedian(deleteTimes)
+	row.DeleteStddev = tryStddev(deleteTimes)
 	row.StopMedian = tryMedian(stopTimes)
+	row.StopStddev = tryStddev(stopTimes)
 	row.StartMedian = tryMedian(startTimes)
+	row.StartStddev = tryStddev(startTimes)
 	return row, nil
 }
 

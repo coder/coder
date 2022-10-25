@@ -21,7 +21,7 @@ const Template: Story<WorkspaceBuildProgressProps> = (args) => (
 
 export const Starting = Template.bind({})
 Starting.args = {
-  buildEstimate: 10000,
+  transitionStats: 10000,
   workspace: {
     ...MockStartingWorkspace,
     latest_build: {
@@ -39,11 +39,11 @@ Starting.args = {
 export const StartingUnknown = Template.bind({})
 StartingUnknown.args = {
   ...Starting.args,
-  buildEstimate: undefined,
+  transitionStats: undefined,
 }
 
 export const StartingPassedEstimate = Template.bind({})
 StartingPassedEstimate.args = {
   ...Starting.args,
-  buildEstimate: 1000,
+  transitionStats: 1000,
 }

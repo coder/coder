@@ -559,11 +559,10 @@ export interface TemplateACL {
 }
 
 // From codersdk/templates.go
-export interface TemplateBuildTimeStats {
-  readonly start_ms?: number
-  readonly stop_ms?: number
-  readonly delete_ms?: number
-}
+export type TemplateBuildTimeStats = Record<
+  WorkspaceTransition,
+  TransitionStats
+>
 
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
@@ -597,6 +596,12 @@ export interface TemplateVersion {
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/templates.go
+export interface TransitionStats {
+  readonly Median?: number
+  readonly Stddev?: number
 }
 
 // From codersdk/templates.go

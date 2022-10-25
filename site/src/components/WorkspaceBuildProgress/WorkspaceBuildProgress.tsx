@@ -1,6 +1,6 @@
 import LinearProgress from "@material-ui/core/LinearProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import { Template, Workspace } from "api/typesGenerated"
+import { TransitionStats, Template, Workspace, WorkspaceTransition } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
@@ -30,7 +30,7 @@ const estimateFinish = (
 
 export interface WorkspaceBuildProgressProps {
   workspace: Workspace
-  buildEstimate?: number
+  transitionStats?: TransitionStats
 }
 
 // EstimateTransitionTime gets the build estimate for the workspace,
@@ -38,23 +38,19 @@ export interface WorkspaceBuildProgressProps {
 export const EstimateTransitionTime = (
   template: Template,
   workspace: Workspace,
-): [number | undefined, boolean] => {
-  switch (workspace.latest_build.status) {
-    case "starting":
-      return [template.build_time_stats.start_ms, true]
-    case "stopping":
-      return [template.build_time_stats.stop_ms, true]
-    case "deleting":
-      return [template.build_time_stats.delete_ms, true]
-    default:
-      // Not in a transition state
-      return [undefined, false]
+): [TransitionStats | undefined, boolean] => {
+  const transition = workspace.latest_build.status
+
+  if (!["starting", "stopping", "deleting"].includes(transition)) {
+    return [undefined, false]
   }
+
+  return [template.build_time_stats[transition as WorkspaceTransition], true]
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
-  buildEstimate,
+  transitionStats: transitionStats,
 }) => {
   const styles = useStyles()
   const job = workspace.latest_build.job
@@ -65,15 +61,15 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   // stutter in all cases.
   useEffect(() => {
     const updateProgress = () => {
-      if (job.status !== "running" || buildEstimate === undefined) {
+      if (job.status !== "running" || transitionStats === undefined) {
         setProgressValue(undefined)
         return
       }
-      const est = estimateFinish(dayjs(job.started_at), buildEstimate)[0]
+      const est = estimateFinish(dayjs(job.started_at), transitionStats)[0]
       setProgressValue(est)
     }
     setTimeout(updateProgress, 5)
-  }, [progressValue, job, buildEstimate])
+  }, [progressValue, job, transitionStats])
 
   return (
     <div className={styles.stack}>
@@ -86,7 +82,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
           // perceives the bar jumping from 100% to 0%.
           progressValue !== undefined &&
           progressValue < 100 &&
-          buildEstimate !== undefined
+          transitionStats !== undefined
             ? "determinate"
             : "indeterminate"
         }
@@ -101,8 +97,8 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
           {(() => {
             if (job.status !== "running") {
               return ""
-            } else if (buildEstimate !== undefined) {
-              return estimateFinish(dayjs(job.started_at), buildEstimate)[1]
+            } else if (transitionStats !== undefined) {
+              return estimateFinish(dayjs(job.started_at), transitionStats)[1]
             } else {
               return "Unknown ETA"
             }

@@ -144,6 +144,9 @@ SELECT
 	-- complexities.
 	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_median,
 	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_median,
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_median
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_median,
+	coalesce((stddev(exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_stddev,
+	coalesce((stddev(exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_stddev,
+	coalesce((stddev(exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_stddev
 FROM build_times
 ;

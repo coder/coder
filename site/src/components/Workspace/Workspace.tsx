@@ -118,10 +118,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
-  let buildTimeEstimate: number | undefined = undefined
+  let transitionStats: TypesGen.TransitionStats | undefined = undefined
   let isTransitioning: boolean | undefined = undefined
   if (template !== undefined) {
-    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
+    ;[transitionStats, isTransitioning] = EstimateTransitionTime(
       template,
       workspace,
     )
@@ -201,7 +201,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         {isTransitioning !== undefined && isTransitioning && (
           <WorkspaceBuildProgress
             workspace={workspace}
-            buildEstimate={buildTimeEstimate}
+            transitionStats={transitionStats}
           />
         )}
 

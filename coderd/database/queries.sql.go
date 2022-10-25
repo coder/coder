@@ -2861,7 +2861,10 @@ SELECT
 	-- complexities.
 	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_median,
 	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_median,
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_median
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_median,
+	coalesce((stddev(exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_stddev,
+	coalesce((stddev(exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_stddev,
+	coalesce((stddev(exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_stddev
 FROM build_times
 `
 
@@ -2874,12 +2877,22 @@ type GetTemplateAverageBuildTimeRow struct {
 	StartMedian  float64 `db:"start_median" json:"start_median"`
 	StopMedian   float64 `db:"stop_median" json:"stop_median"`
 	DeleteMedian float64 `db:"delete_median" json:"delete_median"`
+	StartStddev  float64 `db:"start_stddev" json:"start_stddev"`
+	StopStddev   float64 `db:"stop_stddev" json:"stop_stddev"`
+	DeleteStddev float64 `db:"delete_stddev" json:"delete_stddev"`
 }
 
 func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
 	var i GetTemplateAverageBuildTimeRow
-	err := row.Scan(&i.StartMedian, &i.StopMedian, &i.DeleteMedian)
+	err := row.Scan(
+		&i.StartMedian,
+		&i.StopMedian,
+		&i.DeleteMedian,
+		&i.StartStddev,
+		&i.StopStddev,
+		&i.DeleteStddev,
+	)
 	return i, err
 }
 
