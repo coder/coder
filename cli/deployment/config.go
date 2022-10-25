@@ -97,6 +97,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				},
 			},
 		},
+		GitAuth: &codersdk.DeploymentConfigField[[]codersdk.GitAuthConfig]{
+			Name:    "Git Auth",
+			Usage:   "Automatically authenticate Git inside workspaces.",
+			Flag:    "gitauth",
+			Default: []codersdk.GitAuthConfig{},
+		},
 		Prometheus: &codersdk.PrometheusConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:  "Prometheus Enable",
@@ -407,6 +413,9 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 				value = append(value, strings.Split(entry, ",")...)
 			}
 			val.FieldByName("Value").Set(reflect.ValueOf(value))
+		case []codersdk.GitAuthConfig:
+			values := readSliceFromViper[codersdk.GitAuthConfig](vip, prefix, value)
+			val.FieldByName("Value").Set(reflect.ValueOf(values))
 		default:
 			panic(fmt.Sprintf("unsupported type %T", value))
 		}
@@ -435,6 +444,44 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			panic(fmt.Sprintf("unsupported type %T", ft))
 		}
 	}
+}
+
+// readSliceFromViper reads a typed mapping from the key provided.
+// This enables environment variables like CODER_GITAUTH_<index>_CLIENT_ID.
+func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
+	elementType := reflect.TypeOf(value).Elem()
+	returnValues := make([]T, 0)
+	for entry := 0; true; entry++ {
+		// Only create an instance when the entry exists in viper...
+		// otherwise we risk
+		var instance *reflect.Value
+		for i := 0; i < elementType.NumField(); i++ {
+			fve := elementType.Field(i)
+			prop := fve.Tag.Get("json")
+			// For fields that are omitted in JSON, we use a YAML tag.
+			if prop == "-" {
+				prop = fve.Tag.Get("yaml")
+			}
+			value := vip.Get(fmt.Sprintf("%s.%d.%s", key, entry, prop))
+			if value == nil {
+				continue
+			}
+			if instance == nil {
+				newType := reflect.Indirect(reflect.New(elementType))
+				instance = &newType
+			}
+			instance.Field(i).Set(reflect.ValueOf(value))
+		}
+		if instance == nil {
+			break
+		}
+		value, ok := instance.Interface().(T)
+		if !ok {
+			continue
+		}
+		returnValues = append(returnValues, value)
+	}
+	return returnValues
 }
 
 func NewViper() *viper.Viper {
@@ -516,6 +563,8 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 			_ = flagset.DurationP(flg, shorthand, vip.GetDuration(prefix), usage)
 		case []string:
 			_ = flagset.StringSliceP(flg, shorthand, vip.GetStringSlice(prefix), usage)
+		case []codersdk.GitAuthConfig:
+			// Ignore this one!
 		default:
 			panic(fmt.Sprintf("unsupported type %T", typ))
 		}

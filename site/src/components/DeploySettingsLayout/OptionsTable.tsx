@@ -37,7 +37,7 @@ const OptionsTable: React.FC<{
                 </TableCell>
 
                 <TableCell>
-                  <OptionValue>{option.value}</OptionValue>
+                  <OptionValue>{option.value.toString()}</OptionValue>
                 </TableCell>
               </TableRow>
             )

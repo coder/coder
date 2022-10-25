@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -118,6 +119,10 @@ type PostWorkspaceAgentVersionRequest struct {
 
 // @typescript-ignore WorkspaceAgentMetadata
 type WorkspaceAgentMetadata struct {
+	// GitAuthConfigs stores the number of Git configurations
+	// the Coder deployment has. If this number is >0, we
+	// set up special configuration in the workspace.
+	GitAuthConfigs       int               `json:"git_auth_configs"`
 	Apps                 []WorkspaceApp    `json:"apps"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
@@ -629,4 +634,44 @@ func (c *Client) AgentReportStats(
 		<-doneCh
 		return nil
 	}), nil
+}
+
+// GitProvider is a constant that represents the
+// type of providers that are supported within Coder.
+// @typescript-ignore GitProvider
+type GitProvider string
+
+const (
+	GitProviderAzureDevops = "azure-devops"
+	GitProviderGitHub      = "github"
+	GitProviderGitLab      = "gitlab"
+	GitProviderBitBucket   = "bitbucket"
+)
+
+type WorkspaceAgentGitAuthResponse struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	URL      string `json:"url"`
+}
+
+// WorkspaceAgentGitAuth submits a URL to fetch a GIT_ASKPASS username
+// and password for.
+// nolint:revive
+func (c *Client) WorkspaceAgentGitAuth(ctx context.Context, gitURL string, listen bool) (WorkspaceAgentGitAuthResponse, error) {
+	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
+	if listen {
+		reqURL += "&listen"
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return WorkspaceAgentGitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentGitAuthResponse{}, readBodyAsError(res)
+	}
+
+	var authResp WorkspaceAgentGitAuthResponse
+	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
 }

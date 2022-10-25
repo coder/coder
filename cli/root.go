@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -108,13 +109,33 @@ func AGPL() []*cobra.Command {
 }
 
 func Root(subcommands []*cobra.Command) *cobra.Command {
+	// The GIT_ASKPASS environment variable must point at
+	// a binary with no arguments. To prevent writing
+	// cross-platform scripts to invoke the Coder binary
+	// with a `gitaskpass` subcommand, we override the entrypoint
+	// to check if the command was invoked.
+	isGitAskpass := false
+
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: fmt.Sprintf(fmtLong, buildinfo.Version()),
+		Long:          fmt.Sprintf(fmtLong, buildinfo.Version()),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if gitauth.CheckCommand(args, os.Environ()) {
+				isGitAskpass = true
+				return nil
+			}
+			return cobra.NoArgs(cmd, args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if isGitAskpass {
+				return gitAskpass().RunE(cmd, args)
+			}
+			return cmd.Help()
+		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
 				cliflag.IsSetBool(cmd, varNoFeatureWarning) {
@@ -132,6 +153,9 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 			// gitssh is skipped because it's usually not called by users
 			// directly.
 			if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "agent" || cmd.Name() == "gitssh" {
+				return
+			}
+			if isGitAskpass {
 				return
 			}
 

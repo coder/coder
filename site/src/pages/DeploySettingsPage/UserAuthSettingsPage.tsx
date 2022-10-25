@@ -11,18 +11,18 @@ import React from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 
-const AuthSettingsPage: React.FC = () => {
+const UserAuthSettingsPage: React.FC = () => {
   const { deploymentConfig: deploymentConfig } = useDeploySettings()
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Authentication Settings")}</title>
+        <title>{pageTitle("User Authentication Settings")}</title>
       </Helmet>
 
       <Stack direction="column" spacing={6}>
         <div>
-          <Header title="Authentication" />
+          <Header title="User Authentication" />
 
           <Header
             title="Login with OpenID Connect"
@@ -82,4 +82,4 @@ const AuthSettingsPage: React.FC = () => {
   )
 }
 
-export default AuthSettingsPage
+export default UserAuthSettingsPage

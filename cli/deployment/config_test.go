@@ -148,6 +148,45 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, []string{"coder"}, config.OAuth2.Github.AllowedTeams.Value)
 			require.Equal(t, config.OAuth2.Github.AllowSignups.Value, true)
 		},
+	}, {
+		Name: "GitAuth",
+		Env: map[string]string{
+			"CODER_GITAUTH_0_ID":            "hello",
+			"CODER_GITAUTH_0_TYPE":          "github",
+			"CODER_GITAUTH_0_CLIENT_ID":     "client",
+			"CODER_GITAUTH_0_CLIENT_SECRET": "secret",
+			"CODER_GITAUTH_0_AUTH_URL":      "https://auth.com",
+			"CODER_GITAUTH_0_TOKEN_URL":     "https://token.com",
+			"CODER_GITAUTH_0_REGEX":         "github.com",
+
+			"CODER_GITAUTH_1_ID":            "another",
+			"CODER_GITAUTH_1_TYPE":          "gitlab",
+			"CODER_GITAUTH_1_CLIENT_ID":     "client-2",
+			"CODER_GITAUTH_1_CLIENT_SECRET": "secret-2",
+			"CODER_GITAUTH_1_AUTH_URL":      "https://auth-2.com",
+			"CODER_GITAUTH_1_TOKEN_URL":     "https://token-2.com",
+			"CODER_GITAUTH_1_REGEX":         "gitlab.com",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Len(t, config.GitAuth.Value, 2)
+			require.Equal(t, []codersdk.GitAuthConfig{{
+				ID:           "hello",
+				Type:         "github",
+				ClientID:     "client",
+				ClientSecret: "secret",
+				AuthURL:      "https://auth.com",
+				TokenURL:     "https://token.com",
+				Regex:        "github.com",
+			}, {
+				ID:           "another",
+				Type:         "gitlab",
+				ClientID:     "client-2",
+				ClientSecret: "secret-2",
+				AuthURL:      "https://auth-2.com",
+				TokenURL:     "https://token-2.com",
+				Regex:        "gitlab.com",
+			}}, config.GitAuth.Value)
+		},
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {

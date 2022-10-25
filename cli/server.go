@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -96,7 +97,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// be interrupted by additional signals. Note that we avoid
 			// shadowing cancel() (from above) here because notifyStop()
 			// restores default behavior for the signals. This protects
-			// the shutdown sequence from abrubtly terminating things
+			// the shutdown sequence from abruptly terminating things
 			// like: database migrations, provisioner work, workspace
 			// cleanup in dev-mode, etc.
 			//
@@ -326,6 +327,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
+			gitAuthConfigs, err := gitauth.ConvertConfig(cfg.GitAuth.Value, accessURLParsed)
+			if err != nil {
+				return xerrors.Errorf("parse git auth config: %w", err)
+			}
+
 			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders.Value, cfg.ProxyTrustedOrigins.Value)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
@@ -341,6 +347,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Pubsub:                      database.NewPubsubInMemory(),
 				CacheDir:                    cfg.CacheDirectory.Value,
 				GoogleTokenValidator:        googleTokenValidator,
+				GitAuthConfigs:              gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
@@ -424,6 +431,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if err != nil {
 					return xerrors.Errorf("scan version: %w", err)
 				}
+				_ = version.Close()
 				versionStr = strings.Split(versionStr, " ")[0]
 				if semver.Compare("v"+versionStr, "v13") < 0 {
 					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")

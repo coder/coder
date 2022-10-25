@@ -280,6 +280,7 @@ export interface DeploymentConfig {
   readonly address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
+  readonly gitauth: DeploymentConfigField<GitAuthConfig[]>
   readonly prometheus: PrometheusConfig
   readonly pprof: PprofConfig
   readonly proxy_trusted_headers: DeploymentConfigField<string[]>
@@ -343,6 +344,16 @@ export interface GenerateAPIKeyResponse {
 // From codersdk/workspaces.go
 export interface GetAppHostResponse {
   readonly host: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface GitAuthConfig {
+  readonly id: string
+  readonly type: string
+  readonly client_id: string
+  readonly auth_url: string
+  readonly token_url: string
+  readonly regex: string
 }
 
 // From codersdk/gitsshkey.go
@@ -781,6 +792,13 @@ export interface WorkspaceAgent {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentGitAuthResponse {
+  readonly username: string
+  readonly password: string
+  readonly url: string
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -997,4 +1015,4 @@ export type WorkspaceStatus =
 export type WorkspaceTransition = "delete" | "start" | "stop"
 
 // From codersdk/deploymentconfig.go
-export type Flaggable = string | boolean | number | string[]
+export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]
