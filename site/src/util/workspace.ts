@@ -4,88 +4,12 @@ import duration from "dayjs/plugin/duration"
 import minMax from "dayjs/plugin/minMax"
 import utc from "dayjs/plugin/utc"
 import semver from "semver"
-import { WorkspaceBuildTransition } from "../api/types"
+import { PaletteIndex } from "theme/palettes"
 import * as TypesGen from "../api/typesGenerated"
 
 dayjs.extend(duration)
 dayjs.extend(utc)
 dayjs.extend(minMax)
-
-// all the possible states returned by the API
-export enum WorkspaceStateEnum {
-  starting = "Starting",
-  started = "Started",
-  stopping = "Stopping",
-  stopped = "Stopped",
-  canceling = "Canceling",
-  canceled = "Canceled",
-  deleting = "Deleting",
-  deleted = "Deleted",
-  queued = "Queued",
-  error = "Error",
-  loading = "Loading",
-}
-
-export type WorkspaceStatus =
-  | "queued"
-  | "started"
-  | "starting"
-  | "stopped"
-  | "stopping"
-  | "error"
-  | "loading"
-  | "deleting"
-  | "deleted"
-  | "canceled"
-  | "canceling"
-
-const inProgressToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
-  start: "starting",
-  stop: "stopping",
-  delete: "deleting",
-}
-
-const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
-  start: "started",
-  stop: "stopped",
-  delete: "deleted",
-}
-
-// Converts a workspaces status to a human-readable form.
-export const getWorkspaceStatus = (workspaceBuild?: TypesGen.WorkspaceBuild): WorkspaceStatus => {
-  const transition = workspaceBuild?.transition as WorkspaceBuildTransition
-  const jobStatus = workspaceBuild?.job.status
-  switch (jobStatus) {
-    case undefined:
-      return "loading"
-    case "succeeded":
-      return succeededToStatus[transition]
-    case "pending":
-      return "queued"
-    case "running":
-      return inProgressToStatus[transition]
-    case "canceling":
-      return "canceling"
-    case "canceled":
-      return "canceled"
-    case "failed":
-      return "error"
-  }
-}
-
-export const DisplayStatusLanguage = {
-  loading: "Loading...",
-  started: "Running",
-  starting: "Starting",
-  stopping: "Stopping",
-  stopped: "Stopped",
-  deleting: "Deleting",
-  deleted: "Deleted",
-  canceling: "Canceling action",
-  canceled: "Canceled action",
-  failed: "Failed",
-  queued: "Queued",
-}
 
 export const DisplayWorkspaceBuildStatusLanguage = {
   succeeded: "Succeeded",
@@ -97,8 +21,7 @@ export const DisplayWorkspaceBuildStatusLanguage = {
 }
 
 export const DisplayAgentVersionLanguage = {
-  unknown: "unknown",
-  outdated: "outdated",
+  unknown: "Unknown",
 }
 
 export const getDisplayWorkspaceBuildStatus = (
@@ -107,54 +30,57 @@ export const getDisplayWorkspaceBuildStatus = (
 ): {
   color: string
   status: string
+  type: PaletteIndex
 } => {
   switch (build.job.status) {
     case "succeeded":
       return {
+        type: "success",
         color: theme.palette.success.main,
-        status: `⦿ ${DisplayWorkspaceBuildStatusLanguage.succeeded}`,
+        status: DisplayWorkspaceBuildStatusLanguage.succeeded,
       }
     case "pending":
       return {
+        type: "secondary",
         color: theme.palette.text.secondary,
-        status: `⦿ ${DisplayWorkspaceBuildStatusLanguage.pending}`,
+        status: DisplayWorkspaceBuildStatusLanguage.pending,
       }
     case "running":
       return {
+        type: "info",
         color: theme.palette.primary.main,
-        status: `⦿ ${DisplayWorkspaceBuildStatusLanguage.running}`,
+        status: DisplayWorkspaceBuildStatusLanguage.running,
       }
     case "failed":
       return {
+        type: "error",
         color: theme.palette.text.secondary,
-        status: `⦸ ${DisplayWorkspaceBuildStatusLanguage.failed}`,
+        status: DisplayWorkspaceBuildStatusLanguage.failed,
       }
     case "canceling":
       return {
+        type: "warning",
         color: theme.palette.warning.light,
-        status: `◍ ${DisplayWorkspaceBuildStatusLanguage.canceling}`,
+        status: DisplayWorkspaceBuildStatusLanguage.canceling,
       }
     case "canceled":
       return {
+        type: "secondary",
         color: theme.palette.text.secondary,
-        status: `◍ ${DisplayWorkspaceBuildStatusLanguage.canceled}`,
+        status: DisplayWorkspaceBuildStatusLanguage.canceled,
       }
   }
 }
 
-export const DisplayWorkspaceBuildInitiatedByLanguage = {
-  autostart: "system/autostart",
-  autostop: "system/autostop",
-}
-
-export const getDisplayWorkspaceBuildInitiatedBy = (build: TypesGen.WorkspaceBuild): string => {
+export const getDisplayWorkspaceBuildInitiatedBy = (
+  build: TypesGen.WorkspaceBuild,
+): string => {
   switch (build.reason) {
     case "initiator":
       return build.initiator_name
     case "autostart":
-      return DisplayWorkspaceBuildInitiatedByLanguage.autostart
     case "autostop":
-      return DisplayWorkspaceBuildInitiatedByLanguage.autostop
+      return "Coder"
   }
 }
 
@@ -180,55 +106,18 @@ export const displayWorkspaceBuildDuration = (
   return duration ? `${duration} seconds` : inProgressLabel
 }
 
-export const DisplayAgentStatusLanguage = {
-  connected: "⦿ Connected",
-  connecting: "⦿ Connecting",
-  disconnected: "◍ Disconnected",
-}
-
-export const getDisplayAgentStatus = (
-  theme: Theme,
-  agent: TypesGen.WorkspaceAgent,
-): {
-  color: string
-  status: string
-} => {
-  switch (agent.status) {
-    case undefined:
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayStatusLanguage.loading,
-      }
-    case "connected":
-      return {
-        color: theme.palette.success.main,
-        status: DisplayAgentStatusLanguage["connected"],
-      }
-    case "connecting":
-      return {
-        color: theme.palette.primary.main,
-        status: DisplayAgentStatusLanguage["connecting"],
-      }
-    case "disconnected":
-      return {
-        color: theme.palette.text.secondary,
-        status: DisplayAgentStatusLanguage["disconnected"],
-      }
-  }
-}
-
 export const getDisplayVersionStatus = (
   agentVersion: string,
   serverVersion: string,
 ): { displayVersion: string; outdated: boolean } => {
   if (!semver.valid(serverVersion) || !semver.valid(agentVersion)) {
     return {
-      displayVersion: `${agentVersion}` || `(${DisplayAgentVersionLanguage.unknown})`,
+      displayVersion: agentVersion || DisplayAgentVersionLanguage.unknown,
       outdated: false,
     }
   } else if (semver.lt(agentVersion, serverVersion)) {
     return {
-      displayVersion: `${agentVersion} (${DisplayAgentVersionLanguage.outdated})`,
+      displayVersion: agentVersion,
       outdated: true,
     }
   } else {
@@ -243,10 +132,6 @@ export const isWorkspaceOn = (workspace: TypesGen.Workspace): boolean => {
   const transition = workspace.latest_build.transition
   const status = workspace.latest_build.job.status
   return transition === "start" && status === "succeeded"
-}
-
-export const isWorkspaceDeleted = (workspace: TypesGen.Workspace): boolean => {
-  return getWorkspaceStatus(workspace.latest_build) === succeededToStatus["delete"]
 }
 
 export const defaultWorkspaceExtension = (
@@ -269,12 +154,13 @@ type FaviconType =
   | "favicon-warning"
   | "favicon-running"
 
-export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType => {
-  const status = getWorkspaceStatus(build)
-  switch (status) {
+export const getFaviconByStatus = (
+  build: TypesGen.WorkspaceBuild,
+): FaviconType => {
+  switch (build.status) {
     case undefined:
       return "favicon"
-    case "started":
+    case "running":
       return "favicon-success"
     case "starting":
       return "favicon-running"
@@ -290,10 +176,9 @@ export const getFaviconByStatus = (build: TypesGen.WorkspaceBuild): FaviconType 
       return "favicon-warning"
     case "canceled":
       return "favicon"
-    case "error":
+    case "failed":
       return "favicon-error"
-    case "queued":
+    case "pending":
       return "favicon"
   }
-  throw new Error("unknown status " + status)
 }

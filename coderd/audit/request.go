@@ -45,6 +45,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.GitSSHKey:
 		return typed.PublicKey
+	case database.Group:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -64,6 +66,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.GitSSHKey:
 		return typed.UserID
+	case database.Group:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -83,6 +87,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeWorkspace
 	case database.GitSSHKey:
 		return database.ResourceTypeGitSshKey
+	case database.Group:
+		return database.ResourceTypeGroup
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -123,12 +129,8 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			}
 		}
 
-		ip, err := parseIP(p.Request.RemoteAddr)
-		if err != nil {
-			p.Log.Warn(logCtx, "parse ip", slog.Error(err))
-		}
-
-		err = p.Audit.Export(ctx, database.AuditLog{
+		ip := parseIP(p.Request.RemoteAddr)
+		err := p.Audit.Export(ctx, database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
 			UserID:           httpmw.APIKey(p.Request).UserID,
@@ -160,16 +162,8 @@ func either[T Auditable, R any](old, new T, fn func(T) R) R {
 	}
 }
 
-func parseIP(ipStr string) (pqtype.Inet, error) {
-	var err error
-
-	ipStr, _, err = net.SplitHostPort(ipStr)
-	if err != nil {
-		return pqtype.Inet{}, err
-	}
-
+func parseIP(ipStr string) pqtype.Inet {
 	ip := net.ParseIP(ipStr)
-
 	ipNet := net.IPNet{}
 	if ip != nil {
 		ipNet = net.IPNet{
@@ -181,5 +175,5 @@ func parseIP(ipStr string) (pqtype.Inet, error) {
 	return pqtype.Inet{
 		IPNet: ipNet,
 		Valid: ip != nil,
-	}, nil
+	}
 }

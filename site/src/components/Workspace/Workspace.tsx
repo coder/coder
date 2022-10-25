@@ -1,12 +1,15 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "../PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
@@ -15,6 +18,12 @@ import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceSch
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
+import {
+  EstimateTransitionTime,
+  WorkspaceBuildProgress,
+} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -29,10 +38,12 @@ export interface WorkspaceProps {
     onExtend: () => void
   }
   scheduleProps: {
-    onDeadlinePlus: () => void
-    onDeadlineMinus: () => void
+    onDeadlinePlus: (hours: number) => void
+    onDeadlineMinus: (hours: number) => void
     deadlinePlusEnabled: () => boolean
     deadlineMinusEnabled: () => boolean
+    maxDeadlineIncrease: number
+    maxDeadlineDecrease: number
   }
   handleStart: () => void
   handleStop: () => void
@@ -48,6 +59,7 @@ export interface WorkspaceProps {
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
+  template?: TypesGen.Template
 }
 
 /**
@@ -70,21 +82,50 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hideSSHButton,
   buildInfo,
   applicationsHost,
+  template,
 }) => {
+  const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
-  const hasTemplateIcon = workspace.template_icon && workspace.template_icon !== ""
+  const hasTemplateIcon =
+    workspace.template_icon && workspace.template_icon !== ""
 
-  const buildError = workspaceErrors[WorkspaceErrors.BUILD_ERROR] ? (
-    <ErrorSummary error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]} dismissible />
-  ) : (
-    <></>
+  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
+      dismissible
+    />
   )
-  const cancellationError = workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR] ? (
-    <ErrorSummary error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]} dismissible />
-  ) : (
-    <></>
+
+  const cancellationError = Boolean(
+    workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
+  ) && (
+    <AlertBanner
+      severity="error"
+      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
+      dismissible
+    />
   )
+
+  const workspaceRefreshWarning = Boolean(
+    workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR],
+  ) && (
+    <AlertBanner
+      severity="warning"
+      text={t("warningsAndErrors.workspaceRefreshWarning")}
+      dismissible
+    />
+  )
+
+  let buildTimeEstimate: number | undefined = undefined
+  let isTransitioning: boolean | undefined = undefined
+  if (template !== undefined) {
+    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
+      template,
+      workspace,
+    )
+  }
 
   return (
     <Margins>
@@ -97,10 +138,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
               deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
               deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
+              maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
+              maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
               canUpdateWorkspace={canUpdateWorkspace}
             />
             <WorkspaceActions
-              workspace={workspace}
+              workspaceStatus={workspace.latest_build.status}
+              isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}
@@ -111,21 +155,35 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           </Stack>
         }
       >
-        <WorkspaceStatusBadge build={workspace.latest_build} className={styles.statusBadge} />
+        <WorkspaceStatusBadge
+          build={workspace.latest_build}
+          className={styles.statusBadge}
+        />
         <Stack direction="row" spacing={3} alignItems="center">
           {hasTemplateIcon && (
-            <img alt="" src={workspace.template_icon} className={styles.templateIcon} />
+            <img
+              alt=""
+              src={workspace.template_icon}
+              className={styles.templateIcon}
+            />
           )}
           <div>
             <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
-            <PageHeaderSubtitle condensed>{workspace.owner_name}</PageHeaderSubtitle>
+            <PageHeaderSubtitle condensed>
+              {workspace.owner_name}
+            </PageHeaderSubtitle>
           </div>
         </Stack>
       </PageHeader>
 
-      <Stack direction="column" className={styles.firstColumnSpacer} spacing={2.5}>
+      <Stack
+        direction="column"
+        className={styles.firstColumnSpacer}
+        spacing={6}
+      >
         {buildError}
         {cancellationError}
+        {workspaceRefreshWarning}
 
         <WorkspaceScheduleBanner
           isLoading={bannerProps.isLoading}
@@ -133,14 +191,26 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           workspace={workspace}
         />
 
-        <WorkspaceDeletedBanner workspace={workspace} handleClick={() => navigate(`/templates`)} />
+        <WorkspaceDeletedBanner
+          workspace={workspace}
+          handleClick={() => navigate(`/templates`)}
+        />
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+
+        {isTransitioning !== undefined && isTransitioning && (
+          <WorkspaceBuildProgress
+            workspace={workspace}
+            buildEstimate={buildTimeEstimate}
+          />
+        )}
 
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
-            getResourcesError={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
+            getResourcesError={
+              workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]
+            }
             workspace={workspace}
             canUpdateWorkspace={canUpdateWorkspace}
             buildInfo={buildInfo}
@@ -149,9 +219,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           />
         )}
 
-        <WorkspaceSection title="Logs" contentsProps={{ className: styles.timelineContents }}>
+        <WorkspaceSection
+          contentsProps={{ className: styles.timelineContents }}
+        >
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <ErrorSummary error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]} />
+            <AlertBanner
+              severity="error"
+              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+            />
           ) : (
             <BuildsTable builds={builds} className={styles.timelineTable} />
           )}

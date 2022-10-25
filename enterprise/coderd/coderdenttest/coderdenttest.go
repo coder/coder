@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/tls"
 	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/coderd/license"
 )
 
 const (
@@ -24,6 +27,8 @@ const (
 var (
 	testPrivateKey ed25519.PrivateKey
 	testPublicKey  ed25519.PublicKey
+
+	Keys = map[string]ed25519.PublicKey{}
 )
 
 func init() {
@@ -32,10 +37,12 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	Keys[testKeyID] = testPublicKey
 }
 
 type Options struct {
 	*coderdtest.Options
+	AuditLogging               bool
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
@@ -55,51 +62,67 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
-	srv, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
+	setHandler, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
-		AuditLogging:               true,
+		RBAC:                       true,
+		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		DERPServerRelayAddress:     oop.AccessURL.String(),
+		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
 		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys: map[string]ed25519.PublicKey{
-			testKeyID: testPublicKey,
-		},
+		Keys:                       Keys,
 	})
 	assert.NoError(t, err)
-	srv.Config.Handler = coderAPI.AGPL.RootHandler
+	setHandler(coderAPI.AGPL.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
 	}
+
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	client := codersdk.New(coderAPI.AccessURL)
+	client.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	return client, provisionerCloser, coderAPI
 }
 
 type LicenseOptions struct {
-	AccountType    string
-	AccountID      string
-	GraceAt        time.Time
-	ExpiresAt      time.Time
-	UserLimit      int64
-	AuditLog       bool
-	BrowserOnly    bool
-	SCIM           bool
-	WorkspaceQuota bool
+	AccountType      string
+	AccountID        string
+	Trial            bool
+	AllFeatures      bool
+	GraceAt          time.Time
+	ExpiresAt        time.Time
+	UserLimit        int64
+	AuditLog         bool
+	BrowserOnly      bool
+	SCIM             bool
+	WorkspaceQuota   bool
+	TemplateRBAC     bool
+	HighAvailability bool
+	MultipleGitAuth  bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
 func AddLicense(t *testing.T, client *codersdk.Client, options LicenseOptions) codersdk.License {
-	license, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+	l, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 		License: GenerateLicense(t, options),
 	})
 	require.NoError(t, err)
-	return license
+	return l
 }
 
 // GenerateLicense returns a signed JWT using the test key.
@@ -110,24 +133,38 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.GraceAt.IsZero() {
 		options.GraceAt = time.Now().Add(time.Hour)
 	}
-	auditLog := int64(0)
+	var auditLog int64
 	if options.AuditLog {
 		auditLog = 1
 	}
-	browserOnly := int64(0)
+	var browserOnly int64
 	if options.BrowserOnly {
 		browserOnly = 1
 	}
-	scim := int64(0)
+	var scim int64
 	if options.SCIM {
 		scim = 1
 	}
-	workspaceQuota := int64(0)
+	var workspaceQuota int64
 	if options.WorkspaceQuota {
 		workspaceQuota = 1
 	}
+	highAvailability := int64(0)
+	if options.HighAvailability {
+		highAvailability = 1
+	}
 
-	c := &coderd.Claims{
+	rbacEnabled := int64(0)
+	if options.TemplateRBAC {
+		rbacEnabled = 1
+	}
+
+	multipleGitAuth := int64(0)
+	if options.MultipleGitAuth {
+		multipleGitAuth = 1
+	}
+
+	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
 			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
@@ -137,17 +174,22 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
 		AccountType:    options.AccountType,
 		AccountID:      options.AccountID,
-		Version:        coderd.CurrentVersion,
-		Features: coderd.Features{
-			UserLimit:      options.UserLimit,
-			AuditLog:       auditLog,
-			BrowserOnly:    browserOnly,
-			SCIM:           scim,
-			WorkspaceQuota: workspaceQuota,
+		Trial:          options.Trial,
+		Version:        license.CurrentVersion,
+		AllFeatures:    options.AllFeatures,
+		Features: license.Features{
+			UserLimit:        options.UserLimit,
+			AuditLog:         auditLog,
+			BrowserOnly:      browserOnly,
+			SCIM:             scim,
+			WorkspaceQuota:   workspaceQuota,
+			HighAvailability: highAvailability,
+			TemplateRBAC:     rbacEnabled,
+			MultipleGitAuth:  multipleGitAuth,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
-	tok.Header[coderd.HeaderKeyID] = testKeyID
+	tok.Header[license.HeaderKeyID] = testKeyID
 	signedTok, err := tok.SignedString(testPrivateKey)
 	require.NoError(t, err)
 	return signedTok

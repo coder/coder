@@ -13,6 +13,14 @@ const (
 	WorkspaceAppHealthUnhealthy    WorkspaceAppHealth = "unhealthy"
 )
 
+type WorkspaceAppSharingLevel string
+
+const (
+	WorkspaceAppSharingLevelOwner         WorkspaceAppSharingLevel = "owner"
+	WorkspaceAppSharingLevelAuthenticated WorkspaceAppSharingLevel = "authenticated"
+	WorkspaceAppSharingLevelPublic        WorkspaceAppSharingLevel = "public"
+)
+
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id"`
 	// Name is a unique identifier attached to an agent.
@@ -21,6 +29,12 @@ type WorkspaceApp struct {
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon,omitempty"`
+	// Subdomain denotes whether the app should be accessed via a path on the
+	// `coder server` or via a hostname-based dev URL. If this is set to true
+	// and there is no app wildcard configured on the server, the app will not
+	// be accessible in the UI.
+	Subdomain    bool                     `json:"subdomain"`
+	SharingLevel WorkspaceAppSharingLevel `json:"sharing_level"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`

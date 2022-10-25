@@ -8,7 +8,11 @@ import { AuditLog } from "api/typesGenerated"
 import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader"
+import {
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "components/PageHeader/PageHeader"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
@@ -22,7 +26,10 @@ export const Language = {
 }
 
 const presetFilters = [
-  { query: "resource_type:workspace action:create", name: "Created workspaces" },
+  {
+    query: "resource_type:workspace action:create",
+    name: "Created workspaces",
+  },
   { query: "resource_type:template action:create", name: "Added templates" },
   { query: "resource_type:user action:create", name: "Added users" },
   { query: "resource_type:template action:delete", name: "Deleted templates" },
@@ -85,7 +92,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
           <TableBody>
             {isLoading && <TableLoader />}
             {hasResults &&
-              auditLogs.map((auditLog) => <AuditLogRow auditLog={auditLog} key={auditLog.id} />)}
+              auditLogs.map((auditLog) => (
+                <AuditLogRow auditLog={auditLog} key={auditLog.id} />
+              ))}
             {isEmpty && (
               <TableRow>
                 <TableCell colSpan={999}>

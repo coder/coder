@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -65,6 +67,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 	var selectedMembership *github.Membership
 	for _, membership := range memberships {
+		if membership.GetState() != "active" {
+			continue
+		}
 		for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
 			if *membership.Organization.Login != allowed {
 				continue
@@ -216,12 +221,25 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	usernameRaw, ok := claims["preferred_username"]
+	var username string
+	if ok {
+		username, _ = usernameRaw.(string)
+	}
 	emailRaw, ok := claims["email"]
 	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "No email found in OIDC payload!",
-		})
-		return
+		// Email is an optional claim in OIDC and
+		// instead the email is frequently sent in
+		// "preferred_username". See:
+		// https://github.com/coder/coder/issues/4472
+		_, err = mail.ParseAddress(username)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No email found in OIDC payload!",
+			})
+			return
+		}
+		emailRaw = username
 	}
 	email, ok := emailRaw.(string)
 	if !ok {
@@ -240,15 +258,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	usernameRaw, ok := claims["preferred_username"]
-	var username string
-	if ok {
-		username, _ = usernameRaw.(string)
-	}
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
-	if !httpapi.UsernameValid(username) {
+	usernameValid := httpapi.UsernameValid(username)
+	if usernameValid != nil {
 		// If no username is provided, we can default to use the email address.
 		// This will be converted in the from function below, so it's safe
 		// to keep the domain.
@@ -258,7 +272,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		username = httpapi.UsernameFrom(username)
 	}
 	if api.OIDCConfig.EmailDomain != "" {
-		if !strings.HasSuffix(email, api.OIDCConfig.EmailDomain) {
+		if !strings.HasSuffix(strings.ToLower(email), strings.ToLower(api.OIDCConfig.EmailDomain)) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", email, api.OIDCConfig.EmailDomain),
 			})
@@ -376,6 +390,38 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				// support is added, we should enable a configuration map of user
 				// email to organization.
 				organizationID = organizations[0].ID
+			}
+
+			_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+				Username: params.Username,
+			})
+			if err == nil {
+				var (
+					original      = params.Username
+					validUsername bool
+				)
+				for i := 0; i < 10; i++ {
+					alternate := fmt.Sprintf("%s-%s", original, namesgenerator.GetRandomName(1))
+
+					params.Username = httpapi.UsernameFrom(alternate)
+
+					_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+						Username: params.Username,
+					})
+					if xerrors.Is(err, sql.ErrNoRows) {
+						validUsername = true
+						break
+					}
+					if err != nil {
+						return xerrors.Errorf("get user by email/username: %w", err)
+					}
+				}
+				if !validUsername {
+					return httpError{
+						code: http.StatusConflict,
+						msg:  fmt.Sprintf("exhausted alternatives for taken username %q", original),
+					}
+				}
 			}
 
 			user, _, err = api.CreateUser(ctx, tx, CreateUserRequest{

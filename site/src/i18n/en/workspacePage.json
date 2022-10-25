@@ -4,7 +4,50 @@
   },
   "workspaceScheduleButton": {
     "schedule": "Schedule",
-    "editDeadlineMinus": "Subtract one hour",
-    "editDeadlinePlus": "Add one hour"
+    "editDeadlineMinus": "Subtract hours",
+    "editDeadlinePlus": "Add hours",
+    "submitDeadline": "Set",
+    "hours": "Hours"
+  },
+  "ctas": {
+    "createWorkspaceCta": "Create new workspace",
+    "extendScheduleCta": "Extend"
+  },
+  "warningsAndErrors": {
+    "workspaceRefreshWarning": "We're having difficulty fetching the latest workspace state. Refresh the page to see the newest changes.",
+    "workspaceDeletedWarning": "This workspace has been deleted and cannot be edited.",
+    "workspaceShutdownWarning": "Your workspace is scheduled to automatically shut down soon."
+  },
+  "actionButton": {
+    "start": "Start",
+    "stop": "Stop",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "update": "Update",
+    "updating": "Updating",
+    "starting": "Starting...",
+    "stopping": "Stopping...",
+    "deleting": "Deleting..."
+  },
+  "disabledButton": {
+    "canceling": "Canceling",
+    "deleted": "Deleted",
+    "pending": "Pending"
+  },
+  "agentStatus": {
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "disconnected": "Disconnected"
+  },
+  "buildMessage": {
+    "start": "started",
+    "stop": "stopped",
+    "delete": "deleted",
+    "theWorkspace": "the workspace",
+    "automatically": "automatically "
+  },
+  "buildData": {
+    "reason": "Reason",
+    "duration": "Duration"
   }
 }

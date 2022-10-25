@@ -51,7 +51,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"id":                     ActionTrack,
 		"created_at":             ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":             ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"organization_id":        ActionTrack,
+		"organization_id":        ActionIgnore, /// Never changes.
 		"deleted":                ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                   ActionTrack,
 		"provisioner":            ActionTrack,
@@ -61,11 +61,14 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"max_ttl":                ActionTrack,
 		"min_autostart_interval": ActionTrack,
 		"created_by":             ActionTrack,
+		"is_private":             ActionTrack,
+		"group_acl":              ActionTrack,
+		"user_acl":               ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,
 		"template_id":     ActionTrack,
-		"organization_id": ActionTrack,
+		"organization_id": ActionIgnore, // Never changes.
 		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"name":            ActionTrack,
@@ -92,13 +95,19 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"owner_id":           ActionTrack,
-		"organization_id":    ActionTrack,
+		"organization_id":    ActionIgnore, // Never changes.
 		"template_id":        ActionTrack,
 		"deleted":            ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":               ActionTrack,
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
+	},
+	&database.Group{}: {
+		"id":              ActionTrack,
+		"name":            ActionTrack,
+		"organization_id": ActionIgnore, // Never changes.
+		"avatar_url":      ActionTrack,
 	},
 })
 

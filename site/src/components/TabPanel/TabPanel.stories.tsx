@@ -6,7 +6,9 @@ export default {
   component: TabPanel,
 }
 
-const Template: Story<TabPanelProps> = (args: TabPanelProps) => <TabPanel {...args} />
+const Template: Story<TabPanelProps> = (args: TabPanelProps) => (
+  <TabPanel {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

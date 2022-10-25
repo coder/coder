@@ -1,7 +1,7 @@
 {
   "workspaceStatus": {
     "loading": "Loading",
-    "started": "Running",
+    "running": "Running",
     "starting": "Starting",
     "stopping": "Stopping",
     "stopped": "Stopped",
@@ -10,7 +10,7 @@
     "canceling": "Canceling action",
     "canceled": "Canceled action",
     "failed": "Failed",
-    "queued": "Queued"
+    "pending": "Pending"
   },
   "deleteDialog": {
     "title": "Delete {{entity}}",
@@ -18,5 +18,21 @@
     "confirm": "Are you sure you want to proceed? Type the name of this {{entity}} below to confirm.",
     "confirmLabel": "Name of {{entity}} to delete",
     "incorrectName": "Incorrect {{entity}} name."
+  },
+  "schedule": {
+    "autoStartLabel": "Starts at",
+    "autoStopLabel": "Stops at"
+  },
+  "ctas": {
+    "dismissCta": "Dismiss",
+    "expand": "Click here to learn more",
+    "collapse": "Click here to hide",
+    "retry": "Retry"
+  },
+  "warningsAndErrors": {
+    "somethingWentWrong": "Something went wrong."
+  },
+  "emojiPicker": {
+    "select": "Select emoji"
   }
 }

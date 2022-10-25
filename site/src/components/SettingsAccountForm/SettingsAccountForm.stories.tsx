@@ -9,7 +9,9 @@ export default {
   },
 }
 
-const Template: Story<AccountFormProps> = (args: AccountFormProps) => <AccountForm {...args} />
+const Template: Story<AccountFormProps> = (args: AccountFormProps) => (
+  <AccountForm {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

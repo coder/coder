@@ -16,6 +16,16 @@ packages:
     # deleted after generation.
     output_db_file_name: db_tmp.go
 
+overrides:
+  - column: "users.rbac_roles"
+    go_type: "github.com/lib/pq.StringArray"
+  - column: "templates.user_acl"
+    go_type:
+      type: "TemplateACL"
+  - column: "templates.group_acl"
+    go_type:
+      type: "TemplateACL"
+
 rename:
   api_key: APIKey
   api_key_scope: APIKeyScope
@@ -35,3 +45,5 @@ rename:
   ip_addresses: IPAddresses
   ids: IDs
   jwt: JWT
+  user_acl: UserACL
+  group_acl: GroupACL

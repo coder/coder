@@ -20,8 +20,6 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -86,7 +84,7 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgentTailnet(ctx, slog.Logger{}, workspaceAgent.ID)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
 			if err != nil {
 				return err
 			}
@@ -261,10 +259,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
-	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
-	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("fetch workspace resources: %w", err)
-	}
+	resources := workspace.LatestBuild.Resources
 
 	agents := make([]codersdk.WorkspaceAgent, 0)
 	for _, resource := range resources {

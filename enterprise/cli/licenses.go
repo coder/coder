@@ -24,6 +24,9 @@ func licenses() *cobra.Command {
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 	cmd.AddCommand(
 		licenseAdd(),

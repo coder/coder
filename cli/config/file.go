@@ -6,11 +6,20 @@ import (
 	"path/filepath"
 )
 
+const (
+	FlagName = "global-config"
+)
+
 // Root represents the configuration directory.
 type Root string
 
 func (r Root) Session() File {
 	return File(filepath.Join(string(r), "session"))
+}
+
+// ReplicaID is a unique identifier for the Coder server.
+func (r Root) ReplicaID() File {
+	return File(filepath.Join(string(r), "replica_id"))
 }
 
 func (r Root) URL() File {
@@ -35,6 +44,10 @@ func (r Root) PostgresPassword() File {
 
 func (r Root) PostgresPort() File {
 	return File(filepath.Join(r.PostgresPath(), "port"))
+}
+
+func (r Root) DeploymentConfigPath() string {
+	return filepath.Join(string(r), "server.yaml")
 }
 
 // File provides convenience methods for interacting with *os.File.

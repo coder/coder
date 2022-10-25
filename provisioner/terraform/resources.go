@@ -1,8 +1,6 @@
 package terraform
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -29,13 +27,14 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID      string                     `mapstructure:"agent_id"`
-	Name         string                     `mapstructure:"name"`
-	Icon         string                     `mapstructure:"icon"`
-	URL          string                     `mapstructure:"url"`
-	Command      string                     `mapstructure:"command"`
-	RelativePath bool                       `mapstructure:"relative_path"`
-	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	AgentID     string                     `mapstructure:"agent_id"`
+	Name        string                     `mapstructure:"name"`
+	Icon        string                     `mapstructure:"icon"`
+	URL         string                     `mapstructure:"url"`
+	Command     string                     `mapstructure:"command"`
+	Share       string                     `mapstructure:"share"`
+	Subdomain   bool                       `mapstructure:"subdomain"`
+	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -226,8 +225,6 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
-			d, _ := json.MarshalIndent(resource.AttributeValues, "", "    ")
-			fmt.Print(string(d))
 			return nil, nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
 		if attrs.Name == "" {
@@ -242,6 +239,17 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 				Threshold: attrs.Healthcheck[0].Threshold,
 			}
 		}
+
+		sharingLevel := proto.AppSharingLevel_OWNER
+		switch strings.ToLower(attrs.Share) {
+		case "owner":
+			sharingLevel = proto.AppSharingLevel_OWNER
+		case "authenticated":
+			sharingLevel = proto.AppSharingLevel_AUTHENTICATED
+		case "public":
+			sharingLevel = proto.AppSharingLevel_PUBLIC
+		}
+
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
@@ -253,7 +261,8 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 					Command:      attrs.Command,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
-					RelativePath: attrs.RelativePath,
+					Subdomain:    attrs.Subdomain,
+					SharingLevel: sharingLevel,
 					Healthcheck:  healthcheck,
 				})
 			}

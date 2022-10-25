@@ -1,6 +1,5 @@
 import TextField from "@material-ui/core/TextField"
 import * as TypesGen from "api/typesGenerated"
-import { ErrorSummary } from "components/ErrorSummary/ErrorSummary"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
 import { Loader } from "components/Loader/Loader"
@@ -15,6 +14,7 @@ import { FC, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -50,9 +50,9 @@ export const validationSchema = Yup.object({
   name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
 })
 
-export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspacePageViewProps>> = (
-  props,
-) => {
+export const CreateWorkspacePageView: FC<
+  React.PropsWithChildren<CreateWorkspacePageViewProps>
+> = (props) => {
   const { t } = useTranslation("createWorkspacePage")
   const [deprecatedParameterValues, setDeprecatedParameterValues] = useState<
     Record<string, string>
@@ -101,32 +101,60 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
   if (props.hasTemplateErrors) {
     return (
       <Stack>
-        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR] ? (
-          <ErrorSummary
-            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATES_ERROR]}
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATES_ERROR
+              ]
+            }
           />
-        ) : null}
-        {props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR] ? (
-          <ErrorSummary
-            error={props.createWorkspaceErrors[CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]}
+        )}
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+              ]
+            }
           />
-        ) : null}
+        )}
       </Stack>
     )
   }
 
   const canSubmit =
     props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
-      ? props.workspaceQuota.user_workspace_count < props.workspaceQuota.user_workspace_limit
+      ? props.workspaceQuota.user_workspace_count <
+        props.workspaceQuota.user_workspace_limit
       : true
 
   return (
     <FullPageForm title="Create workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
         <Stack>
-          {Boolean(props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]) && (
-            <ErrorSummary
-              error={props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]}
+          {Boolean(
+            props.createWorkspaceErrors[
+              CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+            ],
+          ) && (
+            <AlertBanner
+              severity="error"
+              error={
+                props.createWorkspaceErrors[
+                  CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+                ]
+              }
             />
           )}
           <TextField
@@ -138,66 +166,84 @@ export const CreateWorkspacePageView: FC<React.PropsWithChildren<CreateWorkspace
           />
 
           {props.loadingTemplateSchema && <Loader />}
-          {props.selectedTemplate && props.templateSchema && props.templateParameters && (
-            <>
-              <TextField
-                {...getFieldHelpers("name")}
-                disabled={form.isSubmitting}
-                onChange={onChangeTrimmed(form)}
-                autoFocus
-                fullWidth
-                label={t("nameLabel")}
-                variant="outlined"
-              />
-
-              {props.canCreateForUser && (
-                <UserAutocomplete
-                  value={props.owner}
-                  onChange={props.setOwner}
-                  label={t("ownerLabel")}
-                  inputMargin="dense"
-                  showAvatar
+          {props.selectedTemplate &&
+            props.templateSchema &&
+            props.templateParameters && (
+              <>
+                <TextField
+                  {...getFieldHelpers("name")}
+                  disabled={form.isSubmitting}
+                  onChange={onChangeTrimmed(form)}
+                  autoFocus
+                  fullWidth
+                  label={t("nameLabel")}
+                  variant="outlined"
                 />
-              )}
 
-              {props.templateSchema.length > 0 && (
-                <Stack>
-                  {props.templateSchema.map((schema) => (
-                    <ParameterInput
-                      disabled={form.isSubmitting}
-                      key={schema.id}
-                      onChange={(value) => {
-                        setDeprecatedParameterValues({
-                          ...deprecatedParameterValues,
-                          [schema.name]: value,
-                        })
-                      }}
-                      schema={schema}
-                    />
-                  ))}
-                </Stack>
-              )}
+                {props.canCreateForUser && (
+                  <UserAutocomplete
+                    value={props.owner}
+                    onChange={props.setOwner}
+                    label={t("ownerLabel")}
+                    inputMargin="dense"
+                    showAvatar
+                  />
+                )}
 
-              {props.templateParameters.map((parameter) => (
-                <WorkspaceParameter templateParameter={parameter} key={parameter.name} />
-              ))}
+                {props.workspaceQuota && (
+                  <WorkspaceQuota
+                    quota={props.workspaceQuota}
+                    error={
+                      props.createWorkspaceErrors[
+                        CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR
+                      ]
+                    }
+                  />
+                )}
 
-              {props.workspaceQuota && (
-                <WorkspaceQuota
-                  quota={props.workspaceQuota}
-                  error={
-                    props.createWorkspaceErrors[CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]
-                  }
+                {props.templateSchema.length > 0 && (
+                  <Stack>
+                    {props.templateSchema.map((schema) => (
+                      <ParameterInput
+                        disabled={form.isSubmitting}
+                        key={schema.id}
+                        onChange={(value) => {
+                          setDeprecatedParameterValues({
+                            ...deprecatedParameterValues,
+                            [schema.name]: value,
+                          })
+                        }}
+                        schema={schema}
+                      />
+                    ))}
+                  </Stack>
+                )}
+
+                {props.templateParameters.map((parameter) => (
+                  <WorkspaceParameter
+                    templateParameter={parameter}
+                    key={parameter.name}
+                  />
+                ))}
+
+                {props.workspaceQuota && (
+                  <WorkspaceQuota
+                    quota={props.workspaceQuota}
+                    error={
+                      props.createWorkspaceErrors[
+                        CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR
+                      ]
+                    }
+                  />
+                )}
+
+                <FormFooter
+                  onCancel={props.onCancel}
+                  isLoading={props.creatingWorkspace}
+                  submitDisabled={!canSubmit}
                 />
-              )}
-
-              <FormFooter
-                onCancel={props.onCancel}
-                isLoading={props.creatingWorkspace}
-                submitDisabled={!canSubmit}
-              />
-            </>
-          )}
+              </>
+            )}
         </Stack>
       </form>
     </FullPageForm>

@@ -11,6 +11,9 @@ LIMIT
 -- name: GetAPIKeysLastUsedAfter :many
 SELECT * FROM api_keys WHERE last_used > $1;
 
+-- name: GetAPIKeysByLoginType :many
+SELECT * FROM api_keys WHERE login_type = $1;
+
 -- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
@@ -51,3 +54,9 @@ FROM
 	api_keys
 WHERE
 	id = $1;
+
+-- name: DeleteAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1;

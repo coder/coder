@@ -3,7 +3,8 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
-	"fmt"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"sync"
 	"time"
@@ -15,11 +16,17 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
+	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/audit"
-	"github.com/coder/coder/enterprise/audit/backends"
+	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/enterprise/derpmesh"
+	"github.com/coder/coder/enterprise/replicasync"
+	"github.com/coder/coder/enterprise/tailnet"
+	agpltailnet "github.com/coder/coder/tailnet"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -32,23 +39,19 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.Keys == nil {
 		options.Keys = Keys
 	}
+	if options.Options == nil {
+		options.Options = &coderd.Options{}
+	}
+	if options.Options.Authorizer == nil {
+		options.Options.Authorizer = rbac.NewAuthorizer()
+	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
-		AGPL:    coderd.New(options.Options),
-		Options: options,
-
-		entitlements: entitlements{
-			activeUsers: codersdk.Feature{
-				Entitlement: codersdk.EntitlementNotEntitled,
-				Enabled:     false,
-			},
-			auditLogs:      codersdk.EntitlementNotEntitled,
-			browserOnly:    codersdk.EntitlementNotEntitled,
-			scim:           codersdk.EntitlementNotEntitled,
-			workspaceQuota: codersdk.EntitlementNotEntitled,
-		},
+		AGPL:                   coderd.New(options.Options),
+		Options:                options,
 		cancelEntitlementsLoop: cancelFunc,
 	}
+
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -61,16 +64,50 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
+		r.Route("/replicas", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.replicas)
+		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
+		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Post("/", api.postGroupByOrganization)
+			r.Get("/", api.groups)
+		})
+
+		r.Route("/templates/{template}/acl", func(r chi.Router) {
+			r.Use(
+				api.templateRBACEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractTemplateParam(api.Database),
+			)
+			r.Get("/", api.templateACL)
+			r.Patch("/", api.patchTemplateACL)
+		})
+
+		r.Route("/groups/{group}", func(r chi.Router) {
+			r.Use(
+				api.templateRBACEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractGroupParam(api.Database),
+			)
+			r.Get("/", api.group)
+			r.Patch("/", api.patchGroup)
+			r.Delete("/", api.deleteGroup)
+		})
+
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
 			})
 		})
@@ -89,7 +126,40 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 	}
 
-	err := api.updateEntitlements(ctx)
+	meshRootCA := x509.NewCertPool()
+	for _, certificate := range options.TLSCertificates {
+		for _, certificatePart := range certificate.Certificate {
+			certificate, err := x509.ParseCertificate(certificatePart)
+			if err != nil {
+				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
+			}
+			meshRootCA.AddCert(certificate)
+		}
+	}
+	// This TLS configuration spoofs access from the access URL hostname
+	// assuming that the certificates provided will cover that hostname.
+	//
+	// Replica sync and DERP meshing require accessing replicas via their
+	// internal IP addresses, and if TLS is configured we use the same
+	// certificates.
+	meshTLSConfig := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: options.TLSCertificates,
+		RootCAs:      meshRootCA,
+		ServerName:   options.AccessURL.Hostname(),
+	}
+	var err error
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+		RelayAddress: options.DERPServerRelayAddress,
+		RegionID:     int32(options.DERPServerRegionID),
+		TLSConfig:    meshTLSConfig,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("initialize replica: %w", err)
+	}
+	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
+
+	err = api.updateEntitlements(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
 	}
@@ -101,11 +171,16 @@ func New(ctx context.Context, options *Options) (*API, error) {
 type Options struct {
 	*coderd.Options
 
+	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
 	BrowserOnly        bool
 	SCIMAPIKey         []byte
 	UserWorkspaceQuota int
+
+	// Used for high availability.
+	DERPServerRelayAddress string
+	DERPServerRegionID     int
 
 	EntitlementsUpdateInterval time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -115,113 +190,114 @@ type API struct {
 	AGPL *coderd.API
 	*Options
 
+	// Detects multiple Coder replicas running at the same time.
+	replicaManager *replicasync.Manager
+	// Meshes DERP connections from multiple replicas.
+	derpMesh *derpmesh.Mesh
+
 	cancelEntitlementsLoop func()
 	entitlementsMu         sync.RWMutex
-	entitlements           entitlements
-}
-
-type entitlements struct {
-	hasLicense     bool
-	activeUsers    codersdk.Feature
-	auditLogs      codersdk.Entitlement
-	browserOnly    codersdk.Entitlement
-	scim           codersdk.Entitlement
-	workspaceQuota codersdk.Entitlement
+	entitlements           codersdk.Entitlements
 }
 
 func (api *API) Close() error {
 	api.cancelEntitlementsLoop()
+	_ = api.replicaManager.Close()
+	_ = api.derpMesh.Close()
 	return api.AGPL.Close()
 }
 
 func (api *API) updateEntitlements(ctx context.Context) error {
-	licenses, err := api.Database.GetUnexpiredLicenses(ctx)
+	api.entitlementsMu.Lock()
+	defer api.entitlementsMu.Unlock()
+
+	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[string]bool{
+		codersdk.FeatureAuditLog:         api.AuditLogging,
+		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
+		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
+		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
+		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
+		codersdk.FeatureMultipleGitAuth:  len(api.GitAuthConfigs) > 1,
+		codersdk.FeatureTemplateRBAC:     api.RBAC,
+	})
 	if err != nil {
 		return err
 	}
-	api.entitlementsMu.Lock()
-	defer api.entitlementsMu.Unlock()
-	now := time.Now()
+	entitlements.Experimental = api.Experimental
 
-	// Default all entitlements to be disabled.
-	entitlements := entitlements{
-		hasLicense: false,
-		activeUsers: codersdk.Feature{
-			Enabled:     false,
-			Entitlement: codersdk.EntitlementNotEntitled,
-		},
-		auditLogs:      codersdk.EntitlementNotEntitled,
-		scim:           codersdk.EntitlementNotEntitled,
-		browserOnly:    codersdk.EntitlementNotEntitled,
-		workspaceQuota: codersdk.EntitlementNotEntitled,
+	featureChanged := func(featureName string) (changed bool, enabled bool) {
+		if api.entitlements.Features == nil {
+			return true, entitlements.Features[featureName].Enabled
+		}
+		oldFeature := api.entitlements.Features[featureName]
+		newFeature := entitlements.Features[featureName]
+		if oldFeature.Enabled != newFeature.Enabled {
+			return true, newFeature.Enabled
+		}
+		return false, newFeature.Enabled
 	}
 
-	// Here we loop through licenses to detect enabled features.
-	for _, l := range licenses {
-		claims, err := validateDBLicense(l, api.Keys)
-		if err != nil {
-			api.Logger.Debug(ctx, "skipping invalid license",
-				slog.F("id", l.ID), slog.Error(err))
-			continue
+	if changed, enabled := featureChanged(codersdk.FeatureAuditLog); changed {
+		auditor := agplaudit.NewNop()
+		if enabled {
+			auditor = api.AGPL.Options.Auditor
 		}
-		entitlements.hasLicense = true
-		entitlement := codersdk.EntitlementEntitled
-		if now.After(claims.LicenseExpires.Time) {
-			// if the grace period were over, the validation fails, so if we are after
-			// LicenseExpires we must be in grace period.
-			entitlement = codersdk.EntitlementGracePeriod
-		}
-		if claims.Features.UserLimit > 0 {
-			entitlements.activeUsers = codersdk.Feature{
-				Enabled:     true,
-				Entitlement: entitlement,
-			}
-			currentLimit := int64(0)
-			if entitlements.activeUsers.Limit != nil {
-				currentLimit = *entitlements.activeUsers.Limit
-			}
-			limit := max(currentLimit, claims.Features.UserLimit)
-			entitlements.activeUsers.Limit = &limit
-		}
-		if claims.Features.AuditLog > 0 {
-			entitlements.auditLogs = entitlement
-		}
-		if claims.Features.BrowserOnly > 0 {
-			entitlements.browserOnly = entitlement
-		}
-		if claims.Features.SCIM > 0 {
-			entitlements.scim = entitlement
-		}
-		if claims.Features.WorkspaceQuota > 0 {
-			entitlements.workspaceQuota = entitlement
-		}
+		api.AGPL.Auditor.Store(&auditor)
 	}
 
-	if entitlements.auditLogs != api.entitlements.auditLogs {
-		// A flag could be added to the options that would allow disabling
-		// enhanced audit logging here!
-		if entitlements.auditLogs != codersdk.EntitlementNotEntitled && api.AuditLogging {
-			auditor := audit.NewAuditor(
-				audit.DefaultFilter,
-				backends.NewPostgres(api.Database, true),
-				backends.NewSlog(api.Logger),
-			)
-			api.AGPL.Auditor.Store(&auditor)
-		}
-	}
-
-	if entitlements.browserOnly != api.entitlements.browserOnly {
+	if changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); changed {
 		var handler func(rw http.ResponseWriter) bool
-		if entitlements.browserOnly != codersdk.EntitlementNotEntitled && api.BrowserOnly {
+		if enabled {
 			handler = api.shouldBlockNonBrowserConnections
 		}
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
-	if entitlements.workspaceQuota != api.entitlements.workspaceQuota {
-		if entitlements.workspaceQuota != codersdk.EntitlementNotEntitled && api.UserWorkspaceQuota > 0 {
-			enforcer := NewEnforcer(api.Options.UserWorkspaceQuota)
-			api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
+	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
+		enforcer := workspacequota.NewNop()
+		if enabled {
+			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+		}
+		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
+		coordinator := agpltailnet.NewCoordinator()
+		if enabled {
+			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			if err != nil {
+				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
+				// If we try to setup the HA coordinator and it fails, nothing
+				// is actually changing.
+				changed = false
+			} else {
+				coordinator = haCoordinator
+			}
+
+			api.replicaManager.SetCallback(func() {
+				addresses := make([]string, 0)
+				for _, replica := range api.replicaManager.Regional() {
+					addresses = append(addresses, replica.RelayAddress)
+				}
+				api.derpMesh.SetAddresses(addresses, false)
+				_ = api.updateEntitlements(ctx)
+			})
+		} else {
+			api.derpMesh.SetAddresses([]string{}, false)
+			api.replicaManager.SetCallback(func() {
+				// If the amount of replicas change, so should our entitlements.
+				// This is to display a warning in the UI if the user is unlicensed.
+				_ = api.updateEntitlements(ctx)
+			})
+		}
+
+		// Recheck changed in case the HA coordinator failed to set up.
+		if changed {
+			oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
+			err := oldCoordinator.Close()
+			if err != nil {
+				api.Logger.Error(ctx, "close old tailnet coordinator", slog.Error(err))
+			}
 		}
 	}
 
@@ -235,61 +311,7 @@ func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	api.entitlementsMu.RLock()
 	entitlements := api.entitlements
 	api.entitlementsMu.RUnlock()
-
-	resp := codersdk.Entitlements{
-		Features:   make(map[string]codersdk.Feature),
-		Warnings:   make([]string, 0),
-		HasLicense: entitlements.hasLicense,
-	}
-
-	if entitlements.activeUsers.Limit != nil {
-		activeUserCount, err := api.Database.GetActiveUserCount(ctx)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Unable to query database",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		entitlements.activeUsers.Actual = &activeUserCount
-		if activeUserCount > *entitlements.activeUsers.Limit {
-			resp.Warnings = append(resp.Warnings,
-				fmt.Sprintf(
-					"Your deployment has %d active users but is only licensed for %d.",
-					activeUserCount, *entitlements.activeUsers.Limit))
-		}
-	}
-	resp.Features[codersdk.FeatureUserLimit] = entitlements.activeUsers
-
-	// Audit logs
-	resp.Features[codersdk.FeatureAuditLog] = codersdk.Feature{
-		Entitlement: entitlements.auditLogs,
-		Enabled:     api.AuditLogging,
-	}
-	if entitlements.auditLogs == codersdk.EntitlementGracePeriod && api.AuditLogging {
-		resp.Warnings = append(resp.Warnings,
-			"Audit logging is enabled but your license for this feature is expired.")
-	}
-
-	resp.Features[codersdk.FeatureBrowserOnly] = codersdk.Feature{
-		Entitlement: entitlements.browserOnly,
-		Enabled:     api.BrowserOnly,
-	}
-	if entitlements.browserOnly == codersdk.EntitlementGracePeriod && api.BrowserOnly {
-		resp.Warnings = append(resp.Warnings,
-			"Browser only connections are enabled but your license for this feature is expired.")
-	}
-
-	resp.Features[codersdk.FeatureWorkspaceQuota] = codersdk.Feature{
-		Entitlement: entitlements.workspaceQuota,
-		Enabled:     api.UserWorkspaceQuota > 0,
-	}
-	if entitlements.workspaceQuota == codersdk.EntitlementGracePeriod && api.UserWorkspaceQuota > 0 {
-		resp.Warnings = append(resp.Warnings,
-			"Workspace quotas are enabled but your license for this feature is expired.")
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, entitlements)
 }
 
 func (api *API) runEntitlementsLoop(ctx context.Context) {
@@ -354,9 +376,6 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 	}
 }
 
-func max(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
+func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }

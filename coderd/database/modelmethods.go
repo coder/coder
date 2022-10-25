@@ -4,6 +4,8 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+const AllUsersGroup = "Everyone"
+
 func (s APIKeyScope) ToRBAC() rbac.Scope {
 	switch s {
 	case APIKeyScopeAll:
@@ -16,12 +18,19 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 }
 
 func (t Template) RBACObject() rbac.Object {
-	return rbac.ResourceTemplate.InOrg(t.OrganizationID)
+	obj := rbac.ResourceTemplate
+	return obj.InOrg(t.OrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
 }
 
-func (t TemplateVersion) RBACObject() rbac.Object {
+func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
-	return rbac.ResourceTemplate.InOrg(t.OrganizationID)
+	return template.RBACObject()
+}
+
+func (g Group) RBACObject() rbac.Object {
+	return rbac.ResourceGroup.InOrg(g.OrganizationID)
 }
 
 func (w Workspace) RBACObject() rbac.Object {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,7 +23,9 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -41,22 +44,24 @@ const (
 	varToken            = "token"
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
-	varGlobalConfig     = "global-config"
 	varHeader           = "header"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
 	varForceTty         = "force-tty"
 	varVerbose          = "verbose"
+	varExperimental     = "experimental"
 	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
+	envExperimental     = "CODER_EXPERIMENTAL"
+	envSessionToken     = "CODER_SESSION_TOKEN"
+	envURL              = "CODER_URL"
 )
 
 var (
 	errUnauthenticated = xerrors.New(notLoggedInMessage)
-	envSessionToken    = "CODER_SESSION_TOKEN"
 )
 
 func init() {
@@ -91,23 +96,46 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
+		tokens(),
 	}
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, error) {
-		return coderd.New(o), nil
+	all := append(Core(), Server(deployment.NewViper(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+		api := coderd.New(o)
+		return api, api, nil
 	}))
 	return all
 }
 
 func Root(subcommands []*cobra.Command) *cobra.Command {
+	// The GIT_ASKPASS environment variable must point at
+	// a binary with no arguments. To prevent writing
+	// cross-platform scripts to invoke the Coder binary
+	// with a `gitaskpass` subcommand, we override the entrypoint
+	// to check if the command was invoked.
+	isGitAskpass := false
+
+	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
+`
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: `Coder — A tool for provisioning self-hosted development environments with Terraform.
-`,
+		Long:          fmt.Sprintf(fmtLong, buildinfo.Version()),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if gitauth.CheckCommand(args, os.Environ()) {
+				isGitAskpass = true
+				return nil
+			}
+			return cobra.NoArgs(cmd, args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if isGitAskpass {
+				return gitAskpass().RunE(cmd, args)
+			}
+			return cmd.Help()
+		},
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if cliflag.IsSetBool(cmd, varNoVersionCheck) &&
 				cliflag.IsSetBool(cmd, varNoFeatureWarning) {
@@ -125,6 +153,9 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 			// gitssh is skipped because it's usually not called by users
 			// directly.
 			if cmd.Name() == "login" || cmd.Name() == "server" || cmd.Name() == "agent" || cmd.Name() == "gitssh" {
+				return
+			}
+			if isGitAskpass {
 				return
 			}
 
@@ -169,7 +200,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 
 	cmd.SetUsageTemplate(usageTemplate())
 
-	cmd.PersistentFlags().String(varURL, "", "URL to a deployment.")
+	cliflag.String(cmd.PersistentFlags(), varURL, "", envURL, "", "URL to a deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoFeatureWarning, "", envNoFeatureWarning, false, "Suppress warnings about unlicensed features.")
 	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
@@ -177,13 +208,14 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
+	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
 	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
+	cliflag.Bool(cmd.PersistentFlags(), varExperimental, "", envExperimental, false, "Enable experimental features. Experimental features are not ready for production.")
 
 	return cmd
 }
@@ -354,7 +386,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 
 // createConfig consumes the global configuration flag to produce a config root.
 func createConfig(cmd *cobra.Command) config.Root {
-	globalRoot, err := cmd.Flags().GetString(varGlobalConfig)
+	globalRoot, err := cmd.Flags().GetString(config.FlagName)
 	if err != nil {
 		panic(err)
 	}
@@ -597,4 +629,20 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Add(k, v)
 	}
 	return h.transport.RoundTrip(req)
+}
+
+// ExperimentalEnabled returns if the experimental feature flag is enabled.
+func ExperimentalEnabled(cmd *cobra.Command) bool {
+	enabled, _ := cmd.Flags().GetBool(varExperimental)
+	return enabled
+}
+
+// EnsureExperimental will ensure that the experimental feature flag is set if the given flag is set.
+func EnsureExperimental(cmd *cobra.Command, name string) error {
+	_, set := cliflag.IsSet(cmd, name)
+	if set && !ExperimentalEnabled(cmd) {
+		return xerrors.Errorf("flag %s is set but requires flag --experimental or environment variable CODER_EXPERIMENTAL=true.", name)
+	}
+
+	return nil
 }

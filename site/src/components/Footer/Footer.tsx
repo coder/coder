@@ -19,7 +19,9 @@ export interface FooterProps {
   buildInfo?: TypesGen.BuildInfoResponse
 }
 
-export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildInfo }) => {
+export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
+  buildInfo,
+}) => {
   const styles = useFooterStyles()
 
   const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
@@ -38,14 +40,25 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({ buildIn
             target="_blank"
             href={buildInfo.external_url}
           >
-            <AccountTreeIcon className={styles.icon} /> {Language.buildInfoText(buildInfo)}
+            <AccountTreeIcon className={styles.icon} />{" "}
+            {Language.buildInfoText(buildInfo)}
           </Link>
           &nbsp;|&nbsp;
-          <Link className={styles.link} variant="caption" target="_blank" href={githubUrl}>
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={githubUrl}
+          >
             <AssistantIcon className={styles.icon} /> {Language.reportBugLink}
           </Link>
           &nbsp;|&nbsp;
-          <Link className={styles.link} variant="caption" target="_blank" href={discordUrl}>
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={discordUrl}
+          >
             <ChatIcon className={styles.icon} /> {Language.discordLink}
           </Link>
         </div>

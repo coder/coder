@@ -1,12 +1,16 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import { createDayString } from "util/createDayString"
-import { formatTemplateActiveDevelopers } from "util/templates"
+import {
+  formatTemplateBuildTime,
+  formatTemplateActiveDevelopers,
+} from "util/templates"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   usedByLabel: "Used by",
+  buildTimeLabel: "Build time",
   activeVersionLabel: "Active version",
   lastUpdateLabel: "Last updated",
   developerPlural: "developers",
@@ -19,7 +23,10 @@ export interface TemplateStatsProps {
   activeVersion: TemplateVersion
 }
 
-export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion }) => {
+export const TemplateStats: FC<TemplateStatsProps> = ({
+  template,
+  activeVersion,
+}) => {
   const styles = useStyles()
 
   return (
@@ -29,7 +36,17 @@ export const TemplateStats: FC<TemplateStatsProps> = ({ template, activeVersion 
 
         <span className={styles.statsValue}>
           {formatTemplateActiveDevelopers(template.active_user_count)}{" "}
-          {template.active_user_count === 1 ? Language.developerSingular : Language.developerPlural}
+          {template.active_user_count === 1
+            ? Language.developerSingular
+            : Language.developerPlural}
+        </span>
+      </div>
+      <div className={styles.statsDivider} />
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.buildTimeLabel}</span>
+
+        <span className={styles.statsValue}>
+          {formatTemplateBuildTime(template.build_time_stats.start_ms)}{" "}
         </span>
       </div>
       <div className={styles.statsDivider} />
@@ -70,7 +87,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: "20%",
+    minWidth: "15%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
   },

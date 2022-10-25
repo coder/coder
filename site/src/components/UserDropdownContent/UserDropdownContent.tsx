@@ -1,4 +1,3 @@
-import Chip from "@material-ui/core/Chip"
 import Divider from "@material-ui/core/Divider"
 import ListItemIcon from "@material-ui/core/ListItemIcon"
 import ListItemText from "@material-ui/core/ListItemText"
@@ -9,7 +8,6 @@ import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import { FC } from "react"
 import { Link } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { Role } from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { DocsIcon } from "../Icons/DocsIcon"
 import { LogoutIcon } from "../Icons/LogoutIcon"
@@ -46,13 +44,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         </div>
         <Typography className={styles.userName}>{user.username}</Typography>
         <Typography className={styles.userEmail}>{user.email}</Typography>
-        <ul className={styles.chipContainer}>
-          {user.roles.map((role: Role) => (
-            <li key={role.name} className={styles.chipStyles}>
-              <Chip classes={{ root: styles.chipRoot }} label={role.display_name} />
-            </li>
-          ))}
-        </ul>
       </div>
 
       <Divider />
@@ -94,7 +85,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    paddingTop: theme.spacing(3),
+    padding: theme.spacing(3, 2),
     textAlign: "center",
   },
   avatarContainer: {
@@ -116,26 +107,12 @@ const useStyles = makeStyles((theme) => ({
   },
   userName: {
     fontSize: 16,
-    marginBottom: theme.spacing(0.5),
+    marginTop: theme.spacing(1),
   },
   userEmail: {
     fontSize: 14,
     letterSpacing: 0.2,
     color: theme.palette.text.secondary,
-  },
-  chipContainer: {
-    display: "flex",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    listStyle: "none",
-    margin: "0",
-    padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
-  },
-  chipStyles: {
-    margin: theme.spacing(0.5),
-  },
-  chipRoot: {
-    backgroundColor: theme.palette.secondary.dark,
   },
   link: {
     textDecoration: "none",

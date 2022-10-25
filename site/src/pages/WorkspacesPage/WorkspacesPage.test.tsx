@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import { rest } from "msw"
 import * as CreateDayString from "util/createDayString"
 import { Language as WorkspacesTableBodyLanguage } from "../../components/WorkspacesTable/WorkspacesTableBody"
@@ -27,14 +27,31 @@ describe("WorkspacesPage", () => {
     render(<WorkspacesPage />)
 
     // Then
-    await screen.findByText(WorkspacesTableBodyLanguage.emptyCreateWorkspaceMessage)
+    await screen.findByText(
+      WorkspacesTableBodyLanguage.emptyCreateWorkspaceMessage,
+    )
   })
 
   it("renders a filled workspaces page", async () => {
     // When
-    render(<WorkspacesPage />)
+    const { container } = render(<WorkspacesPage />)
 
     // Then
+    const nextPage = await screen.findByRole("button", { name: "Next page" })
+    expect(nextPage).toBeEnabled()
+    await waitFor(
+      async () => {
+        const prevPage = await screen.findByRole("button", {
+          name: "Previous page",
+        })
+        expect(prevPage).toBeDisabled()
+        const pageButtons = await container.querySelectorAll(
+          `button[name="Page button"]`,
+        )
+        expect(pageButtons.length).toBe(2)
+      },
+      { timeout: 2000 },
+    )
     await screen.findByText(MockWorkspace.name)
   })
 })

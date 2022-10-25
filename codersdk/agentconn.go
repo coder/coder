@@ -4,9 +4,14 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/netip"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -26,7 +31,91 @@ var (
 	TailnetSSHPort             = 1
 	TailnetReconnectingPTYPort = 2
 	TailnetSpeedtestPort       = 3
+	// TailnetStatisticsPort serves a HTTP server with endpoints for gathering
+	// agent statistics.
+	TailnetStatisticsPort = 4
+
+	// MinimumListeningPort is the minimum port that the listening-ports
+	// endpoint will return to the client, and the minimum port that is accepted
+	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
+	// moment, and we reserve some extra ports for future use. Port 9 and up are
+	// available for the user.
+	//
+	// This is not enforced in the CLI intentionally as we don't really care
+	// *that* much. The user could bypass this in the CLI by using SSH instead
+	// anyways.
+	MinimumListeningPort = 9
 )
+
+// IgnoredListeningPorts contains a list of ports in the global ignore list.
+// This list contains common TCP ports that are not HTTP servers, such as
+// databases, SSH, FTP, etc.
+//
+// This is implemented as a map for fast lookup.
+var IgnoredListeningPorts = map[uint16]struct{}{
+	0: {},
+	// Ports 1-8 are reserved for future use by the Coder agent.
+	1: {},
+	2: {},
+	3: {},
+	4: {},
+	5: {},
+	6: {},
+	7: {},
+	8: {},
+	// ftp
+	20: {},
+	21: {},
+	// ssh
+	22: {},
+	// telnet
+	23: {},
+	// smtp
+	25: {},
+	// dns over TCP
+	53: {},
+	// pop3
+	110: {},
+	// imap
+	143: {},
+	// bgp
+	179: {},
+	// ldap
+	389: {},
+	636: {},
+	// smtps
+	465: {},
+	// smtp
+	587: {},
+	// ftps
+	989: {},
+	990: {},
+	// imaps
+	993: {},
+	// pop3s
+	995: {},
+	// mysql
+	3306: {},
+	// rdp
+	3389: {},
+	// postgres
+	5432: {},
+	// mongodb
+	27017: {},
+	27018: {},
+	27019: {},
+	28017: {},
+}
+
+func init() {
+	// Add a thousand more ports to the ignore list during tests so it's easier
+	// to find an available port.
+	if strings.HasSuffix(os.Args[0], ".test") {
+		for i := 63000; i < 64000; i++ {
+			IgnoredListeningPorts[uint16(i)] = struct{}{}
+		}
+	}
+}
 
 // ReconnectingPTYRequest is sent from the client to the server
 // to pipe data to a PTY.
@@ -43,10 +132,10 @@ type AgentConn struct {
 	CloseFunc func()
 }
 
-func (c *AgentConn) Ping() (time.Duration, error) {
+func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
 	errCh := make(chan error, 1)
 	durCh := make(chan time.Duration, 1)
-	c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
+	go c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
 			errCh <- xerrors.New(pr.Err)
 			return
@@ -56,6 +145,8 @@ func (c *AgentConn) Ping() (time.Duration, error) {
 	select {
 	case err := <-errCh:
 		return 0, err
+	case <-ctx.Done():
+		return 0, ctx.Err()
 	case dur := <-durCh:
 		return dur, nil
 	}
@@ -152,4 +243,81 @@ func (c *AgentConn) DialContext(ctx context.Context, network string, addr string
 		return c.Conn.DialContextUDP(ctx, ipp)
 	}
 	return c.Conn.DialContextTCP(ctx, ipp)
+}
+
+func (c *AgentConn) statisticsClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			// Disable keep alives as we're usually only making a single
+			// request, and this triggers goleak in tests
+			DisableKeepAlives: true,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				if network != "tcp" {
+					return nil, xerrors.Errorf("network must be tcp")
+				}
+				host, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
+				}
+				// Verify that host is TailnetIP and port is
+				// TailnetStatisticsPort.
+				if host != TailnetIP.String() || port != strconv.Itoa(TailnetStatisticsPort) {
+					return nil, xerrors.Errorf("request %q does not appear to be for statistics server", addr)
+				}
+
+				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetStatisticsPort)))
+				if err != nil {
+					return nil, xerrors.Errorf("dial statistics: %w", err)
+				}
+
+				return conn, nil
+			},
+		},
+	}
+}
+
+func (c *AgentConn) doStatisticsRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+	host := net.JoinHostPort(TailnetIP.String(), strconv.Itoa(TailnetStatisticsPort))
+	url := fmt.Sprintf("http://%s%s", host, path)
+
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err != nil {
+		return nil, xerrors.Errorf("new statistics server request to %q: %w", url, err)
+	}
+
+	return c.statisticsClient().Do(req)
+}
+
+type ListeningPortsResponse struct {
+	// If there are no ports in the list, nothing should be displayed in the UI.
+	// There must not be a "no ports available" message or anything similar, as
+	// there will always be no ports displayed on platforms where our port
+	// detection logic is unsupported.
+	Ports []ListeningPort `json:"ports"`
+}
+
+type ListeningPortNetwork string
+
+const (
+	ListeningPortNetworkTCP ListeningPortNetwork = "tcp"
+)
+
+type ListeningPort struct {
+	ProcessName string               `json:"process_name"` // may be empty
+	Network     ListeningPortNetwork `json:"network"`      // only "tcp" at the moment
+	Port        uint16               `json:"port"`
+}
+
+func (c *AgentConn) ListeningPorts(ctx context.Context) (ListeningPortsResponse, error) {
+	res, err := c.doStatisticsRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
+	if err != nil {
+		return ListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListeningPortsResponse{}, readBodyAsError(res)
+	}
+
+	var resp ListeningPortsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

@@ -15,9 +15,9 @@ Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](ht
 
    ```sh
    # Automatically sets up an external access URL on *.try.coder.app
-   coder server --tunnel
+   coder server
 
-   # Requires a PostgreSQL instance and external access URL
+   # Requires a PostgreSQL instance (version 13 or higher) and external access URL
    coder server --postgres-url <url> --access-url <url>
    ```
 

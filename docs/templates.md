@@ -164,12 +164,9 @@ resource "docker_image" "workspace" {
 }
 ```
 
-### Persistent vs. ephemeral resources
-
-You can use the workspace state to ensure some resources in Coder are
-persistent, while others are ephemeral.
-
 #### Start/stop
+
+[Learn about resource persistence in Coder](./templates/resource-persistence.md)
 
 Coder workspaces can be started/stopped. This is often used to save on cloud costs or enforce
 ephemeral workflows. When a workspace is started or stopped, the Coder server
@@ -177,10 +174,10 @@ runs an additional
 [terraform apply](https://www.terraform.io/cli/commands/apply), informing the
 Coder provider that the workspace has a new transition state.
 
-This template sample has one persistent resource (docker image) and one ephemeral resource
-(docker volume).
+This template sample has one persistent resource (docker volume) and one ephemeral resource
+(docker image).
 
-```sh
+```hcl
 data "coder_workspace" "me" {
 }
 
@@ -250,7 +247,7 @@ resources associated with the workspace.
 > [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
 > and
 > [ignore-changes](https://www.terraform.io/language/meta-arguments/lifecycle#ignore_changes)
-> meta-arguments can be used to accidental data loss.
+> meta-arguments can be used to prevent accidental data loss.
 
 ### Coder apps
 
@@ -310,14 +307,13 @@ practices:
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 
-## Change Management
+## Template permissions (enterprise)
 
-We recommend source controlling your templates as you would other code.
-
-CI is as simple as running `coder templates push` with the appropriate
-credentials.
+Template permissions can be used to give users and groups access to specific templates. [Learn more about RBAC](./admin/rbac.md).
 
 ## Next Steps
 
 - Learn about [Authentication & Secrets](templates/authentication.md)
+- Learn about [Change Management](templates/change-management.md)
+- Learn about [Resource Metadata](templates/resource-metadata.md)
 - Learn about [Workspaces](workspaces.md)

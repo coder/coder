@@ -23,7 +23,15 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	setupActivityTest := func(t *testing.T) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		var ttlMillis int64 = 60 * 1000
 
-		client, _, workspace, _ = setupProxyTest(t, func(cwr *codersdk.CreateWorkspaceRequest) {
+		client = coderdtest.New(t, &coderdtest.Options{
+			AppHostname:                 proxyTestSubdomainRaw,
+			IncludeProvisionerDaemon:    true,
+			AgentStatsRefreshInterval:   time.Millisecond * 100,
+			MetricsCacheRefreshInterval: time.Millisecond * 100,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
 
@@ -36,7 +44,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		)
 		firstDeadline := workspace.LatestBuild.Deadline.Time
 
-		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		return client, workspace, func(want bool) {
 			if !want {
@@ -64,7 +72,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				"deadline %v never updated", firstDeadline,
 			)
 
-			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Second)
+			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, 3*time.Second)
 		}
 	}
 
@@ -73,8 +81,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		client, workspace, assertBumped := setupActivityTest(t)
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		conn, err := client.DialWorkspaceAgentTailnet(ctx, slogtest.Make(t, nil), resources[0].Agents[0].ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+			Logger: slogtest.Make(t, nil),
+		})
 		require.NoError(t, err)
 		defer conn.Close()
 
@@ -90,9 +100,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		client, workspace, assertBumped := setupActivityTest(t)
 
-		// Benign operations like retrieving resources must not
+		// Benign operations like retrieving workspace must not
 		// bump the deadline.
-		_, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		_, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
 		assertBumped(false)

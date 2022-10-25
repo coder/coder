@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -91,7 +92,7 @@ func templateCreate() *cobra.Command {
 				Client:        client,
 				Organization:  organization,
 				Provisioner:   database.ProvisionerType(provisioner),
-				FileHash:      resp.Hash,
+				FileID:        resp.ID,
 				ParameterFile: parameterFile,
 			})
 			if err != nil {
@@ -148,7 +149,7 @@ type createValidTemplateVersionArgs struct {
 	Client        *codersdk.Client
 	Organization  codersdk.Organization
 	Provisioner   database.ProvisionerType
-	FileHash      string
+	FileID        uuid.UUID
 	ParameterFile string
 	// Template is only required if updating a template's active version.
 	Template *codersdk.Template
@@ -165,7 +166,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:            args.Name,
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
-		StorageSource:   args.FileHash,
+		FileID:          args.FileID,
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
 	}

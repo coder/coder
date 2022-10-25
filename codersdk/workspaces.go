@@ -15,37 +15,33 @@ import (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                uuid.UUID       `json:"id"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	OwnerID           uuid.UUID       `json:"owner_id"`
-	OwnerName         string          `json:"owner_name"`
-	TemplateID        uuid.UUID       `json:"template_id"`
-	TemplateName      string          `json:"template_name"`
-	TemplateIcon      string          `json:"template_icon"`
-	LatestBuild       WorkspaceBuild  `json:"latest_build"`
-	Outdated          bool            `json:"outdated"`
-	Name              string          `json:"name"`
-	AutostartSchedule *string         `json:"autostart_schedule,omitempty"`
-	TTLMillis         *int64          `json:"ttl_ms,omitempty"`
-	LastUsedAt        time.Time       `json:"last_used_at"`
-	Status            WorkspaceStatus `json:"status"`
+	ID                uuid.UUID      `json:"id"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	OwnerID           uuid.UUID      `json:"owner_id"`
+	OwnerName         string         `json:"owner_name"`
+	TemplateID        uuid.UUID      `json:"template_id"`
+	TemplateName      string         `json:"template_name"`
+	TemplateIcon      string         `json:"template_icon"`
+	LatestBuild       WorkspaceBuild `json:"latest_build"`
+	Outdated          bool           `json:"outdated"`
+	Name              string         `json:"name"`
+	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
+	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
+	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
-type WorkspaceStatus string
+type WorkspacesRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
 
-const (
-	WorkspaceStatusPending   WorkspaceStatus = "pending"
-	WorkspaceStatusStarting  WorkspaceStatus = "starting"
-	WorkspaceStatusRunning   WorkspaceStatus = "running"
-	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
-	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
-	WorkspaceStatusFailed    WorkspaceStatus = "failed"
-	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
-	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
-	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
-	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
-)
+type WorkspaceCountRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+}
+type WorkspaceCountResponse struct {
+	Count int64 `json:"count"`
+}
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
@@ -112,11 +108,15 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 type WorkspaceBuildsRequest struct {
 	WorkspaceID uuid.UUID
 	Pagination
+	Since time.Time
 }
 
 func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
-		nil, req.Pagination.asRequestOption())
+	res, err := c.Request(
+		ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
+		nil, req.Pagination.asRequestOption(), WithQueryParam("since", req.Since.Format(time.RFC3339)),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -270,6 +270,12 @@ type WorkspaceFilter struct {
 	Template string `json:"template,omitempty" typescript:"-"`
 	// Name will return partial matches
 	Name string `json:"name,omitempty" typescript:"-"`
+	// Status is a workspace status, which is really the status of the latest build
+	Status string `json:"status,omitempty" typescript:"-"`
+	// Offset is the number of workspaces to skip before returning results.
+	Offset int `json:"offset,omitempty" typescript:"-"`
+	// Limit is a limit on the number of workspaces returned.
+	Limit int `json:"limit,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -290,6 +296,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		if f.Template != "" {
 			params = append(params, fmt.Sprintf("template:%q", f.Template))
 		}
+		if f.Status != "" {
+			params = append(params, fmt.Sprintf("status:%q", f.Status))
+		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
 			params = append(params, f.FilterQuery)
@@ -303,7 +312,11 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 
 // Workspaces returns all workspaces the authenticated user has access to.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+	page := Pagination{
+		Offset: filter.Offset,
+		Limit:  filter.Limit,
+	}
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption(), page.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +328,34 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 
 	var workspaces []Workspace
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
+func (c *Client) WorkspaceCount(ctx context.Context, req WorkspaceCountRequest) (WorkspaceCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces/count", nil, func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return WorkspaceCountResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceCountResponse{}, readBodyAsError(res)
+	}
+
+	var countRes WorkspaceCountResponse
+	err = json.NewDecoder(res.Body).Decode(&countRes)
+	if err != nil {
+		return WorkspaceCountResponse{}, err
+	}
+
+	return countRes, nil
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.

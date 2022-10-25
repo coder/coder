@@ -7,24 +7,10 @@ import (
 	"time"
 
 	"github.com/cli/safeexec"
-	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/hc-install/product"
-	"github.com/hashicorp/hc-install/releases"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionersdk"
-)
-
-var (
-	// TerraformVersion is the version of Terraform used internally
-	// when Terraform is not available on the system.
-	TerraformVersion = version.Must(version.NewVersion("1.3.0"))
-
-	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.3.0"))
-
-	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
 
 const (
@@ -93,18 +79,11 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 				return xerrors.Errorf("absolute binary context canceled: %w", err)
 			}
 
-			installer := &releases.ExactVersion{
-				InstallDir: options.CachePath,
-				Product:    product.Terraform,
-				Version:    TerraformVersion,
-			}
-			installer.SetLogger(slog.Stdlib(ctx, options.Logger, slog.LevelDebug))
-			options.Logger.Info(ctx, "installing terraform", slog.F("dir", options.CachePath), slog.F("version", TerraformVersion))
-			execPath, err := installer.Install(ctx)
+			binPath, err := Install(ctx, options.Logger, options.CachePath, TerraformVersion)
 			if err != nil {
 				return xerrors.Errorf("install terraform: %w", err)
 			}
-			options.BinaryPath = execPath
+			options.BinaryPath = binPath
 		} else {
 			options.BinaryPath = absoluteBinary
 		}

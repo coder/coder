@@ -23,16 +23,8 @@ type PostWorkspaceAgentAppHealth func(context.Context, codersdk.PostWorkspaceApp
 type WorkspaceAppHealthReporter func(ctx context.Context)
 
 // NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
-func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps WorkspaceAgentApps, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
+func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.WorkspaceApp, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
 	runHealthcheckLoop := func(ctx context.Context) error {
-		apps, err := workspaceAgentApps(ctx)
-		if err != nil {
-			if xerrors.Is(err, context.Canceled) {
-				return nil
-			}
-			return xerrors.Errorf("getting workspace apps: %w", err)
-		}
-
 		// no need to run this loop if no apps for this workspace.
 		if len(apps) == 0 {
 			return nil
@@ -60,8 +52,10 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 				continue
 			}
 			app := nextApp
-			t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
 			go func() {
+				t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
+				defer t.Stop()
+
 				for {
 					select {
 					case <-ctx.Done():
@@ -118,6 +112,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, workspaceAgentApps Worksp
 		lastHealth := copyHealth(health)
 		mu.Unlock()
 		reportTicker := time.NewTicker(time.Second)
+		defer reportTicker.Stop()
 		// every second we check if the health values of the apps have changed
 		// and if there is a change we will report the new values.
 		for {

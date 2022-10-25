@@ -16,7 +16,7 @@ All user <-> workspace connections are end-to-end encrypted.
 ## coder server
 
 Workspaces connect to the coder server via the server's external address,
-set via [`ACCESS_URL`](./admin/configure#access-url). There must not be a
+set via [`ACCESS_URL`](./admin/configure.md#access-url). There must not be a
 NAT between workspaces and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
@@ -87,6 +87,12 @@ $ coder server --derp-config-path derpmap.json
 The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
 our Enterprise Edition. [Reach out to sales](mailto:sales@coder.com) to learn more.
+
+## Browser-only connections (enterprise)
+
+Some Coder deployments require that all access is through the browser to comply
+with security policies. In these cases, pass the `--browser-only` flag to
+`coder server` or set `CODER_BROWSER_ONLY=true`.
 
 ## Troubleshooting
 

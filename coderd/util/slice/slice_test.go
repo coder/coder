@@ -9,6 +9,22 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
+func TestUnique(t *testing.T) {
+	t.Parallel()
+
+	require.ElementsMatch(t,
+		[]int{1, 2, 3, 4, 5},
+		slice.Unique([]int{
+			1, 2, 3, 4, 5, 1, 2, 3, 4, 5,
+		}))
+
+	require.ElementsMatch(t,
+		[]string{"a"},
+		slice.Unique([]string{
+			"a", "a", "a",
+		}))
+}
+
 func TestContains(t *testing.T) {
 	t.Parallel()
 

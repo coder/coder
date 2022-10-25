@@ -8,9 +8,13 @@ export interface UserAvatarProps {
   avatarURL?: string
 }
 
-export const UserAvatar: FC<UserAvatarProps> = ({ username, className, avatarURL }) => {
+export const UserAvatar: FC<UserAvatarProps> = ({
+  username,
+  className,
+  avatarURL,
+}) => {
   return (
-    <Avatar className={className}>
+    <Avatar className={className} title={username}>
       {avatarURL ? (
         <img alt={`${username}'s Avatar`} src={avatarURL} width="100%" />
       ) : (

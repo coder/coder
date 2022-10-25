@@ -26,8 +26,12 @@ import (
 
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -55,8 +59,11 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionUpdate, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -87,6 +94,11 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			Time:  database.Now(),
 			Valid: true,
 		},
+		CompletedAt: sql.NullTime{
+			Time: database.Now(),
+			// If the job is running, don't mark it completed!
+			Valid: !job.WorkerID.Valid,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -102,8 +114,12 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) deprecatedTemplateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -150,8 +166,11 @@ func (api *API) deprecatedTemplateVersionSchema(rw http.ResponseWriter, r *http.
 
 func (api *API) deprecatedTemplateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -193,7 +212,8 @@ func (api *API) deprecatedTemplateVersionParameters(rw http.ResponseWriter, r *h
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -236,9 +256,12 @@ func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 
 func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		apiKey          = httpmw.APIKey(r)
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -309,7 +332,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		InitiatorID:    apiKey.UserID,
 		Provisioner:    job.Provisioner,
 		StorageMethod:  job.StorageMethod,
-		StorageSource:  job.StorageSource,
+		FileID:         job.FileID,
 		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
 		Input:          input,
 	})
@@ -385,6 +408,11 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 			Time:  database.Now(),
 			Valid: true,
 		},
+		CompletedAt: sql.NullTime{
+			Time: database.Now(),
+			// If the job is running, don't mark it completed!
+			Valid: !job.WorkerID.Valid,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -403,9 +431,11 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	var (
 		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
 		jobID           = chi.URLParam(r, "jobID")
 	)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return database.ProvisionerJob{}, false
 	}
@@ -437,7 +467,8 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 		httpapi.Forbidden(rw)
 		return database.ProvisionerJob{}, false
 	}
-	// Do a workspace resource check since it's basically a workspace dry-run .
+
+	// Do a workspace resource check since it's basically a workspace dry-run.
 	if !api.Authorize(r, rbac.ActionRead,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
 		httpapi.Forbidden(rw)
@@ -703,14 +734,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	// Making a new template version is the same permission as creating a new template.
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
+	var template database.Template
 	if req.TemplateID != uuid.Nil {
-		_, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
+		var err error
+		template, err = api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template does not exist.",
@@ -726,7 +753,18 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	file, err := api.Database.GetFileByHash(ctx, req.StorageSource)
+	if template.ID != uuid.Nil {
+		if !api.Authorize(r, rbac.ActionCreate, template) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+	} else if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		// Making a new template version is the same permission as creating a new template.
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	file, err := api.Database.GetFileByID(ctx, req.FileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "File not found.",
@@ -748,7 +786,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
 		inherits := make([]uuid.UUID, 0)
 		for _, parameterValue := range req.ParameterValues {
@@ -763,7 +801,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				return xerrors.Errorf("cannot inherit parameters if template_id is not set")
 			}
 
-			inheritedParams, err := db.ParameterValues(ctx, database.ParameterValuesParams{
+			inheritedParams, err := tx.ParameterValues(ctx, database.ParameterValuesParams{
 				IDs: inherits,
 			})
 			if err != nil {
@@ -772,7 +810,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			for _, copy := range inheritedParams {
 				// This is a bit inefficient, as we make a new db call for each
 				// param.
-				version, err := db.GetTemplateVersionByJobID(ctx, copy.ScopeID)
+				version, err := tx.GetTemplateVersionByJobID(ctx, copy.ScopeID)
 				if err != nil {
 					return xerrors.Errorf("fetch template version for param %q: %w", copy.Name, err)
 				}
@@ -797,7 +835,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				continue
 			}
 
-			_, err = db.InsertParameterValue(ctx, database.InsertParameterValueParams{
+			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
 				CreatedAt:         database.Now(),
@@ -820,7 +858,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		if err != nil {
 			return xerrors.Errorf("marshal job input: %w", err)
 		}
-		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -828,7 +866,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			InitiatorID:    apiKey.UserID,
 			Provisioner:    database.ProvisionerType(req.Provisioner),
 			StorageMethod:  database.ProvisionerStorageMethodFile,
-			StorageSource:  file.Hash,
+			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          jobInput,
 		})
@@ -848,7 +886,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			req.Name = namesgenerator.GetRandomName(1)
 		}
 
-		templateVersion, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+		templateVersion, err = tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:             templateVersionID,
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
@@ -894,8 +932,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 // return agents associated with any particular workspace.
 func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -917,8 +959,12 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
 func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	templateVersion := httpmw.TemplateVersionParam(r)
-	if !api.Authorize(r, rbac.ActionRead, templateVersion) {
+	var (
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

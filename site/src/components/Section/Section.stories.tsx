@@ -13,7 +13,9 @@ export default {
   },
 }
 
-const Template: Story<SectionProps> = (args: SectionProps) => <Section {...args} />
+const Template: Story<SectionProps> = (args: SectionProps) => (
+  <Section {...args} />
+)
 
 export const Example = Template.bind({})
 Example.args = {

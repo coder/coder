@@ -63,7 +63,7 @@ func TestUserParam(t *testing.T) {
 			r = returnedRequest
 		})).ServeHTTP(rw, r)
 
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -85,7 +85,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "ben")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -107,7 +107,7 @@ func TestUserParam(t *testing.T) {
 		routeContext := chi.NewRouteContext()
 		routeContext.URLParams.Add("user", "me")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractUserParam(db, false)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.UserParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)

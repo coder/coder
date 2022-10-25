@@ -32,7 +32,10 @@ Coder creates remote development machines so your team can develop from anywhere
 > **Note**:
 > Coder is in a beta state. [Report issues here](https://github.com/coder/coder/issues/new).
 
-The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS.
+The easiest way to install Coder is to use our
+[install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
+and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
+Releases.
 
 To install, run:
 
@@ -58,9 +61,9 @@ Once installed, you can start a production deployment<sup>1</sup> with a single 
 
 ```sh
 # Automatically sets up an external access URL on *.try.coder.app
-coder server --tunnel
+coder server
 
-# Requires a PostgreSQL instance and external access URL
+# Requires a PostgreSQL instance (version 13 or higher) and external access URL
 coder server --postgres-url <url> --access-url <url>
 ```
 
@@ -95,7 +98,7 @@ Join our community on [Discord](https://coder.com/chat?utm_source=github.com/cod
 
 ## Contributing
 
-If you're using Coder in your organization, please try to add your company name to the [ADOPTERS.md](./ADOPTERS.md). It really helps the project to gain momentum and credibility. It's a small contribution back to the project with a big impact. 
+If you're using Coder in your organization, please try to add your company name to the [ADOPTERS.md](./ADOPTERS.md). It really helps the project to gain momentum and credibility. It's a small contribution back to the project with a big impact.
 
 Read the [contributing docs](https://coder.com/docs/coder-oss/latest/CONTRIBUTING).
 

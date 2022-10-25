@@ -32,7 +32,7 @@ type executor struct {
 func (e executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
-	env := os.Environ()
+	env := safeEnviron()
 	// Only Linux reliably works with the Terraform plugin
 	// cache directory. It's unknown why this is.
 	if e.cachePath != "" && runtime.GOOS == "linux" {
@@ -54,6 +54,10 @@ func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []stri
 	}()
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+
+	if isCanarySet(env) {
+		return xerrors.New("environment variables not sanitized, this is a bug within Coder")
 	}
 
 	// #nosec

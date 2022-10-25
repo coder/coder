@@ -1,0 +1,16 @@
+{
+    "ignorePatterns": [
+        {
+            "pattern": ":\/\/localhost"
+        },
+        {
+            "pattern": ":\/\/.*.?example\\.com"
+        },
+        {
+            "pattern": "developer.github.com"
+        },
+        {
+            "pattern": "tailscale.com"
+        }
+    ]
+}

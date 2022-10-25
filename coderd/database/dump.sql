@@ -5,6 +5,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'application_connect'
 );
 
+CREATE TYPE app_sharing_level AS ENUM (
+    'owner',
+    'authenticated',
+    'public'
+);
+
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
@@ -33,7 +39,8 @@ CREATE TYPE log_source AS ENUM (
 CREATE TYPE login_type AS ENUM (
     'password',
     'github',
-    'oidc'
+    'oidc',
+    'token'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -80,7 +87,8 @@ CREATE TYPE resource_type AS ENUM (
     'user',
     'workspace',
     'git_ssh_key',
-    'api_key'
+    'api_key',
+    'group'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -150,7 +158,18 @@ CREATE TABLE files (
     created_at timestamp with time zone NOT NULL,
     created_by uuid NOT NULL,
     mimetype character varying(64) NOT NULL,
-    data bytea NOT NULL
+    data bytea NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
+);
+
+CREATE TABLE git_auth_links (
+    provider_id text NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry timestamp with time zone NOT NULL
 );
 
 CREATE TABLE gitsshkeys (
@@ -159,6 +178,18 @@ CREATE TABLE gitsshkeys (
     updated_at timestamp with time zone NOT NULL,
     private_key text NOT NULL,
     public_key text NOT NULL
+);
+
+CREATE TABLE group_members (
+    user_id uuid NOT NULL,
+    group_id uuid NOT NULL
+);
+
+CREATE TABLE groups (
+    id uuid NOT NULL,
+    name text NOT NULL,
+    organization_id uuid NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE licenses (
@@ -233,7 +264,8 @@ CREATE TABLE provisioner_daemons (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
-    provisioners provisioner_type[] NOT NULL
+    provisioners provisioner_type[] NOT NULL,
+    replica_id uuid
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -258,10 +290,24 @@ CREATE TABLE provisioner_jobs (
     initiator_id uuid NOT NULL,
     provisioner provisioner_type NOT NULL,
     storage_method provisioner_storage_method NOT NULL,
-    storage_source text NOT NULL,
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
-    worker_id uuid
+    worker_id uuid,
+    file_id uuid NOT NULL
+);
+
+CREATE TABLE replicas (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    stopped_at timestamp with time zone,
+    updated_at timestamp with time zone NOT NULL,
+    hostname text NOT NULL,
+    region_id integer NOT NULL,
+    relay_address text NOT NULL,
+    database_latency integer NOT NULL,
+    version text NOT NULL,
+    error text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE site_configs (
@@ -308,7 +354,9 @@ CREATE TABLE templates (
     max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
     min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
     created_by uuid NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE user_links (
@@ -366,11 +414,12 @@ CREATE TABLE workspace_apps (
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
-    relative_path boolean DEFAULT false NOT NULL,
     healthcheck_url text DEFAULT ''::text NOT NULL,
     healthcheck_interval integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
-    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL
+    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
+    subdomain boolean DEFAULT false NOT NULL,
+    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL
 );
 
 CREATE TABLE workspace_build_parameters (
@@ -438,10 +487,25 @@ ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY files
-    ADD CONSTRAINT files_pkey PRIMARY KEY (hash);
+    ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
+
+ALTER TABLE ONLY files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
+
+ALTER TABLE ONLY groups
+    ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
+
+ALTER TABLE ONLY groups
+    ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
@@ -569,6 +633,15 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY group_members
+    ADD CONSTRAINT group_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY groups
+    ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

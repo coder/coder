@@ -5,7 +5,10 @@ import Typography from "@material-ui/core/Typography"
 import WarningIcon from "@material-ui/icons/Lock"
 import ToggleButton from "@material-ui/lab/ToggleButton"
 import ToggleButtonGroup from "@material-ui/lab/ToggleButtonGroup"
-import { TemplateVersionParameter, WorkspaceBuildParameter } from "api/typesGenerated"
+import {
+  TemplateVersionParameter,
+  WorkspaceBuildParameter,
+} from "api/typesGenerated"
 import React, { FC, useEffect, useState } from "react"
 
 export interface WorkspaceParameterProps {
@@ -16,12 +19,9 @@ export interface WorkspaceParameterProps {
   workspaceBuildParameter?: WorkspaceBuildParameter
 }
 
-export const WorkspaceParameter: FC<React.PropsWithChildren<WorkspaceParameterProps>> = ({
-  templateParameter,
-  workspaceBuildParameter,
-  disabled,
-  onChange,
-}) => {
+export const WorkspaceParameter: FC<
+  React.PropsWithChildren<WorkspaceParameterProps>
+> = ({ templateParameter, workspaceBuildParameter, disabled, onChange }) => {
   const [value, setValue] = useState(
     workspaceBuildParameter?.value || templateParameter.default_value,
   )
@@ -54,7 +54,11 @@ export const WorkspaceParameter: FC<React.PropsWithChildren<WorkspaceParameterPr
           )}
         </Box>
         {templateParameter.description && (
-          <Typography variant="body1" color="textSecondary" className={styles.description}>
+          <Typography
+            variant="body1"
+            color="textSecondary"
+            className={styles.description}
+          >
             {templateParameter.description}
           </Typography>
         )}
@@ -76,7 +80,11 @@ export const WorkspaceParameter: FC<React.PropsWithChildren<WorkspaceParameterPr
               <Box display="flex" flexDirection="column">
                 <Box display="flex" alignItems="center" justifyContent="center">
                   {option.icon && (
-                    <img alt={`${option.name} icon`} src={option.icon} className="icon" />
+                    <img
+                      alt={`${option.name} icon`}
+                      src={option.icon}
+                      className="icon"
+                    />
                   )}
                   <Typography variant="h6" className="title">
                     {option.name}
@@ -129,10 +137,14 @@ export const WorkspaceParameter: FC<React.PropsWithChildren<WorkspaceParameterPr
           }}
           onChange={(event) => {
             setValue(event.target.value)
-            if (parseInt(event.target.value) < templateParameter.validation_min) {
+            if (
+              parseInt(event.target.value) < templateParameter.validation_min
+            ) {
               return setError(`Must be >= ${templateParameter.validation_min}.`)
             }
-            if (parseInt(event.target.value) > templateParameter.validation_max) {
+            if (
+              parseInt(event.target.value) > templateParameter.validation_max
+            ) {
               return setError(`Must be <= ${templateParameter.validation_max}.`)
             }
             setError(undefined)
@@ -140,7 +152,8 @@ export const WorkspaceParameter: FC<React.PropsWithChildren<WorkspaceParameterPr
           error={Boolean(error)}
           helperText={
             error ||
-            (templateParameter.validation_min !== 0 && templateParameter.validation_max !== 0)
+            (templateParameter.validation_min !== 0 &&
+              templateParameter.validation_max !== 0)
               ? `Must be between ${templateParameter.validation_min} and ${templateParameter.validation_max}.`
               : undefined
           }

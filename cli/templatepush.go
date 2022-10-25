@@ -80,7 +80,7 @@ func templatePush() *cobra.Command {
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
-				FileHash:        resp.Hash,
+				FileID:          resp.ID,
 				ParameterFile:   parameterFile,
 				Template:        &template,
 				ReuseParameters: !alwaysPrompt,

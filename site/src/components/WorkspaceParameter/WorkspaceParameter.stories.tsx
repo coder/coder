@@ -1,12 +1,17 @@
 import { Story } from "@storybook/react"
-import { WorkspaceParameter, WorkspaceParameterProps } from "./WorkspaceParameter"
+import {
+  WorkspaceParameter,
+  WorkspaceParameterProps,
+} from "./WorkspaceParameter"
 
 export default {
   title: "components/WorkspaceParameter",
   component: WorkspaceParameter,
 }
 
-const Template: Story<WorkspaceParameterProps> = (args) => <WorkspaceParameter {...args} />
+const Template: Story<WorkspaceParameterProps> = (args) => (
+  <WorkspaceParameter {...args} />
+)
 
 export const Region = Template.bind({})
 Region.args = {
@@ -71,7 +76,8 @@ Repo.args = {
   templateParameter: {
     name: "Repo",
     default_value: "coder",
-    description: "Select a repository to work on. This will automatically be cloned.",
+    description:
+      "Select a repository to work on. This will automatically be cloned.",
     icon: "/icon/github.svg",
     mutable: false,
     options: [
@@ -154,7 +160,8 @@ Dotfiles.args = {
     options: [],
     validation_max: 0,
     validation_min: 0,
-    validation_regex: "((git|ssh|http(s)?)|(git@[w.]+))(:(//)?)([w.@:/-~]+)(/)?",
+    validation_regex:
+      "((git|ssh|http(s)?)|(git@[w.]+))(:(//)?)([w.@:/-~]+)(/)?",
     validation_error: "Must be a valid Git URL!",
   },
   workspaceBuildParameter: {

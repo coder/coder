@@ -13,7 +13,9 @@ export default {
   },
 } as ComponentMeta<typeof RuntimeErrorState>
 
-const Template: Story<RuntimeErrorStateProps> = (args) => <RuntimeErrorState {...args} />
+const Template: Story<RuntimeErrorStateProps> = (args) => (
+  <RuntimeErrorState {...args} />
+)
 
 export const Errored = Template.bind({})
 Errored.parameters = {

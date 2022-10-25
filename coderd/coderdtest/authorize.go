@@ -57,7 +57,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/apps":                   {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/gitauth":                {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
@@ -100,10 +100,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
 		},
-		"GET:/api/v2/workspaceresources/{workspaceresource}": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
 		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: workspaceRBACObj,
@@ -128,11 +124,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},
-		"GET:/api/v2/workspaces/": {
-			StatusCode:   http.StatusOK,
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
-		},
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
@@ -151,7 +142,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{hash}": {
+		"GET:/api/v2/files/{fileID}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceFile.WithOwner(a.Admin.UserID.String()),
 		},
@@ -254,6 +245,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+
+		// Endpoints that use the SQLQuery filter.
+		"GET:/api/v2/workspaces/":      {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/count": {StatusCode: http.StatusOK, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -355,7 +350,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
 	require.NoError(t, err, "upload file")
-	workspaceResources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "workspace resources")
 	templateVersionDryRun, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
@@ -376,16 +371,16 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{workspace}":           workspace.ID.String(),
 		"{workspacebuild}":      workspace.LatestBuild.ID.String(),
 		"{workspacename}":       workspace.Name,
-		"{workspaceagent}":      workspaceResources[0].Agents[0].ID.String(),
+		"{workspaceagent}":      workspace.LatestBuild.Resources[0].Agents[0].ID.String(),
 		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
 		"{template}":            template.ID.String(),
-		"{hash}":                file.Hash,
-		"{workspaceresource}":   workspaceResources[0].ID.String(),
-		"{workspaceapp}":        workspaceResources[0].Agents[0].Apps[0].Name,
+		"{fileID}":              file.ID.String(),
+		"{workspaceresource}":   workspace.LatestBuild.Resources[0].ID.String(),
+		"{workspaceapp}":        workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Name,
 		"{templateversion}":     version.ID.String(),
 		"{jobID}":               templateVersionDryRun.ID.String(),
 		"{templatename}":        template.Name,
-		"{workspace_and_agent}": workspace.Name + "." + workspaceResources[0].Agents[0].Name,
+		"{workspace_and_agent}": workspace.Name + "." + workspace.LatestBuild.Resources[0].Agents[0].Name,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -401,7 +396,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		Admin:                 admin,
 		Template:              template,
 		Version:               version,
-		WorkspaceResource:     workspaceResources[0],
+		WorkspaceResource:     workspace.LatestBuild.Resources[0],
 		File:                  file,
 		TemplateVersionDryRun: templateVersionDryRun,
 		TemplateParam:         templateParam,
@@ -509,6 +504,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 type authCall struct {
 	SubjectID string
 	Roles     []string
+	Groups    []string
 	Scope     rbac.Scope
 	Action    rbac.Action
 	Object    rbac.Object
@@ -521,10 +517,17 @@ type RecordingAuthorizer struct {
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
+// ByRoleNameSQL does not record the call. This matches the postgres behavior
+// of not calling Authorize()
+func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ []string, _ rbac.Action, _ rbac.Object) error {
+	return r.AlwaysReturn
+}
+
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, groups []string, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
+		Groups:    groups,
 		Scope:     scope,
 		Action:    action,
 		Object:    object,
@@ -532,13 +535,15 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
-		Original:  r,
-		SubjectID: subjectID,
-		Roles:     roles,
-		Scope:     scope,
-		Action:    action,
+		Original:           r,
+		SubjectID:          subjectID,
+		Roles:              roles,
+		Scope:              scope,
+		Action:             action,
+		HardCodedSQLString: "true",
+		Groups:             groups,
 	}, nil
 }
 
@@ -547,13 +552,40 @@ func (r *RecordingAuthorizer) reset() {
 }
 
 type fakePreparedAuthorizer struct {
-	Original  *RecordingAuthorizer
-	SubjectID string
-	Roles     []string
-	Scope     rbac.Scope
-	Action    rbac.Action
+	Original            *RecordingAuthorizer
+	SubjectID           string
+	Roles               []string
+	Scope               rbac.Scope
+	Action              rbac.Action
+	Groups              []string
+	HardCodedSQLString  string
+	HardCodedRegoString string
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object)
+}
+
+// Compile returns a compiled version of the authorizer that will work for
+// in memory databases. This fake version will not work against a SQL database.
+func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
+	return f, nil
+}
+
+func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
+	return f.Original.ByRoleNameSQL(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object) == nil
+}
+
+func (f fakePreparedAuthorizer) RegoString() string {
+	if f.HardCodedRegoString != "" {
+		return f.HardCodedRegoString
+	}
+	panic("not implemented")
+}
+
+func (f fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+	if f.HardCodedSQLString != "" {
+		return f.HardCodedSQLString
+	}
+	panic("not implemented")
 }

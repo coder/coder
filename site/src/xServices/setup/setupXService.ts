@@ -20,7 +20,10 @@ export interface SetupContext {
   firstUser?: TypesGen.CreateFirstUserRequest
 }
 
-export type SetupEvent = { type: "CREATE_FIRST_USER"; firstUser: TypesGen.CreateFirstUserRequest }
+export type SetupEvent = {
+  type: "CREATE_FIRST_USER"
+  firstUser: TypesGen.CreateFirstUserRequest
+}
 
 export const setupMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QGUwBcCuAHZaCGaYAdAJYQA2YAxAMIBKAogIIAqDA+gGICSdyL7AKrIGdRKCwB7WCTQlJAO3EgAHogDMAViKaAnPoDsABgBMRgCy6jpkwBoQAT0QBGI+qIA2N0ePOAHJqa-qYAviH2qJg4+IREAMYATmAEJApQnCQJsGiCsGAJVBCKxKkAbpIA1sSJyYQZWTl5CcpSMnKKymoI6ibuzmZGuiYG6kYemn4eHvZOCObOzjom-X7qHsZGmuq6mmER6Ni4BNVJKWn12bn5VPkJkglEWOQEAGb3ALbxp3WZl00t0lk8iUSFUGl07g8-XMxlWmmsWnUMxcUyIzg86hhPgWvg8JjC4RACkkEDgykihxiJQoYABbWBnUQflcRAMZlc6jWwwMfmRCDM2ksfgMzl0Bisbj85j8exAFOixy+tVS6V+jXydKBHVBXQAtDsiOyeVp-OoFrpnHyzboiKZ1CMDCNzEY-H4xbL5UdYi81VcEjRvpBNe0QaAuoEbZzpfaRh4rFM+eYTOZbcsTBD0b0bB6DgrCMGGTrELrzYajM5jUFVubLY4NIsvKM2eMtKZNOMCSEgA */
@@ -84,7 +87,8 @@ export const setupMachine =
         createFirstUser: (_, event) => API.createFirstUser(event.firstUser),
       },
       guards: {
-        hasFieldErrors: (_, event) => isApiError(event.data) && hasApiFieldErrors(event.data),
+        hasFieldErrors: (_, event) =>
+          isApiError(event.data) && hasApiFieldErrors(event.data),
       },
       actions: {
         assignFirstUserData: assign({

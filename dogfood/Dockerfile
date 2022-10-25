@@ -147,7 +147,7 @@ RUN apt-get update --quiet && apt-get install --yes \
       google-cloud-sdk \
       google-cloud-sdk-datastore-emulator \
       kubectl \
-      postgresql-11 \
+      postgresql-13 \
       containerd.io \
       docker-ce \
       docker-ce-cli \
@@ -184,8 +184,8 @@ RUN apt-get update && \
     npm i -g playwright@1.19.1 && playwright install-deps
 
 # Ensure PostgreSQL binaries are in the users $PATH.
-RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/11/bin/initdb 100 && \
-    update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/11/bin/postgres 100
+RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/13/bin/initdb 100 && \
+    update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/13/bin/postgres 100
 
 # Create links for injected dependencies
 RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \

@@ -1,21 +1,26 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { firstOrItem } from "../../util/array"
-import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { firstOrItem } from "util/array"
+import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 
 export const WorkspacePage: FC = () => {
-  const { username: usernameQueryParam, workspace: workspaceQueryParam } = useParams()
+  const { username: usernameQueryParam, workspace: workspaceQueryParam } =
+    useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
-  const { workspace, getWorkspaceError, getTemplateWarning, checkPermissionsError } =
-    workspaceState.context
+  const {
+    workspace,
+    getWorkspaceError,
+    getTemplateWarning,
+    checkPermissionsError,
+  } = workspaceState.context
   const styles = useStyles()
 
   /**
@@ -23,20 +28,31 @@ export const WorkspacePage: FC = () => {
    * workspaceSend should not change.
    */
   useEffect(() => {
-    username && workspaceName && workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
+    username &&
+      workspaceName &&
+      workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, workspaceSend])
 
   return (
     <ChooseOne>
       <Cond condition={workspaceState.matches("error")}>
         <div className={styles.error}>
-          {Boolean(getWorkspaceError) && <ErrorSummary error={getWorkspaceError} />}
-          {Boolean(getTemplateWarning) && <ErrorSummary error={getTemplateWarning} />}
-          {Boolean(checkPermissionsError) && <ErrorSummary error={checkPermissionsError} />}
+          {Boolean(getWorkspaceError) && (
+            <AlertBanner severity="error" error={getWorkspaceError} />
+          )}
+          {Boolean(getTemplateWarning) && (
+            <AlertBanner severity="error" error={getTemplateWarning} />
+          )}
+          {Boolean(checkPermissionsError) && (
+            <AlertBanner severity="error" error={checkPermissionsError} />
+          )}
         </div>
       </Cond>
       <Cond condition={Boolean(workspace) && workspaceState.matches("ready")}>
-        <WorkspaceReadyPage workspaceState={workspaceState} workspaceSend={workspaceSend} />
+        <WorkspaceReadyPage
+          workspaceState={workspaceState}
+          workspaceSend={workspaceSend}
+        />
       </Cond>
       <Cond>
         <FullScreenLoader />

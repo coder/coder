@@ -1,0 +1,50 @@
+import { useMachine } from "@xstate/react"
+import React from "react"
+import { Helmet } from "react-helmet-async"
+import { useNavigate, useParams } from "react-router-dom"
+import { pageTitle } from "util/page"
+import { editGroupMachine } from "xServices/groups/editGroupXService"
+import SettingsGroupPageView from "./SettingsGroupPageView"
+
+export const SettingsGroupPage: React.FC = () => {
+  const { groupId } = useParams()
+  if (!groupId) {
+    throw new Error("Group ID not defined.")
+  }
+
+  const navigate = useNavigate()
+
+  const navigateToGroup = () => {
+    navigate(`/groups/${groupId}`)
+  }
+
+  const [editState, sendEditEvent] = useMachine(editGroupMachine, {
+    context: {
+      groupId,
+    },
+    actions: {
+      onUpdate: navigateToGroup,
+    },
+  })
+  const { updateGroupFormErrors, group } = editState.context
+
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle("Settings Group")}</title>
+      </Helmet>
+
+      <SettingsGroupPageView
+        onCancel={navigateToGroup}
+        onSubmit={(data) => {
+          sendEditEvent({ type: "UPDATE", data })
+        }}
+        group={group}
+        formErrors={updateGroupFormErrors}
+        isLoading={editState.matches("loading")}
+        isUpdating={editState.matches("updating")}
+      />
+    </>
+  )
+}
+export default SettingsGroupPage

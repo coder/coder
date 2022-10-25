@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,7 +17,7 @@ import (
 
 // These cookies are Coder-specific. If a new one is added or changed, the name
 // shouldn't be likely to conflict with any user-application set cookies.
-// Be sure to strip additional cookies in httpapi.StripCoder Cookies!
+// Be sure to strip additional cookies in httpapi.StripCoderCookies!
 const (
 	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
 	SessionTokenKey = "coder_session_token"
@@ -24,6 +25,9 @@ const (
 	SessionCustomHeader = "Coder-Session-Token"
 	OAuth2StateKey      = "oauth_state"
 	OAuth2RedirectKey   = "oauth_redirect"
+
+	// nolint: gosec
+	BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit"
 )
 
 // New creates a Coder client for the provided URL.
@@ -44,12 +48,13 @@ type Client struct {
 
 type RequestOption func(*http.Request)
 
-func WithQueryParams(params map[string]string) RequestOption {
+func WithQueryParam(key, value string) RequestOption {
 	return func(r *http.Request) {
-		q := r.URL.Query()
-		for k, v := range params {
-			q.Add(k, v)
+		if value == "" {
+			return
 		}
+		q := r.URL.Query()
+		q.Add(key, value)
 		r.URL.RawQuery = q.Encode()
 	}
 }
@@ -83,13 +88,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	}
 	req.Header.Set(SessionCustomHeader, c.SessionToken)
 
-	// Delete this custom cookie set in November 2022. This is just to remain
-	// backwards compatible with older versions of Coder.
-	req.AddCookie(&http.Cookie{
-		Name:  "session_token",
-		Value: c.SessionToken,
-	})
-
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -107,6 +105,9 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 // readBodyAsError reads the response as an .Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
+	if res == nil {
+		return xerrors.Errorf("no body returned")
+	}
 	defer res.Body.Close()
 	contentType := res.Header.Get("Content-Type")
 
@@ -125,33 +126,54 @@ func readBodyAsError(res *http.Response) error {
 		helper = "Try logging in using 'coder login <url>'."
 	}
 
-	if strings.HasPrefix(contentType, "text/plain") {
-		resp, err := io.ReadAll(res.Body)
-		if err != nil {
-			return xerrors.Errorf("read body: %w", err)
+	resp, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
+	}
+
+	mimeType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mimeType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+	}
+	if mimeType != "application/json" {
+		if len(resp) > 1024 {
+			resp = append(resp[:1024], []byte("...")...)
+		}
+		if len(resp) == 0 {
+			resp = []byte("no response body")
 		}
 		return &Error{
 			statusCode: res.StatusCode,
 			Response: Response{
-				Message: string(resp),
+				Message: "unexpected non-JSON response",
+				Detail:  string(resp),
 			},
 			Helper: helper,
 		}
 	}
 
-	//nolint:varnamelen
 	var m Response
-	err := json.NewDecoder(res.Body).Decode(&m)
+	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			// If no body is sent, we'll just provide the status code.
 			return &Error{
 				statusCode: res.StatusCode,
-				Helper:     helper,
+				Response: Response{
+					Message: "empty response body",
+				},
+				Helper: helper,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
 	}
+	if m.Message == "" {
+		if len(resp) > 1024 {
+			resp = append(resp[:1024], []byte("...")...)
+		}
+		m.Message = fmt.Sprintf("unexpected status code %d, response has no message", res.StatusCode)
+		m.Detail = string(resp)
+	}
+
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,

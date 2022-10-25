@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.4.15"
+      version = "0.5.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.0"
+      version = "~> 2.22.0"
     }
   }
 }
@@ -38,21 +38,25 @@ resource "coder_agent" "dev" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.dev.id
-  name     = "code-server"
-  url      = "http://localhost:13337/"
-  icon     = "/icon/code.svg"
+  agent_id  = coder_agent.dev.id
+  name      = "code-server"
+  url       = "http://localhost:13337/"
+  icon      = "/icon/code.svg"
+  subdomain = false
+  share     = "owner"
 
   healthcheck {
-    url       = "http://localhost:1337/healthz"
+    url       = "http://localhost:13337/healthz"
     interval  = 3
     threshold = 10
   }
 }
 
-
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 resource "coder_metadata" "home_info" {
@@ -64,20 +68,22 @@ resource "coder_metadata" "home_info" {
   }
 }
 
-
-data "docker_registry_image" "dogfood" {
-  name = "codercom/oss-dogfood:main"
-}
-
-
 locals {
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  registry_name  = "codercom/oss-dogfood"
+}
+data "docker_registry_image" "dogfood" {
+  name = "${local.registry_name}:main"
 }
 
 resource "docker_image" "dogfood" {
-  name          = data.docker_registry_image.dogfood.name
-  pull_triggers = [data.docker_registry_image.dogfood.sha256_digest]
-  keep_locally  = true
+  name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
+  pull_triggers = [
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
+  ]
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {

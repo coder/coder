@@ -1,8 +1,12 @@
+{{- include "coder.verifyDeprecated" . -}}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: coder
+  annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
 
 ---
 apiVersion: apps/v1
@@ -11,11 +15,9 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
-  # NOTE: this is currently not used as coder v2 does not support high
-  #       availability yet.
-  # replicas: {{ .Values.coder.replicaCount }}
-  replicas: 1
+  replicas: {{ .Values.coder.replicaCount }}
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
@@ -26,24 +28,28 @@ spec:
     spec:
       serviceAccountName: coder
       restartPolicy: Always
+      {{- with .Values.coder.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       terminationGracePeriodSeconds: 60
       containers:
         - name: coder
           image: {{ include "coder.image" . | quote }}
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.coder.resources | nindent 12 }}
           env:
             - name: CODER_ADDRESS
               value: "0.0.0.0:{{ include "coder.port" . }}"
-            {{- if .Values.coder.tls.secretName }}
-            - name: CODER_TLS_ENABLE
-              value: "true"
-            - name: CODER_TLS_CERT_FILE
-              value: /etc/ssl/certs/coder/tls.crt
-            - name: CODER_TLS_KEY_FILE
-              value: /etc/ssl/certs/coder/tls.key
-            {{- end }}
+            # Used for inter-pod communication with high-availability.
+            - name: KUBE_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CODER_DERP_SERVER_RELAY_URL
+              value: "{{ include "coder.portName" . }}://$(KUBE_POD_IP):{{ include "coder.port" . }}"
+            {{- include "coder.tlsEnv" . | nindent 12 }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
@@ -61,16 +67,6 @@ spec:
               path: /api/v2/buildinfo
               port: {{ include "coder.portName" . | quote }}
               scheme: {{ include "coder.scheme" . | quote }}
-          {{- if .Values.coder.tls.secretName }}
-          volumeMounts:
-            - name: tls
-              mountPath: /etc/ssl/certs/coder
-              readOnly: true
-          {{- end }}
+          {{- include "coder.volumeMounts" . | nindent 10 }}
 
-      {{- if .Values.coder.tls.secretName }}
-      volumes:
-        - name: tls
-          secret:
-            secretName: {{ .Values.coder.tls.secretName | quote }}
-      {{- end }}
+      {{- include "coder.volumes" . | nindent 6 }}
