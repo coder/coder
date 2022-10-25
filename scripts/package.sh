@@ -79,7 +79,7 @@ if [[ "$arch" == "arm" ]] || [[ "$arch" == "armv7" ]]; then
 fi
 
 # Make temporary dir where all source files intended to be in the package will
-# be hardlinked from.
+# be hardlinked to.
 cdroot
 temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
 ln "$input_file" "$temp_dir/coder"
