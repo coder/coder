@@ -26,11 +26,6 @@ terraform {
 #   cluster_ca_certificate = base64decode(yamldecode(data.kubernetes_resource.kubeconfig.data)["value"]["clusters"][0]["cluster"]["certificate-authority-data"])
 # }
 
-variable "base_domain" {
-  type    = string
-  default = "sanskar.pair.sharing.io"
-}
-
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
@@ -286,14 +281,14 @@ resource "kubernetes_manifest" "clusterresourceset_capi_init" {
 #   }
 # }
 
-resource "coder_app" "vcluster-apiserver" {
-  agent_id      = coder_agent.main.id
-  name          = "APIServer"
-  url           = "https://kubernetes.default.svc:443"
-  relative_path = true
-  healthcheck {
-    url       = "https://kubernetes.default.svc:443/healthz"
-    interval  = 5
-    threshold = 6
-  }
-}
+# resource "coder_app" "vcluster-apiserver" {
+#   agent_id      = coder_agent.main.id
+#   name          = "APIServer"
+#   url           = "https://kubernetes.default.svc:443"
+#   relative_path = true
+#   healthcheck {
+#     url       = "https://kubernetes.default.svc:443/healthz"
+#     interval  = 5
+#     threshold = 6
+#   }
+# }
