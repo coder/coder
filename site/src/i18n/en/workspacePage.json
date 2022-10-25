@@ -42,6 +42,7 @@
   "buildMessage": {
     "start": "started",
     "stop": "stopped",
+    "delete": "deleted",
     "theWorkspace": "the workspace",
     "automatically": "automatically "
   },
