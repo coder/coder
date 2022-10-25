@@ -120,7 +120,7 @@ export const PaginationWidget = ({
   activePage = 1,
   containerStyle,
 }: PaginationWidgetProps): JSX.Element | null => {
-  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 1
+  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
   const firstPageActive = activePage === 1 && numPages !== 0
   const lastPageActive = activePage === numPages && numPages !== 0
   const theme = useTheme()
