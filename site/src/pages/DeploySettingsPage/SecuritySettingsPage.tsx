@@ -89,10 +89,10 @@ const SecuritySettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              tls_enable: deploymentConfig.tls_enable,
-              tls_cert_files: deploymentConfig.tls_cert_files,
-              tls_key_files: deploymentConfig.tls_key_files,
-              tls_min_version: deploymentConfig.tls_min_version,
+              tls_enable: deploymentConfig.tls.enable,
+              tls_cert_files: deploymentConfig.tls.cert_file,
+              tls_key_files: deploymentConfig.tls.key_file,
+              tls_min_version: deploymentConfig.tls.min_version,
             }}
           />
         </div>

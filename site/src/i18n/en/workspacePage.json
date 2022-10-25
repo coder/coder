@@ -38,5 +38,16 @@
     "connected": "Connected",
     "connecting": "Connecting...",
     "disconnected": "Disconnected"
+  },
+  "buildMessage": {
+    "start": "started",
+    "stop": "stopped",
+    "delete": "deleted",
+    "theWorkspace": "the workspace",
+    "automatically": "automatically "
+  },
+  "buildData": {
+    "reason": "Reason",
+    "duration": "Duration"
   }
 }

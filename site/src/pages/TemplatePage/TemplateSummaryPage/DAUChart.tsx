@@ -71,7 +71,7 @@ export const DAUChart: FC<DAUChartProps> = ({
   defaults.font.family = theme.typography.fontFamily as string
   defaults.color = theme.palette.text.secondary
 
-  const options = {
+  const options: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: {
@@ -95,7 +95,7 @@ export const DAUChart: FC<DAUChartProps> = ({
       },
     },
     aspectRatio: 10 / 1,
-  } as ChartOptions
+  }
 
   return (
     <>
@@ -119,16 +119,13 @@ export const DAUChart: FC<DAUChartProps> = ({
               {
                 label: "Daily Active Users",
                 data: data,
-                lineTension: 1 / 4,
+                tension: 1 / 4,
                 backgroundColor: theme.palette.secondary.dark,
                 borderColor: theme.palette.secondary.dark,
               },
-              // There are type bugs in chart.js that force us to use any.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ] as any,
+            ],
           }}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          options={options as any}
+          options={options}
           height={400}
         />
       </WorkspaceSection>

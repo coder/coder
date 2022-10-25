@@ -211,12 +211,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), api.Keys, map[string]bool{
+	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[string]bool{
 		codersdk.FeatureAuditLog:         api.AuditLogging,
 		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
 		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
 		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
 		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
+		codersdk.FeatureMultipleGitAuth:  len(api.GitAuthConfigs) > 1,
 		codersdk.FeatureTemplateRBAC:     api.RBAC,
 	})
 	if err != nil {
