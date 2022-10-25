@@ -263,7 +263,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
 		coordinator := agpltailnet.NewCoordinator()
-		if api.Experimental && enabled {
+		if enabled {
 			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
