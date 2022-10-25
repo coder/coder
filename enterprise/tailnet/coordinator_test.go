@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/enterprise/tailnet"
 	agpl "github.com/coder/coder/tailnet"
