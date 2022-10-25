@@ -27,13 +27,13 @@ const StyledBadge = withStyles((theme) => ({
 
 const StyledAvatar = withStyles((theme) => ({
   root: {
-    background: theme.palette.background.paperLight,
+    background: theme.palette.divider,
     color: theme.palette.text.primary,
     border: `2px solid ${theme.palette.divider}`,
 
     "& svg": {
-      width: 24,
-      height: 24,
+      width: 18,
+      height: 18,
     },
   },
 }))(Avatar)
