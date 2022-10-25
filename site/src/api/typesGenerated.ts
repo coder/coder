@@ -915,7 +915,7 @@ export interface WorkspacesRequest extends Pagination {
 export type APIKeyScope = "all" | "application_connect"
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "write"
+export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
