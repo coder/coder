@@ -46,7 +46,7 @@ export const paginationMachine =
     },
     {
       actions: {
-        sendRefreshData: (_) => sendParent("REFRESH_DATA"),
+        sendRefreshData: sendParent("REFRESH_DATA"),
         assignNextPage: assign({
           page: (context) => context.page + 1,
         }),

@@ -290,6 +290,12 @@ export const workspacesMachine =
         },
         workspaces: {
           initial: "startingPagination",
+          on: {
+            REFRESH_DATA: {
+              target: ".gettingWorkspaces",
+              actions: "logRefresh"
+            },
+          },
           states: {
             startingPagination: {
               entry: "assignPaginationRef",
@@ -336,15 +342,9 @@ export const workspacesMachine =
               after: {
                 "5000": {
                   target: "#workspacesState.workspaces.gettingWorkspaces",
-                  actions: [],
-                  internal: false,
+                  internal: true
                 },
               },
-            },
-          },
-          on: {
-            REFRESH_DATA: {
-              target: ".gettingWorkspaces",
             },
           },
         },
