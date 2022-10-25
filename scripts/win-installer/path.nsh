@@ -1,6 +1,14 @@
 # PATH utilities. Taken from:
 # https://www.smartmontools.org/browser/trunk/smartmontools/os_win32/installer.nsi?rev=5310#L689
 
+; os_win32/installer.nsi - smartmontools install NSIS script
+;
+; Home page of code is: https://www.smartmontools.org
+;
+; Copyright (C) 2006-22 Christian Franke
+;
+; SPDX-License-Identifier: GPL-2.0-or-later
+
 
 ;--------------------------------------------------------------------
 ; Path functions

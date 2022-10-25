@@ -59,14 +59,15 @@ if [[ ! -f "$1" ]]; then
 fi
 input_file="$(realpath "$1")"
 
-# Remove the "v" prefix and ensure the version is in the format X.X.X.X for
-# makensis.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
-version="${version//-*/}"
-version+=".$(date -u +%Y%m%d%H%M)"
+
+# Remove the "v" prefix and ensure the version is in the format X.X.X.X for
+# makensis.
+nsis_version="${version//-*/}"
+nsis_version+=".$(date -u +%Y%m%d%H%M)"
 
 # Check dependencies
 dependencies makensis
@@ -113,6 +114,7 @@ pushd "$temp_dir"
 makensis \
 	-V4 \
 	-DCODER_VERSION="$version" \
+	-DCODER_NSIS_VERSION="$nsis_version" \
 	-DCODER_YEAR="$(date +%Y)" \
 	installer.nsi
 popd

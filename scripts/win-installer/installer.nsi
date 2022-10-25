@@ -6,7 +6,7 @@ Unicode true
 
 !define APP_NAME "Coder"
 !define COMP_NAME "Coder Technologies, Inc."
-!define VERSION "${CODER_VERSION}"
+!define VERSION "${CODER_NSIS_VERSION}"
 !define COPYRIGHT "Copyright (c) ${CODER_YEAR} Coder Technologies, Inc."
 !define DESCRIPTION "Remote development environments on your infrastructure provisioned with Terraform"
 !define INSTALLER_NAME "installer.exe"
@@ -37,7 +37,7 @@ SetCompressor /SOLID Lzma
 Name "${APP_NAME}"
 Caption "${APP_NAME}"
 OutFile "${INSTALLER_NAME}"
-BrandingText "${APP_NAME}"
+BrandingText "${APP_NAME} v${CODER_VERSION}"
 InstallDirRegKey "${REG_ROOT}" "${REG_APP_PATH}" "Path"
 InstallDir "${INSTALL_DIR}"
 
@@ -55,6 +55,8 @@ InstallDir "${INSTALL_DIR}"
 !define MUI_ABORTWARNING
 !define MUI_UNABORTWARNING
 
+!define MUI_WELCOMEPAGE_TEXT "Setup will guide you through the installation of Coder v${CODER_VERSION}.$\r$\n$\r$\nClick Next to continue."
+
 !insertmacro MUI_PAGE_WELCOME
 
 !insertmacro MUI_PAGE_LICENSE "${LICENSE_TXT}"
@@ -65,7 +67,7 @@ InstallDir "${INSTALL_DIR}"
 
 !insertmacro MUI_PAGE_INSTFILES
 
-!define MUI_FINISHPAGE_TEXT "Coder has been installed on your computer.$\r$\n$\r$\nTo use Coder, sign out and back in, then open a command prompt or PowerShell and run `coder`.$\r$\n$\r$\nClick Finish to close Setup."
+!define MUI_FINISHPAGE_TEXT "Coder v${CODER_VERSION} has been installed on your computer.$\r$\n$\r$\nIf you added Coder to your PATH, you can use Coder by opening a command prompt or PowerShell and running `coder`. You may have to sign out and sign back in for `coder` to be available.$\r$\n$\r$\nClick Finish to close Setup."
 
 !insertmacro MUI_PAGE_FINISH
 
