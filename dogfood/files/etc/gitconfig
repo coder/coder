@@ -1,4 +1,0 @@
-# This is required to force SSH authentication for go mod.
-# See: https://golang.org/ref/mod#private-module-repo-auth
-[url "git@github.com:"]
-    insteadOf = https://github.com/

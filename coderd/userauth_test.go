@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -37,12 +39,31 @@ func (o *oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOptio
 		return o.token, nil
 	}
 	return &oauth2.Token{
-		AccessToken: "token",
+		AccessToken:  "token",
+		RefreshToken: "refresh",
+		Expiry:       database.Now().Add(time.Hour),
 	}, nil
 }
 
-func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return nil
+func (o *oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	return &oauth2TokenSource{
+		token: o.token,
+	}
+}
+
+type oauth2TokenSource struct {
+	token *oauth2.Token
+}
+
+func (o *oauth2TokenSource) Token() (*oauth2.Token, error) {
+	if o.token != nil {
+		return o.token, nil
+	}
+	return &oauth2.Token{
+		AccessToken:  "token",
+		RefreshToken: "refresh",
+		Expiry:       database.Now().Add(time.Hour),
+	}, nil
 }
 
 func TestUserAuthMethods(t *testing.T) {

@@ -101,6 +101,13 @@
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
+          "title": "Resource Persistence",
+          "description": "Learn how resource persistence works in Coder",
+          "path": "./templates/resource-persistence.md",
+          "icon_path": "./images/icons/infinity.svg",
+          "last_updated": "2022-10-23"
+        },
+        {
           "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
           "path": "./templates/authentication.md",
@@ -257,18 +264,18 @@
           "state": "enterprise"
         },
         {
-          "title": "Enterprise",
-          "description": "Learn how to enable Enterprise features",
-          "icon_path": "./images/icons/group.svg",
-          "path": "./admin/enterprise.md"
-        },
-        {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }
       ]
+    },
+    {
+      "title": "Enterprise",
+      "description": "Learn how to enable Enterprise features",
+      "icon_path": "./images/icons/group.svg",
+      "path": "./enterprise.md"
     },
     {
       "title": "Contributing",
