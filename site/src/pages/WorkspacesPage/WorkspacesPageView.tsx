@@ -107,10 +107,7 @@ export const WorkspacesPageView: FC<
         filter={filter}
       />
 
-      <PaginationWidget
-        numRecords={count}
-        paginationRef={paginationRef}
-      />
+      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
     </Margins>
   )
 }

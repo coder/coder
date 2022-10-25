@@ -1,4 +1,7 @@
-import { PaginationContext, PaginationMachineRef } from "xServices/pagination/paginationXService"
+import {
+  PaginationContext,
+  PaginationMachineRef,
+} from "xServices/pagination/paginationXService"
 
 /**
  * Generates a ranged array with an option to step over values.
@@ -82,8 +85,12 @@ export const getPaginationData = (
   }
 }
 
-export const getPaginationContext = (searchParams: URLSearchParams, setSearchParams: ({ page }: { page: string }) => void, limit=DEFAULT_RECORDS_PER_PAGE): PaginationContext => ({
+export const getPaginationContext = (
+  searchParams: URLSearchParams,
+  setSearchParams: ({ page }: { page: string }) => void,
+  limit = DEFAULT_RECORDS_PER_PAGE,
+): PaginationContext => ({
   page: getInitialPage(searchParams.get("page")),
   limit,
-  updateURL: (page) => setSearchParams({ page: page.toString() })
+  updateURL: (page) => setSearchParams({ page: page.toString() }),
 })

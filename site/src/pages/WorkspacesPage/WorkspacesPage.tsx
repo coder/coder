@@ -6,9 +6,7 @@ import { useSearchParams } from "react-router-dom"
 import { workspaceFilterQuery } from "util/filters"
 import { pageTitle } from "util/page"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
-import {
-  workspacesMachine,
-} from "xServices/workspaces/workspacesXService"
+import { workspacesMachine } from "xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
 const WorkspacesPage: FC = () => {
@@ -17,13 +15,14 @@ const WorkspacesPage: FC = () => {
   const [workspacesState, send] = useMachine(workspacesMachine, {
     context: {
       filter,
-      paginationContext: getPaginationContext(searchParams, setSearchParams)
+      paginationContext: getPaginationContext(searchParams, setSearchParams),
     },
   })
 
   const { workspaceRefs, count, getWorkspacesError, getCountError } =
     workspacesState.context
-  const paginationRef = workspacesState.context.paginationRef as PaginationMachineRef
+  const paginationRef = workspacesState.context
+    .paginationRef as PaginationMachineRef
 
   return (
     <>

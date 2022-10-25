@@ -10,10 +10,7 @@ import { CSSProperties } from "react"
 import { useSearchParams } from "react-router-dom"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { PageButton } from "./PageButton"
-import {
-  buildPagedList,
-  getInitialPage,
-} from "./utils"
+import { buildPagedList, getInitialPage } from "./utils"
 
 export type PaginationWidgetProps = {
   prevLabel?: string
@@ -24,8 +21,8 @@ export type PaginationWidgetProps = {
 }
 
 export const PaginationWidget = ({
-  prevLabel="",
-  nextLabel="",
+  prevLabel = "",
+  nextLabel = "",
   numRecords,
   containerStyle,
   paginationRef,
