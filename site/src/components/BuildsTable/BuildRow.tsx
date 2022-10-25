@@ -22,7 +22,9 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
   const { t } = useTranslation("workspacePage")
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build)
   const navigate = useNavigate()
-  const clickableProps = useClickable(() => navigate(`builds/${build.id}`))
+  const clickableProps = useClickable(() =>
+    navigate(`builds/${build.build_number}`),
+  )
 
   return (
     <TableRow
@@ -35,50 +37,42 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
         <Stack
           direction="row"
           alignItems="center"
-          className={styles.buildRow}
-          tabIndex={0}
+          className={styles.buildWrapper}
         >
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            className={styles.buildRowMain}
-          >
-            <Stack direction="row" alignItems="center">
-              <BuildAvatar build={build} />
-              <div>
-                <Stack
-                  className={styles.buildResume}
-                  direction="row"
-                  alignItems="center"
-                  spacing={1}
-                >
-                  <span>
-                    <strong>{initiatedBy}</strong>{" "}
-                    {build.reason !== "initiator" ? "automatically " : " "}
-                    <strong>
-                      {t(`buildTransitionMessage.${build.transition}`)}
-                    </strong>{" "}
-                    the workspace
-                  </span>
+          <Stack direction="row" alignItems="center">
+            <BuildAvatar build={build} />
+            <div>
+              <Stack
+                className={styles.buildResume}
+                direction="row"
+                alignItems="center"
+                spacing={1}
+              >
+                <span>
+                  <strong>{initiatedBy}</strong>{" "}
+                  {build.reason !== "initiator"
+                    ? t("buildMessage.automatically")
+                    : ""}
+                  <strong>{t(`buildMessage.${build.transition}`)}</strong>{" "}
+                  {t("buildMessage.theWorkspace")}
+                </span>
 
-                  <span className={styles.buildTime}>
-                    {new Date(build.created_at).toLocaleTimeString()}
-                  </span>
-                </Stack>
+                <span className={styles.buildTime}>
+                  {new Date(build.created_at).toLocaleTimeString()}
+                </span>
+              </Stack>
 
-                <Stack direction="row" spacing={1}>
-                  <span className={styles.buildInfo}>
-                    Reason: <strong>{build.reason}</strong>
-                  </span>
+              <Stack direction="row" spacing={1}>
+                <span className={styles.buildInfo}>
+                  {t("buildData.reason")}: <strong>{build.reason}</strong>
+                </span>
 
-                  <span className={styles.buildInfo}>
-                    Duration:{" "}
-                    <strong>{displayWorkspaceBuildDuration(build)}</strong>
-                  </span>
-                </Stack>
-              </div>
-            </Stack>
+                <span className={styles.buildInfo}>
+                  {t("buildData.duration")}:{" "}
+                  <strong>{displayWorkspaceBuildDuration(build)}</strong>
+                </span>
+              </Stack>
+            </div>
           </Stack>
         </Stack>
       </TableCell>
@@ -88,8 +82,14 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
 
 const useStyles = makeStyles((theme) => ({
   buildRow: {
-    padding: theme.spacing(2, 4),
     cursor: "pointer",
+
+    "&:focus": {
+      outlineStyle: "solid",
+      outlineOffset: -1,
+      outlineWidth: 2,
+      outlineColor: theme.palette.secondary.dark,
+    },
 
     "&:not(:last-child) td:before": {
       position: "absolute",
@@ -103,14 +103,14 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
+  buildWrapper: {
+    padding: theme.spacing(2, 4),
+  },
+
   buildCell: {
     padding: "0 !important",
     position: "relative",
     borderBottom: 0,
-  },
-
-  buildRowMain: {
-    flex: 1,
   },
 
   buildResume: {

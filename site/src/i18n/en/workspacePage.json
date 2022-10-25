@@ -39,8 +39,14 @@
     "connecting": "Connecting...",
     "disconnected": "Disconnected"
   },
-  "buildTransitionMessage": {
+  "buildMessage": {
     "start": "started",
-    "stop": "stopped"
+    "stop": "stopped",
+    "theWorkspace": "the workspace",
+    "automatically": "automatically "
+  },
+  "buildData": {
+    "reason": "Reason",
+    "duration": "Duration"
   }
 }
