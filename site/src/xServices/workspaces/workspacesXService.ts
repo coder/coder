@@ -293,7 +293,6 @@ export const workspacesMachine =
           on: {
             REFRESH_DATA: {
               target: ".gettingWorkspaces",
-              actions: "logRefresh"
             },
           },
           states: {
