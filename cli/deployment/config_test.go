@@ -21,7 +21,7 @@ func TestConfig(t *testing.T) {
 	for _, tc := range []struct {
 		Name  string
 		Env   map[string]string
-		Valid func(config codersdk.DeploymentConfig)
+		Valid func(config *codersdk.DeploymentConfig)
 	}{{
 		Name: "Deployment",
 		Env: map[string]string{
@@ -39,19 +39,19 @@ func TestConfig(t *testing.T) {
 			"CODER_TELEMETRY_TRACE":      "false",
 			"CODER_WILDCARD_ACCESS_URL":  "something-wildcard.com",
 		},
-		Valid: func(config codersdk.DeploymentConfig) {
+		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.Address.Value, "0.0.0.0:8443")
 			require.Equal(t, config.AccessURL.Value, "https://dev.coder.com")
 			require.Equal(t, config.PostgresURL.Value, "some-url")
-			require.Equal(t, config.PprofAddress.Value, "something")
-			require.Equal(t, config.PprofEnable.Value, true)
-			require.Equal(t, config.PrometheusAddress.Value, "hello-world")
-			require.Equal(t, config.PrometheusEnable.Value, true)
+			require.Equal(t, config.Pprof.Address.Value, "something")
+			require.Equal(t, config.Pprof.Enable.Value, true)
+			require.Equal(t, config.Prometheus.Address.Value, "hello-world")
+			require.Equal(t, config.Prometheus.Enable.Value, true)
 			require.Equal(t, config.ProvisionerDaemons.Value, 5)
 			require.Equal(t, config.SecureAuthCookie.Value, true)
 			require.Equal(t, config.SSHKeygenAlgorithm.Value, "potato")
-			require.Equal(t, config.TelemetryEnable.Value, false)
-			require.Equal(t, config.TelemetryTrace.Value, false)
+			require.Equal(t, config.Telemetry.Enable.Value, false)
+			require.Equal(t, config.Telemetry.Trace.Value, false)
 			require.Equal(t, config.WildcardAccessURL.Value, "something-wildcard.com")
 		},
 	}, {
@@ -66,15 +66,15 @@ func TestConfig(t *testing.T) {
 			"CODER_DERP_SERVER_RELAY_URL":      "1.1.1.1",
 			"CODER_DERP_SERVER_STUN_ADDRESSES": "google.org",
 		},
-		Valid: func(config codersdk.DeploymentConfig) {
-			require.Equal(t, config.DERPConfigPath.Value, "/example/path")
-			require.Equal(t, config.DERPConfigURL.Value, "https://google.com")
-			require.Equal(t, config.DERPServerEnable.Value, false)
-			require.Equal(t, config.DERPServerRegionCode.Value, "something")
-			require.Equal(t, config.DERPServerRegionID.Value, 123)
-			require.Equal(t, config.DERPServerRegionName.Value, "Code-Land")
-			require.Equal(t, config.DERPServerRelayURL.Value, "1.1.1.1")
-			require.Equal(t, config.DERPServerSTUNAddresses.Value, []string{"google.org"})
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.DERP.Config.Path.Value, "/example/path")
+			require.Equal(t, config.DERP.Config.URL.Value, "https://google.com")
+			require.Equal(t, config.DERP.Server.Enable.Value, false)
+			require.Equal(t, config.DERP.Server.RegionCode.Value, "something")
+			require.Equal(t, config.DERP.Server.RegionID.Value, 123)
+			require.Equal(t, config.DERP.Server.RegionName.Value, "Code-Land")
+			require.Equal(t, config.DERP.Server.RelayURL.Value, "1.1.1.1")
+			require.Equal(t, config.DERP.Server.STUNAddresses.Value, []string{"google.org"})
 		},
 	}, {
 		Name: "Enterprise",
@@ -84,7 +84,7 @@ func TestConfig(t *testing.T) {
 			"CODER_SCIM_API_KEY":         "some-key",
 			"CODER_USER_WORKSPACE_QUOTA": "10",
 		},
-		Valid: func(config codersdk.DeploymentConfig) {
+		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.AuditLogging.Value, false)
 			require.Equal(t, config.BrowserOnly.Value, true)
 			require.Equal(t, config.SCIMAPIKey.Value, "some-key")
@@ -100,19 +100,19 @@ func TestConfig(t *testing.T) {
 			"CODER_TLS_ENABLE":         "true",
 			"CODER_TLS_MIN_VERSION":    "tls10",
 		},
-		Valid: func(config codersdk.DeploymentConfig) {
-			require.Len(t, config.TLSCertFiles.Value, 2)
-			require.Equal(t, config.TLSCertFiles.Value[0], "/etc/acme-sh/dev.coder.com")
-			require.Equal(t, config.TLSCertFiles.Value[1], "/etc/acme-sh/*.dev.coder.com")
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Len(t, config.TLS.CertFiles.Value, 2)
+			require.Equal(t, config.TLS.CertFiles.Value[0], "/etc/acme-sh/dev.coder.com")
+			require.Equal(t, config.TLS.CertFiles.Value[1], "/etc/acme-sh/*.dev.coder.com")
 
-			require.Len(t, config.TLSKeyFiles.Value, 2)
-			require.Equal(t, config.TLSKeyFiles.Value[0], "/etc/acme-sh/dev.coder.com")
-			require.Equal(t, config.TLSKeyFiles.Value[1], "/etc/acme-sh/*.dev.coder.com")
+			require.Len(t, config.TLS.KeyFiles.Value, 2)
+			require.Equal(t, config.TLS.KeyFiles.Value[0], "/etc/acme-sh/dev.coder.com")
+			require.Equal(t, config.TLS.KeyFiles.Value[1], "/etc/acme-sh/*.dev.coder.com")
 
-			require.Equal(t, config.TLSClientAuth.Value, "/some/path")
-			require.Equal(t, config.TLSClientCAFile.Value, "/some/path")
-			require.Equal(t, config.TLSEnable.Value, true)
-			require.Equal(t, config.TLSMinVersion.Value, "tls10")
+			require.Equal(t, config.TLS.ClientAuth.Value, "/some/path")
+			require.Equal(t, config.TLS.ClientCAFile.Value, "/some/path")
+			require.Equal(t, config.TLS.Enable.Value, true)
+			require.Equal(t, config.TLS.MinVersion.Value, "tls10")
 		},
 	}, {
 		Name: "OIDC",
@@ -124,13 +124,13 @@ func TestConfig(t *testing.T) {
 			"CODER_OIDC_ALLOW_SIGNUPS": "false",
 			"CODER_OIDC_SCOPES":        "something,here",
 		},
-		Valid: func(config codersdk.DeploymentConfig) {
-			require.Equal(t, config.OIDCIssuerURL.Value, "https://accounts.google.com")
-			require.Equal(t, config.OIDCEmailDomain.Value, "coder.com")
-			require.Equal(t, config.OIDCClientID.Value, "client")
-			require.Equal(t, config.OIDCClientSecret.Value, "secret")
-			require.Equal(t, config.OIDCAllowSignups.Value, false)
-			require.Equal(t, config.OIDCScopes.Value, []string{"something", "here"})
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.OIDC.IssuerURL.Value, "https://accounts.google.com")
+			require.Equal(t, config.OIDC.EmailDomain.Value, "coder.com")
+			require.Equal(t, config.OIDC.ClientID.Value, "client")
+			require.Equal(t, config.OIDC.ClientSecret.Value, "secret")
+			require.Equal(t, config.OIDC.AllowSignups.Value, false)
+			require.Equal(t, config.OIDC.Scopes.Value, []string{"something", "here"})
 		},
 	}, {
 		Name: "GitHub",
@@ -141,12 +141,12 @@ func TestConfig(t *testing.T) {
 			"CODER_OAUTH2_GITHUB_ALLOWED_TEAMS": "coder",
 			"CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS": "true",
 		},
-		Valid: func(config codersdk.DeploymentConfig) {
-			require.Equal(t, config.OAuth2GithubClientID.Value, "client")
-			require.Equal(t, config.OAuth2GithubClientSecret.Value, "secret")
-			require.Equal(t, []string{"coder"}, config.OAuth2GithubAllowedOrgs.Value)
-			require.Equal(t, []string{"coder"}, config.OAuth2GithubAllowedTeams.Value)
-			require.Equal(t, config.OAuth2GithubAllowSignups.Value, true)
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.OAuth2.Github.ClientID.Value, "client")
+			require.Equal(t, config.OAuth2.Github.ClientSecret.Value, "secret")
+			require.Equal(t, []string{"coder"}, config.OAuth2.Github.AllowedOrgs.Value)
+			require.Equal(t, []string{"coder"}, config.OAuth2.Github.AllowedTeams.Value)
+			require.Equal(t, config.OAuth2.Github.AllowSignups.Value, true)
 		},
 	}} {
 		tc := tc

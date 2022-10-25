@@ -117,11 +117,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// Coder tracing should be disabled if telemetry is disabled unless
 			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := cfg.TelemetryEnable.Value && !isTest()
+			shouldCoderTrace := cfg.Telemetry.Enable.Value && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
 			if cmd.Flags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.TelemetryTrace.Value
+				shouldCoderTrace = cfg.Telemetry.Trace.Value
 			}
 
 			if cfg.TraceEnable.Value || shouldCoderTrace {
@@ -174,13 +174,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			defer listener.Close()
 
 			var tlsConfig *tls.Config
-			if cfg.TLSEnable.Value {
+			if cfg.TLS.Enable.Value {
 				tlsConfig, err = configureTLS(
-					cfg.TLSMinVersion.Value,
-					cfg.TLSClientAuth.Value,
-					cfg.TLSCertFiles.Value,
-					cfg.TLSKeyFiles.Value,
-					cfg.TLSClientCAFile.Value,
+					cfg.TLS.MinVersion.Value,
+					cfg.TLS.ClientAuth.Value,
+					cfg.TLS.CertFiles.Value,
+					cfg.TLS.KeyFiles.Value,
+					cfg.TLS.ClientCAFile.Value,
 				)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
@@ -202,7 +202,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Scheme: "http",
 				Host:   tcpAddr.String(),
 			}
-			if cfg.TLSEnable.Value {
+			if cfg.TLS.Enable.Value {
 				localURL.Scheme = "https"
 			}
 
@@ -297,22 +297,22 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
-				RegionID:      cfg.DERPServerRegionID.Value,
-				RegionCode:    cfg.DERPServerRegionCode.Value,
-				RegionName:    cfg.DERPServerRegionName.Value,
+				RegionID:      cfg.DERP.Server.RegionID.Value,
+				RegionCode:    cfg.DERP.Server.RegionCode.Value,
+				RegionName:    cfg.DERP.Server.RegionName.Value,
 				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%db", cfg.DERPServerRegionID.Value),
-					RegionID:  cfg.DERPServerRegionID.Value,
+					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID.Value),
+					RegionID:  cfg.DERP.Server.RegionID.Value,
 					HostName:  accessURLParsed.Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: accessURLParsed.Scheme == "http",
 				}},
 			}
-			if !cfg.DERPServerEnable.Value {
+			if !cfg.DERP.Server.Enable.Value {
 				defaultRegion = nil
 			}
-			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, cfg.DERPServerSTUNAddresses.Value, cfg.DERPConfigURL.Value, cfg.DERPConfigPath.Value)
+			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, cfg.DERP.Server.STUNAddresses.Value, cfg.DERP.Config.URL.Value, cfg.DERP.Config.Path.Value)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
@@ -350,35 +350,35 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
-				DeploymentConfig:            &cfg,
+				DeploymentConfig:            cfg,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
-			if cfg.OAuth2GithubClientSecret.Value != "" {
+			if cfg.OAuth2.Github.ClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
-					cfg.OAuth2GithubClientID.Value,
-					cfg.OAuth2GithubClientSecret.Value,
-					cfg.OAuth2GithubAllowSignups.Value,
-					cfg.OAuth2GithubAllowedOrgs.Value,
-					cfg.OAuth2GithubAllowedTeams.Value,
-					cfg.OAuth2GithubEnterpriseBaseURL.Value,
+					cfg.OAuth2.Github.ClientID.Value,
+					cfg.OAuth2.Github.ClientSecret.Value,
+					cfg.OAuth2.Github.AllowSignups.Value,
+					cfg.OAuth2.Github.AllowedOrgs.Value,
+					cfg.OAuth2.Github.AllowedTeams.Value,
+					cfg.OAuth2.Github.EnterpriseBaseURL.Value,
 				)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
 			}
 
-			if cfg.OIDCClientSecret.Value != "" {
-				if cfg.OIDCClientID.Value == "" {
+			if cfg.OIDC.ClientSecret.Value != "" {
+				if cfg.OIDC.ClientID.Value == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
-				if cfg.OIDCIssuerURL.Value == "" {
+				if cfg.OIDC.IssuerURL.Value == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDCIssuerURL.Value)
+				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
@@ -388,17 +388,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
-						ClientID:     cfg.OIDCClientID.Value,
-						ClientSecret: cfg.OIDCClientSecret.Value,
+						ClientID:     cfg.OIDC.ClientID.Value,
+						ClientSecret: cfg.OIDC.ClientSecret.Value,
 						RedirectURL:  redirectURL.String(),
 						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       cfg.OIDCScopes.Value,
+						Scopes:       cfg.OIDC.Scopes.Value,
 					},
 					Verifier: oidcProvider.Verifier(&oidc.Config{
-						ClientID: cfg.OIDCClientID.Value,
+						ClientID: cfg.OIDC.ClientID.Value,
 					}),
-					EmailDomain:  cfg.OIDCEmailDomain.Value,
-					AllowSignups: cfg.OIDCAllowSignups.Value,
+					EmailDomain:  cfg.OIDC.EmailDomain.Value,
+					AllowSignups: cfg.OIDC.AllowSignups.Value,
 				}
 			}
 
@@ -461,26 +461,26 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(ctx, cfg.TelemetryURL.Value)
+			telemetryURL, err := parseURL(ctx, cfg.Telemetry.URL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
-			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.TelemetryEnable.Flag) {
-				cfg.TelemetryEnable.Value = false
+			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.Telemetry.Enable.Flag) {
+				cfg.Telemetry.Enable.Value = false
 			}
-			if cfg.TelemetryEnable.Value {
+			if cfg.Telemetry.Enable.Value {
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
 					Database:        options.Database,
 					Logger:          logger.Named("telemetry"),
 					URL:             telemetryURL,
-					GitHubOAuth:     cfg.OAuth2GithubClientID.Value != "",
-					OIDCAuth:        cfg.OIDCClientID.Value != "",
-					OIDCIssuerURL:   cfg.OIDCIssuerURL.Value,
-					Prometheus:      cfg.PrometheusEnable.Value,
-					STUN:            len(cfg.DERPServerSTUNAddresses.Value) != 0,
+					GitHubOAuth:     cfg.OAuth2.Github.ClientID.Value != "",
+					OIDCAuth:        cfg.OIDC.ClientID.Value != "",
+					OIDCIssuerURL:   cfg.OIDC.IssuerURL.Value,
+					Prometheus:      cfg.Prometheus.Enable.Value,
+					STUN:            len(cfg.DERP.Server.STUNAddresses.Value) != 0,
 					Tunnel:          tunnel != nil,
 				})
 				if err != nil {
@@ -491,11 +491,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			if cfg.PprofEnable.Value {
+			if cfg.Pprof.Enable.Value {
 				//nolint:revive
-				defer serveHandler(ctx, logger, nil, cfg.PprofAddress.Value, "pprof")()
+				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.Value, "pprof")()
 			}
-			if cfg.PrometheusEnable.Value {
+			if cfg.Prometheus.Enable.Value {
 				options.PrometheusRegistry = prometheus.NewRegistry()
 				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
@@ -512,7 +512,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				//nolint:revive
 				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				), cfg.PrometheusAddress.Value, "prometheus")()
+				), cfg.Prometheus.Address.Value, "prometheus")()
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
@@ -524,7 +524,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			client := codersdk.New(localURL)
-			if cfg.TLSEnable.Value {
+			if cfg.TLS.Enable.Value {
 				// Secure transport isn't needed for locally communicating!
 				client.HTTPClient.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{

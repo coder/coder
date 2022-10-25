@@ -5,7 +5,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { DeploymentConfig } from "api/typesGenerated"
+import { DeploymentConfigField, Flaggable } from "api/typesGenerated"
 import {
   OptionDescription,
   OptionName,
@@ -13,9 +13,9 @@ import {
 } from "components/DeploySettingsLayout/Option"
 import React from "react"
 
-const OptionsTable: React.FC<{ options: Partial<DeploymentConfig> }> = ({
-  options,
-}) => {
+const OptionsTable: React.FC<{
+  options: Record<string, DeploymentConfigField<Flaggable>>
+}> = ({ options }) => {
   const styles = useStyles()
 
   return (

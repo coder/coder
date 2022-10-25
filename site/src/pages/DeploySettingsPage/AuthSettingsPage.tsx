@@ -32,7 +32,7 @@ const AuthSettingsPage: React.FC = () => {
           />
 
           <Badges>
-            {deploymentConfig.oidc_client_id.value ? (
+            {deploymentConfig.oidc.client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -41,11 +41,11 @@ const AuthSettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              oidc_client_id: deploymentConfig.oidc_client_id,
-              oidc_allow_signups: deploymentConfig.oidc_allow_signups,
-              oidc_email_domain: deploymentConfig.oidc_email_domain,
-              oidc_issuer_url: deploymentConfig.oidc_issuer_url,
-              oidc_scopes: deploymentConfig.oidc_scopes,
+              client_id: deploymentConfig.oidc.client_id,
+              allow_signups: deploymentConfig.oidc.allow_signups,
+              email_domain: deploymentConfig.oidc.email_domain,
+              issuer_url: deploymentConfig.oidc.issuer_url,
+              scopes: deploymentConfig.oidc.scopes,
             }}
           />
         </div>
@@ -59,7 +59,7 @@ const AuthSettingsPage: React.FC = () => {
           />
 
           <Badges>
-            {deploymentConfig.oauth2_github_client_id.value ? (
+            {deploymentConfig.oauth2.github.client_id.value ? (
               <EnabledBadge />
             ) : (
               <DisabledBadge />
@@ -68,15 +68,12 @@ const AuthSettingsPage: React.FC = () => {
 
           <OptionsTable
             options={{
-              oauth2_github_client_id: deploymentConfig.oauth2_github_client_id,
-              oauth2_github_allow_signups:
-                deploymentConfig.oauth2_github_allow_signups,
-              oauth2_github_allowed_orgs:
-                deploymentConfig.oauth2_github_allowed_orgs,
-              oauth2_github_allowed_teams:
-                deploymentConfig.oauth2_github_allowed_teams,
-              oauth2_github_enterprise_base_url:
-                deploymentConfig.oauth2_github_enterprise_base_url,
+              client_id: deploymentConfig.oauth2.github.client_id,
+              allow_signups: deploymentConfig.oauth2.github.allow_signups,
+              allowed_orgs: deploymentConfig.oauth2.github.allowed_orgs,
+              allowed_teams: deploymentConfig.oauth2.github.allowed_teams,
+              enterprise_base_url:
+                deploymentConfig.oauth2.github.enterprise_base_url,
             }}
           />
         </div>

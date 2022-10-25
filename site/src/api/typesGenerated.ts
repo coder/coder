@@ -245,10 +245,32 @@ export interface DAUEntry {
   readonly amount: number
 }
 
+// From codersdk/deploymentconfig.go
+export interface DERP {
+  readonly server: DERPServerConfig
+  readonly config: DERPConfig
+}
+
+// From codersdk/deploymentconfig.go
+export interface DERPConfig {
+  readonly url: DeploymentConfigField<string>
+  readonly path: DeploymentConfigField<string>
+}
+
 // From codersdk/workspaceagents.go
 export interface DERPRegion {
   readonly preferred: boolean
   readonly latency_ms: number
+}
+
+// From codersdk/deploymentconfig.go
+export interface DERPServerConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly region_id: DeploymentConfigField<number>
+  readonly region_code: DeploymentConfigField<string>
+  readonly region_name: DeploymentConfigField<string>
+  readonly stun_addresses: DeploymentConfigField<string[]>
+  readonly relay_url: DeploymentConfigField<string>
 }
 
 // From codersdk/deploymentconfig.go
@@ -257,42 +279,19 @@ export interface DeploymentConfig {
   readonly wildcard_access_url: DeploymentConfigField<string>
   readonly address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
-  readonly derp_server_enabled: DeploymentConfigField<boolean>
-  readonly derp_server_region_id: DeploymentConfigField<number>
-  readonly derp_server_region_code: DeploymentConfigField<string>
-  readonly derp_server_region_name: DeploymentConfigField<string>
-  readonly derp_server_stun_address: DeploymentConfigField<string[]>
-  readonly derp_server_relay_address: DeploymentConfigField<string>
-  readonly derp_config_url: DeploymentConfigField<string>
-  readonly derp_config_path: DeploymentConfigField<string>
-  readonly prometheus_enabled: DeploymentConfigField<boolean>
-  readonly prometheus_address: DeploymentConfigField<string>
-  readonly pprof_enabled: DeploymentConfigField<boolean>
-  readonly pprof_address: DeploymentConfigField<string>
+  readonly derp: DERP
+  readonly prometheus: PrometheusConfig
+  readonly pprof: PprofConfig
   readonly proxy_trusted_headers: DeploymentConfigField<string[]>
   readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly provisioner_daemon_count: DeploymentConfigField<number>
-  readonly oauth2_github_client_id: DeploymentConfigField<string>
-  readonly oauth2_github_allowed_orgs: DeploymentConfigField<string[]>
-  readonly oauth2_github_allowed_teams: DeploymentConfigField<string[]>
-  readonly oauth2_github_allow_signups: DeploymentConfigField<boolean>
-  readonly oauth2_github_enterprise_base_url: DeploymentConfigField<string>
-  readonly oidc_allow_signups: DeploymentConfigField<boolean>
-  readonly oidc_client_id: DeploymentConfigField<string>
-  readonly oidc_email_domain: DeploymentConfigField<string>
-  readonly oidc_issuer_url: DeploymentConfigField<string>
-  readonly oidc_scopes: DeploymentConfigField<string[]>
-  readonly telemetry_enable: DeploymentConfigField<boolean>
-  readonly telemetry_trace_enable: DeploymentConfigField<boolean>
-  readonly telemetry_url: DeploymentConfigField<string>
-  readonly tls_enable: DeploymentConfigField<boolean>
-  readonly tls_cert_files: DeploymentConfigField<string[]>
-  readonly tls_client_ca_file: DeploymentConfigField<string>
-  readonly tls_client_auth: DeploymentConfigField<string>
-  readonly tls_key_files: DeploymentConfigField<string[]>
-  readonly tls_min_version: DeploymentConfigField<string>
+  readonly provisioner_daemons: DeploymentConfigField<number>
+  readonly pg_connection_url: DeploymentConfigField<string>
+  readonly oauth2: OAuth2Config
+  readonly oidc: OIDCConfig
+  readonly telemetry: TelemetryConfig
+  readonly tls: TLSConfig
   readonly trace_enable: DeploymentConfigField<boolean>
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
@@ -301,18 +300,20 @@ export interface DeploymentConfig {
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
+  readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
 }
 
 // From codersdk/deploymentconfig.go
 export interface DeploymentConfigField<T extends Flaggable> {
-  readonly key: string
   readonly name: string
   readonly usage: string
   readonly flag: string
   readonly shorthand: string
   readonly enterprise: boolean
   readonly hidden: boolean
+  readonly secret: boolean
+  readonly default: T
   readonly value: T
 }
 
@@ -399,6 +400,31 @@ export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
+// From codersdk/deploymentconfig.go
+export interface OAuth2Config {
+  readonly github: OAuth2GithubConfig
+}
+
+// From codersdk/deploymentconfig.go
+export interface OAuth2GithubConfig {
+  readonly client_id: DeploymentConfigField<string>
+  readonly client_secret: DeploymentConfigField<string>
+  readonly allowed_orgs: DeploymentConfigField<string[]>
+  readonly allowed_teams: DeploymentConfigField<string[]>
+  readonly allow_signups: DeploymentConfigField<boolean>
+  readonly enterprise_base_url: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface OIDCConfig {
+  readonly allow_signups: DeploymentConfigField<boolean>
+  readonly client_id: DeploymentConfigField<string>
+  readonly client_secret: DeploymentConfigField<string>
+  readonly email_domain: DeploymentConfigField<string>
+  readonly issuer_url: DeploymentConfigField<string>
+  readonly scopes: DeploymentConfigField<string[]>
+}
+
 // From codersdk/organizations.go
 export interface Organization {
   readonly id: string
@@ -462,6 +488,18 @@ export interface PatchGroupRequest {
   readonly remove_users: string[]
   readonly name: string
   readonly avatar_url?: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface PprofConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface PrometheusConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -530,6 +568,23 @@ export interface ServerSentEvent {
   readonly type: ServerSentEventType
   // eslint-disable-next-line
   readonly data: any
+}
+
+// From codersdk/deploymentconfig.go
+export interface TLSConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly cert_file: DeploymentConfigField<string[]>
+  readonly client_auth: DeploymentConfigField<string>
+  readonly client_ca_file: DeploymentConfigField<string>
+  readonly key_file: DeploymentConfigField<string[]>
+  readonly min_version: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface TelemetryConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly trace: DeploymentConfigField<boolean>
+  readonly url: DeploymentConfigField<string>
 }
 
 // From codersdk/templates.go
