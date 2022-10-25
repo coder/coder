@@ -162,6 +162,16 @@ CREATE TABLE files (
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
+CREATE TABLE git_auth_links (
+    provider_id text NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry timestamp with time zone NOT NULL
+);
+
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -461,6 +471,9 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);

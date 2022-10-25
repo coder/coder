@@ -103,7 +103,6 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 		}
 		updateStage("Running", *job.StartedAt)
 	}
-	updateJob()
 
 	if opts.Cancel != nil {
 		// Handles ctrl+c to cancel a job.
@@ -131,10 +130,11 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 
 	// The initial stage needs to print after the signal handler has been registered.
 	printStage()
+	updateJob()
 
 	logs, closer, err := opts.Logs()
 	if err != nil {
-		return xerrors.Errorf("logs: %w", err)
+		return xerrors.Errorf("begin streaming logs: %w", err)
 	}
 	defer closer.Close()
 

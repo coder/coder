@@ -1,12 +1,9 @@
 package agent
 
 import (
-	"context"
-	"io"
 	"net"
 	"sync/atomic"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -59,10 +56,3 @@ func (s *Stats) wrapConn(conn net.Conn) net.Conn {
 
 	return cs
 }
-
-// StatsReporter periodically accept and records agent stats.
-type StatsReporter func(
-	ctx context.Context,
-	log slog.Logger,
-	stats func() *codersdk.AgentStats,
-) (io.Closer, error)

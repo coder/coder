@@ -164,7 +164,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               theme="dark"
               data={data}
               onEmojiSelect={(emojiData) => {
-                form.setFieldValue("icon", `/emojis/${emojiData.unified}.png`)
+                // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
+                form.setFieldValue(
+                  "icon",
+                  `/emojis/${emojiData.unified.replace(/-fe0f$/, "")}.png`,
+                )
                 setIsEmojiPickerOpen(false)
               }}
             />

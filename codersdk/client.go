@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -104,6 +105,9 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 // readBodyAsError reads the response as an .Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
+	if res == nil {
+		return xerrors.Errorf("no body returned")
+	}
 	defer res.Body.Close()
 	contentType := res.Header.Get("Content-Type")
 
@@ -122,33 +126,54 @@ func readBodyAsError(res *http.Response) error {
 		helper = "Try logging in using 'coder login <url>'."
 	}
 
-	if strings.HasPrefix(contentType, "text/plain") {
-		resp, err := io.ReadAll(res.Body)
-		if err != nil {
-			return xerrors.Errorf("read body: %w", err)
+	resp, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
+	}
+
+	mimeType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mimeType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+	}
+	if mimeType != "application/json" {
+		if len(resp) > 1024 {
+			resp = append(resp[:1024], []byte("...")...)
+		}
+		if len(resp) == 0 {
+			resp = []byte("no response body")
 		}
 		return &Error{
 			statusCode: res.StatusCode,
 			Response: Response{
-				Message: string(resp),
+				Message: "unexpected non-JSON response",
+				Detail:  string(resp),
 			},
 			Helper: helper,
 		}
 	}
 
-	//nolint:varnamelen
 	var m Response
-	err := json.NewDecoder(res.Body).Decode(&m)
+	err = json.NewDecoder(bytes.NewBuffer(resp)).Decode(&m)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			// If no body is sent, we'll just provide the status code.
 			return &Error{
 				statusCode: res.StatusCode,
-				Helper:     helper,
+				Response: Response{
+					Message: "empty response body",
+				},
+				Helper: helper,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
 	}
+	if m.Message == "" {
+		if len(resp) > 1024 {
+			resp = append(resp[:1024], []byte("...")...)
+		}
+		m.Message = fmt.Sprintf("unexpected status code %d, response has no message", res.StatusCode)
+		m.Detail = string(resp)
+	}
+
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,

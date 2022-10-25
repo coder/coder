@@ -74,12 +74,16 @@ const GeneralSettingsPage = lazy(
 const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
 )
-const AuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/AuthSettingsPage"),
+const UserAuthSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
+)
+const GitAuthSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/GitAuthSettingsPage"),
 )
 const NetworkSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
 )
+const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -109,6 +113,14 @@ export const AppRouter: FC = () => {
           element={
             <RequireAuth>
               <CliAuthenticationPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="gitauth"
+          element={
+            <RequireAuth>
+              <GitAuthPage />
             </RequireAuth>
           }
         />
@@ -256,7 +268,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
                     <GeneralSettingsPage />
@@ -270,7 +282,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
                     <SecuritySettingsPage />
@@ -284,7 +296,7 @@ export const AppRouter: FC = () => {
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
                     <NetworkSettingsPage />
@@ -294,14 +306,28 @@ export const AppRouter: FC = () => {
             }
           />
           <Route
-            path="auth"
+            path="userauth"
             element={
               <AuthAndFrame>
                 <RequirePermission
-                  isFeatureVisible={Boolean(permissions?.viewDeploymentFlags)}
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
-                    <AuthSettingsPage />
+                    <UserAuthSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="gitauth"
+            element={
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
+                >
+                  <DeploySettingsLayout>
+                    <GitAuthSettingsPage />
                   </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>

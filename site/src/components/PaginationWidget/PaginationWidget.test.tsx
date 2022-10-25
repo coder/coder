@@ -4,28 +4,25 @@ import { PaginationWidget } from "./PaginationWidget"
 import { createPaginationRef } from "./utils"
 
 describe("PaginatedList", () => {
-  it("displays an accessible previous and next button regardless of the number of pages", async () => {
-    const { container } = render(
+  it("displays an accessible previous and next button", () => {
+    render(
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        paginationRef={createPaginationRef({ page: 1, limit: 25 })}
+        paginationRef={createPaginationRef({ page: 1, limit: 12 })}
+        numRecords={200}
       />,
     )
 
     expect(
-      await screen.findByRole("button", { name: "Previous page" }),
-    ).toBeTruthy()
+      screen.getByRole("button", { name: "Previous page" }),
+    ).toBeInTheDocument()
     expect(
-      await screen.findByRole("button", { name: "Next page" }),
-    ).toBeTruthy()
-    // Shouldn't render any pages if no records are passed in
-    expect(
-      await container.querySelectorAll(`button[name="Page button"]`),
-    ).toHaveLength(0)
+      screen.getByRole("button", { name: "Next page" }),
+    ).toBeInTheDocument()
   })
 
-  it("displays the expected number of pages with one ellipsis tile", async () => {
+  it("displays the expected number of pages with one ellipsis tile", () => {
     const { container } = render(
       <PaginationWidget
         prevLabel="Previous"
@@ -37,11 +34,11 @@ describe("PaginatedList", () => {
 
     // 7 total spaces. 6 are page numbers, one is ellipsis
     expect(
-      await container.querySelectorAll(`button[name="Page button"]`),
+      container.querySelectorAll(`button[name="Page button"]`),
     ).toHaveLength(6)
   })
 
-  it("displays the expected number of pages with two ellipsis tiles", async () => {
+  it("displays the expected number of pages with two ellipsis tiles", () => {
     const { container } = render(
       <PaginationWidget
         prevLabel="Previous"
@@ -53,7 +50,7 @@ describe("PaginatedList", () => {
 
     // 7 total spaces. 2 sets of ellipsis on either side of the active page
     expect(
-      await container.querySelectorAll(`button[name="Page button"]`),
+      container.querySelectorAll(`button[name="Page button"]`),
     ).toHaveLength(5)
   })
 })

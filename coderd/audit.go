@@ -117,8 +117,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipRaw, _, _ := net.SplitHostPort(r.RemoteAddr)
-	ip := net.ParseIP(ipRaw)
+	ip := net.ParseIP(r.RemoteAddr)
 	ipNet := pqtype.Inet{}
 	if ip != nil {
 		ipNet = pqtype.Inet{

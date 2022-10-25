@@ -206,7 +206,7 @@ export const templateMachine =
               target: "confirmingDelete",
             },
           },
-          initial: "refreshingTemplate",
+          initial: "waiting",
           states: {
             refreshingTemplate: {
               invoke: {

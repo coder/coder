@@ -26,6 +26,7 @@ import (
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
 	"github.com/pkg/sftp"
+	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -34,6 +35,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
+	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
@@ -52,47 +55,50 @@ const (
 )
 
 type Options struct {
-	CoordinatorDialer           CoordinatorDialer
-	FetchMetadata               FetchMetadata
-	StatsReporter               StatsReporter
-	WorkspaceAgentApps          WorkspaceAgentApps
-	PostWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
-	ReconnectingPTYTimeout      time.Duration
-	EnvironmentVariables        map[string]string
-	Logger                      slog.Logger
+	Filesystem             afero.Fs
+	ExchangeToken          func(ctx context.Context) error
+	Client                 Client
+	ReconnectingPTYTimeout time.Duration
+	EnvironmentVariables   map[string]string
+	Logger                 slog.Logger
 }
 
-// CoordinatorDialer is a function that constructs a new broker.
-// A dialer must be passed in to allow for reconnects.
-type CoordinatorDialer func(context.Context) (net.Conn, error)
-
-// FetchMetadata is a function to obtain metadata for the agent.
-type FetchMetadata func(context.Context) (codersdk.WorkspaceAgentMetadata, error)
+type Client interface {
+	WorkspaceAgentMetadata(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error)
+	ListenWorkspaceAgent(ctx context.Context) (net.Conn, error)
+	AgentReportStats(ctx context.Context, log slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error)
+	PostWorkspaceAgentAppHealth(ctx context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error
+	PostWorkspaceAgentVersion(ctx context.Context, version string) error
+}
 
 func New(options Options) io.Closer {
 	if options.ReconnectingPTYTimeout == 0 {
 		options.ReconnectingPTYTimeout = 5 * time.Minute
 	}
+	if options.Filesystem == nil {
+		options.Filesystem = afero.NewOsFs()
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		reconnectingPTYTimeout:      options.ReconnectingPTYTimeout,
-		logger:                      options.Logger,
-		closeCancel:                 cancelFunc,
-		closed:                      make(chan struct{}),
-		envVars:                     options.EnvironmentVariables,
-		coordinatorDialer:           options.CoordinatorDialer,
-		fetchMetadata:               options.FetchMetadata,
-		stats:                       &Stats{},
-		statsReporter:               options.StatsReporter,
-		workspaceAgentApps:          options.WorkspaceAgentApps,
-		postWorkspaceAgentAppHealth: options.PostWorkspaceAgentAppHealth,
+		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
+		logger:                 options.Logger,
+		closeCancel:            cancelFunc,
+		closed:                 make(chan struct{}),
+		envVars:                options.EnvironmentVariables,
+		client:                 options.Client,
+		exchangeToken:          options.ExchangeToken,
+		filesystem:             options.Filesystem,
+		stats:                  &Stats{},
 	}
 	server.init(ctx)
 	return server
 }
 
 type agent struct {
-	logger slog.Logger
+	logger        slog.Logger
+	client        Client
+	exchangeToken func(ctx context.Context) error
+	filesystem    afero.Fs
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -104,100 +110,137 @@ type agent struct {
 
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
-	metadata      atomic.Value
-	fetchMetadata FetchMetadata
-	sshServer     *ssh.Server
+	metadata  atomic.Value
+	sshServer *ssh.Server
 
-	network                     *tailnet.Conn
-	coordinatorDialer           CoordinatorDialer
-	stats                       *Stats
-	statsReporter               StatsReporter
-	workspaceAgentApps          WorkspaceAgentApps
-	postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth
+	network *tailnet.Conn
+	stats   *Stats
 }
 
-func (a *agent) run(ctx context.Context) {
-	var metadata codersdk.WorkspaceAgentMetadata
-	var err error
-	// An exponential back-off occurs when the connection is failing to dial.
-	// This is to prevent server spam in case of a coderd outage.
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		a.logger.Info(ctx, "connecting")
-		metadata, err = a.fetchMetadata(ctx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if a.isClosed() {
-				return
-			}
-			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+// runLoop attempts to start the agent in a retry loop.
+// Coder may be offline temporarily, a connection issue
+// may be happening, but regardless after the intermittent
+// failure, you'll want the agent to reconnect.
+func (a *agent) runLoop(ctx context.Context) {
+	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		a.logger.Info(ctx, "running loop")
+		err := a.run(ctx)
+		// Cancel after the run is complete to clean up any leaked resources!
+		if err == nil {
 			continue
 		}
-		a.logger.Info(context.Background(), "fetched metadata")
-		break
-	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-	a.metadata.Store(metadata)
-
-	// The startup script has not ran yet!
-	go func() {
-		err := a.runStartupScript(ctx, metadata.StartupScript)
 		if errors.Is(err, context.Canceled) {
 			return
 		}
-		if err != nil {
-			a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+		if a.isClosed() {
+			return
 		}
-	}()
-
-	if metadata.DERPMap != nil {
-		go a.runTailnet(ctx, metadata.DERPMap)
-	}
-
-	if a.workspaceAgentApps != nil && a.postWorkspaceAgentAppHealth != nil {
-		go NewWorkspaceAppHealthReporter(a.logger, a.workspaceAgentApps, a.postWorkspaceAgentAppHealth)(ctx)
+		if errors.Is(err, io.EOF) {
+			a.logger.Info(ctx, "likely disconnected from coder", slog.Error(err))
+			continue
+		}
+		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
 	}
 }
 
-func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
+func (a *agent) run(ctx context.Context) error {
+	// This allows the agent to refresh it's token if necessary.
+	// For instance identity this is required, since the instance
+	// may not have re-provisioned, but a new agent ID was created.
+	if a.exchangeToken != nil {
+		err := a.exchangeToken(ctx)
+		if err != nil {
+			return xerrors.Errorf("exchange token: %w", err)
+		}
+	}
+
+	err := a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
+	if err != nil {
+		return xerrors.Errorf("update workspace agent version: %w", err)
+	}
+
+	metadata, err := a.client.WorkspaceAgentMetadata(ctx)
+	if err != nil {
+		return xerrors.Errorf("fetch metadata: %w", err)
+	}
+	a.logger.Info(context.Background(), "fetched metadata")
+	oldMetadata := a.metadata.Swap(metadata)
+
+	// The startup script should only execute on the first run!
+	if oldMetadata == nil {
+		go func() {
+			err := a.runStartupScript(ctx, metadata.StartupScript)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+			}
+		}()
+	}
+
+	if metadata.GitAuthConfigs > 0 {
+		err = gitauth.OverrideVSCodeConfigs(a.filesystem)
+		if err != nil {
+			return xerrors.Errorf("override vscode configuration for git auth: %w", err)
+		}
+	}
+
+	// This automatically closes when the context ends!
+	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
+	defer appReporterCtxCancel()
+	go NewWorkspaceAppHealthReporter(
+		a.logger, metadata.Apps, a.client.PostWorkspaceAgentAppHealth)(appReporterCtx)
+
+	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", metadata.DERPMap))
+
 	a.closeMutex.Lock()
-	defer a.closeMutex.Unlock()
-	if a.isClosed() {
-		return
+	network := a.network
+	a.closeMutex.Unlock()
+	if a.network == nil {
+		a.logger.Debug(ctx, "creating tailnet")
+		network, err = a.createTailnet(ctx, metadata.DERPMap)
+		if err != nil {
+			return xerrors.Errorf("create tailnet: %w", err)
+		}
+		a.closeMutex.Lock()
+		a.network = network
+		a.closeMutex.Unlock()
+	} else {
+		// Update the DERP map!
+		network.SetDERPMap(metadata.DERPMap)
 	}
-	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", derpMap))
-	if a.network != nil {
-		a.network.SetDERPMap(derpMap)
-		return
+
+	a.logger.Debug(ctx, "running coordinator")
+	err = a.runCoordinator(ctx, network)
+	if err != nil {
+		a.logger.Debug(ctx, "coordinator exited", slog.Error(err))
+		return xerrors.Errorf("run coordinator: %w", err)
 	}
-	var err error
-	a.network, err = tailnet.NewConn(&tailnet.Options{
+	return nil
+}
+
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*tailnet.Conn, error) {
+	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
 	if err != nil {
-		a.logger.Critical(ctx, "create tailnet", slog.Error(err))
-		return
+		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
-	a.network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
+	a.network = network
+	network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
 		if listenerExists {
 			// If a listener already exists, we would double-wrap the conn.
 			return conn
 		}
 		return a.stats.wrapConn(conn)
 	})
-	go a.runCoordinator(ctx)
 
-	sshListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
+	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
-		a.logger.Critical(ctx, "listen for ssh", slog.Error(err))
-		return
+		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
 	go func() {
 		for {
@@ -209,10 +252,9 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		}
 	}()
 
-	reconnectingPTYListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
+	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
 	if err != nil {
-		a.logger.Critical(ctx, "listen for reconnecting pty", slog.Error(err))
-		return
+		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
 	go func() {
 		for {
@@ -244,10 +286,9 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		}
 	}()
 
-	speedtestListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
+	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
 	if err != nil {
-		a.logger.Critical(ctx, "listen for speedtest", slog.Error(err))
-		return
+		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
 	go func() {
 		for {
@@ -266,10 +307,9 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 		}
 	}()
 
-	statisticsListener, err := a.network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
 	if err != nil {
-		a.logger.Critical(ctx, "listen for statistics", slog.Error(err))
-		return
+		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
 	go func() {
 		defer statisticsListener.Close()
@@ -290,59 +330,26 @@ func (a *agent) runTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) {
 			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
 		}
 	}()
+
+	return network, nil
 }
 
-// runCoordinator listens for nodes and updates the self-node as it changes.
-func (a *agent) runCoordinator(ctx context.Context) {
-	for {
-		reconnect := a.runCoordinatorWithRetry(ctx)
-		if !reconnect {
-			return
-		}
+// runCoordinator runs a coordinator and returns whether a reconnect
+// should occur.
+func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
+	coordinator, err := a.client.ListenWorkspaceAgent(ctx)
+	if err != nil {
+		return err
 	}
-}
-
-func (a *agent) runCoordinatorWithRetry(ctx context.Context) (reconnect bool) {
-	var coordinator net.Conn
-	var err error
-	// An exponential back-off occurs when the connection is failing to dial.
-	// This is to prevent server spam in case of a coderd outage.
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		coordinator, err = a.coordinatorDialer(ctx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return false
-			}
-			if a.isClosed() {
-				return false
-			}
-			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
-			continue
-		}
-		//nolint:revive // Defer is ok because we're exiting this loop.
-		defer coordinator.Close()
-		a.logger.Info(context.Background(), "connected to coordination server")
-		break
-	}
+	defer coordinator.Close()
+	a.logger.Info(context.Background(), "connected to coordination server")
+	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
+	network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():
-		return false
-	default:
-	}
-	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, a.network.UpdateNodes)
-	a.network.SetNodeCallback(sendNodes)
-	select {
-	case <-ctx.Done():
-		return false
+		return ctx.Err()
 	case err := <-errChan:
-		if a.isClosed() {
-			return false
-		}
-		if errors.Is(err, context.Canceled) {
-			return false
-		}
-		a.logger.Debug(ctx, "node broker accept exited; restarting connection", slog.Error(err))
-		return true
+		return err
 	}
 }
 
@@ -448,7 +455,18 @@ func (a *agent) init(ctx context.Context) {
 			"sftp": func(session ssh.Session) {
 				session.DisablePTYEmulation()
 
-				server, err := sftp.NewServer(session)
+				var opts []sftp.ServerOption
+				// Change current working directory to the users home
+				// directory so that SFTP connections land there.
+				// https://github.com/coder/coder/issues/3620
+				u, err := user.Current()
+				if err != nil {
+					a.logger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+				} else {
+					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
+				}
+
+				server, err := sftp.NewServer(session, opts...)
 				if err != nil {
 					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
 					return
@@ -463,22 +481,20 @@ func (a *agent) init(ctx context.Context) {
 		},
 	}
 
-	go a.run(ctx)
-	if a.statsReporter != nil {
-		cl, err := a.statsReporter(ctx, a.logger, func() *codersdk.AgentStats {
-			return a.stats.Copy()
-		})
-		if err != nil {
-			a.logger.Error(ctx, "report stats", slog.Error(err))
-			return
-		}
-		a.connCloseWait.Add(1)
-		go func() {
-			defer a.connCloseWait.Done()
-			<-a.closed
-			cl.Close()
-		}()
+	go a.runLoop(ctx)
+	cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
+		return a.stats.Copy()
+	})
+	if err != nil {
+		a.logger.Error(ctx, "report stats", slog.Error(err))
+		return
 	}
+	a.connCloseWait.Add(1)
+	go func() {
+		defer a.connCloseWait.Done()
+		<-a.closed
+		cl.Close()
+	}()
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
@@ -685,7 +701,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID))
+			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID), slog.Error(err))
 			return
 		}
 

@@ -24,12 +24,11 @@ Coder [supports multiple IDEs](ides.md) for use with your workspaces.
 
 Workspaces in Coder are started and stopped, often based on whether there was
 any activity or if there was a [template
-update](./templates.md#manage-templates) available.
+update](./templates.md#start/stop) available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
-though the exact behavior depends on the template's definitions. For more
-information, see [persistent vs. ephemeral
-resources](./templates.md#persistent-vs-ephemeral-resources).
+though the exact behavior depends on the template. For more
+information, see [Resource Persistence](./templates/resource-persistence.md).
 
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default
@@ -39,6 +38,28 @@ resources](./templates.md#persistent-vs-ephemeral-resources).
 > persistent and which are ephemeral.
 
 When a workspace is deleted, all of the workspace's resources are deleted.
+
+## Workspace scheduling
+
+By default, workspaces are manually turned on/off by the user. However, a schedule
+can be defined on a per-workspace basis to automate the workspace start/stop.
+
+![Scheduling UI](./images/schedule.png)
+
+### Auto-start
+
+The auto-start feature automates the workspace build at a user-specified time
+and day(s) of the week. In addition, users can select their preferred timezone.
+
+![Auto-start UI](./images/auto-start.png)
+
+### Auto-stop
+
+The auto-stop feature shuts off workspaces after given number of hours in the "on"
+state. If Coder detects workspace connection activity, the auto-stop timer is bumped up
+one hour. IDE, SSH, Port Forwarding, and coder_app activity trigger this bump.
+
+![auto-stop UI](./images/auto-stop.png)
 
 ## Updating workspaces
 

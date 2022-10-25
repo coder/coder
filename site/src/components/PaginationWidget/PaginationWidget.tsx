@@ -38,8 +38,8 @@ export const PaginationWidget = ({
   const firstPageActive = currentPage === 1 && numPages !== 0
   const lastPageActive = currentPage === numPages && numPages !== 0
 
-  // No need to display any pagination if we know the number of pages is 1
-  if (numPages === 1 || numRecords === 0) {
+  // No need to display any pagination if we know the number of pages is 1 or 0
+  if (numPages <= 1 || numRecords === 0) {
     return null
   }
 

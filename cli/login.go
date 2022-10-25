@@ -285,5 +285,16 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 		return exec.Command("cmd.exe", "/c", "start", strings.ReplaceAll(urlToOpen, "&", "^&")).Start()
 	}
 
+	browserEnv := os.Getenv("BROWSER")
+	if browserEnv != "" {
+		browserSh := fmt.Sprintf("%s '%s'", browserEnv, urlToOpen)
+		cmd := exec.CommandContext(cmd.Context(), "sh", "-c", browserSh)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
+		}
+		return nil
+	}
+
 	return browser.OpenURL(urlToOpen)
 }

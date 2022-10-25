@@ -12,6 +12,7 @@ We track **create, update and delete** events for the following resources:
 - TemplateVersion
 - Workspace
 - User
+- Group
 
 ## Filtering logs
 
@@ -31,4 +32,4 @@ The supported filters are:
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license. [Learn more](./enterprise.md)
+This feature is only available with an enterprise license. [Learn more](../enterprise.md)

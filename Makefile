@@ -252,6 +252,13 @@ $(CODER_ALL_PACKAGES): $(CODER_PACKAGE_DEPS)
 		--output "$@" \
 		"build/coder_$(VERSION)_$${os}_$${arch}"
 
+# This task builds a Windows amd64 installer. Depends on makensis.
+build/coder_$(VERSION)_windows_amd64_installer.exe: build/coder_$(VERSION)_windows_amd64.exe
+	./scripts/build_windows_installer.sh \
+		--version "$(VERSION)" \
+		--output "$@" \
+		"$<"
+
 # Redirect from version-less Docker image targets to the versioned ones.
 #
 # Called like this:

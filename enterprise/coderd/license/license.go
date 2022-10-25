@@ -22,6 +22,7 @@ func Entitlements(
 	db database.Store,
 	logger slog.Logger,
 	replicaCount int,
+	gitAuthCount int,
 	keys map[string]ed25519.PublicKey,
 	enablements map[string]bool,
 ) (codersdk.Entitlements, error) {
@@ -116,6 +117,12 @@ func Entitlements(
 				Enabled:     enablements[codersdk.FeatureTemplateRBAC],
 			}
 		}
+		if claims.Features.MultipleGitAuth > 0 {
+			entitlements.Features[codersdk.FeatureMultipleGitAuth] = codersdk.Feature{
+				Entitlement: entitlement,
+				Enabled:     true,
+			}
+		}
 		if claims.AllFeatures {
 			allFeatures = true
 		}
@@ -150,6 +157,10 @@ func Entitlements(
 			if featureName == codersdk.FeatureHighAvailability {
 				continue
 			}
+			// Multiple Git auth has it's own warnings based on the number configured!
+			if featureName == codersdk.FeatureMultipleGitAuth {
+				continue
+			}
 			feature := entitlements.Features[featureName]
 			if !feature.Enabled {
 				continue
@@ -173,15 +184,36 @@ func Entitlements(
 		switch feature.Entitlement {
 		case codersdk.EntitlementNotEntitled:
 			if entitlements.HasLicense {
-				entitlements.Errors = append(entitlements.Warnings,
+				entitlements.Errors = append(entitlements.Errors,
 					"You have multiple replicas but your license is not entitled to high availability. You will be unable to connect to workspaces.")
 			} else {
-				entitlements.Errors = append(entitlements.Warnings,
+				entitlements.Errors = append(entitlements.Errors,
 					"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.")
 			}
 		case codersdk.EntitlementGracePeriod:
 			entitlements.Warnings = append(entitlements.Warnings,
 				"You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.")
+		}
+	}
+
+	if gitAuthCount > 1 {
+		feature := entitlements.Features[codersdk.FeatureMultipleGitAuth]
+
+		switch feature.Entitlement {
+		case codersdk.EntitlementNotEntitled:
+			if entitlements.HasLicense {
+				entitlements.Errors = append(entitlements.Errors,
+					"You have multiple Git authorizations configured but your license is limited at one.",
+				)
+			} else {
+				entitlements.Errors = append(entitlements.Errors,
+					"You have multiple Git authorizations configured but this is an Enterprise feature. Reduce to one.",
+				)
+			}
+		case codersdk.EntitlementGracePeriod:
+			entitlements.Warnings = append(entitlements.Warnings,
+				"You have multiple Git authorizations configured but your license is expired. Reduce to one.",
+			)
 		}
 	}
 
@@ -219,6 +251,7 @@ type Features struct {
 	WorkspaceQuota   int64 `json:"workspace_quota"`
 	TemplateRBAC     int64 `json:"template_rbac"`
 	HighAvailability int64 `json:"high_availability"`
+	MultipleGitAuth  int64 `json:"multiple_git_auth"`
 }
 
 type Claims struct {

@@ -230,8 +230,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		}
 	}
 
-	host, _, _ := net.SplitHostPort(params.RemoteAddr)
-	ip := net.ParseIP(host)
+	ip := net.ParseIP(params.RemoteAddr)
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
 	}
