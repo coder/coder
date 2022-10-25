@@ -166,9 +166,6 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 				if val != nil {
 					v = val.String()
 				}
-			case []string:
-				//nolint
-				v = strings.Join(v.([]string), ", ")
 			}
 
 			rowSlice[i] = v
