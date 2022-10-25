@@ -99,7 +99,6 @@ export interface WorkspaceScheduleFormValues {
   ttl: number
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export const validationSchema = Yup.object({
   sunday: Yup.boolean(),
   monday: Yup.boolean().test(

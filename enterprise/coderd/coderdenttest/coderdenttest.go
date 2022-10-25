@@ -113,6 +113,7 @@ type LicenseOptions struct {
 	WorkspaceQuota   bool
 	TemplateRBAC     bool
 	HighAvailability bool
+	MultipleGitAuth  bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -158,6 +159,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		rbacEnabled = 1
 	}
 
+	multipleGitAuth := int64(0)
+	if options.MultipleGitAuth {
+		multipleGitAuth = 1
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -179,6 +185,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			WorkspaceQuota:   workspaceQuota,
 			HighAvailability: highAvailability,
 			TemplateRBAC:     rbacEnabled,
+			MultipleGitAuth:  multipleGitAuth,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

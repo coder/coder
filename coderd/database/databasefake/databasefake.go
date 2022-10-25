@@ -34,6 +34,7 @@ func New() database.Store {
 			organizationMembers:            make([]database.OrganizationMember, 0),
 			organizations:                  make([]database.Organization, 0),
 			users:                          make([]database.User, 0),
+			gitAuthLinks:                   make([]database.GitAuthLink, 0),
 			groups:                         make([]database.Group, 0),
 			groupMembers:                   make([]database.GroupMember, 0),
 			auditLogs:                      make([]database.AuditLog, 0),
@@ -90,6 +91,7 @@ type data struct {
 	agentStats                     []database.AgentStat
 	auditLogs                      []database.AuditLog
 	files                          []database.File
+	gitAuthLinks                   []database.GitAuthLink
 	gitSSHKey                      []database.GitSSHKey
 	groups                         []database.Group
 	groupMembers                   []database.GroupMember
@@ -3437,4 +3439,55 @@ func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *fakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for _, gitAuthLink := range q.gitAuthLinks {
+		if arg.UserID != gitAuthLink.UserID {
+			continue
+		}
+		if arg.ProviderID != gitAuthLink.ProviderID {
+			continue
+		}
+		return gitAuthLink, nil
+	}
+	return database.GitAuthLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	// nolint:gosimple
+	gitAuthLink := database.GitAuthLink{
+		ProviderID:        arg.ProviderID,
+		UserID:            arg.UserID,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		OAuthAccessToken:  arg.OAuthAccessToken,
+		OAuthRefreshToken: arg.OAuthRefreshToken,
+		OAuthExpiry:       arg.OAuthExpiry,
+	}
+	q.gitAuthLinks = append(q.gitAuthLinks, gitAuthLink)
+	return gitAuthLink, nil
+}
+
+func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for index, gitAuthLink := range q.gitAuthLinks {
+		if gitAuthLink.ProviderID != arg.ProviderID {
+			continue
+		}
+		if gitAuthLink.UserID != arg.UserID {
+			continue
+		}
+		gitAuthLink.UpdatedAt = arg.UpdatedAt
+		gitAuthLink.OAuthAccessToken = arg.OAuthAccessToken
+		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
+		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
+		q.gitAuthLinks[index] = gitAuthLink
+	}
+	return nil
 }
