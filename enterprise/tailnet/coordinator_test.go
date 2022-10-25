@@ -28,7 +28,7 @@ func TestCoordinator(t *testing.T) {
 	t.Run("Local", func(t *testing.T) {
 		t.Parallel()
 
-		coordinatortest.RunCoordinatorSuite(t, func(testing.TB) coordinatortest.CoordinatorFactory {
+		coordinatortest.RunCoordinatorSuite(t, func(t testing.TB) coordinatortest.CoordinatorFactory {
 			coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory())
 			require.NoError(t, err)
 			return coordinatortest.NewLocalFactory(coordinator)
@@ -36,7 +36,9 @@ func TestCoordinator(t *testing.T) {
 	})
 
 	t.Run("HA", func(t *testing.T) {
-		coordinatortest.RunCoordinatorSuite(t, func(testing.TB) coordinatortest.CoordinatorFactory {
+		t.Parallel()
+
+		coordinatortest.RunCoordinatorSuite(t, func(t testing.TB) coordinatortest.CoordinatorFactory {
 			return &haCoordinator{pubsub: database.NewPubsubInMemory()}
 		})
 	})

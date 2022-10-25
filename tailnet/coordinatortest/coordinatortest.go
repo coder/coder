@@ -1,3 +1,4 @@
+//nolint:gosec
 package coordinatortest
 
 import (
@@ -35,7 +36,7 @@ func (l *localFactory) New(testing.TB) tailnet.Coordinator {
 }
 
 func RunCoordinatorSuite(t *testing.T,
-	newFactory func(testing.TB) CoordinatorFactory,
+	newFactory func(t testing.TB) CoordinatorFactory,
 ) {
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
@@ -369,6 +370,7 @@ func RunCoordinatorSuite(t *testing.T,
 		// Create a random number of coordinators.
 		for i := 0; i < numCoordinators; i++ {
 			coord := factory.New(t)
+			//nolint:revive
 			defer coord.Close()
 
 			coordinators = append(coordinators, coord)

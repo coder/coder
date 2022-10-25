@@ -103,7 +103,7 @@ linters-settings:
     settings:
       ruleguard:
         failOn: all
-        rules: '${configDir}/scripts/rules.go'
+        rules: "${configDir}/scripts/rules.go"
 
   staticcheck:
     # https://staticcheck.io/docs/options#checks
@@ -244,7 +244,8 @@ linters:
     # - wastedassign
 
     - staticcheck
-    - tenv
+    # This is bugged.
+    # - tenv
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
     # decomposing a package before testing it's internals. A function caller
