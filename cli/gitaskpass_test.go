@@ -67,14 +67,15 @@ func TestGitAskpass(t *testing.T) {
 		})
 		poll := make(chan struct{}, 10)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			val := resp.Load()
 			if r.URL.Query().Has("listen") {
 				poll <- struct{}{}
-				if resp.Load().URL != "" {
-					httpapi.Write(context.Background(), w, http.StatusInternalServerError, resp)
+				if val.URL != "" {
+					httpapi.Write(context.Background(), w, http.StatusInternalServerError, val)
 					return
 				}
 			}
-			httpapi.Write(context.Background(), w, http.StatusOK, resp)
+			httpapi.Write(context.Background(), w, http.StatusOK, val)
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL

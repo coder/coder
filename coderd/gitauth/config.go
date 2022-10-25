@@ -26,7 +26,7 @@ type Config struct {
 
 // ConvertConfig converts the YAML configuration entry to the
 // parsed and ready-to-consume provider type.
-func ConvertConfig(entries []codersdk.DeploymentConfigGitAuth, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {

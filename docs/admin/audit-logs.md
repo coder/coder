@@ -12,6 +12,7 @@ We track **create, update and delete** events for the following resources:
 - TemplateVersion
 - Workspace
 - User
+- Group
 
 ## Filtering logs
 

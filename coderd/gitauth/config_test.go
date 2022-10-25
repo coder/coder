@@ -14,38 +14,38 @@ func TestConvertYAML(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		Name   string
-		Input  []codersdk.DeploymentConfigGitAuth
+		Input  []codersdk.GitAuthConfig
 		Output []*gitauth.Config
 		Error  string
 	}{{
 		Name: "InvalidType",
-		Input: []codersdk.DeploymentConfigGitAuth{{
+		Input: []codersdk.GitAuthConfig{{
 			Type: "moo",
 		}},
 		Error: "unknown git provider type",
 	}, {
 		Name: "InvalidID",
-		Input: []codersdk.DeploymentConfigGitAuth{{
+		Input: []codersdk.GitAuthConfig{{
 			Type: codersdk.GitProviderGitHub,
 			ID:   "$hi$",
 		}},
 		Error: "doesn't have a valid id",
 	}, {
 		Name: "NoClientID",
-		Input: []codersdk.DeploymentConfigGitAuth{{
+		Input: []codersdk.GitAuthConfig{{
 			Type: codersdk.GitProviderGitHub,
 		}},
 		Error: "client_id must be provided",
 	}, {
 		Name: "NoClientSecret",
-		Input: []codersdk.DeploymentConfigGitAuth{{
+		Input: []codersdk.GitAuthConfig{{
 			Type:     codersdk.GitProviderGitHub,
 			ClientID: "example",
 		}},
 		Error: "client_secret must be provided",
 	}, {
 		Name: "DuplicateType",
-		Input: []codersdk.DeploymentConfigGitAuth{{
+		Input: []codersdk.GitAuthConfig{{
 			Type:         codersdk.GitProviderGitHub,
 			ClientID:     "example",
 			ClientSecret: "example",
@@ -55,7 +55,7 @@ func TestConvertYAML(t *testing.T) {
 		Error: "multiple github git auth providers provided",
 	}, {
 		Name: "InvalidRegex",
-		Input: []codersdk.DeploymentConfigGitAuth{{
+		Input: []codersdk.GitAuthConfig{{
 			Type:         codersdk.GitProviderGitHub,
 			ClientID:     "example",
 			ClientSecret: "example",
