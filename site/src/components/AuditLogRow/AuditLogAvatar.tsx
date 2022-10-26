@@ -17,14 +17,13 @@ const httpStatusColor = (httpStatus: number): PaletteIndex => {
   return "success"
 }
 
-interface ComponentWithPaletteIndex {
-  paletteIndex: PaletteIndex
+interface StyledBadgeProps {
+  type: PaletteIndex
 }
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
-    backgroundColor: ({ paletteIndex }: ComponentWithPaletteIndex) =>
-      theme.palette[paletteIndex].light,
+    backgroundColor: ({ type }: StyledBadgeProps) => theme.palette[type].light,
     borderRadius: "100%",
     width: 10,
     minWidth: 10,
@@ -45,7 +44,7 @@ export const AuditLogAvatar: FC<AuditLogAvatarProps> = ({ auditLog }) => {
   return (
     <StyledBadge
       role="status"
-      paletteIndex={paletteIndex}
+      type={paletteIndex}
       arial-label={auditLog.status_code}
       title={auditLog.status_code.toString()}
       overlap="circular"
