@@ -19,7 +19,7 @@ var (
 	//go:embed quickstart
 	files embed.FS
 
-	exampleBasePath = "https://github.com/coder/coder/tree/main/examples"
+	exampleBasePath = "https://github.com/coder/coder/tree/main/templates/quickstart"
 	examples        = make([]Example, 0)
 	parseExamples   sync.Once
 	archives        = singleflight.Group{}
