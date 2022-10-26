@@ -75,7 +75,6 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 }) => {
   const isLoading = auditLogs === undefined || count === undefined
   const isEmpty = !isLoading && auditLogs.length === 0
-  const hasResults = !isLoading && auditLogs.length > 0
   const auditLogsByDate = groupAuditLogsByDate(auditLogs)
 
   return (
@@ -116,10 +115,6 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                 )
               })}
 
-            {hasResults &&
-              auditLogs.map((auditLog) => (
-                <AuditLogRow auditLog={auditLog} key={auditLog.id} />
-              ))}
             {isEmpty && (
               <TableRow>
                 <TableCell colSpan={999}>
