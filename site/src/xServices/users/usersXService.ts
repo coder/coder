@@ -1,4 +1,6 @@
-import { assign, createMachine } from "xstate"
+import { getPaginationData } from "components/PaginationWidget/utils"
+import { PaginationContext, paginationMachine, PaginationMachineRef } from "xServices/pagination/paginationXService"
+import { assign, createMachine, send, spawn } from "xstate"
 import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
@@ -8,6 +10,8 @@ import {
 } from "../../components/GlobalSnackbar/utils"
 import { queryToFilter } from "../../util/filters"
 import { generateRandomString } from "../../util/random"
+
+const usersPaginationId = "usersPagination"
 
 export const Language = {
   getUsersError: "Error getting users.",
@@ -44,6 +48,8 @@ export interface UsersContext {
   // Update user roles
   userIdToUpdateRoles?: TypesGen.User["id"]
   updateUserRolesError?: Error | unknown
+  paginationContext: PaginationContext
+  paginationRef: PaginationMachineRef
 }
 
 export type UsersEvent =
@@ -70,6 +76,10 @@ export type UsersEvent =
       userId: TypesGen.User["id"]
       roles: TypesGen.Role["name"][]
     }
+  // Filter
+  | { type: "FILTER"; query: string }
+  // Pagination
+  | { type: "UPDATE_PAGE"; page: string }
 
 export const usersMachine = createMachine(
   {
@@ -103,8 +113,12 @@ export const usersMachine = createMachine(
         }
       },
     },
-    initial: "gettingUsers",
+    initial: "startingPagination",
     states: {
+      startingPagination: {
+        entry: "assignPaginationRef",
+        always: "gettingUsers"
+      },
       gettingUsers: {
         entry: "clearGetUsersError",
         invoke: {
@@ -155,6 +169,13 @@ export const usersMachine = createMachine(
             target: "updatingUserRoles",
             actions: ["assignUserIdToUpdateRoles"],
           },
+          UPDATE_PAGE: {
+            target: "gettingUsers",
+            actions: "updateURL"
+          },
+          FILTER: {
+            actions: ["assignFilter", "sendResetPage"]
+          }
         },
       },
       confirmUserSuspension: {
@@ -282,7 +303,10 @@ export const usersMachine = createMachine(
       // Passing API.getUsers directly does not invoke the function properly
       // when it is mocked. This happen in the UsersPage tests inside of the
       // "shows a success message and refresh the page" test case.
-      getUsers: (context) => API.getUsers(queryToFilter(context.filter)),
+      getUsers: (context) => {
+        const { offset, limit } = getPaginationData(context.paginationRef)
+        return API.getUsers({ ...queryToFilter(context.filter), offset, limit })
+      },
       suspendUser: (context) => {
         if (!context.userIdToSuspend) {
           throw new Error("userIdToSuspend is undefined")
@@ -457,6 +481,17 @@ export const usersMachine = createMachine(
           })
         },
       }),
+      assignPaginationRef: assign({
+        paginationRef: (context) =>
+          spawn(
+            paginationMachine.withContext(context.paginationContext),
+            usersPaginationId,
+          ),
+      }),
+      sendResetPage: send(
+        { type: "RESET_PAGE" },
+        { to: usersPaginationId },
+      ),
     },
   },
 )

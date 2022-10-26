@@ -132,10 +132,10 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 }
 
 export const getUsers = async (
-  filter?: TypesGen.UsersRequest,
+  options: TypesGen.UsersRequest,
 ): Promise<TypesGen.User[]> => {
-  const url = getURLWithSearchParams("/api/v2/users", filter)
-  const response = await axios.get<TypesGen.User[]>(url)
+  const url = buildURL("/api/v2/users", options)
+  const response = await axios.get<TypesGen.User[]>(url.toString())
   return response.data
 }
 
@@ -262,6 +262,21 @@ export const watchWorkspace = (workspaceId: string): EventSource => {
     `${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
     { withCredentials: true },
   )
+}
+
+interface SearchParamOptions extends TypesGen.Pagination {
+  q?: string
+  filter?: string
+}
+
+const buildURL = (basePath: string, options: SearchParamOptions) => {
+  const url = new URL(basePath)
+  const keys = Object.keys(options) as (keyof SearchParamOptions)[]
+  keys.forEach((key) => {
+    const value = options[key] ?? ""
+    url.searchParams.append(key, value.toString())
+  })
+  return url
 }
 
 export const getURLWithSearchParams = (
