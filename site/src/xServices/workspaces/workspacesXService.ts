@@ -1,4 +1,10 @@
-import { ActorRefFrom, assign, createMachine, spawn } from "xstate"
+import { getPaginationData } from "components/PaginationWidget/utils"
+import {
+  PaginationContext,
+  paginationMachine,
+  PaginationMachineRef,
+} from "xServices/pagination/paginationXService"
+import { ActorRefFrom, assign, createMachine, spawn, send } from "xstate"
 import * as API from "../../api/api"
 import { getErrorMessage } from "../../api/errors"
 import * as TypesGen from "../../api/typesGenerated"
@@ -8,6 +14,8 @@ import {
   displaySuccess,
 } from "../../components/GlobalSnackbar/utils"
 import { queryToFilter } from "../../util/filters"
+
+export const workspacePaginationId = "workspacePagination"
 
 /**
  * Workspace item machine
@@ -204,23 +212,21 @@ export type WorkspaceItemMachineRef = ActorRefFrom<typeof workspaceItemMachine>
 
 interface WorkspacesContext {
   workspaceRefs?: WorkspaceItemMachineRef[]
+  paginationRef?: PaginationMachineRef
   filter: string
+  count?: number
   getWorkspacesError?: Error | unknown
   getCountError?: Error | unknown
-  page: number
-  count?: number
-  limit: number
+  paginationContext: PaginationContext
 }
 
 type WorkspacesEvent =
-  | { type: "UPDATE_FILTER"; query?: string }
+  | { type: "UPDATE_PAGE"; page: string }
   | { type: "UPDATE_VERSION"; workspaceId: string }
-  | { type: "NEXT" }
-  | { type: "PREVIOUS" }
-  | { type: "GO_TO_PAGE"; page: number }
+  | { type: "UPDATE_FILTER"; query?: string }
 
 export const workspacesMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGM4BlAFz1LADpk8BLUgFVQCUwAzdOACwHUNs+IrADEAD1jlKVPO0roAFAFYADGoCUItFlyESU6rQbM2nHvx1C4AbRUBdRKBypYDOqgB2jkGMQBGAGYANgCqFQAmAE4-cIAOOPDwoIB2ZIAaEABPRHCVKljAv2S-EMiClSUAFliAXxqM7UE9WDIKanYwUgJuOg8oKgJUAFcPUioYUlJeqABhYdGRCE9qXoA3VExqCYsm4TmR0lsHJBBnVynPb18ESsq8uOLk2KCVSqVY4qUM7IQAyqoApElOFKskgpEUn5avUQI1dMJWtIOl0en0BvMxhMpn19gswOh0BgqDgADYUdgYAC2406O3hcFxh3s3jObkuJ2ufyUVEiAXi4QCySUAWBARF3xyaiowuqZShQSCiUidQaAnpLQMVGR3WmNDVVlgVCGOAgFGmdKsplESw8Kw8602RpNbQteitRxZLjZXg5iFitwByTKARUQVulQCiQlCBeeX9sWifihhXBKth+uaiPanR1aLhBppk3NGeEi2WVDWGy2tJLNmZJ1ZFx9oGub25f0jyQqSiUQvi0aUiqoiXCfnecT8kRUwTT+czmu1qP6c+EhexUFdpZtdod1dIm5sfmOTi9TauiFukWlCb5097-tD0cqQ57dw+8cCz9ntY1bS1OaXPVLGaNdi2A0t8UJdBiTJUgKXQalth-D0G1Pdxmx8fximHF5O1uVJKgFAJoxCZIqChPlIhBUMngib9wP0P9F2mMtbSoSQ-xXRikQA6YUJPc50PPBBAhSYcQWBJJcmBfsshyIpxNHLsCiUIFIyCejdm4sARAAcQAUUYAB9XgAHkWAAaWIAAFABBGZ9OIfjTjQ9kW0QABaQiwmKadkhDQjgmSSpow8gIx3Ivkg17KIwSUPxNPVLMRAAVWsgARWzGH0oyADEAEkABlspYZzGyE30ECePwAVicLkiiJNKjHcJQvC-5Xg+Io+XHYFEoNZK0sy7KjIANX0lhiHy0yADkytcjDrj8NQyNHBUilUYplsiNrvJFJJVEHZqew0mEuN-SgRBm-SAA1GHmwS3MwkSgm5XsFQO4E-FBQI2u+sJqgaiFAeKV7+vnNoRGslh9NG6aUqc+sBO9YTBX+cFR1HQdIgjI6-o6wGojDD5QaUcGEQMPTTKMxhqbsgyHpRyr3iCKhgtE0E7gFZ58YBj4iZBkoybTDxUAgOBvHOrMaHoJhWA4LhYD4H9PUexb-DFdHe26p44hFPxo1EnkgihfzBV5QI+rOn9peYtFBgOUCcQxVWmfc35-nCVTYh9iFwpBEFo0BAEp3iCJRzUEVKnJ7T-xRXUHdGKht1ds9KpCVnXj+V5ihBD7ozWtnEnlPluZ7AIY4u7N4-tl3ULV4SPMCNm7iTZbgg+d7QqqKgXlBYIIxUSIcd5Svbd4vMfydU11wPK1U4q926vCHkdeFKiXjHJ9qjZwcffUwEVGW4XVQYqu49zZcp6xMCtPgeu3eev5pVSSdEjFRUShKbfuSFIJ339hCL2p1T533HjXK+Z9k7LAXk9a4xRPZ3F8tzMUEJoz+TeikXkipQx7wrtbM+4DL5ATvrA9WCAm6hEInEFQqQFSCjqv6IOg5d7-zeIEP4pQx4LgnlAMhjcTYtyPkmac-8hRglCt9UIfcGrdg+LQj43C2j8Mqk3IeQi26iM7hIuSFC7j-ECD7LOdVBRDzqHUIAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGM4BlAFz1LADoDUBXAO1KplNIEsGoBhepgYgioG1TgDdUmaqwDqGbPiKxejUgG0ADAF1EoHKljsOw3SAAeiAIyWNVAMwA2AJwAOACyWnAJjsuvGty8AGhAAT0QfWxcAVm9ohwcXAHYkp0sXFwBfTJC0LFxCEnJKGj5mVg4uFQEwdHQMKhwAGwoAMwwAWxYwUjl8xThq9W1TfUNjBlMLBDsnaKovaMtfDQ00jLckhxDwhEiqGO9-OxPZk69s3PkCpTIKalpVfgBVAAUAEQBBABUAUQB9ABiAEkADJ-ABKmh0SBAYyM7BMsOmbm8VA00Q0KRcli2di86TcOwiDioDk8DjcMS8Lm8dg0LgclxAeQUhVgdxKrJucCosHI6EqUFeeCgnAoiIY-GhowMCKRoGmAFocU57J4vG58VSMqliQglR4FmsvF5sX5XMloszuQMOcVqLb2d02JwoH02UpBMJRAwJFIXR6ebAZbD4RMpoglfF5gSGWt8ZYdZZ9ekXFQktEXI58dn3B4LjkWdc7ZzHSXnRU3UG7d6RFRxJJpD0a+y1JYYXo5RHkVHGZYqE43AEYgnnNE7PqaUl0dFTU4NA5Ui41m4bRXbg6qE6lC6ha2vbV6uhGi1SO10F1ZBu4KGu+NJZGDdFAmTacscTSnLn9RkFvS-CTKlNmia0ix3Ip7m3G9YCoOgcAgCUuAPMAITAVpYDrX1-WoeDEMoFC0Iwu84W7R9ewNelSQ0JNyQ0Al4hsE59XOKg3GHId0gcHwkgyMCrn6dky2gwTd2QPAjG+VAiPQOAAAsUMwsx+SgvBWkodAAApMVWABKfgIPtKDDO3CTSCkmT5MUkjw3IxUoznGdVksHw7FA1xZicFi1QcRccVpAleIcF911EyCuRgl4Ph+AFXk+ABxX4bLIhVzAc78DjsawHDc7wdW2MIo2WNVeNNTMaTNLLF1Cz1wrAKKvj+f4ADVfghYhgQAeQAOWSh9UumWYM2cWjVixdxJ0Kg1NXmXzEhcjF3Bo7IiwYVAIDgUxDOEx4mAbCAmjAWV+smCj-HTLK50xZxFg0WZgimxwSrcSkkheuY3GiJJCwE2qjJKXbyh6IUhmO+VTvshBuIORJKQJHx4esKcfOOfwEi-OxUhq4MdrKMGe0hpMYcZQIXMTAkXP1JVoZWNyGSTQkMX44swv+8tWb5AUhRFMUGAlVLbIGvtGSoSxYj8LNPretIqaTWwvG-JwcvYrxfJfH6Wb+4STKrZCYPxuy0oNWlYxiNyTi1fx0inUlYnJJwHY8dwJ3ibHSy3Ey8KQ90byI+AwxSiGjaVJJrCoJYGUCF9s3xFjUTJD7VdcdItjFt2hI9mDTMk6T0Nk2AFP1gOTqfJU3IHb7UmxSI3qxFi7AWKuFbSBImacdPN2Mov73B0uhwbmkXYt-EaJcKn5wWRXuN4r6XNAju6oNoWDQdgdB-NuxLdHqmsvTBXZm4lyMgpJkVqAA */
   createMachine(
     {
       tsTypes: {} as import("./workspacesXService.typegen").Typegen1,
@@ -245,113 +251,102 @@ export const workspacesMachine =
       predictableActionArguments: true,
       id: "workspacesState",
       on: {
-        UPDATE_FILTER: {
-          target: ".fetching",
-          actions: ["assignFilter", "resetPage"],
-        },
         UPDATE_VERSION: {
           actions: "triggerUpdateVersion",
         },
-        NEXT: {
-          target: ".fetching",
-          actions: ["assignNextPage", "onPageChange"],
-        },
-        PREVIOUS: {
-          target: ".fetching",
-          actions: ["assignPreviousPage", "onPageChange"],
-        },
-        GO_TO_PAGE: {
-          target: ".fetching",
-          actions: ["assignPage", "onPageChange"],
-        },
       },
-      initial: "fetching",
+      type: "parallel",
       states: {
-        waitToRefreshWorkspaces: {
-          after: {
-            "5000": {
-              target: "#workspacesState.fetching",
-              actions: [],
-              internal: false,
+        count: {
+          initial: "gettingCount",
+          states: {
+            idle: {},
+            gettingCount: {
+              entry: "clearGetCountError",
+              invoke: {
+                src: "getWorkspacesCount",
+                id: "getWorkspacesCount",
+                onDone: [
+                  {
+                    target: "idle",
+                    actions: "assignCount",
+                  },
+                ],
+                onError: [
+                  {
+                    target: "idle",
+                    actions: "assignGetCountError",
+                  },
+                ],
+              },
+            },
+          },
+          on: {
+            UPDATE_FILTER: {
+              target: ".gettingCount",
+              actions: ["assignFilter", "sendResetPage"],
             },
           },
         },
-        fetching: {
-          type: "parallel",
+        workspaces: {
+          initial: "startingPagination",
           states: {
-            count: {
-              initial: "gettingCount",
-              states: {
-                gettingCount: {
-                  entry: "clearGetCountError",
-                  invoke: {
-                    src: "getWorkspacesCount",
-                    id: "getWorkspacesCount",
-                    onDone: [
-                      {
-                        target: "done",
-                        actions: "assignCount",
-                      },
-                    ],
-                    onError: [
-                      {
-                        target: "done",
-                        actions: "assignGetCountError",
-                      },
-                    ],
-                  },
-                },
-                done: {
-                  type: "final",
-                },
+            startingPagination: {
+              entry: "assignPaginationRef",
+              always: {
+                target: "gettingWorkspaces",
               },
             },
-            workspaces: {
-              initial: "gettingWorkspaces",
-              states: {
-                updatingWorkspaceRefs: {
-                  invoke: {
-                    src: "updateWorkspaceRefs",
-                    id: "updateWorkspaceRefs",
-                    onDone: [
-                      {
-                        target: "done",
-                        actions: "assignUpdatedWorkspaceRefs",
-                      },
-                    ],
+            gettingWorkspaces: {
+              entry: "clearGetWorkspacesError",
+              invoke: {
+                src: "getWorkspaces",
+                id: "getWorkspaces",
+                onDone: [
+                  {
+                    target: "waitToRefreshWorkspaces",
+                    cond: "isEmpty",
+                    actions: "assignWorkspaceRefs",
                   },
-                },
-                gettingWorkspaces: {
-                  entry: "clearGetWorkspacesError",
-                  invoke: {
-                    src: "getWorkspaces",
-                    id: "getWorkspaces",
-                    onDone: [
-                      {
-                        target: "done",
-                        cond: "isEmpty",
-                        actions: "assignWorkspaceRefs",
-                      },
-                      {
-                        target: "updatingWorkspaceRefs",
-                      },
-                    ],
-                    onError: [
-                      {
-                        target: "done",
-                        actions: "assignGetWorkspacesError",
-                      },
-                    ],
+                  {
+                    target: "updatingWorkspaceRefs",
                   },
-                },
-                done: {
-                  type: "final",
+                ],
+                onError: [
+                  {
+                    target: "waitToRefreshWorkspaces",
+                    actions: "assignGetWorkspacesError",
+                  },
+                ],
+              },
+            },
+            updatingWorkspaceRefs: {
+              invoke: {
+                src: "updateWorkspaceRefs",
+                id: "updateWorkspaceRefs",
+                onDone: [
+                  {
+                    target: "waitToRefreshWorkspaces",
+                    actions: "assignUpdatedWorkspaceRefs",
+                  },
+                ],
+              },
+            },
+            waitToRefreshWorkspaces: {
+              after: {
+                "5000": {
+                  target: "#workspacesState.workspaces.gettingWorkspaces",
+                  actions: [],
+                  internal: false,
                 },
               },
             },
           },
-          onDone: {
-            target: "waitToRefreshWorkspaces",
+          on: {
+            UPDATE_PAGE: {
+              target: ".gettingWorkspaces",
+              actions: "updateURL",
+            },
           },
         },
       },
@@ -367,9 +362,20 @@ export const workspacesMachine =
               return spawn(workspaceItemMachine.withContext({ data }), data.id)
             }),
         }),
+        assignPaginationRef: assign({
+          paginationRef: (context) =>
+            spawn(
+              paginationMachine.withContext(context.paginationContext),
+              workspacePaginationId,
+            ),
+        }),
         assignFilter: assign({
           filter: (context, event) => event.query ?? context.filter,
         }),
+        sendResetPage: send(
+          { type: "RESET_PAGE" },
+          { to: workspacePaginationId },
+        ),
         assignGetWorkspacesError: assign({
           getWorkspacesError: (_, event) => event.data,
         }),
@@ -397,18 +403,6 @@ export const workspacesMachine =
             return event.data.refsToKeep.concat(newWorkspaceRefs)
           },
         }),
-        assignNextPage: assign({
-          page: (context) => context.page + 1,
-        }),
-        assignPreviousPage: assign({
-          page: (context) => context.page - 1,
-        }),
-        assignPage: assign({
-          page: (_, event) => event.page,
-        }),
-        resetPage: assign({
-          page: (_) => 1,
-        }),
         assignCount: assign({
           count: (_, event) => event.data.count,
         }),
@@ -420,12 +414,18 @@ export const workspacesMachine =
         }),
       },
       services: {
-        getWorkspaces: (context) =>
-          API.getWorkspaces({
-            ...queryToFilter(context.filter),
-            offset: (context.page - 1) * context.limit,
-            limit: context.limit,
-          }),
+        getWorkspaces: (context) => {
+          if (context.paginationRef) {
+            const { offset, limit } = getPaginationData(context.paginationRef)
+            return API.getWorkspaces({
+              ...queryToFilter(context.filter),
+              offset,
+              limit,
+            })
+          } else {
+            throw new Error("Cannot get workspaces without pagination data")
+          }
+        },
         updateWorkspaceRefs: (context, event) => {
           const refsToKeep: WorkspaceItemMachineRef[] = []
           context.workspaceRefs?.forEach((ref) => {
