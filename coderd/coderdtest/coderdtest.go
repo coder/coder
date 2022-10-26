@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -88,6 +89,7 @@ type Options struct {
 	AutobuildStats       chan<- executor.Stats
 	Auditor              audit.Auditor
 	TLSCertificates      []tls.Certificate
+	GitAuthConfigs       []*gitauth.Config
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
@@ -235,6 +237,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			Experimental:                   options.Experimental,
+			GitAuthConfigs:                 options.GitAuthConfigs,
 
 			Auditor:              options.Auditor,
 			AWSCertificates:      options.AWSCertificates,

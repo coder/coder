@@ -127,8 +127,8 @@ export const PaginationWidget = ({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const styles = useStyles()
 
-  // No need to display any pagination if we know the number of pages is 1
-  if (numPages === 1 || numRecords === 0) {
+  // No need to display any pagination if we know the number of pages is 1 or 0
+  if (numPages <= 1 || numRecords === 0) {
     return null
   }
 

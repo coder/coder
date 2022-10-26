@@ -58,15 +58,21 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         },
       },
       sizeSmall: {
-        padding: `0 12px`,
+        padding: `0 16px`,
         fontSize: 14,
         minHeight: 36,
+        borderRadius: 6,
       },
       iconSizeSmall: {
-        width: 16,
-        height: 16,
+        width: 14,
+        height: 14,
         marginLeft: "0 !important",
-        marginRight: 12,
+        marginRight: 8,
+
+        "& svg": {
+          width: 14,
+          height: 14,
+        },
       },
       outlined: {
         border: `1px solid ${palette.divider}`,

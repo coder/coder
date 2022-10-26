@@ -3,6 +3,7 @@ package coderd
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -82,6 +84,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
+	GitAuthConfigs       []*gitauth.Config
 	RealIPConfig         *httpmw.RealIPConfig
 
 	// TLSCertificates is used to mesh DERP servers securely.
@@ -262,6 +265,17 @@ func New(options *Options) *API {
 		})
 	})
 
+	r.Route("/gitauth", func(r chi.Router) {
+		for _, gitAuthConfig := range options.GitAuthConfigs {
+			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOAuth2(gitAuthConfig),
+					apiKeyMiddleware,
+				)
+				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+			})
+		}
+	})
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -474,6 +488,7 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
+				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Get("/report-stats", api.workspaceAgentReportStats)

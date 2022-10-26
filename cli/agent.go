@@ -169,8 +169,9 @@ func workspaceAgent() *cobra.Command {
 				},
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
-					// shells so "gitssh" works!
+					// shells so "gitssh" and "gitaskpass" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
+					"GIT_ASKPASS":       executablePath,
 				},
 			})
 			<-cmd.Context().Done()

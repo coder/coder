@@ -179,7 +179,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <Stack
         direction="column"
         className={styles.firstColumnSpacer}
-        spacing={2.5}
+        spacing={4}
       >
         {buildError}
         {cancellationError}
@@ -220,7 +220,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         )}
 
         <WorkspaceSection
-          title="Logs"
           contentsProps={{ className: styles.timelineContents }}
         >
           {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (

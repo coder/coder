@@ -22,10 +22,11 @@ const NetworkSettingsPage: React.FC = () => {
 
       <OptionsTable
         options={{
-          derp_server_enabled: deploymentConfig.derp_server_enabled,
-          derp_server_region_name: deploymentConfig.derp_server_region_name,
-          derp_server_stun_address: deploymentConfig.derp_server_stun_address,
-          derp_config_url: deploymentConfig.derp_config_url,
+          derp_server_enable: deploymentConfig.derp.server.enable,
+          derp_server_region_name: deploymentConfig.derp.server.region_name,
+          derp_server_stun_addresses:
+            deploymentConfig.derp.server.stun_addresses,
+          derp_config_url: deploymentConfig.derp.config.url,
         }}
       />
     </>

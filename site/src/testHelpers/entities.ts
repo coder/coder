@@ -814,15 +814,29 @@ export const MockCancellationMessage = {
   message: "Job successfully canceled",
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const makeMockApiError = ({
-  message,
-  detail,
-  validations,
-}: {
+type MockAPIInput = {
   message?: string
   detail?: string
   validations?: FieldError[]
+}
+
+type MockAPIOutput = {
+  response: {
+    data: {
+      message: string
+      detail: string | undefined
+      validations: FieldError[] | undefined
+    }
+  }
+  isAxiosError: boolean
+}
+
+type MakeMockApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
+
+export const makeMockApiError: MakeMockApiErrorFunction = ({
+  message,
+  detail,
+  validations,
 }) => ({
   response: {
     data: {

@@ -3,10 +3,18 @@ import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
 import LockRounded from "@material-ui/icons/LockRounded"
 import Globe from "@material-ui/icons/Public"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
+import { useSelector } from "@xstate/react"
+import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
-import React, { ElementType, PropsWithChildren, ReactNode } from "react"
+import React, {
+  ElementType,
+  PropsWithChildren,
+  ReactNode,
+  useContext,
+} from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
+import { XServiceContext } from "../../xServices/StateContext"
 
 const SidebarNavItem: React.FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -39,6 +47,11 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 
 export const Sidebar: React.FC = () => {
   const styles = useStyles()
+  const xServices = useContext(XServiceContext)
+  const experimental = useSelector(
+    xServices.entitlementsXService,
+    (state) => state.context.entitlements.experimental,
+  )
 
   return (
     <nav className={styles.sidebar}>
@@ -49,11 +62,19 @@ export const Sidebar: React.FC = () => {
         General
       </SidebarNavItem>
       <SidebarNavItem
-        href="../auth"
+        href="../userauth"
         icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
       >
-        Authentication
+        User Authentication
       </SidebarNavItem>
+      {experimental && (
+        <SidebarNavItem
+          href="../gitauth"
+          icon={<SidebarNavItemIcon icon={GitIcon} />}
+        >
+          Git Authentication
+        </SidebarNavItem>
+      )}
       <SidebarNavItem
         href="../network"
         icon={<SidebarNavItemIcon icon={Globe} />}
