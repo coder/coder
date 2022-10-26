@@ -60,6 +60,8 @@ const (
 	AuditActionCreate AuditAction = "create"
 	AuditActionWrite  AuditAction = "write"
 	AuditActionDelete AuditAction = "delete"
+	AuditActionStart  AuditAction = "start"
+	AuditActionStop   AuditAction = "stop"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -302,6 +304,7 @@ const (
 	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
 	ResourceTypeApiKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
+	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {

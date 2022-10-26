@@ -51,12 +51,6 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20221015033036-5861
 // makes importing it directly a bit messy.
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
 
-// The sftp server implementation used by us does not support changing
-// the working directory, this fork adds support for it.
-//
-// Attempt to upstream: https://github.com/pkg/sftp/pull/528
-replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20221014125459-6a7168cf46fd
-
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute v1.10.0
@@ -119,7 +113,7 @@ require (
 	github.com/pion/udp v0.1.1
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
-	github.com/pkg/sftp v1.13.5
+	github.com/pkg/sftp v1.13.6-0.20221018182125-7da137aa03f0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
