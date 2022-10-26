@@ -22,7 +22,7 @@ coder templates init
 vim <template-name>/main.tf
 
 # add the template to Coder deployment
-coder templates <create/update> <template-name>
+coder templates create <template-name>
 ```
 
 > See the documentation and source code for each example in the
@@ -227,25 +227,24 @@ You can delete a template using the coder CLI. Only
 
 Using the CLI, login to Coder and run the following command to delete a template:
 
-```console
+```sh
 coder templates pull <template-name> file.tar.gz
 ```
 
 This will pull down the template as a gzipped file to your current directory. Then unzip
 it by running:
 
-```console
-tar -xf
+```sh
+tar -xf file.tar.gz
 ```
 
 Make the changes to your template then run this command from the root of the template folder:
 
-```console
+```sh
 coder templates push <template-name>
 ```
 
-Your updated template will now be available in the UI for new workspaces.
-Previously created workspaces will see a button to update as well.
+Your updated template will now be available. Outdated workspaces will have a prompt in the dashboard to update.
 
 ### Delete templates
 
