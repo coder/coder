@@ -113,6 +113,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <span className={styles.auditLogInfo}>
                     Browser: <strong>{displayBrowserInfo}</strong>
                   </span>
+
+                  <span className={styles.auditLogInfo}>
+                    Status: <strong>{auditLog.status_code}</strong>
+                  </span>
                 </Stack>
               </Stack>
             </Stack>

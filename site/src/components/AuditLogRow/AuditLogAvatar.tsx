@@ -17,13 +17,14 @@ const httpStatusColor = (httpStatus: number): PaletteIndex => {
   return "success"
 }
 
-interface StylesBadgeProps {
-  type: PaletteIndex
+interface ComponentWithPaletteIndex {
+  paletteIndex: PaletteIndex
 }
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
-    backgroundColor: ({ type }: StylesBadgeProps) => theme.palette[type].light,
+    backgroundColor: ({ paletteIndex }: ComponentWithPaletteIndex) =>
+      theme.palette[paletteIndex].light,
     borderRadius: "100%",
     width: 10,
     minWidth: 10,
@@ -34,28 +35,17 @@ const StyledBadge = withStyles((theme) => ({
   },
 }))(Badge)
 
-const StyledUserAvatar = withStyles((theme) => ({
-  root: {
-    background: theme.palette.divider,
-    color: theme.palette.text.primary,
-    border: `2px solid ${theme.palette.divider}`,
-
-    "& svg": {
-      width: 18,
-      height: 18,
-    },
-  },
-}))(UserAvatar)
-
 export type AuditLogAvatarProps = {
   auditLog: AuditLog
 }
 
 export const AuditLogAvatar: FC<AuditLogAvatarProps> = ({ auditLog }) => {
+  const paletteIndex = httpStatusColor(auditLog.status_code)
+
   return (
     <StyledBadge
       role="status"
-      type={httpStatusColor(auditLog.status_code)}
+      paletteIndex={paletteIndex}
       arial-label={auditLog.status_code}
       title={auditLog.status_code.toString()}
       overlap="circular"
@@ -65,7 +55,7 @@ export const AuditLogAvatar: FC<AuditLogAvatarProps> = ({ auditLog }) => {
       }}
       badgeContent={<div></div>}
     >
-      <StyledUserAvatar
+      <UserAvatar
         username={auditLog.user?.username ?? ""}
         avatarURL={auditLog.user?.avatar_url}
       />
