@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -231,7 +232,13 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err, "get working directory")
 		require.Equal(t, home, wd, "working directory should be home user home")
 		tempFile := filepath.Join(t.TempDir(), "sftp")
-		file, err := client.Create(tempFile)
+		// SFTP only accepts unix-y paths.
+		remoteFile := filepath.ToSlash(tempFile)
+		if !path.IsAbs(remoteFile) {
+			// On Windows, e.g. "/C:/Users/...".
+			remoteFile = path.Join("/", remoteFile)
+		}
+		file, err := client.Create(remoteFile)
 		require.NoError(t, err)
 		err = file.Close()
 		require.NoError(t, err)
