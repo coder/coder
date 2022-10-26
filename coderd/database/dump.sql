@@ -14,7 +14,9 @@ CREATE TYPE app_sharing_level AS ENUM (
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
-    'delete'
+    'delete',
+    'start',
+    'stop'
 );
 
 CREATE TYPE build_reason AS ENUM (
@@ -88,7 +90,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace',
     'git_ssh_key',
     'api_key',
-    'group'
+    'group',
+    'workspace_build'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -160,6 +163,16 @@ CREATE TABLE files (
     mimetype character varying(64) NOT NULL,
     data bytea NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL
+);
+
+CREATE TABLE git_auth_links (
+    provider_id text NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry timestamp with time zone NOT NULL
 );
 
 CREATE TABLE gitsshkeys (
@@ -461,6 +474,9 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);

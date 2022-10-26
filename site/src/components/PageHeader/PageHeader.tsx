@@ -52,7 +52,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     paddingTop: theme.spacing(6),
-    paddingBottom: theme.spacing(5),
+    paddingBottom: theme.spacing(6),
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",

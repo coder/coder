@@ -60,6 +60,8 @@ const (
 	AuditActionCreate AuditAction = "create"
 	AuditActionWrite  AuditAction = "write"
 	AuditActionDelete AuditAction = "delete"
+	AuditActionStart  AuditAction = "start"
+	AuditActionStop   AuditAction = "stop"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -302,6 +304,7 @@ const (
 	ResourceTypeGitSshKey       ResourceType = "git_ssh_key"
 	ResourceTypeApiKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
+	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -426,6 +429,16 @@ type File struct {
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+type GitAuthLink struct {
+	ProviderID        string    `db:"provider_id" json:"provider_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 type GitSSHKey struct {

@@ -124,7 +124,9 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                 className={styles.agentRow}
               >
                 <Stack direction="row" alignItems="baseline">
-                  <AgentStatus agent={agent} />
+                  <div className={styles.agentStatusWrapper}>
+                    <AgentStatus agent={agent} />
+                  </div>
                   <div>
                     <div className={styles.agentName}>{agent.name}</div>
                     <Stack
@@ -158,26 +160,6 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                 >
                   {showApps && agent.status === "connected" && (
                     <>
-                      {applicationsHost !== undefined && (
-                        <PortForwardButton
-                          host={applicationsHost}
-                          workspaceName={workspace.name}
-                          agentId={agent.id}
-                          agentName={agent.name}
-                          username={workspace.owner_name}
-                        />
-                      )}
-                      {!hideSSHButton && (
-                        <SSHButton
-                          workspaceName={workspace.name}
-                          agentName={agent.name}
-                        />
-                      )}
-                      <TerminalLink
-                        workspaceName={workspace.name}
-                        agentName={agent.name}
-                        userName={workspace.owner_name}
-                      />
                       {agent.apps.map((app) => (
                         <AppLink
                           key={app.name}
@@ -193,6 +175,27 @@ export const ResourceCard: FC<ResourceCardProps> = ({
                           appSharingLevel={app.sharing_level}
                         />
                       ))}
+
+                      <TerminalLink
+                        workspaceName={workspace.name}
+                        agentName={agent.name}
+                        userName={workspace.owner_name}
+                      />
+                      {!hideSSHButton && (
+                        <SSHButton
+                          workspaceName={workspace.name}
+                          agentName={agent.name}
+                        />
+                      )}
+                      {applicationsHost !== undefined && (
+                        <PortForwardButton
+                          host={applicationsHost}
+                          workspaceName={workspace.name}
+                          agentId={agent.id}
+                          agentName={agent.name}
+                          username={workspace.owner_name}
+                        />
+                      )}
                     </>
                   )}
                   {showApps && agent.status === "connecting" && (
@@ -276,6 +279,12 @@ const useStyles = makeStyles((theme) => ({
     "&:not(:last-child)": {
       borderBottom: `1px solid ${theme.palette.divider}`,
     },
+  },
+
+  agentStatusWrapper: {
+    width: theme.spacing(4.5),
+    display: "flex",
+    justifyContent: "center",
   },
 
   agentName: {

@@ -75,6 +75,7 @@ const useStyles = makeStyles((theme) => ({
 
   connected: {
     backgroundColor: theme.palette.success.light,
+    boxShadow: `0 0 12px 0 ${theme.palette.success.light}`,
   },
 
   disconnected: {

@@ -753,6 +753,113 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
+const getGitAuthLink = `-- name: GetGitAuthLink :one
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry FROM git_auth_links WHERE provider_id = $1 AND user_id = $2
+`
+
+type GetGitAuthLinkParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParams) (GitAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, getGitAuthLink, arg.ProviderID, arg.UserID)
+	var i GitAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
+}
+
+const insertGitAuthLink = `-- name: InsertGitAuthLink :one
+INSERT INTO git_auth_links (
+    provider_id,
+    user_id,
+    created_at,
+    updated_at,
+    oauth_access_token,
+    oauth_refresh_token,
+    oauth_expiry
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry
+`
+
+type InsertGitAuthLinkParams struct {
+	ProviderID        string    `db:"provider_id" json:"provider_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+}
+
+func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLinkParams) (GitAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, insertGitAuthLink,
+		arg.ProviderID,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OAuthAccessToken,
+		arg.OAuthRefreshToken,
+		arg.OAuthExpiry,
+	)
+	var i GitAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
+}
+
+const updateGitAuthLink = `-- name: UpdateGitAuthLink :exec
+UPDATE git_auth_links SET
+    updated_at = $3,
+    oauth_access_token = $4,
+    oauth_refresh_token = $5,
+    oauth_expiry = $6
+WHERE provider_id = $1 AND user_id = $2
+`
+
+type UpdateGitAuthLinkParams struct {
+	ProviderID        string    `db:"provider_id" json:"provider_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+}
+
+func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) error {
+	_, err := q.db.ExecContext(ctx, updateGitAuthLink,
+		arg.ProviderID,
+		arg.UserID,
+		arg.UpdatedAt,
+		arg.OAuthAccessToken,
+		arg.OAuthRefreshToken,
+		arg.OAuthExpiry,
+	)
+	return err
+}
+
 const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
 DELETE FROM
 	gitsshkeys
