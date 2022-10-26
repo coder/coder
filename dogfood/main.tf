@@ -29,21 +29,12 @@ resource "coder_agent" "dev" {
   startup_script = <<EOF
     #!/bin/sh
     set -x
-
+    
     # install and start code-server
-    mkdir /tmp/code-server
-    cd /tmp/code-server
-    # install node 16
-    sudo rm -R /usr/lib/node_modules
-    sudo apt-get remove -y nodejs
-    curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-    npm init -y
-    npm install --unsafe-perm @coder/code-server-pr@4.7.1-5673-3c17798eb377432f160f3aef7cad61bb2a26a83f
-    cd node_modules/@coder/code-server-pr/lib/vscode
-    npm install --legacy-peer-deps
-    cd /tmp/code-server
-    VSCODE_PROXY_URI=https://{{port}}--dev--${data.coder_workspace.me.name}--${data.coder_workspace.me.owner}--apps.dev.coder.com node ./node_modules/@coder/code-server-pr --port 13337 --auth none &
+    curl -fsSL https://code-server.dev/install.sh | sh
+    
+    # use Coder wildcard apps as the port proxy
+    VSCODE_PROXY_URI=https://{{port}}--dev--${data.coder_workspace.me.name}--${data.coder_workspace.me.owner}--apps.dev.coder.com code-server --port 13337 --auth none &
 
     sudo service docker start
     if [ -f ~/personalize ]; then ~/personalize 2>&1 | tee  ~/.personalize.log; fi
