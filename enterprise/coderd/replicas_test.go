@@ -24,7 +24,6 @@ func TestReplicas(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Experimental:             true,
 				IncludeProvisionerDaemon: true,
 				Database:                 db,
 				Pubsub:                   pubsub,
@@ -55,7 +54,6 @@ func TestReplicas(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				Database:                 db,
 				Pubsub:                   pubsub,
-				Experimental:             true,
 			},
 		})
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
@@ -65,9 +63,8 @@ func TestReplicas(t *testing.T) {
 
 		secondClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Experimental: true,
-				Database:     db,
-				Pubsub:       pubsub,
+				Database: db,
+				Pubsub:   pubsub,
 			},
 		})
 		secondClient.SessionToken = firstClient.SessionToken
@@ -95,7 +92,6 @@ func TestReplicas(t *testing.T) {
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 		firstClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Experimental:             true,
 				IncludeProvisionerDaemon: true,
 				Database:                 db,
 				Pubsub:                   pubsub,
@@ -109,7 +105,6 @@ func TestReplicas(t *testing.T) {
 
 		secondClient := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Experimental:    true,
 				Database:        db,
 				Pubsub:          pubsub,
 				TLSCertificates: certificates,

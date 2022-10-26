@@ -93,11 +93,12 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   buttonWrapper: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    marginTop: theme.spacing(2),
   },
 
   showMoreButton: {

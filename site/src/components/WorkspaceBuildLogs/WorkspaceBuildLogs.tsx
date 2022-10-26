@@ -10,18 +10,18 @@ const Language = {
 }
 
 type Stage = ProvisionerJobLog["stage"]
+type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>
+type GroupLogsByStageFn = (logs: ProvisionerJobLog[]) => LogsGroupedByStage
 
-const groupLogsByStage = (logs: ProvisionerJobLog[]) => {
-  const logsByStage: Record<Stage, ProvisionerJobLog[]> = {}
+export const groupLogsByStage: GroupLogsByStageFn = (logs) => {
+  const logsByStage: LogsGroupedByStage = {}
 
   for (const log of logs) {
-    // If there is no log in the stage record, add an empty array
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (logsByStage[log.stage] === undefined) {
-      logsByStage[log.stage] = []
+    if (log.stage in logsByStage) {
+      logsByStage[log.stage].push(log)
+    } else {
+      logsByStage[log.stage] = [log]
     }
-
-    logsByStage[log.stage].push(log)
   }
 
   return logsByStage

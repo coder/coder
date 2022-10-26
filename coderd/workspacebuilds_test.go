@@ -579,6 +579,6 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
 
 	// assert an audit log has been created for deletion
-	require.Len(t, auditor.AuditLogs, 5)
-	assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[4].Action)
+	require.Len(t, auditor.AuditLogs, 7)
+	assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[6].Action)
 }

@@ -32,7 +32,10 @@ Coder creates remote development machines so your team can develop from anywhere
 > **Note**:
 > Coder is in a beta state. [Report issues here](https://github.com/coder/coder/issues/new).
 
-The easiest way to install Coder is to use our [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux and macOS.
+The easiest way to install Coder is to use our
+[install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
+and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
+Releases.
 
 To install, run:
 
