@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -57,7 +59,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-		AuditLogs: convertAuditLogs(dblogs),
+		AuditLogs: api.convertAuditLogs(ctx, dblogs),
 	})
 }
 
@@ -165,17 +167,17 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func convertAuditLogs(dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
+func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
 	alogs := make([]codersdk.AuditLog, 0, len(dblogs))
 
 	for _, dblog := range dblogs {
-		alogs = append(alogs, convertAuditLog(dblog))
+		alogs = append(alogs, api.convertAuditLog(ctx, dblog))
 	}
 
 	return alogs
 }
 
-func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
+func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
 	diff := codersdk.AuditDiff{}
@@ -214,7 +216,7 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		Diff:             diff,
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
-		Description:      auditLogDescription(dblog),
+		Description:      api.auditLogDescription(ctx, dblog),
 		User:             user,
 	}
 }
@@ -223,7 +225,7 @@ type WorkspaceResourceInfo struct {
 	WorkspaceName string
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
+func (api *API) auditLogDescription(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
 	str := fmt.Sprintf("{user} %s %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
@@ -235,7 +237,10 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
 		workspaceBytes := []byte(alog.AdditionalFields)
 		var workspaceResourceInfo WorkspaceResourceInfo
-		_ = json.Unmarshal(workspaceBytes, &workspaceResourceInfo)
+		err := json.Unmarshal(workspaceBytes, &workspaceResourceInfo)
+		if err != nil {
+			api.Logger.Error(ctx, "could not unmarshal workspace name for friendly string", slog.Error(err))
+		}
 		str += " for workspace " + workspaceResourceInfo.WorkspaceName
 	}
 
