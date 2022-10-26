@@ -19,6 +19,7 @@ import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { AuditHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 
 export const Language = {
   title: "Audit",
@@ -39,25 +40,17 @@ const presetFilters = [
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[]
   count?: number
-  page: number
-  limit: number
   filter: string
   onFilter: (filter: string) => void
-  onNext: () => void
-  onPrevious: () => void
-  onGoToPage: (page: number) => void
+  paginationRef: PaginationMachineRef
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
   auditLogs,
   count,
-  page,
-  limit,
   filter,
   onFilter,
-  onNext,
-  onPrevious,
-  onGoToPage,
+  paginationRef,
 }) => {
   const isLoading = auditLogs === undefined || count === undefined
   const isEmpty = !isLoading && auditLogs.length === 0
@@ -106,18 +99,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         </Table>
       </TableContainer>
 
-      {count && count > limit ? (
-        <PaginationWidget
-          prevLabel=""
-          nextLabel=""
-          onPrevClick={onPrevious}
-          onNextClick={onNext}
-          onPageClick={onGoToPage}
-          numRecords={count}
-          activePage={page}
-          numRecordsPerPage={limit}
-        />
-      ) : null}
+      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
     </Margins>
   )
 }
