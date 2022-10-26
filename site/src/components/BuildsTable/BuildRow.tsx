@@ -43,7 +43,7 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
             <BuildAvatar build={build} />
             <div>
               <Stack
-                className={styles.buildResume}
+                className={styles.buildSummary}
                 direction="row"
                 alignItems="center"
                 spacing={1}
@@ -113,7 +113,7 @@ const useStyles = makeStyles((theme) => ({
     borderBottom: 0,
   },
 
-  buildResume: {
+  buildSummary: {
     ...theme.typography.body1,
     fontFamily: "inherit",
   },

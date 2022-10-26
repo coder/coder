@@ -10,15 +10,19 @@ import {
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { ComponentProps, useState } from "react"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import { useState } from "react"
+import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
-import { createDayString } from "util/createDayString"
+import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
 
-const pillTypeByHttpStatus = (
-  httpStatus: number,
-): ComponentProps<typeof Pill>["type"] => {
+const readableActionMessage = (auditLog: AuditLog) => {
+  return auditLog.description
+    .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
+    .replace("{target}", `<strong>${auditLog.resource_target.trim()}</strong>`)
+}
+
+const httpStatusColor = (httpStatus: number): PaletteIndex => {
   if (httpStatus >= 300 && httpStatus < 500) {
     return "warning"
   }
@@ -28,12 +32,6 @@ const pillTypeByHttpStatus = (
   }
 
   return "success"
-}
-
-const readableActionMessage = (auditLog: AuditLog) => {
-  return auditLog.description
-    .replace("{user}", `<strong>${auditLog.user?.username}</strong>`)
-    .replace("{target}", `<strong>${auditLog.resource_target}</strong>`)
 }
 
 export interface AuditLogRowProps {
@@ -63,13 +61,19 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   }
 
   return (
-    <TableRow key={auditLog.id} data-testid={`audit-log-row-${auditLog.id}`}>
+    <TableRow
+      key={auditLog.id}
+      data-testid={`audit-log-row-${auditLog.id}`}
+      className={styles.auditLogRow}
+    >
       <TableCell className={styles.auditLogCell}>
         <Stack
-          style={{ cursor: shouldDisplayDiff ? "pointer" : undefined }}
           direction="row"
           alignItems="center"
-          className={styles.auditLogRow}
+          className={combineClasses({
+            [styles.auditLogHeader]: true,
+            [styles.clickable]: shouldDisplayDiff,
+          })}
           tabIndex={0}
           onClick={toggle}
           onKeyDown={(event) => {
@@ -81,51 +85,61 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
           <Stack
             direction="row"
             alignItems="center"
-            justifyContent="space-between"
-            className={styles.auditLogRowInfo}
+            className={styles.auditLogHeaderInfo}
           >
-            <Stack direction="row" alignItems="center">
+            <Stack
+              direction="row"
+              alignItems="center"
+              className={styles.fullWidth}
+            >
               <UserAvatar
                 username={auditLog.user?.username ?? ""}
                 avatarURL={auditLog.user?.avatar_url}
               />
-              <div>
-                <span
-                  className={styles.auditLogResume}
-                  dangerouslySetInnerHTML={{
-                    __html: readableActionMessage(auditLog),
-                  }}
-                />
-                <span className={styles.auditLogTime}>
-                  {createDayString(auditLog.time)}
-                </span>
-              </div>
-            </Stack>
 
-            <Stack
-              direction="column"
-              alignItems="flex-end"
-              spacing={1}
-              className={styles.auditLogRight}
-            >
-              <Pill
-                type={pillTypeByHttpStatus(auditLog.status_code)}
-                text={auditLog.status_code.toString()}
-              />
               <Stack
+                alignItems="baseline"
+                className={styles.fullWidth}
+                justifyContent="space-between"
                 direction="row"
-                alignItems="center"
-                className={styles.auditLogExtraInfo}
               >
-                <div>
-                  <strong>IP</strong> {auditLog.ip ?? notAvailableLabel}
-                </div>
-                <div>
-                  <strong>OS</strong> {os.name ?? notAvailableLabel}
-                </div>
-                <div>
-                  <strong>Browser</strong> {displayBrowserInfo}
-                </div>
+                <Stack
+                  className={styles.auditLogSummary}
+                  direction="row"
+                  alignItems="baseline"
+                  spacing={1}
+                >
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: readableActionMessage(auditLog),
+                    }}
+                  />
+                  <span className={styles.auditLogTime}>
+                    {new Date(auditLog.time).toLocaleTimeString()}
+                  </span>
+                </Stack>
+
+                <Stack direction="row" alignItems="center">
+                  <Stack direction="row" spacing={1} alignItems="baseline">
+                    <span className={styles.auditLogInfo}>
+                      IP: <strong>{auditLog.ip ?? notAvailableLabel}</strong>
+                    </span>
+
+                    <span className={styles.auditLogInfo}>
+                      OS: <strong>{os.name ?? notAvailableLabel}</strong>
+                    </span>
+
+                    <span className={styles.auditLogInfo}>
+                      Browser: <strong>{displayBrowserInfo}</strong>
+                    </span>
+                  </Stack>
+
+                  <Pill
+                    className={styles.httpStatusPill}
+                    type={httpStatusColor(auditLog.status_code)}
+                    text={auditLog.status_code.toString()}
+                  />
+                </Stack>
               </Stack>
             </Stack>
           </Stack>
@@ -150,27 +164,58 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 const useStyles = makeStyles((theme) => ({
   auditLogCell: {
     padding: "0 !important",
+    border: 0,
   },
 
   auditLogRow: {
+    position: "relative",
+
+    "&:focus": {
+      outlineStyle: "solid",
+      outlineOffset: -1,
+      outlineWidth: 2,
+      outlineColor: theme.palette.secondary.dark,
+    },
+
+    "&:not(:last-child) td:before": {
+      position: "absolute",
+      top: 20,
+      left: 50,
+      display: "block",
+      content: "''",
+      height: "100%",
+      width: 2,
+      background: theme.palette.divider,
+    },
+  },
+
+  auditLogHeader: {
     padding: theme.spacing(2, 4),
+  },
+
+  clickable: {
+    cursor: "pointer",
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,
     },
   },
 
-  auditLogRowInfo: {
+  auditLogHeaderInfo: {
     flex: 1,
   },
 
-  auditLogResume: {
+  auditLogSummary: {
     ...theme.typography.body1,
     fontFamily: "inherit",
-    display: "block",
   },
 
   auditLogTime: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+
+  auditLogInfo: {
     ...theme.typography.body2,
     fontSize: 12,
     fontFamily: "inherit",
@@ -178,18 +223,20 @@ const useStyles = makeStyles((theme) => ({
     display: "block",
   },
 
-  auditLogRight: {
-    width: "auto",
-  },
-
-  auditLogExtraInfo: {
-    ...theme.typography.body2,
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    color: theme.palette.text.secondary,
-    whiteSpace: "nowrap",
-  },
   // offset the absence of the arrow icon on diff-less logs
   columnWithoutDiff: {
     marginLeft: "24px",
+  },
+
+  fullWidth: {
+    width: "100%",
+  },
+
+  httpStatusPill: {
+    fontSize: 10,
+    height: 20,
+    paddingLeft: 10,
+    paddingRight: 10,
+    fontWeight: 600,
   },
 }))
