@@ -46,7 +46,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   isLoading,
   filter,
   onFilter,
-  paginationRef
+  paginationRef,
 }) => {
   const presetFilters = [
     { query: userFilterQuery.active, name: Language.activeUsersFilterName },

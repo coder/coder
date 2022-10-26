@@ -35,7 +35,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     actions: {
       updateURL: (context, event) =>
         setSearchParams({ page: event.page, filter: context.filter }),
-    }
+    },
   })
   const {
     users,
@@ -45,7 +45,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     userIdToActivate,
     userIdToResetPassword,
     newUserPassword,
-    paginationRef
+    paginationRef,
   } = usersState.context
 
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
@@ -112,7 +112,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         canEditUsers={canEditUsers}
         filter={usersState.context.filter}
         onFilter={(query) => {
-          usersSend({ type: "FILTER", query })
+          usersSend({ type: "UPDATE_FILTER", query })
         }}
         paginationRef={paginationRef}
       />
