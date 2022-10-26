@@ -462,13 +462,19 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 			if prop == "-" {
 				prop = fve.Tag.Get("yaml")
 			}
-			value := vip.Get(fmt.Sprintf("%s.%d.%s", key, entry, prop))
+			configKey := fmt.Sprintf("%s.%d.%s", key, entry, prop)
+			value := vip.Get(configKey)
 			if value == nil {
 				continue
 			}
 			if instance == nil {
 				newType := reflect.Indirect(reflect.New(elementType))
 				instance = &newType
+			}
+			switch instance.Field(i).Type().String() {
+			case "[]string":
+				value = vip.GetStringSlice(configKey)
+			default:
 			}
 			instance.Field(i).Set(reflect.ValueOf(value))
 		}

@@ -158,6 +158,7 @@ func TestConfig(t *testing.T) {
 			"CODER_GITAUTH_0_AUTH_URL":      "https://auth.com",
 			"CODER_GITAUTH_0_TOKEN_URL":     "https://token.com",
 			"CODER_GITAUTH_0_REGEX":         "github.com",
+			"CODER_GITAUTH_0_SCOPES":        "read write",
 
 			"CODER_GITAUTH_1_ID":            "another",
 			"CODER_GITAUTH_1_TYPE":          "gitlab",
@@ -177,6 +178,7 @@ func TestConfig(t *testing.T) {
 				AuthURL:      "https://auth.com",
 				TokenURL:     "https://token.com",
 				Regex:        "github.com",
+				Scopes:       []string{"read", "write"},
 			}, {
 				ID:           "another",
 				Type:         "gitlab",
