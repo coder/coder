@@ -9,17 +9,13 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        paginationRef={createPaginationRef({ page: 1, limit: 12 })}
+        paginationRef={createPaginationRef({ page: 2, limit: 12 })}
         numRecords={200}
       />,
     )
 
-    expect(
-      screen.getByRole("button", { name: "Previous page" }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { name: "Next page" }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled()
   })
 
   it("displays the expected number of pages with one ellipsis tile", () => {
@@ -52,5 +48,27 @@ describe("PaginatedList", () => {
     expect(
       container.querySelectorAll(`button[name="Page button"]`),
     ).toHaveLength(5)
+  })
+
+  it("disables the previous button on the first page", () => {
+    render(
+      <PaginationWidget
+        numRecords={100}
+        paginationRef={createPaginationRef({ page: 1, limit: 25 })}
+      />,
+    )
+    const prevButton = screen.getByLabelText("Previous page")
+    expect(prevButton).toBeDisabled()
+  })
+
+  it("disables the next button on the last page", () => {
+    render(
+      <PaginationWidget
+        numRecords={100}
+        paginationRef={createPaginationRef({ page: 4, limit: 25 })}
+      />,
+    )
+    const nextButton = screen.getByLabelText("Next page")
+    expect(nextButton).toBeDisabled()
   })
 })
