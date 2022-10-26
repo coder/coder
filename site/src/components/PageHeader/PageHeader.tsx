@@ -62,6 +62,7 @@ const useStyles = makeStyles((theme) => ({
 
   title: {
     fontSize: theme.spacing(3),
+    fontWeight: 400,
     margin: 0,
     display: "flex",
     alignItems: "center",
