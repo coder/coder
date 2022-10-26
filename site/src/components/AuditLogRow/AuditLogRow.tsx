@@ -31,6 +31,14 @@ const pillTypeByHttpStatus = (
 }
 
 const readableActionMessage = (auditLog: AuditLog) => {
+  // workspace builds audit logs don't have targets; therefore format them differently
+  if (auditLog.resource_type === "workspace_build") {
+    const substr = auditLog.description.trim().split(" ").pop() ?? ""
+    return auditLog.description
+      .replace("{user}", `<strong>${auditLog.user?.username}</strong>`)
+      .replace(substr, `<strong>${substr}</strong>`)
+  }
+
   return auditLog.description
     .replace("{user}", `<strong>${auditLog.user?.username}</strong>`)
     .replace("{target}", `<strong>${auditLog.resource_target}</strong>`)

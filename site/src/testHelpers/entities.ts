@@ -949,6 +949,15 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
+    ...MockAuditLog,
+    id: "f90995bf-4a2b-4089-b597-e66e025e523e",
+    request_id: "61555889-2875-475c-8494-f7693dd5d75b",
+    action: "stop",
+    resource_type: "workspace_build",
+    description: "{user} stopped workspace build for workspace test2",
+}
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   user_workspace_count: 0,
   user_workspace_limit: 100,

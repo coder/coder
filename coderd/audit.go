@@ -241,7 +241,9 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
-	if alog.ResourceType != database.ResourceTypeGitSshKey {
+
+	// The UI-visible target for workspace builds is workspace (see above block) so we don't add it to the friendly string
+	if alog.ResourceType != database.ResourceTypeGitSshKey && alog.ResourceType != database.ResourceTypeWorkspaceBuild {
 		str += " {target}"
 	}
 
