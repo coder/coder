@@ -232,7 +232,7 @@ func (api *API) auditLogDescription(ctx context.Context, alog database.GetAuditL
 	)
 
 	// Strings for build updates follow the below format:
-	// "{user} started workspace build for workspace {target}"
+	// "{user} started workspace build for {target}"
 	// where target is a workspace instead of the workspace build
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
 		workspaceBytes := []byte(alog.AdditionalFields)
@@ -241,7 +241,7 @@ func (api *API) auditLogDescription(ctx context.Context, alog database.GetAuditL
 		if err != nil {
 			api.Logger.Error(ctx, "could not unmarshal workspace name for friendly string", slog.Error(err))
 		}
-		str += " for workspace " + workspaceResourceInfo.WorkspaceName
+		str += " for " + workspaceResourceInfo.WorkspaceName
 	}
 
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
