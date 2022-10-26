@@ -7,17 +7,31 @@ import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
+import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useState } from "react"
+import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
 import { combineClasses } from "util/combineClasses"
-import { AuditLogAvatar } from "./AuditLogAvatar"
 import { AuditLogDiff } from "./AuditLogDiff"
 
 const readableActionMessage = (auditLog: AuditLog) => {
   return auditLog.description
     .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
     .replace("{target}", `<strong>${auditLog.resource_target.trim()}</strong>`)
+}
+
+const httpStatusColor = (httpStatus: number): PaletteIndex => {
+  if (httpStatus >= 300 && httpStatus < 500) {
+    return "warning"
+  }
+
+  if (httpStatus >= 500) {
+    return "error"
+  }
+
+  return "success"
 }
 
 export interface AuditLogRowProps {
@@ -78,7 +92,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               alignItems="center"
               className={styles.fullWidth}
             >
-              <AuditLogAvatar auditLog={auditLog} />
+              <UserAvatar
+                username={auditLog.user?.username ?? ""}
+                avatarURL={auditLog.user?.avatar_url}
+              />
 
               <Stack
                 alignItems="baseline"
@@ -101,22 +118,27 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>
                 </Stack>
-                <Stack direction="row" spacing={1}>
-                  <span className={styles.auditLogInfo}>
-                    IP: <strong>{auditLog.ip ?? notAvailableLabel}</strong>
-                  </span>
 
-                  <span className={styles.auditLogInfo}>
-                    OS: <strong>{os.name ?? notAvailableLabel}</strong>
-                  </span>
+                <Stack direction="row" alignItems="center">
+                  <Stack direction="row" spacing={1} alignItems="baseline">
+                    <span className={styles.auditLogInfo}>
+                      IP: <strong>{auditLog.ip ?? notAvailableLabel}</strong>
+                    </span>
 
-                  <span className={styles.auditLogInfo}>
-                    Browser: <strong>{displayBrowserInfo}</strong>
-                  </span>
+                    <span className={styles.auditLogInfo}>
+                      OS: <strong>{os.name ?? notAvailableLabel}</strong>
+                    </span>
 
-                  <span className={styles.auditLogInfo}>
-                    Status: <strong>{auditLog.status_code}</strong>
-                  </span>
+                    <span className={styles.auditLogInfo}>
+                      Browser: <strong>{displayBrowserInfo}</strong>
+                    </span>
+                  </Stack>
+
+                  <Pill
+                    className={styles.httpStatusPill}
+                    type={httpStatusColor(auditLog.status_code)}
+                    text={auditLog.status_code.toString()}
+                  />
                 </Stack>
               </Stack>
             </Stack>
@@ -208,5 +230,13 @@ const useStyles = makeStyles((theme) => ({
 
   fullWidth: {
     width: "100%",
+  },
+
+  httpStatusPill: {
+    fontSize: 10,
+    height: 20,
+    paddingLeft: 10,
+    paddingRight: 10,
+    fontWeight: 600,
   },
 }))
