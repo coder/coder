@@ -104,7 +104,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 direction="row"
               >
                 <Stack
-                  className={styles.auditLogResume}
+                  className={styles.auditLogSummary}
                   direction="row"
                   alignItems="baseline"
                   spacing={1}
@@ -205,7 +205,7 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
   },
 
-  auditLogResume: {
+  auditLogSummary: {
     ...theme.typography.body1,
     fontFamily: "inherit",
   },
