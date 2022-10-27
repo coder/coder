@@ -75,15 +75,9 @@ export const AgentRow: FC<AgentRowProps> = ({
               <AppLink
                 key={app.name}
                 appsHost={applicationsHost}
-                appIcon={app.icon}
-                appName={app.name}
-                appCommand={app.command}
-                appSubdomain={app.subdomain}
-                username={workspace.owner_name}
-                workspaceName={workspace.name}
-                agentName={agent.name}
-                health={app.health}
-                appSharingLevel={app.sharing_level}
+                app={app}
+                agent={agent}
+                workspace={workspace}
               />
             ))}
 
