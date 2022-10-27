@@ -688,6 +688,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/google/uuid.UUID":
 			return TypescriptType{ValueType: "string"}, nil
+		case "encoding/json.RawMessage":
+			return TypescriptType{ValueType: "Record<string, string>"}, nil
 		}
 
 		// Then see if the type is defined elsewhere. If it is, we can just

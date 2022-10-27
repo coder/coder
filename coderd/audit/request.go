@@ -46,7 +46,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.WorkspaceBuild:
 		// this isn't used
-		return string(typed.BuildNumber)
+		return ""
 	case database.GitSSHKey:
 		return typed.PublicKey
 	case database.Group:

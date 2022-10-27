@@ -65,8 +65,7 @@ export interface AuditLog {
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: string
+  readonly additional_fields: Record<string, string>
   readonly description: string
   readonly user?: User
 }
