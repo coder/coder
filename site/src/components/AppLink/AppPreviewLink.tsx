@@ -33,6 +33,8 @@ const useStyles = makeStyles((theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     color: theme.palette.text.primary,
     background: theme.palette.background.paper,
+    flexShrink: 0,
+    width: "fit-content",
 
     "& img, & svg": {
       width: 14,

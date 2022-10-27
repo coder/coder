@@ -1,5 +1,9 @@
 import { Story } from "@storybook/react"
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities"
+import {
+  MockWorkspace,
+  MockWorkspaceAgent,
+  MockWorkspaceApp,
+} from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
 
 export default {
@@ -32,4 +36,25 @@ NotShowingApps.args = {
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: false,
+}
+
+export const BunchOfApps = Template.bind({})
+BunchOfApps.args = {
+  ...Example.args,
+  agent: {
+    ...MockWorkspaceAgent,
+    apps: [
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+      MockWorkspaceApp,
+    ],
+  },
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
 }

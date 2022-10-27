@@ -30,12 +30,22 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
           spacing={4}
           className={styles.agentData}
         >
-          <Stack direction="row" alignItems="baseline" spacing={1}>
+          <Stack
+            direction="row"
+            alignItems="baseline"
+            spacing={1}
+            className={combineClasses([styles.noShrink, styles.agentDataItem])}
+          >
             <span>Agent:</span>
             <span className={styles.agentDataValue}>{agent.name}</span>
           </Stack>
 
-          <Stack direction="row" alignItems="baseline" spacing={1}>
+          <Stack
+            direction="row"
+            alignItems="baseline"
+            spacing={1}
+            className={combineClasses([styles.noShrink, styles.agentDataItem])}
+          >
             <span>OS:</span>
             <span
               className={combineClasses([
@@ -47,7 +57,12 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             </span>
           </Stack>
 
-          <Stack direction="row" alignItems="baseline" spacing={1}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            className={styles.agentDataItem}
+          >
             <span>Apps:</span>
             <Stack
               direction="row"
@@ -92,6 +107,7 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(4.5),
     display: "flex",
     justifyContent: "center",
+    flexShrink: 0,
   },
 
   agentStatusPreview: {
@@ -117,9 +133,27 @@ const useStyles = makeStyles((theme) => ({
   agentData: {
     fontSize: 14,
     color: theme.palette.text.secondary,
+
+    [theme.breakpoints.down("md")]: {
+      gap: theme.spacing(2),
+      flexWrap: "wrap",
+    },
   },
 
   agentDataValue: {
     color: theme.palette.text.primary,
+  },
+
+  noShrink: {
+    flexShrink: 0,
+  },
+
+  agentDataItem: {
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: theme.spacing(1),
+      width: "fit-content",
+    },
   },
 }))

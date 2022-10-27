@@ -1,10 +1,6 @@
 import { Story } from "@storybook/react"
-import {
-  MockWorkspaceAgent,
-  MockWorkspaceApp,
-  MockWorkspaceResource,
-} from "testHelpers/entities"
-import { AgentRowPreview } from "./AgentRowPreview"
+import { MockWorkspace, MockWorkspaceResource } from "testHelpers/entities"
+import { AgentRow } from "./AgentRow"
 import { ResourceCard, ResourceCardProps } from "./ResourceCard"
 
 export default {
@@ -17,30 +13,16 @@ const Template: Story<ResourceCardProps> = (args) => <ResourceCard {...args} />
 export const Example = Template.bind({})
 Example.args = {
   resource: MockWorkspaceResource,
-  agentRow: (agent) => <AgentRowPreview key={agent.id} agent={agent} />,
-}
-
-export const BunchOfApps = Template.bind({})
-BunchOfApps.args = {
-  ...Example.args,
-  resource: {
-    ...MockWorkspaceResource,
-    agents: [
-      {
-        ...MockWorkspaceAgent,
-        apps: [
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-          MockWorkspaceApp,
-        ],
-      },
-    ],
-  },
+  agentRow: (agent) => (
+    <AgentRow
+      showApps
+      key={agent.id}
+      agent={agent}
+      workspace={MockWorkspace}
+      applicationsHost=""
+      serverVersion=""
+    />
+  ),
 }
 
 export const BunchOfMetadata = Template.bind({})
@@ -86,4 +68,14 @@ BunchOfMetadata.args = {
       },
     ],
   },
+  agentRow: (agent) => (
+    <AgentRow
+      showApps
+      key={agent.id}
+      agent={agent}
+      workspace={MockWorkspace}
+      applicationsHost=""
+      serverVersion=""
+    />
+  ),
 }

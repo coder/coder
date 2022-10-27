@@ -38,6 +38,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       alignItems="center"
       justifyContent="space-between"
       className={styles.agentRow}
+      spacing={4}
     >
       <Stack direction="row" alignItems="baseline">
         <div className={styles.agentStatusWrapper}>
