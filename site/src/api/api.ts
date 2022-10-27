@@ -270,7 +270,7 @@ interface SearchParamOptions extends TypesGen.Pagination {
 
 export const getURLWithSearchParams = (
   basePath: string,
-  options?: SearchParamOptions
+  options?: SearchParamOptions,
 ): string => {
   if (options) {
     const searchParams = new URLSearchParams()

@@ -12,9 +12,9 @@ export default {
   component: UsersPageView,
   argTypes: {
     paginationRef: {
-      defaultValue: createPaginationRef({ page: 1, limit: 25 })
-    }
-  }
+      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
+    },
+  },
 } as ComponentMeta<typeof UsersPageView>
 
 const Template: Story<UsersPageViewProps> = (args) => (

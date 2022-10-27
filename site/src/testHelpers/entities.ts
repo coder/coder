@@ -61,7 +61,10 @@ export function assignableRole(
 }
 
 export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
-export const MockAssignableSiteRoles = [assignableRole(MockUserAdminRole, true), assignableRole(MockAuditorRole, true)]
+export const MockAssignableSiteRoles = [
+  assignableRole(MockUserAdminRole, true),
+  assignableRole(MockAuditorRole, true),
+]
 
 export const MockMemberPermissions = {
   viewAuditLog: false,
