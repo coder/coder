@@ -11,7 +11,6 @@ import {
   WorkspaceResource,
 } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ResourceCard } from "./ResourceCard"
 
 const countAgents = (resource: WorkspaceResource) => {
@@ -20,7 +19,6 @@ const countAgents = (resource: WorkspaceResource) => {
 
 interface ResourcesProps {
   resources: WorkspaceResource[]
-  getResourcesError?: Error | unknown
   workspace: Workspace
   canUpdateWorkspace: boolean
   buildInfo?: BuildInfoResponse | undefined
@@ -30,7 +28,7 @@ interface ResourcesProps {
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
-  getResourcesError,
+
   workspace,
   canUpdateWorkspace,
   hideSSHButton,
@@ -48,10 +46,6 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
         // Display the resources with agents first
         .sort((a, b) => countAgents(b) - countAgents(a))
   const hasHideResources = resources.some((r) => r.hide)
-
-  if (getResourcesError) {
-    return <AlertBanner severity="error" error={getResourcesError} />
-  }
 
   return (
     <Stack direction="column" spacing={0}>
