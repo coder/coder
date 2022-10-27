@@ -1,10 +1,10 @@
 import { Story } from "@storybook/react"
 import {
-  MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
   MockWorkspaceResource,
 } from "testHelpers/entities"
+import { AgentRowPreview } from "./AgentRowPreview"
 import { ResourceCard, ResourceCardProps } from "./ResourceCard"
 
 export default {
@@ -17,23 +17,7 @@ const Template: Story<ResourceCardProps> = (args) => <ResourceCard {...args} />
 export const Example = Template.bind({})
 Example.args = {
   resource: MockWorkspaceResource,
-  workspace: MockWorkspace,
-  applicationsHost: "https://dev.coder.com",
-  hideSSHButton: false,
-  showApps: true,
-  serverVersion: MockWorkspaceAgent.version,
-}
-
-export const NotShowingApps = Template.bind({})
-NotShowingApps.args = {
-  ...Example.args,
-  showApps: false,
-}
-
-export const HideSSHButton = Template.bind({})
-HideSSHButton.args = {
-  ...Example.args,
-  hideSSHButton: true,
+  agentRow: (agent) => <AgentRowPreview key={agent.id} agent={agent} />,
 }
 
 export const BunchOfApps = Template.bind({})

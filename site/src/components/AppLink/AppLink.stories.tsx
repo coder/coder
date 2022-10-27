@@ -1,6 +1,7 @@
 import { Story } from "@storybook/react"
 import {
   MockWorkspace,
+  MockWorkspaceAgent,
   MockWorkspaceApp,
 } from "../../testHelpers/renderHelpers"
 import { AppLink, AppLinkProps } from "./AppLink"
@@ -22,6 +23,7 @@ WithIcon.args = {
     sharing_level: "owner",
     health: "healthy",
   },
+  agent: MockWorkspaceAgent,
 }
 
 export const WithoutIcon = Template.bind({})
@@ -33,6 +35,7 @@ WithoutIcon.args = {
     sharing_level: "owner",
     health: "healthy",
   },
+  agent: MockWorkspaceAgent,
 }
 
 export const HealthDisabled = Template.bind({})
@@ -44,6 +47,7 @@ HealthDisabled.args = {
     sharing_level: "owner",
     health: "disabled",
   },
+  agent: MockWorkspaceAgent,
 }
 
 export const HealthInitializing = Template.bind({})
@@ -54,6 +58,7 @@ HealthInitializing.args = {
     name: "code-server",
     health: "initializing",
   },
+  agent: MockWorkspaceAgent,
 }
 
 export const HealthUnhealthy = Template.bind({})
@@ -64,4 +69,5 @@ HealthUnhealthy.args = {
     name: "code-server",
     health: "unhealthy",
   },
+  agent: MockWorkspaceAgent,
 }
