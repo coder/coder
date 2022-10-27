@@ -219,7 +219,7 @@ data "coder_workspace" "me" {}
 ## string in the base_url. This caveat is unique to Jupyter.
 
 locals {
-  jupyter_base_path = "/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/"
+  jupyter_base_path = "/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/JupyterLab/"
 }
 
 resource "coder_agent" "coder" {
