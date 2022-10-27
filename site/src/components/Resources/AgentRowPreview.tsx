@@ -38,7 +38,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             spacing={1}
             className={combineClasses([styles.noShrink, styles.agentDataItem])}
           >
-            <span>{t("label.agent").toString()}:</span>
+            <span>{t("labels.agent").toString()}:</span>
             <span className={styles.agentDataValue}>{agent.name}</span>
           </Stack>
 
@@ -48,7 +48,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             spacing={1}
             className={combineClasses([styles.noShrink, styles.agentDataItem])}
           >
-            <span>{t("label.os").toString()}:</span>
+            <span>{t("labels.os").toString()}:</span>
             <span
               className={combineClasses([
                 styles.agentDataValue,
@@ -65,7 +65,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             spacing={1}
             className={styles.agentDataItem}
           >
-            <span>{t("label.apps").toString()}:</span>
+            <span>{t("labels.apps").toString()}:</span>
             <Stack
               direction="row"
               alignItems="center"
