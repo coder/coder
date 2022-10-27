@@ -197,6 +197,8 @@ describe("UsersPage", () => {
     expect(users.length).toEqual(3)
   })
 
+
+
   describe("suspend user", () => {
     describe("when it is success", () => {
       it("shows a success message and refresh the page", async () => {
@@ -235,6 +237,28 @@ describe("UsersPage", () => {
         expect(API.suspendUser).toBeCalledTimes(1)
         expect(API.suspendUser).toBeCalledWith(MockUser.id)
       })
+    })
+  })
+
+  describe("pagination", () => {
+    it("goes to next and previous page", async () => {
+      renderPage()
+      const user = userEvent.setup()
+
+      const mock = jest
+        .spyOn(API, "getUsers")
+        .mockResolvedValueOnce([MockUser, MockUser2])
+
+      const nextButton = await screen.findByLabelText("Next page")
+      await user.click(nextButton)
+
+      await waitFor(() => expect(API.getUsers).toBeCalledWith({ offset: 25, limit: 25, q: "" }))
+
+      mock.mockClear()
+      const previousButton = await screen.findByLabelText("Previous page")
+      await user.click(previousButton)
+
+      await waitFor(() => expect(API.getUsers).toBeCalledWith({ offset: 0, limit: 25, q: "" }))
     })
   })
 
