@@ -23,7 +23,7 @@ import {
   EstimateTransitionTime,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
-import { ResourceCard } from "components/Resources/ResourceCard"
+import { AgentRow } from "components/Resources/AgentRow"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -218,10 +218,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
-            resourceCard={(resource) => (
-              <ResourceCard
-                key={resource.id}
-                resource={resource}
+            agentRow={(agent) => (
+              <AgentRow
+                key={agent.id}
+                agent={agent}
                 workspace={workspace}
                 applicationsHost={applicationsHost}
                 showApps={canUpdateWorkspace}

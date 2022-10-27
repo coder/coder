@@ -5,8 +5,9 @@ import {
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { FC, useState } from "react"
-import { WorkspaceResource } from "../../api/typesGenerated"
+import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
+import { ResourceCard } from "./ResourceCard"
 
 const countAgents = (resource: WorkspaceResource) => {
   return resource.agents ? resource.agents.length : 0
@@ -14,12 +15,12 @@ const countAgents = (resource: WorkspaceResource) => {
 
 interface ResourcesProps {
   resources: WorkspaceResource[]
-  resourceCard: (resource: WorkspaceResource) => JSX.Element
+  agentRow: (agent: WorkspaceAgent) => JSX.Element
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
-  resourceCard,
+  agentRow,
 }) => {
   const styles = useStyles()
   const [shouldDisplayHideResources, setShouldDisplayHideResources] =
@@ -34,7 +35,13 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
 
   return (
     <Stack direction="column" spacing={0}>
-      {displayResources.map(resourceCard)}
+      {displayResources.map((resource) => (
+        <ResourceCard
+          key={resource.id}
+          resource={resource}
+          agentRow={agentRow}
+        />
+      ))}
       {hasHideResources && (
         <div className={styles.buttonWrapper}>
           <Button
