@@ -957,7 +957,7 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   resource_type: "workspace_build",
   description: "{user} stopped workspace build for {target}",
   additional_fields: {
-    "workspaceName": "test2"
+    workspaceName: "test2",
   },
 }
 

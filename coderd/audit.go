@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -14,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -59,7 +57,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-		AuditLogs: api.convertAuditLogs(ctx, dblogs),
+		AuditLogs: convertAuditLogs(dblogs),
 	})
 }
 
@@ -167,17 +165,17 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
+func convertAuditLogs(dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
 	alogs := make([]codersdk.AuditLog, 0, len(dblogs))
 
 	for _, dblog := range dblogs {
-		alogs = append(alogs, api.convertAuditLog(ctx, dblog))
+		alogs = append(alogs, convertAuditLog(dblog))
 	}
 
 	return alogs
 }
 
-func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
+func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
 	diff := codersdk.AuditDiff{}
@@ -216,40 +214,28 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		Diff:             diff,
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
-		Description:      api.auditLogDescription(ctx, dblog),
+		Description:      auditLogDescription(dblog),
 		User:             user,
 	}
 }
 
-type WorkspaceResourceInfo struct {
-	WorkspaceName string
-}
-
-func (api *API) auditLogDescription(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
+func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	str := fmt.Sprintf("{user} %s %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
 
-	// Strings for build updates follow the below format:
+	// Strings for workspace_builds follow the below format:
 	// "{user} started workspace build for {target}"
-	// where target is a workspace instead of the workspace build.
-	// Note the workspace name will be bolded on the FE.
+	// where target is a workspace instead of the workspace build,
+	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
-		workspaceBytes := []byte(alog.AdditionalFields)
-		var workspaceResourceInfo WorkspaceResourceInfo
-		err := json.Unmarshal(workspaceBytes, &workspaceResourceInfo)
-		if err != nil {
-			api.Logger.Error(ctx, "could not unmarshal workspace name for friendly string", slog.Error(err))
-		}
-		str += " for " + workspaceResourceInfo.WorkspaceName
+		str += " for"
 	}
 
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
-
-	// The UI-visible target for workspace builds is workspace (see above block) so we don't add it to the friendly string
-	if alog.ResourceType != database.ResourceTypeGitSshKey && alog.ResourceType != database.ResourceTypeWorkspaceBuild {
+	if alog.ResourceType != database.ResourceTypeGitSshKey {
 		str += " {target}"
 	}
 
