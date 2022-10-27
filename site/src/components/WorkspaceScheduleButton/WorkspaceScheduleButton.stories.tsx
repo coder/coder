@@ -2,7 +2,10 @@ import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import * as Mocks from "../../testHelpers/entities"
-import { WorkspaceScheduleButton, WorkspaceScheduleButtonProps } from "./WorkspaceScheduleButton"
+import {
+  WorkspaceScheduleButton,
+  WorkspaceScheduleButtonProps,
+} from "./WorkspaceScheduleButton"
 
 dayjs.extend(utc)
 
@@ -12,6 +15,12 @@ export default {
   argTypes: {
     canUpdateWorkspace: {
       defaultValue: true,
+    },
+    deadlineMinusEnabled: {
+      defaultValue: (): boolean => false,
+    },
+    deadlinePlusEnabled: {
+      defaultValue: (): boolean => false,
     },
   },
 }
@@ -61,6 +70,7 @@ WorkspaceOffShort.args = {
 
 export const WorkspaceOffLong = Template.bind({})
 WorkspaceOffLong.args = {
+  deadlinePlusEnabled: () => true,
   workspace: {
     ...Mocks.MockWorkspace,
 

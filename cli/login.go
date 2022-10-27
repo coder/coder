@@ -248,9 +248,9 @@ func login() *cobra.Command {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &email, "email", "e", "CODER_EMAIL", "", "Specifies an email address to authenticate with.")
-	cliflag.StringVarP(cmd.Flags(), &username, "username", "u", "CODER_USERNAME", "", "Specifies a username to authenticate with.")
-	cliflag.StringVarP(cmd.Flags(), &password, "password", "p", "CODER_PASSWORD", "", "Specifies a password to authenticate with.")
+	cliflag.StringVarP(cmd.Flags(), &email, "first-user-email", "", "CODER_FIRST_USER_EMAIL", "", "Specifies an email address to use if creating the first user for the deployment.")
+	cliflag.StringVarP(cmd.Flags(), &username, "first-user-username", "", "CODER_FIRST_USER_USERNAME", "", "Specifies a username to use if creating the first user for the deployment.")
+	cliflag.StringVarP(cmd.Flags(), &password, "first-user-password", "", "CODER_FIRST_USER_PASSWORD", "", "Specifies a password to use if creating the first user for the deployment.")
 	return cmd
 }
 
@@ -283,6 +283,17 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 	if wsl {
 		// #nosec
 		return exec.Command("cmd.exe", "/c", "start", strings.ReplaceAll(urlToOpen, "&", "^&")).Start()
+	}
+
+	browserEnv := os.Getenv("BROWSER")
+	if browserEnv != "" {
+		browserSh := fmt.Sprintf("%s '%s'", browserEnv, urlToOpen)
+		cmd := exec.CommandContext(cmd.Context(), "sh", "-c", browserSh)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
+		}
+		return nil
 	}
 
 	return browser.OpenURL(urlToOpen)

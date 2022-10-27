@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -21,7 +22,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
@@ -119,6 +119,11 @@ type PostWorkspaceAgentVersionRequest struct {
 
 // @typescript-ignore WorkspaceAgentMetadata
 type WorkspaceAgentMetadata struct {
+	// GitAuthConfigs stores the number of Git configurations
+	// the Coder deployment has. If this number is >0, we
+	// set up special configuration in the workspace.
+	GitAuthConfigs       int               `json:"git_auth_configs"`
+	Apps                 []WorkspaceApp    `json:"apps"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
@@ -302,7 +307,7 @@ func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (WorkspaceAgentMeta
 	return agentMetadata, nil
 }
 
-func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, error) {
+func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -316,7 +321,8 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
@@ -332,7 +338,17 @@ func (c *Client) ListenWorkspaceAgentTailnet(ctx context.Context) (net.Conn, err
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logger, agentID uuid.UUID) (*AgentConn, error) {
+// @typescript-ignore DialWorkspaceAgentOptions
+type DialWorkspaceAgentOptions struct {
+	Logger slog.Logger
+	// BlockEndpoints forced a direct connection through DERP.
+	BlockEndpoints bool
+}
+
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*AgentConn, error) {
+	if options == nil {
+		options = &DialWorkspaceAgentOptions{}
+	}
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
 		return nil, err
@@ -349,9 +365,10 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:   connInfo.DERPMap,
-		Logger:    logger,
+		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:        connInfo.DERPMap,
+		Logger:         options.Logger,
+		BlockEndpoints: options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -370,7 +387,8 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	closed := make(chan struct{})
@@ -379,7 +397,7 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 		defer close(closed)
 		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-			logger.Debug(ctx, "connecting")
+			options.Logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
 			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 				HTTPClient: httpClient,
@@ -398,21 +416,21 @@ func (c *Client) DialWorkspaceAgentTailnet(ctx context.Context, logger slog.Logg
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				logger.Debug(ctx, "failed to dial", slog.Error(err))
+				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
 				return conn.UpdateNodes(node)
 			})
 			conn.SetNodeCallback(sendNode)
-			logger.Debug(ctx, "serving coordinator")
+			options.Logger.Debug(ctx, "serving coordinator")
 			err = <-errChan
 			if errors.Is(err, context.Canceled) {
 				_ = ws.Close(websocket.StatusGoingAway, "")
 				return
 			}
 			if err != nil {
-				logger.Debug(ctx, "error serving coordinator", slog.Error(err))
+				options.Logger.Debug(ctx, "error serving coordinator", slog.Error(err))
 				_ = ws.Close(websocket.StatusGoingAway, "")
 				continue
 			}
@@ -446,20 +464,6 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
-}
-
-// MyWorkspaceAgent returns the requesting agent.
-func (c *Client) WorkspaceAgentApps(ctx context.Context) ([]WorkspaceApp, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/apps", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var workspaceApps []WorkspaceApp
-	return workspaceApps, json.NewDecoder(res.Body).Decode(&workspaceApps)
 }
 
 // PostWorkspaceAgentAppHealth updates the workspace agent app health status.
@@ -568,7 +572,8 @@ func (c *Client) AgentReportStats(
 	}})
 
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 
 	doneCh := make(chan struct{})
@@ -629,4 +634,44 @@ func (c *Client) AgentReportStats(
 		<-doneCh
 		return nil
 	}), nil
+}
+
+// GitProvider is a constant that represents the
+// type of providers that are supported within Coder.
+// @typescript-ignore GitProvider
+type GitProvider string
+
+const (
+	GitProviderAzureDevops = "azure-devops"
+	GitProviderGitHub      = "github"
+	GitProviderGitLab      = "gitlab"
+	GitProviderBitBucket   = "bitbucket"
+)
+
+type WorkspaceAgentGitAuthResponse struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	URL      string `json:"url"`
+}
+
+// WorkspaceAgentGitAuth submits a URL to fetch a GIT_ASKPASS username
+// and password for.
+// nolint:revive
+func (c *Client) WorkspaceAgentGitAuth(ctx context.Context, gitURL string, listen bool) (WorkspaceAgentGitAuthResponse, error) {
+	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
+	if listen {
+		reqURL += "&listen"
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return WorkspaceAgentGitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentGitAuthResponse{}, readBodyAsError(res)
+	}
+
+	var authResp WorkspaceAgentGitAuthResponse
+	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
 }

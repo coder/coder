@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/retry"
 )
 
 func workspaceAgent() *cobra.Command {
@@ -80,6 +79,8 @@ func workspaceAgent() *cobra.Command {
 				slog.F("version", version),
 			)
 			client := codersdk.New(coderURL)
+			// Set a reasonable timeout so requests can't hang forever!
+			client.HTTPClient.Timeout = 10 * time.Second
 
 			if pprofEnabled {
 				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
@@ -143,43 +144,6 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 
-			if exchangeToken != nil {
-				logger.Info(cmd.Context(), "exchanging identity token")
-				// Agent's can start before resources are returned from the provisioner
-				// daemon. If there are many resources being provisioned, this time
-				// could be significant. This is arbitrarily set at an hour to prevent
-				// tons of idle agents from pinging coderd.
-				ctx, cancelFunc := context.WithTimeout(cmd.Context(), time.Hour)
-				defer cancelFunc()
-				for retry.New(100*time.Millisecond, 5*time.Second).Wait(ctx) {
-					var response codersdk.WorkspaceAgentAuthenticateResponse
-
-					response, err = exchangeToken(ctx)
-					if err != nil {
-						logger.Warn(ctx, "authenticate workspace", slog.F("method", auth), slog.Error(err))
-						continue
-					}
-					client.SessionToken = response.SessionToken
-					logger.Info(ctx, "authenticated", slog.F("method", auth))
-					break
-				}
-				if err != nil {
-					return xerrors.Errorf("agent failed to authenticate in time: %w", err)
-				}
-			}
-
-			retryCtx, cancelRetry := context.WithTimeout(cmd.Context(), time.Hour)
-			defer cancelRetry()
-			for retrier := retry.New(100*time.Millisecond, 5*time.Second); retrier.Wait(retryCtx); {
-				err := client.PostWorkspaceAgentVersion(retryCtx, version)
-				if err != nil {
-					logger.Warn(retryCtx, "post agent version: %w", slog.Error(err), slog.F("version", version))
-					continue
-				}
-				logger.Info(retryCtx, "updated agent version", slog.F("version", version))
-				break
-			}
-
 			executablePath, err := os.Executable()
 			if err != nil {
 				return xerrors.Errorf("getting os executable: %w", err)
@@ -190,17 +154,25 @@ func workspaceAgent() *cobra.Command {
 			}
 
 			closer := agent.New(agent.Options{
-				FetchMetadata: client.WorkspaceAgentMetadata,
-				Logger:        logger,
+				Client: client,
+				Logger: logger,
+				ExchangeToken: func(ctx context.Context) error {
+					if exchangeToken == nil {
+						return nil
+					}
+					resp, err := exchangeToken(ctx)
+					if err != nil {
+						return err
+					}
+					client.SessionToken = resp.SessionToken
+					return nil
+				},
 				EnvironmentVariables: map[string]string{
 					// Override the "CODER_AGENT_TOKEN" variable in all
-					// shells so "gitssh" works!
+					// shells so "gitssh" and "gitaskpass" works!
 					"CODER_AGENT_TOKEN": client.SessionToken,
+					"GIT_ASKPASS":       executablePath,
 				},
-				CoordinatorDialer:           client.ListenWorkspaceAgentTailnet,
-				StatsReporter:               client.AgentReportStats,
-				WorkspaceAgentApps:          client.WorkspaceAgentApps,
-				PostWorkspaceAgentAppHealth: client.PostWorkspaceAgentAppHealth,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

@@ -117,8 +117,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipRaw, _, _ := net.SplitHostPort(r.RemoteAddr)
-	ip := net.ParseIP(ipRaw)
+	ip := net.ParseIP(r.RemoteAddr)
 	ipNet := pqtype.Inet{}
 	if ip != nil {
 		ipNet = pqtype.Inet{
@@ -220,11 +219,33 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	}
 }
 
+type WorkspaceResourceInfo struct {
+	WorkspaceName string
+}
+
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
-	return fmt.Sprintf("{user} %s %s {target}",
+	str := fmt.Sprintf("{user} %s %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
+
+	// Strings for build updates follow the below format:
+	// "{user} started workspace build for workspace {target}"
+	// where target is a workspace instead of the workspace build
+	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
+		workspaceBytes := []byte(alog.AdditionalFields)
+		var workspaceResourceInfo WorkspaceResourceInfo
+		_ = json.Unmarshal(workspaceBytes, &workspaceResourceInfo)
+		str += " for workspace " + workspaceResourceInfo.WorkspaceName
+	}
+
+	// We don't display the name for git ssh keys. It's fairly long and doesn't
+	// make too much sense to display.
+	if alog.ResourceType != database.ResourceTypeGitSshKey {
+		str += " {target}"
+	}
+
+	return str
 }
 
 // auditSearchQuery takes a query string and returns the auditLog filter.
@@ -265,6 +286,7 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Username:     parser.String(searchParams, "", "username"),
 		Email:        parser.String(searchParams, "", "email"),
 	}
+
 	return filter, parser.Errors
 }
 
@@ -279,6 +301,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 	case codersdk.ResourceTypeUser:
 		return resourceTypeString
 	case codersdk.ResourceTypeWorkspace:
+		return resourceTypeString
+	case codersdk.ResourceTypeWorkspaceBuild:
 		return resourceTypeString
 	case codersdk.ResourceTypeGitSSHKey:
 		return resourceTypeString
@@ -296,6 +320,7 @@ func actionFromString(actionString string) string {
 		return actionString
 	case codersdk.AuditActionDelete:
 		return actionString
+	default:
 	}
 	return ""
 }

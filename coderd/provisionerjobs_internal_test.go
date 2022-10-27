@@ -185,7 +185,8 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: invalidNullTimeMock,
 			},
 			expected: codersdk.ProvisionerJob{
-				Status: codersdk.ProvisionerJobCanceling,
+				CanceledAt: &validNullTimeMock.Time,
+				Status:     codersdk.ProvisionerJobCanceling,
 			},
 		},
 		{
@@ -196,6 +197,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				Error:       errorMock,
 			},
 			expected: codersdk.ProvisionerJob{
+				CanceledAt:  &validNullTimeMock.Time,
 				CompletedAt: &validNullTimeMock.Time,
 				Status:      codersdk.ProvisionerJobFailed,
 				Error:       errorMock.String,
@@ -208,6 +210,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: validNullTimeMock,
 			},
 			expected: codersdk.ProvisionerJob{
+				CanceledAt:  &validNullTimeMock.Time,
 				CompletedAt: &validNullTimeMock.Time,
 				Status:      codersdk.ProvisionerJobCanceled,
 			},

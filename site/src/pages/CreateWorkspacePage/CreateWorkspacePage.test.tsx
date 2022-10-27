@@ -34,7 +34,9 @@ describe("CreateWorkspacePage", () => {
 
   it("succeeds with default owner", async () => {
     jest.spyOn(API, "getUsers").mockResolvedValueOnce([MockUser])
-    jest.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce(MockWorkspaceQuota)
+    jest
+      .spyOn(API, "getWorkspaceQuota")
+      .mockResolvedValueOnce(MockWorkspaceQuota)
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
 
     renderCreateWorkspacePage()
@@ -50,9 +52,13 @@ describe("CreateWorkspacePage", () => {
     userEvent.click(submitButton)
 
     await waitFor(() =>
-      expect(API.createWorkspace).toBeCalledWith(MockUser.organization_ids[0], MockUser.id, {
-        ...MockWorkspaceRequest,
-      }),
+      expect(API.createWorkspace).toBeCalledWith(
+        MockUser.organization_ids[0],
+        MockUser.id,
+        {
+          ...MockWorkspaceRequest,
+        },
+      ),
     )
   })
 })

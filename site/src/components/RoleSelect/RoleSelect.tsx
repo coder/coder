@@ -26,7 +26,9 @@ export const RoleSelect: FC<React.PropsWithChildren<RoleSelectProps>> = ({
   const styles = useStyles()
   const value = selectedRoles.map((r) => r.name)
   const renderValue = () => selectedRoles.map((r) => r.display_name).join(", ")
-  const sortedRoles = roles.sort((a, b) => a.display_name.localeCompare(b.display_name))
+  const sortedRoles = roles.sort((a, b) =>
+    a.display_name.localeCompare(b.display_name),
+  )
 
   return (
     <Select
@@ -43,11 +45,18 @@ export const RoleSelect: FC<React.PropsWithChildren<RoleSelectProps>> = ({
       }}
     >
       {sortedRoles.map((r) => {
-        const isChecked = selectedRoles.some((selectedRole) => selectedRole.name === r.name)
+        const isChecked = selectedRoles.some(
+          (selectedRole) => selectedRole.name === r.name,
+        )
 
         return (
-          <MenuItem key={r.name} value={r.name} disabled={loading || !r.assignable}>
-            <Checkbox size="small" color="primary" checked={isChecked} /> {r.display_name}
+          <MenuItem
+            key={r.name}
+            value={r.name}
+            disabled={loading || !r.assignable}
+          >
+            <Checkbox size="small" color="primary" checked={isChecked} />{" "}
+            {r.display_name}
           </MenuItem>
         )
       })}

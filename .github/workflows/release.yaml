@@ -65,13 +65,14 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install nsis and zstd
+        run: sudo apt-get install -y nsis zstd
+
       - name: Install nfpm
         run: |
           set -euo pipefail
           wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
           sudo dpkg -i /tmp/nfpm.deb
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
 
       - name: Install rcodesign
         run: |
@@ -107,6 +108,7 @@ jobs:
           make -j \
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
+            build/coder_"$version"_windows_amd64_installer.exe \
             build/coder_helm_"$version".tgz
         env:
           CODER_SIGN_DARWIN: "1"
@@ -155,6 +157,7 @@ jobs:
         run: |
           ./scripts/publish_release.sh \
             ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
             ./build/*.tgz \

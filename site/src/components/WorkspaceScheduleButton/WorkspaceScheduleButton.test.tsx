@@ -2,7 +2,7 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import * as TypesGen from "../../api/typesGenerated"
 import * as Mocks from "../../testHelpers/entities"
-import { shouldDisplayPlusMinus } from "./WorkspaceScheduleButton"
+import { canEditDeadline } from "./WorkspaceScheduleButton"
 
 dayjs.extend(utc)
 
@@ -13,7 +13,7 @@ describe("WorkspaceScheduleButton", () => {
       const workspace: TypesGen.Workspace = Mocks.MockStoppedWorkspace
 
       // Then: shouldDisplayPlusMinus should be false
-      expect(shouldDisplayPlusMinus(workspace)).toBeFalsy()
+      expect(canEditDeadline(workspace)).toBeFalsy()
     })
 
     it("should display if the workspace is running", () => {
@@ -21,7 +21,7 @@ describe("WorkspaceScheduleButton", () => {
       const workspace: TypesGen.Workspace = Mocks.MockWorkspace
 
       // Then: shouldDisplayPlusMinus should be false
-      expect(shouldDisplayPlusMinus(workspace)).toBeTruthy()
+      expect(canEditDeadline(workspace)).toBeTruthy()
     })
   })
 })

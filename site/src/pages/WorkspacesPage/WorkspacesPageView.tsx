@@ -1,4 +1,7 @@
 import Link from "@material-ui/core/Link"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { Maybe } from "components/Conditionals/Maybe"
+import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
@@ -18,6 +21,7 @@ export const Language = {
   pageTitle: "Workspaces",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
+  runningWorkspacesButton: "Running workspaces",
   createANewWorkspace: `Create a new workspace from a `,
   template: "Template",
 }
@@ -25,19 +29,41 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   isLoading?: boolean
   workspaceRefs?: WorkspaceItemMachineRef[]
+  count?: number
+  getWorkspacesError: Error | unknown
+  getCountError: Error | unknown
+  page: number
+  limit: number
   filter?: string
   onFilter: (query: string) => void
+  onNext: () => void
+  onPrevious: () => void
+  onGoToPage: (page: number) => void
 }
 
-export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewProps>> = ({
+export const WorkspacesPageView: FC<
+  React.PropsWithChildren<WorkspacesPageViewProps>
+> = ({
   isLoading,
   workspaceRefs,
+  count,
+  getWorkspacesError,
+  getCountError,
+  page,
+  limit,
   filter,
   onFilter,
+  onNext,
+  onPrevious,
+  onGoToPage,
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
     { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
+    {
+      query: workspaceFilterQuery.running,
+      name: Language.runningWorkspacesButton,
+    },
   ]
 
   return (
@@ -59,9 +85,45 @@ export const WorkspacesPageView: FC<React.PropsWithChildren<WorkspacesPageViewPr
         </PageHeaderSubtitle>
       </PageHeader>
 
-      <SearchBarWithFilter filter={filter} onFilter={onFilter} presetFilters={presetFilters} />
+      <Stack>
+        <Maybe condition={getWorkspacesError !== undefined}>
+          <AlertBanner
+            error={getWorkspacesError}
+            severity={
+              workspaceRefs !== undefined && workspaceRefs.length > 0
+                ? "warning"
+                : "error"
+            }
+          />
+        </Maybe>
 
-      <WorkspacesTable isLoading={isLoading} workspaceRefs={workspaceRefs} filter={filter} />
+        <Maybe condition={getCountError !== undefined}>
+          <AlertBanner error={getCountError} severity="warning" />
+        </Maybe>
+
+        <SearchBarWithFilter
+          filter={filter}
+          onFilter={onFilter}
+          presetFilters={presetFilters}
+        />
+      </Stack>
+
+      <WorkspacesTable
+        isLoading={isLoading}
+        workspaceRefs={workspaceRefs}
+        filter={filter}
+      />
+
+      <PaginationWidget
+        prevLabel=""
+        nextLabel=""
+        onPrevClick={onPrevious}
+        onNextClick={onNext}
+        onPageClick={onGoToPage}
+        numRecords={count}
+        activePage={page}
+        numRecordsPerPage={limit}
+      />
     </Margins>
   )
 }

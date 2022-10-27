@@ -6,7 +6,9 @@ export default {
   component: Maybe,
 }
 
-const Template: Story<MaybeProps> = (args: MaybeProps) => <Maybe {...args}>Now you see me</Maybe>
+const Template: Story<MaybeProps> = (args: MaybeProps) => (
+  <Maybe {...args}>Now you see me</Maybe>
+)
 
 export const ConditionIsTrue = Template.bind({})
 ConditionIsTrue.args = {

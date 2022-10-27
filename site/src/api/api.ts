@@ -28,6 +28,7 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
   return {
     features: features,
     has_license: false,
+    errors: [],
     warnings: [],
     experimental: false,
     trial: false,
@@ -48,7 +49,8 @@ if (token !== null && token.getAttribute("content") !== null) {
     axios.defaults.headers.common["X-CSRF-TOKEN"] = hardCodedCSRFCookie()
     token.setAttribute("content", hardCodedCSRFCookie())
   } else {
-    axios.defaults.headers.common["X-CSRF-TOKEN"] = token.getAttribute("content") ?? ""
+    axios.defaults.headers.common["X-CSRF-TOKEN"] =
+      token.getAttribute("content") ?? ""
   }
 } else {
   // Do not write error logs if we are in a FE unit test.
@@ -106,44 +108,65 @@ export const getUser = async (): Promise<TypesGen.User> => {
 }
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
-  const response = await axios.get<TypesGen.AuthMethods>("/api/v2/users/authmethods")
+  const response = await axios.get<TypesGen.AuthMethods>(
+    "/api/v2/users/authmethods",
+  )
   return response.data
 }
 
 export const checkAuthorization = async (
   params: TypesGen.AuthorizationRequest,
 ): Promise<TypesGen.AuthorizationResponse> => {
-  const response = await axios.post<TypesGen.AuthorizationResponse>(`/api/v2/authcheck`, params)
+  const response = await axios.post<TypesGen.AuthorizationResponse>(
+    `/api/v2/authcheck`,
+    params,
+  )
   return response.data
 }
 
 export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
-  const response = await axios.post<TypesGen.GenerateAPIKeyResponse>("/api/v2/users/me/keys")
+  const response = await axios.post<TypesGen.GenerateAPIKeyResponse>(
+    "/api/v2/users/me/keys",
+  )
   return response.data
 }
 
-export const getUsers = async (filter?: TypesGen.UsersRequest): Promise<TypesGen.User[]> => {
+export const getUsers = async (
+  filter?: TypesGen.UsersRequest,
+): Promise<TypesGen.User[]> => {
   const url = getURLWithSearchParams("/api/v2/users", filter)
   const response = await axios.get<TypesGen.User[]>(url)
   return response.data
 }
 
-export const getOrganization = async (organizationId: string): Promise<TypesGen.Organization> => {
-  const response = await axios.get<TypesGen.Organization>(`/api/v2/organizations/${organizationId}`)
+export const getOrganization = async (
+  organizationId: string,
+): Promise<TypesGen.Organization> => {
+  const response = await axios.get<TypesGen.Organization>(
+    `/api/v2/organizations/${organizationId}`,
+  )
   return response.data
 }
 
 export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
-  const response = await axios.get<TypesGen.Organization[]>("/api/v2/users/me/organizations")
+  const response = await axios.get<TypesGen.Organization[]>(
+    "/api/v2/users/me/organizations",
+  )
   return response.data
 }
 
-export const getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
-  const response = await axios.get<TypesGen.Template>(`/api/v2/templates/${templateId}`)
+export const getTemplate = async (
+  templateId: string,
+): Promise<TypesGen.Template> => {
+  const response = await axios.get<TypesGen.Template>(
+    `/api/v2/templates/${templateId}`,
+  )
   return response.data
 }
 
-export const getTemplates = async (organizationId: string): Promise<TypesGen.Template[]> => {
+export const getTemplates = async (
+  organizationId: string,
+): Promise<TypesGen.Template[]> => {
   const response = await axios.get<TypesGen.Template[]>(
     `/api/v2/organizations/${organizationId}/templates`,
   )
@@ -160,7 +183,9 @@ export const getTemplateByName = async (
   return response.data
 }
 
-export const getTemplateVersion = async (versionId: string): Promise<TypesGen.TemplateVersion> => {
+export const getTemplateVersion = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersion> => {
   const response = await axios.get<TypesGen.TemplateVersion>(
     `/api/v2/templateversions/${versionId}`,
   )
@@ -198,12 +223,19 @@ export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
 ): Promise<TypesGen.Template> => {
-  const response = await axios.patch<TypesGen.Template>(`/api/v2/templates/${templateId}`, data)
+  const response = await axios.patch<TypesGen.Template>(
+    `/api/v2/templates/${templateId}`,
+    data,
+  )
   return response.data
 }
 
-export const deleteTemplate = async (templateId: string): Promise<TypesGen.Template> => {
-  const response = await axios.delete<TypesGen.Template>(`/api/v2/templates/${templateId}`)
+export const deleteTemplate = async (
+  templateId: string,
+): Promise<TypesGen.Template> => {
+  const response = await axios.delete<TypesGen.Template>(
+    `/api/v2/templates/${templateId}`,
+  )
   return response.data
 }
 
@@ -211,9 +243,12 @@ export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,
 ): Promise<TypesGen.Workspace> => {
-  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`, {
-    params,
-  })
+  const response = await axios.get<TypesGen.Workspace>(
+    `/api/v2/workspaces/${workspaceId}`,
+    {
+      params,
+    },
+  )
   return response.data
 }
 
@@ -245,10 +280,35 @@ export const getURLWithSearchParams = (
 }
 
 export const getWorkspaces = async (
-  filter?: TypesGen.WorkspaceFilter,
+  options: TypesGen.WorkspacesRequest,
 ): Promise<TypesGen.Workspace[]> => {
-  const url = getURLWithSearchParams("/api/v2/workspaces", filter)
-  const response = await axios.get<TypesGen.Workspace[]>(url)
+  const searchParams = new URLSearchParams()
+  if (options.limit) {
+    searchParams.set("limit", options.limit.toString())
+  }
+  if (options.offset) {
+    searchParams.set("offset", options.offset.toString())
+  }
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+
+  const response = await axios.get<TypesGen.Workspace[]>(
+    `/api/v2/workspaces?${searchParams.toString()}`,
+  )
+  return response.data
+}
+
+export const getWorkspacesCount = async (
+  options: TypesGen.WorkspaceCountRequest,
+): Promise<TypesGen.WorkspaceCountResponse> => {
+  const searchParams = new URLSearchParams()
+  if (options.q) {
+    searchParams.set("q", options.q)
+  }
+  const response = await axios.get(
+    `/api/v2/workspaces/count?${searchParams.toString()}`,
+  )
   return response.data
 }
 
@@ -268,12 +328,18 @@ export const getWorkspaceByOwnerAndName = async (
 
 const postWorkspaceBuild =
   (transition: WorkspaceBuildTransition) =>
-  async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {
+  async (
+    workspaceId: string,
+    template_version_id?: string,
+  ): Promise<TypesGen.WorkspaceBuild> => {
     const payload = {
       transition,
       template_version_id,
     }
-    const response = await axios.post(`/api/v2/workspaces/${workspaceId}/builds`, payload)
+    const response = await axios.post(
+      `/api/v2/workspaces/${workspaceId}/builds`,
+      payload,
+    )
     return response.data
   }
 
@@ -284,11 +350,15 @@ export const deleteWorkspace = postWorkspaceBuild("delete")
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 ): Promise<Types.Message> => {
-  const response = await axios.patch(`/api/v2/workspacebuilds/${workspaceBuildId}/cancel`)
+  const response = await axios.patch(
+    `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+  )
   return response.data
 }
 
-export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
+export const createUser = async (
+  user: TypesGen.CreateUserRequest,
+): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
   return response.data
 }
@@ -338,17 +408,27 @@ export const updateProfile = async (
   return response.data
 }
 
-export const activateUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
-  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/activate`)
+export const activateUser = async (
+  userId: TypesGen.User["id"],
+): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(
+    `/api/v2/users/${userId}/status/activate`,
+  )
   return response.data
 }
 
-export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
-  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/status/suspend`)
+export const suspendUser = async (
+  userId: TypesGen.User["id"],
+): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(
+    `/api/v2/users/${userId}/status/suspend`,
+  )
   return response.data
 }
 
-export const deleteUser = async (userId: TypesGen.User["id"]): Promise<undefined> => {
+export const deleteUser = async (
+  userId: TypesGen.User["id"],
+): Promise<undefined> => {
   return await axios.delete(`/api/v2/users/${userId}`)
 }
 
@@ -379,10 +459,15 @@ export const createFirstUser = async (
 export const updateUserPassword = async (
   userId: TypesGen.User["id"],
   updatePassword: TypesGen.UpdateUserPasswordRequest,
-): Promise<undefined> => axios.put(`/api/v2/users/${userId}/password`, updatePassword)
+): Promise<undefined> =>
+  axios.put(`/api/v2/users/${userId}/password`, updatePassword)
 
-export const getSiteRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
-  const response = await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`)
+export const getSiteRoles = async (): Promise<
+  Array<TypesGen.AssignableRoles>
+> => {
+  const response = await axios.get<Array<TypesGen.AssignableRoles>>(
+    `/api/v2/users/roles`,
+  )
   return response.data
 }
 
@@ -390,17 +475,28 @@ export const updateUserRoles = async (
   roles: TypesGen.Role["name"][],
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {
-  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/roles`, { roles })
+  const response = await axios.put<TypesGen.User>(
+    `/api/v2/users/${userId}/roles`,
+    { roles },
+  )
   return response.data
 }
 
-export const getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
-  const response = await axios.get<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+export const getUserSSHKey = async (
+  userId = "me",
+): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.get<TypesGen.GitSSHKey>(
+    `/api/v2/users/${userId}/gitsshkey`,
+  )
   return response.data
 }
 
-export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
-  const response = await axios.put<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+export const regenerateUserSSHKey = async (
+  userId = "me",
+): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.put<TypesGen.GitSSHKey>(
+    `/api/v2/users/${userId}/gitsshkey`,
+  )
   return response.data
 }
 
@@ -439,7 +535,9 @@ export const putWorkspaceExtension = async (
   workspaceId: string,
   newDeadline: dayjs.Dayjs,
 ): Promise<void> => {
-  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, { deadline: newDeadline })
+  await axios.put(`/api/v2/workspaces/${workspaceId}/extend`, {
+    deadline: newDeadline,
+  })
 }
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
@@ -479,7 +577,9 @@ export const getAuditLogsCount = async (
   if (options.q) {
     searchParams.set("q", options.q)
   }
-  const response = await axios.get(`/api/v2/audit/count?${searchParams.toString()}`)
+  const response = await axios.get(
+    `/api/v2/audit/count?${searchParams.toString()}`,
+  )
   return response.data
 }
 
@@ -490,12 +590,90 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
-export const getApplicationsHost = async (): Promise<TypesGen.GetAppHostResponse> => {
-  const response = await axios.get(`/api/v2/applications/host`)
+export const getTemplateACL = async (
+  templateId: string,
+): Promise<TypesGen.TemplateACL> => {
+  const response = await axios.get(`/api/v2/templates/${templateId}/acl`)
   return response.data
 }
 
-export const getWorkspaceQuota = async (userID: string): Promise<TypesGen.WorkspaceQuota> => {
+export const updateTemplateACL = async (
+  templateId: string,
+  data: TypesGen.UpdateTemplateACL,
+): Promise<TypesGen.TemplateACL> => {
+  const response = await axios.patch(
+    `/api/v2/templates/${templateId}/acl`,
+    data,
+  )
+  return response.data
+}
+
+export const getApplicationsHost =
+  async (): Promise<TypesGen.GetAppHostResponse> => {
+    const response = await axios.get(`/api/v2/applications/host`)
+    return response.data
+  }
+
+export const getGroups = async (
+  organizationId: string,
+): Promise<TypesGen.Group[]> => {
+  const response = await axios.get(
+    `/api/v2/organizations/${organizationId}/groups`,
+  )
+  return response.data
+}
+
+export const createGroup = async (
+  organizationId: string,
+  data: TypesGen.CreateGroupRequest,
+): Promise<TypesGen.Group> => {
+  const response = await axios.post(
+    `/api/v2/organizations/${organizationId}/groups`,
+    data,
+  )
+  return response.data
+}
+
+export const getGroup = async (groupId: string): Promise<TypesGen.Group> => {
+  const response = await axios.get(`/api/v2/groups/${groupId}`)
+  return response.data
+}
+
+export const patchGroup = async (
+  groupId: string,
+  data: TypesGen.PatchGroupRequest,
+): Promise<TypesGen.Group> => {
+  const response = await axios.patch(`/api/v2/groups/${groupId}`, data)
+  return response.data
+}
+
+export const deleteGroup = async (groupId: string): Promise<void> => {
+  await axios.delete(`/api/v2/groups/${groupId}`)
+}
+
+export const getWorkspaceQuota = async (
+  userID: string,
+): Promise<TypesGen.WorkspaceQuota> => {
   const response = await axios.get(`/api/v2/workspace-quota/${userID}`)
+  return response.data
+}
+
+export const getAgentListeningPorts = async (
+  agentID: string,
+): Promise<TypesGen.ListeningPortsResponse> => {
+  const response = await axios.get(
+    `/api/v2/workspaceagents/${agentID}/listening-ports`,
+  )
+  return response.data
+}
+
+export const getDeploymentConfig =
+  async (): Promise<TypesGen.DeploymentConfig> => {
+    const response = await axios.get(`/api/v2/config/deployment`)
+    return response.data
+  }
+
+export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
+  const response = await axios.get(`/api/v2/replicas`)
   return response.data
 }

@@ -57,7 +57,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/apps":                   {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/gitauth":                {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
@@ -142,7 +142,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{hash}": {
+		"GET:/api/v2/files/{fileID}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceFile.WithOwner(a.Admin.UserID.String()),
 		},
@@ -243,7 +243,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
-		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/":      {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/count": {StatusCode: http.StatusOK, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -369,7 +370,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{workspaceagent}":      workspace.LatestBuild.Resources[0].Agents[0].ID.String(),
 		"{buildnumber}":         strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
 		"{template}":            template.ID.String(),
-		"{hash}":                file.Hash,
+		"{fileID}":              file.ID.String(),
 		"{workspaceresource}":   workspace.LatestBuild.Resources[0].ID.String(),
 		"{workspaceapp}":        workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Name,
 		"{templateversion}":     version.ID.String(),
@@ -499,6 +500,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 type authCall struct {
 	SubjectID string
 	Roles     []string
+	Groups    []string
 	Scope     rbac.Scope
 	Action    rbac.Action
 	Object    rbac.Object
@@ -513,14 +515,15 @@ var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
 // ByRoleNameSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
-func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ rbac.Action, _ rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ []string, _ rbac.Action, _ rbac.Object) error {
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, groups []string, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
+		Groups:    groups,
 		Scope:     scope,
 		Action:    action,
 		Object:    object,
@@ -528,7 +531,7 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:           r,
 		SubjectID:          subjectID,
@@ -536,6 +539,7 @@ func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID str
 		Scope:              scope,
 		Action:             action,
 		HardCodedSQLString: "true",
+		Groups:             groups,
 	}, nil
 }
 
@@ -549,12 +553,13 @@ type fakePreparedAuthorizer struct {
 	Roles               []string
 	Scope               rbac.Scope
 	Action              rbac.Action
+	Groups              []string
 	HardCodedSQLString  string
 	HardCodedRegoString string
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Action, object)
+	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object)
 }
 
 // Compile returns a compiled version of the authorizer that will work for
@@ -564,7 +569,7 @@ func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
-	return f.Original.ByRoleNameSQL(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Action, object) == nil
+	return f.Original.ByRoleNameSQL(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object) == nil
 }
 
 func (f fakePreparedAuthorizer) RegoString() string {

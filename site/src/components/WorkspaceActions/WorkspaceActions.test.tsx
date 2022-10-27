@@ -9,7 +9,9 @@ const { t } = i18next
 const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
   render(
     <WorkspaceActions
-      workspaceStatus={props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status}
+      workspaceStatus={
+        props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status
+      }
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
@@ -24,7 +26,9 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
 const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
   render(
     <WorkspaceActions
-      workspaceStatus={props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status}
+      workspaceStatus={
+        props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status
+      }
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
@@ -41,7 +45,9 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
 describe("WorkspaceActions", () => {
   describe("when the workspace is starting", () => {
     it("primary is starting; cancel is available; no secondary", async () => {
-      await renderComponent({ workspaceStatus: Mocks.MockStartingWorkspace.latest_build.status })
+      await renderComponent({
+        workspaceStatus: Mocks.MockStartingWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("actionButton.starting", { ns: "workspacePage" }),
       )
@@ -55,7 +61,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is started", () => {
     it("primary is stop; secondary is delete", async () => {
-      await renderAndClick({ workspaceStatus: Mocks.MockWorkspace.latest_build.status })
+      await renderAndClick({
+        workspaceStatus: Mocks.MockWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("actionButton.stop", { ns: "workspacePage" }),
       )
@@ -66,7 +74,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is stopping", () => {
     it("primary is stopping; cancel is available; no secondary", async () => {
-      await renderComponent({ workspaceStatus: Mocks.MockStoppingWorkspace.latest_build.status })
+      await renderComponent({
+        workspaceStatus: Mocks.MockStoppingWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("actionButton.stopping", { ns: "workspacePage" }),
       )
@@ -80,7 +90,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is canceling", () => {
     it("primary is canceling; no secondary", async () => {
-      await renderAndClick({ workspaceStatus: Mocks.MockCancelingWorkspace.latest_build.status })
+      await renderAndClick({
+        workspaceStatus: Mocks.MockCancelingWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("disabledButton.canceling", { ns: "workspacePage" }),
       )
@@ -89,7 +101,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is canceled", () => {
     it("primary is start; secondary are stop, delete", async () => {
-      await renderAndClick({ workspaceStatus: Mocks.MockCanceledWorkspace.latest_build.status })
+      await renderAndClick({
+        workspaceStatus: Mocks.MockCanceledWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("actionButton.start", { ns: "workspacePage" }),
       )
@@ -103,7 +117,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is errored", () => {
     it("primary is start; secondary is delete", async () => {
-      await renderAndClick({ workspaceStatus: Mocks.MockFailedWorkspace.latest_build.status })
+      await renderAndClick({
+        workspaceStatus: Mocks.MockFailedWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("actionButton.start", { ns: "workspacePage" }),
       )
@@ -114,7 +130,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is deleting", () => {
     it("primary is deleting; cancel is available; no secondary", async () => {
-      await renderComponent({ workspaceStatus: Mocks.MockDeletingWorkspace.latest_build.status })
+      await renderComponent({
+        workspaceStatus: Mocks.MockDeletingWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("actionButton.deleting", { ns: "workspacePage" }),
       )
@@ -128,7 +146,9 @@ describe("WorkspaceActions", () => {
   })
   describe("when the workspace is deleted", () => {
     it("primary is deleted; no secondary", async () => {
-      await renderAndClick({ workspaceStatus: Mocks.MockDeletedWorkspace.latest_build.status })
+      await renderAndClick({
+        workspaceStatus: Mocks.MockDeletedWorkspace.latest_build.status,
+      })
       expect(screen.getByTestId("primary-cta")).toHaveTextContent(
         t("disabledButton.deleted", { ns: "workspacePage" }),
       )

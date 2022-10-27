@@ -28,7 +28,10 @@ export interface UsersTableProps {
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
-  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
+  onUpdateUserRoles: (
+    user: TypesGen.User,
+    roles: TypesGen.Role["name"][],
+  ) => void
 }
 
 export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({

@@ -74,7 +74,7 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--username", "testuser", "--email", "user@coder.com", "--password", "password")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "password")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())

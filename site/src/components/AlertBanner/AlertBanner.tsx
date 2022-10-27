@@ -11,12 +11,12 @@ import { severityConstants } from "./severityConstants"
 import { AlertBannerCtas } from "./AlertBannerCtas"
 
 /**
- * severity: the level of alert severity (see ./severityTypes.ts)
- * text: default text to be displayed to the user; useful for warnings or as a fallback error message
- * error: should be passed in if the severity is 'Error'; warnings can use 'text' instead
- * actions: an array of CTAs passed in by the consumer
- * dismissible: determines whether or not the banner should have a `Dismiss` CTA
- * retry: a handler to retry the action that spawned the error
+ * @param severity: the level of alert severity (see ./severityTypes.ts)
+ * @param text: default text to be displayed to the user; useful for warnings or as a fallback error message
+ * @param error: should be passed in if the severity is 'Error'; warnings can use 'text' instead
+ * @param actions: an array of CTAs passed in by the consumer
+ * @param dismissible: determines whether or not the banner should have a `Dismiss` CTA
+ * @param retry: a handler to retry the action that spawned the error
  */
 export const AlertBanner: FC<AlertBannerProps> = ({
   severity,
@@ -32,7 +32,10 @@ export const AlertBanner: FC<AlertBannerProps> = ({
 
   // if an error is passed in, display that error, otherwise
   // display the text passed in, e.g. warning text
-  const alertMessage = getErrorMessage(error, text ?? t("warningsAndErrors.somethingWentWrong"))
+  const alertMessage = getErrorMessage(
+    error,
+    text ?? t("warningsAndErrors.somethingWentWrong"),
+  )
 
   // if we have an error, check if there's detail to display
   const detail = error ? getErrorDetail(error) : undefined

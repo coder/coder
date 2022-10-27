@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -14,7 +16,7 @@ const (
 
 // UploadResponse contains the hash to reference the uploaded file.
 type UploadResponse struct {
-	Hash string `json:"hash"`
+	ID uuid.UUID `json:"hash"`
 }
 
 // Upload uploads an arbitrary file with the content type provided.
@@ -35,8 +37,8 @@ func (c *Client) Upload(ctx context.Context, contentType string, content []byte)
 }
 
 // Download fetches a file by uploaded hash.
-func (c *Client) Download(ctx context.Context, hash string) ([]byte, string, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/files/%s", hash), nil)
+func (c *Client) Download(ctx context.Context, id uuid.UUID) ([]byte, string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/files/%s", id.String()), nil)
 	if err != nil {
 		return nil, "", err
 	}

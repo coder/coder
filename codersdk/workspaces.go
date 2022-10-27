@@ -31,6 +31,18 @@ type Workspace struct {
 	LastUsedAt        time.Time      `json:"last_used_at"`
 }
 
+type WorkspacesRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
+
+type WorkspaceCountRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+}
+type WorkspaceCountResponse struct {
+	Count int64 `json:"count"`
+}
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
@@ -252,6 +264,12 @@ type WorkspaceFilter struct {
 	Template string `json:"template,omitempty" typescript:"-"`
 	// Name will return partial matches
 	Name string `json:"name,omitempty" typescript:"-"`
+	// Status is a workspace status, which is really the status of the latest build
+	Status string `json:"status,omitempty" typescript:"-"`
+	// Offset is the number of workspaces to skip before returning results.
+	Offset int `json:"offset,omitempty" typescript:"-"`
+	// Limit is a limit on the number of workspaces returned.
+	Limit int `json:"limit,omitempty" typescript:"-"`
 	// FilterQuery supports a raw filter query string
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -272,6 +290,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		if f.Template != "" {
 			params = append(params, fmt.Sprintf("template:%q", f.Template))
 		}
+		if f.Status != "" {
+			params = append(params, fmt.Sprintf("status:%q", f.Status))
+		}
 		if f.FilterQuery != "" {
 			// If custom stuff is added, just add it on here.
 			params = append(params, f.FilterQuery)
@@ -285,7 +306,11 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 
 // Workspaces returns all workspaces the authenticated user has access to.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+	page := Pagination{
+		Offset: filter.Offset,
+		Limit:  filter.Limit,
+	}
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption(), page.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +322,34 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Work
 
 	var workspaces []Workspace
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
+func (c *Client) WorkspaceCount(ctx context.Context, req WorkspaceCountRequest) (WorkspaceCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces/count", nil, func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return WorkspaceCountResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceCountResponse{}, readBodyAsError(res)
+	}
+
+	var countRes WorkspaceCountResponse
+	err = json.NewDecoder(res.Body).Decode(&countRes)
+	if err != nil {
+		return WorkspaceCountResponse{}, err
+	}
+
+	return countRes, nil
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.

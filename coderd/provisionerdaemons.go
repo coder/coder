@@ -315,7 +315,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	}
 	switch job.StorageMethod {
 	case database.ProvisionerStorageMethodFile:
-		file, err := server.Database.GetFileByHash(ctx, job.StorageSource)
+		file, err := server.Database.GetFileByID(ctx, job.FileID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
 		}
@@ -814,6 +814,14 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				health = database.WorkspaceAppHealthInitializing
 			}
 
+			sharingLevel := database.AppSharingLevelOwner
+			switch app.SharingLevel {
+			case sdkproto.AppSharingLevel_AUTHENTICATED:
+				sharingLevel = database.AppSharingLevelAuthenticated
+			case sdkproto.AppSharingLevel_PUBLIC:
+				sharingLevel = database.AppSharingLevelPublic
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:        uuid.New(),
 				CreatedAt: database.Now(),
@@ -829,6 +837,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					Valid:  app.Url != "",
 				},
 				Subdomain:            app.Subdomain,
+				SharingLevel:         sharingLevel,
 				HealthcheckUrl:       app.Healthcheck.Url,
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,

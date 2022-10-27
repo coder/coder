@@ -2,13 +2,14 @@ package coderd_test
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -16,6 +17,14 @@ import (
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
+)
+
+// App names for each app sharing level.
+const (
+	testAppNameOwner         = "test-app-owner"
+	testAppNameAuthenticated = "test-app-authenticated"
+	testAppNamePublic        = "test-app-public"
 )
 
 func TestBlockNonBrowser(t *testing.T) {
@@ -32,8 +41,8 @@ func TestBlockNonBrowser(t *testing.T) {
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			BrowserOnly: true,
 		})
-		id := setupWorkspaceAgent(t, client, user)
-		_, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, id)
+		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		_, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -49,14 +58,14 @@ func TestBlockNonBrowser(t *testing.T) {
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			BrowserOnly: false,
 		})
-		id := setupWorkspaceAgent(t, client, user)
-		conn, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, id)
+		_, agent := setupWorkspaceAgent(t, client, user, 0)
+		conn, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
 		require.NoError(t, err)
 		_ = conn.Close()
 	})
 }
 
-func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse) uuid.UUID {
+func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, appPort uint16) (codersdk.Workspace, codersdk.WorkspaceAgent) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -72,6 +81,23 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
+							Apps: []*proto.App{
+								{
+									Name:         testAppNameOwner,
+									SharingLevel: proto.AppSharingLevel_OWNER,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
+								},
+								{
+									Name:         testAppNameAuthenticated,
+									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
+								},
+								{
+									Name:         testAppNamePublic,
+									SharingLevel: proto.AppSharingLevel_PUBLIC,
+									Url:          fmt.Sprintf("http://localhost:%d", appPort),
+								},
+							},
 						}},
 					}},
 				},
@@ -83,15 +109,29 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
+	agentClient.HTTPClient = &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent"),
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent"),
 	})
-	defer func() {
+	t.Cleanup(func() {
 		_ = agentCloser.Close()
-	}()
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	return resources[0].Agents[0].ID
+	agnt, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+	require.NoError(t, err)
+
+	return workspace, agnt
 }

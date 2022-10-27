@@ -270,7 +270,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error reading job agent.",
@@ -316,10 +316,10 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJob {
 	job := codersdk.ProvisionerJob{
-		ID:            provisionerJob.ID,
-		CreatedAt:     provisionerJob.CreatedAt,
-		Error:         provisionerJob.Error.String,
-		StorageSource: provisionerJob.StorageSource,
+		ID:        provisionerJob.ID,
+		CreatedAt: provisionerJob.CreatedAt,
+		Error:     provisionerJob.Error.String,
+		FileID:    provisionerJob.FileID,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
@@ -327,6 +327,9 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	}
 	if provisionerJob.CompletedAt.Valid {
 		job.CompletedAt = &provisionerJob.CompletedAt.Time
+	}
+	if provisionerJob.CanceledAt.Valid {
+		job.CanceledAt = &provisionerJob.CanceledAt.Time
 	}
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID

@@ -78,19 +78,21 @@ func TestGetLicense(t *testing.T) {
 		defer cancel()
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountID:   "testing",
-			AuditLog:    true,
-			SCIM:        true,
-			BrowserOnly: true,
+			AccountID:    "testing",
+			AuditLog:     true,
+			SCIM:         true,
+			BrowserOnly:  true,
+			TemplateRBAC: true,
 		})
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountID:   "testing2",
-			AuditLog:    true,
-			SCIM:        true,
-			BrowserOnly: true,
-			Trial:       true,
-			UserLimit:   200,
+			AccountID:    "testing2",
+			AuditLog:     true,
+			SCIM:         true,
+			BrowserOnly:  true,
+			Trial:        true,
+			UserLimit:    200,
+			TemplateRBAC: false,
 		})
 
 		licenses, err := client.Licenses(ctx)
@@ -99,21 +101,27 @@ func TestGetLicense(t *testing.T) {
 		assert.Equal(t, int32(1), licenses[0].ID)
 		assert.Equal(t, "testing", licenses[0].Claims["account_id"])
 		assert.Equal(t, map[string]interface{}{
-			codersdk.FeatureUserLimit:      json.Number("0"),
-			codersdk.FeatureAuditLog:       json.Number("1"),
-			codersdk.FeatureSCIM:           json.Number("1"),
-			codersdk.FeatureBrowserOnly:    json.Number("1"),
-			codersdk.FeatureWorkspaceQuota: json.Number("0"),
+			codersdk.FeatureUserLimit:        json.Number("0"),
+			codersdk.FeatureAuditLog:         json.Number("1"),
+			codersdk.FeatureSCIM:             json.Number("1"),
+			codersdk.FeatureBrowserOnly:      json.Number("1"),
+			codersdk.FeatureWorkspaceQuota:   json.Number("0"),
+			codersdk.FeatureHighAvailability: json.Number("0"),
+			codersdk.FeatureTemplateRBAC:     json.Number("1"),
+			codersdk.FeatureMultipleGitAuth:  json.Number("0"),
 		}, licenses[0].Claims["features"])
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
 		assert.Equal(t, true, licenses[1].Claims["trial"])
 		assert.Equal(t, map[string]interface{}{
-			codersdk.FeatureUserLimit:      json.Number("200"),
-			codersdk.FeatureAuditLog:       json.Number("1"),
-			codersdk.FeatureSCIM:           json.Number("1"),
-			codersdk.FeatureBrowserOnly:    json.Number("1"),
-			codersdk.FeatureWorkspaceQuota: json.Number("0"),
+			codersdk.FeatureUserLimit:        json.Number("200"),
+			codersdk.FeatureAuditLog:         json.Number("1"),
+			codersdk.FeatureSCIM:             json.Number("1"),
+			codersdk.FeatureBrowserOnly:      json.Number("1"),
+			codersdk.FeatureWorkspaceQuota:   json.Number("0"),
+			codersdk.FeatureHighAvailability: json.Number("0"),
+			codersdk.FeatureTemplateRBAC:     json.Number("0"),
+			codersdk.FeatureMultipleGitAuth:  json.Number("0"),
 		}, licenses[1].Claims["features"])
 	})
 }

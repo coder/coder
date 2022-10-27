@@ -4,8 +4,10 @@
   },
   "workspaceScheduleButton": {
     "schedule": "Schedule",
-    "editDeadlineMinus": "Subtract one hour",
-    "editDeadlinePlus": "Add one hour"
+    "editDeadlineMinus": "Subtract hours",
+    "editDeadlinePlus": "Add hours",
+    "submitDeadline": "Set",
+    "hours": "Hours"
   },
   "ctas": {
     "createWorkspaceCta": "Create new workspace",
@@ -31,5 +33,21 @@
     "canceling": "Canceling",
     "deleted": "Deleted",
     "pending": "Pending"
+  },
+  "agentStatus": {
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "disconnected": "Disconnected"
+  },
+  "buildMessage": {
+    "start": "started",
+    "stop": "stopped",
+    "delete": "deleted",
+    "theWorkspace": "the workspace",
+    "automatically": "automatically "
+  },
+  "buildData": {
+    "reason": "Reason",
+    "duration": "Duration"
   }
 }

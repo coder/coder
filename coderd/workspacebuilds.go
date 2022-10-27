@@ -15,6 +15,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -277,12 +279,62 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if createBuild.TemplateVersionID == uuid.Nil {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	auditor := api.Auditor.Load()
+
+	// if user deletes a workspace, audit the workspace
+	if action == rbac.ActionDelete {
+		aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+
+		defer commitAudit()
+		aReq.Old = workspace
+	}
+
+	latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+
+	// if a user starts/stops a workspace, audit the workspace build
+	if action == rbac.ActionUpdate {
+		var auditAction database.AuditAction
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			auditAction = database.AuditActionStart
+		} else if createBuild.Transition == codersdk.WorkspaceTransitionStop {
+			auditAction = database.AuditActionStop
+		} else {
+			auditAction = database.AuditActionWrite
+		}
+
+		// We pass the workspace name to the Auditor so that it
+		// can form a friendly string for the user.
+		workspaceResourceInfo := map[string]string{
+			"workspaceName": workspace.Name,
+		}
+
+		wriBytes, err := json.Marshal(workspaceResourceInfo)
 		if err != nil {
+			api.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+		}
+
+		aReq, commitAudit := audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           auditAction,
+			AdditionalFields: wriBytes,
+		})
+
+		defer commitAudit()
+		aReq.Old = latestBuild
+	}
+
+	if createBuild.TemplateVersionID == uuid.Nil {
+		if latestBuildErr != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching the latest workspace build.",
-				Detail:  err.Error(),
+				Detail:  latestBuildErr.Error(),
 			})
 			return
 		}
@@ -458,7 +510,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
+			FileID:         templateVersionJob.FileID,
 			Input:          input,
 		})
 		if err != nil {
@@ -492,11 +544,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: []uuid.UUID{
-			workspace.OwnerID,
-			workspaceBuild.InitiatorID,
-		},
+	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{
+		workspace.OwnerID,
+		workspaceBuild.InitiatorID,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -679,9 +729,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, workspace := range workspaces {
 		userIDs = append(userIDs, workspace.OwnerID)
 	}
-	users, err := api.Database.GetUsersByIDs(ctx, database.GetUsersByIDsParams{
-		IDs: userIDs,
-	})
+	users, err := api.Database.GetUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
 	}
@@ -848,7 +896,7 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, api.TailnetCoordinator, agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
 			}

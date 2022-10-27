@@ -32,8 +32,8 @@ func TestCoordinator(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return coordinator.Node(id) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.Close()
-		require.NoError(t, err)
+		require.NoError(t, client.Close())
+		require.NoError(t, server.Close())
 		<-errChan
 		<-closeChan
 	})

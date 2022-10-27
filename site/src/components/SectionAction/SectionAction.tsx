@@ -11,7 +11,9 @@ const useStyles = makeStyles((theme) => ({
  * SectionAction is a content box that call to actions should be placed
  * within
  */
-export const SectionAction: FC<React.PropsWithChildren<unknown>> = ({ children }) => {
+export const SectionAction: FC<React.PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles()
   return <div className={styles.root}>{children}</div>
 }

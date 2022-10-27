@@ -7,7 +7,6 @@ import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
 import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -17,7 +16,7 @@ const Language = {
   lastBuiltLabel: "Last Built",
   outdated: "Outdated",
   upToDate: "Up to date",
-  byLabel: "Last Built by",
+  byLabel: "Last built by",
 }
 
 export interface WorkspaceStatsProps {
@@ -25,15 +24,20 @@ export interface WorkspaceStatsProps {
   handleUpdate: () => void
 }
 
-export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdate }) => {
+export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
+  workspace,
+  handleUpdate,
+}) => {
   const styles = useStyles()
   const theme = useTheme()
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(workspace.latest_build)
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
+    workspace.latest_build,
+  )
 
   return (
     <div className={styles.stats} aria-label={Language.workspaceDetails}>
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.templateLabel}</span>
+        <span className={styles.statsLabel}>{Language.templateLabel}:</span>
         <Link
           component={RouterLink}
           to={`/templates/${workspace.template_name}`}
@@ -42,30 +46,32 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({ workspace, handleUpdat
           {workspace.template_name}
         </Link>
       </div>
-      <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.versionLabel}</span>
+        <span className={styles.statsLabel}>{Language.versionLabel}:</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
             <span className={styles.outdatedLabel}>
               {Language.outdated}
-              <OutdatedHelpTooltip onUpdateVersion={handleUpdate} ariaLabel="update version" />
+              <OutdatedHelpTooltip
+                onUpdateVersion={handleUpdate}
+                ariaLabel="update version"
+              />
             </span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>{Language.upToDate}</span>
+            <span style={{ color: theme.palette.text.secondary }}>
+              {Language.upToDate}
+            </span>
           )}
         </span>
       </div>
-      <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
+        <span className={styles.statsLabel}>{Language.lastBuiltLabel}:</span>
         <span className={styles.statsValue} data-chromatic="ignore">
           {createDayString(workspace.latest_build.created_at)}
         </span>
       </div>
-      <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.byLabel}</span>
+        <span className={styles.statsLabel}>{Language.byLabel}:</span>
         <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
     </div>
@@ -76,13 +82,11 @@ const useStyles = makeStyles((theme) => ({
   stats: {
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
-    backgroundColor: theme.palette.background.paper,
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,
-    fontFamily: MONOSPACE_FONT_FAMILY,
     margin: "0px",
     [theme.breakpoints.down("sm")]: {
       display: "block",
@@ -90,34 +94,23 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: "16%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
+    display: "flex",
+    alignItems: "baseline",
+    gap: theme.spacing(1),
   },
 
   statsLabel: {
-    fontSize: 12,
-    textTransform: "uppercase",
     display: "block",
-    fontWeight: 600,
     wordWrap: "break-word",
   },
 
   statsValue: {
-    fontSize: 16,
     marginTop: theme.spacing(0.25),
     display: "block",
     wordWrap: "break-word",
-  },
-
-  statsDivider: {
-    width: 1,
-    height: theme.spacing(5),
-    backgroundColor: theme.palette.divider,
-    marginRight: theme.spacing(2),
-    [theme.breakpoints.down("sm")]: {
-      display: "none",
-    },
+    color: theme.palette.text.primary,
   },
 
   capitalize: {

@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
@@ -107,15 +106,14 @@ func TestConfigSSH(t *testing.T) {
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agent.Options{
-		FetchMetadata:     agentClient.WorkspaceAgentMetadata,
-		CoordinatorDialer: agentClient.ListenWorkspaceAgentTailnet,
-		Logger:            slogtest.Make(t, nil).Named("agent"),
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent"),
 	})
 	defer func() {
 		_ = agentCloser.Close()
 	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	agentConn, err := client.DialWorkspaceAgentTailnet(context.Background(), slog.Logger{}, resources[0].Agents[0].ID)
+	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
 
