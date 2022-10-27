@@ -916,7 +916,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
     },
   },
   status_code: 200,
-  additional_fields: "",
+  additional_fields: {},
   description: "{user} updated workspace {target}",
   user: MockUser,
 }
@@ -955,7 +955,10 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   request_id: "61555889-2875-475c-8494-f7693dd5d75b",
   action: "stop",
   resource_type: "workspace_build",
-  description: "{user} stopped workspace build for workspace test2",
+  description: "{user} stopped workspace build for {target}",
+  additional_fields: {
+    "workspaceName": "test2"
+  },
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

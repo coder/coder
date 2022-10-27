@@ -16,31 +16,17 @@ import userAgentParser from "ua-parser-js"
 import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
 
-// the BE returns additional_field as a string, since it's stored as JSON but
-// technically, it's a map, so we adjust the type here.
-type ExtendedAuditLog = Omit<AuditLog, "additional_fields"> & {
-  additional_fields: Record<string, string>
-}
+export const readableActionMessage = (auditLog: AuditLog): string => {
+  let target = auditLog.resource_target.trim()
 
-const readableActionMessage = (auditLog: ExtendedAuditLog) => {
-  // workspace builds audit logs don't have targets; therefore format them differently
+  // audit logs with a resource_type of workspace build use workspace name as a target
   if (auditLog.resource_type === "workspace_build") {
-    // remove the "{target}" identifier in the string description as we don't use it
-    const amendedDescription = auditLog.description.substring(
-      0,
-      auditLog.description.lastIndexOf(" "),
-    )
-    return amendedDescription
-      .replace("{user}", `<strong>${auditLog.user?.username}</strong>`)
-      .replace(
-        auditLog.additional_fields.workspaceName,
-        `<strong>${auditLog.additional_fields.workspaceName}</strong>`,
-      )
+    target = auditLog.additional_fields.workspaceName.trim()
   }
 
   return auditLog.description
     .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
-    .replace("{target}", `<strong>${auditLog.resource_target.trim()}</strong>`)
+    .replace("{target}", `<strong>${target}</strong>`)
 }
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
@@ -132,9 +118,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 >
                   <span
                     dangerouslySetInnerHTML={{
-                      __html: readableActionMessage(
-                        auditLog as unknown as ExtendedAuditLog,
-                      ),
+                      __html: readableActionMessage(auditLog),
                     }}
                   />
                   <span className={styles.auditLogTime}>
