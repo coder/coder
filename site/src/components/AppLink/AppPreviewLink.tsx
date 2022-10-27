@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
-import * as TypesGen from "../../api/typesGenerated"
+import * as TypesGen from "api/typesGenerated"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
 
