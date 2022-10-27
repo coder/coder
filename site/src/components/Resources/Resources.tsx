@@ -5,13 +5,8 @@ import {
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { FC, useState } from "react"
-import {
-  BuildInfoResponse,
-  Workspace,
-  WorkspaceResource,
-} from "../../api/typesGenerated"
+import { WorkspaceResource } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
-import { ResourceCard } from "./ResourceCard"
 
 const countAgents = (resource: WorkspaceResource) => {
   return resource.agents ? resource.agents.length : 0
@@ -19,23 +14,13 @@ const countAgents = (resource: WorkspaceResource) => {
 
 interface ResourcesProps {
   resources: WorkspaceResource[]
-  workspace: Workspace
-  canUpdateWorkspace: boolean
-  buildInfo?: BuildInfoResponse | undefined
-  hideSSHButton?: boolean
-  applicationsHost?: string
+  resourceCard: (resource: WorkspaceResource) => JSX.Element
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
-
-  workspace,
-  canUpdateWorkspace,
-  hideSSHButton,
-  applicationsHost,
-  buildInfo,
+  resourceCard,
 }) => {
-  const serverVersion = buildInfo?.version || ""
   const styles = useStyles()
   const [shouldDisplayHideResources, setShouldDisplayHideResources] =
     useState(false)
@@ -49,20 +34,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
 
   return (
     <Stack direction="column" spacing={0}>
-      {displayResources.map((resource) => {
-        return (
-          <ResourceCard
-            key={resource.id}
-            resource={resource}
-            workspace={workspace}
-            applicationsHost={applicationsHost}
-            showApps={canUpdateWorkspace}
-            hideSSHButton={hideSSHButton}
-            serverVersion={serverVersion}
-          />
-        )
-      })}
-
+      {displayResources.map(resourceCard)}
       {hasHideResources && (
         <div className={styles.buttonWrapper}>
           <Button

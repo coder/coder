@@ -23,6 +23,7 @@ import {
   EstimateTransitionTime,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
+import { ResourceCard } from "components/Resources/ResourceCard"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -86,6 +87,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
+  const serverVersion = buildInfo?.version || ""
   const hasTemplateIcon =
     workspace.template_icon && workspace.template_icon !== ""
 
@@ -216,11 +218,17 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
-            workspace={workspace}
-            canUpdateWorkspace={canUpdateWorkspace}
-            buildInfo={buildInfo}
-            hideSSHButton={hideSSHButton}
-            applicationsHost={applicationsHost}
+            resourceCard={(resource) => (
+              <ResourceCard
+                key={resource.id}
+                resource={resource}
+                workspace={workspace}
+                applicationsHost={applicationsHost}
+                showApps={canUpdateWorkspace}
+                hideSSHButton={hideSSHButton}
+                serverVersion={serverVersion}
+              />
+            )}
           />
         )}
 
