@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { combineClasses } from "util/combineClasses"
 import { WorkspaceAgent } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
@@ -11,6 +12,7 @@ export interface AgentRowPreviewProps {
 
 export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
   const styles = useStyles()
+  const { t } = useTranslation("agent")
 
   return (
     <Stack
@@ -36,7 +38,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             spacing={1}
             className={combineClasses([styles.noShrink, styles.agentDataItem])}
           >
-            <span>Agent:</span>
+            <span>{t("label.agent").toString()}:</span>
             <span className={styles.agentDataValue}>{agent.name}</span>
           </Stack>
 
@@ -46,7 +48,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             spacing={1}
             className={combineClasses([styles.noShrink, styles.agentDataItem])}
           >
-            <span>OS:</span>
+            <span>{t("label.os").toString()}:</span>
             <span
               className={combineClasses([
                 styles.agentDataValue,
@@ -63,7 +65,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             spacing={1}
             className={styles.agentDataItem}
           >
-            <span>Apps:</span>
+            <span>{t("label.apps").toString()}:</span>
             <Stack
               direction="row"
               alignItems="center"

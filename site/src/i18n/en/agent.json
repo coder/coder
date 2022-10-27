@@ -3,5 +3,10 @@
     "private": "Private, only accessible by you",
     "authenticated": "Shared with all authenticated users",
     "public": "Shared publicly"
+  },
+  "labels": {
+    "agent": "Agent",
+    "os": "OS",
+    "apps": "Apps"
   }
 }
