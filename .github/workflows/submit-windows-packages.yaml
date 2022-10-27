@@ -7,7 +7,7 @@ env:
   VERSION: "$(./scripts/version.sh)"
   PACKAGE_FILE_NAME: coder_${env:VERSION}_windows_amd64_installer.exe
   PACKAGE_ID: Coder.Coder  # Most probably the id of coder package
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
   
 jobs:
   
@@ -20,4 +20,4 @@ jobs:
           iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
           $github = Get-Content '${{ github.event_path }}' | ConvertFrom-Json
           $installerUrl = ${{ github.release.assets }} | Where-Object -Property name -match ${{ env:PACKAGE_FILE_NAME }} | Select -ExpandProperty browser_download_url -First 1
-          .\wingetcreate.exe update ${{ env:PACKAGE_ID }} -s -v ${{ env.VERSION }} -u $installerUrl -t ${{ env.GITHUB_TOKEN }}
+          .\wingetcreate.exe update ${{ env:PACKAGE_ID }} -s -v ${{ env.VERSION }} -u $installerUrl -t ${{ env.GITHUB_PAT }}
