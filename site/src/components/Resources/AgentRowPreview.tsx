@@ -134,7 +134,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       gap: theme.spacing(2),
       flexWrap: "wrap",
     },
@@ -149,7 +149,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   agentDataItem: {
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
       alignItems: "flex-start",
       gap: theme.spacing(1),
