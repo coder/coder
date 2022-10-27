@@ -1,5 +1,5 @@
-import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
+import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { BaseIcon } from "./BaseIcon"
@@ -13,24 +13,29 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
   const styles = useStyles()
 
   return (
-    <Button
-      size="small"
-      startIcon={<BaseIcon app={app} />}
-      endIcon={<ShareIcon app={app} />}
-      className={styles.button}
+    <Stack
+      className={styles.appPreviewLink}
+      alignItems="center"
+      direction="row"
+      spacing={1}
     >
-      <span className={styles.appName}>{app.name}</span>
-    </Button>
+      <BaseIcon app={app} />
+      {app.name}
+      <ShareIcon app={app} />
+    </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  button: {
-    whiteSpace: "nowrap",
-    cursor: "default",
-  },
+  appPreviewLink: {
+    padding: theme.spacing(0.25, 1.5),
+    borderRadius: 9999,
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.primary,
+    background: theme.palette.background.paper,
 
-  appName: {
-    marginRight: theme.spacing(1),
+    "& img, & svg": {
+      width: 14,
+    },
   },
 }))

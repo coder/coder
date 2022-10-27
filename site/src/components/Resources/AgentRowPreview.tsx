@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
 import { FC } from "react"
+import { combineClasses } from "util/combineClasses"
 import { WorkspaceAgent } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
 
@@ -23,22 +24,43 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
         <div className={styles.agentStatusWrapper}>
           <div className={styles.agentStatusPreview}></div>
         </div>
-        <Stack alignItems="baseline" direction="row">
-          <div className={styles.agentName}>{agent.name}</div>
-          <span className={styles.agentOS}>{agent.operating_system}</span>
-        </Stack>
-      </Stack>
+        <Stack
+          alignItems="baseline"
+          direction="row"
+          spacing={4}
+          className={styles.agentData}
+        >
+          <Stack direction="row" alignItems="baseline" spacing={1}>
+            <span>Agent:</span>
+            <span className={styles.agentDataValue}>{agent.name}</span>
+          </Stack>
 
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={0.5}
-        wrap="wrap"
-        className={styles.appsColumn}
-      >
-        {agent.apps.map((app) => (
-          <AppPreviewLink key={app.name} app={app} />
-        ))}
+          <Stack direction="row" alignItems="baseline" spacing={1}>
+            <span>OS:</span>
+            <span
+              className={combineClasses([
+                styles.agentDataValue,
+                styles.agentOS,
+              ])}
+            >
+              {agent.operating_system}
+            </span>
+          </Stack>
+
+          <Stack direction="row" alignItems="baseline" spacing={1}>
+            <span>Apps:</span>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              wrap="wrap"
+            >
+              {agent.apps.map((app) => (
+                <AppPreviewLink key={app.name} app={app} />
+              ))}
+            </Stack>
+          </Stack>
+        </Stack>
       </Stack>
     </Stack>
   )
@@ -92,7 +114,12 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
 
-  appsColumn: {
-    minWidth: "50%",
+  agentData: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+
+  agentDataValue: {
+    color: theme.palette.text.primary,
   },
 }))
