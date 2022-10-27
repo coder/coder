@@ -38,7 +38,7 @@ func groupDelete() *cobra.Command {
 
 			err = client.DeleteGroup(ctx, group.ID)
 			if err != nil {
-				return xerrors.Errorf("patch group: %w", err)
+				return xerrors.Errorf("delete group: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted group %s!\n", cliui.Styles.Keyword.Render(group.Name))
