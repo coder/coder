@@ -270,19 +270,22 @@ interface SearchParamOptions extends TypesGen.Pagination {
 
 export const getURLWithSearchParams = (
   basePath: string,
-  options: SearchParamOptions
+  options?: SearchParamOptions
 ): string => {
-  const searchParams = new URLSearchParams()
-
-  const keys = Object.keys(options) as (keyof SearchParamOptions)[]
-  keys.forEach((key) => {
-    const value = options[key] ?? ""
-    searchParams.append(key, value.toString())
-  })
-
-  const searchString = searchParams.toString()
-
-  return searchString ? `${basePath}?${searchString}` : basePath
+  if (options) {
+    const searchParams = new URLSearchParams()
+    const keys = Object.keys(options) as (keyof SearchParamOptions)[]
+    keys.forEach((key) => {
+      const value = options[key]
+      if (value !== undefined && value !== "") {
+        searchParams.append(key, value.toString())
+      }
+    })
+    const searchString = searchParams.toString()
+    return searchString ? `${basePath}?${searchString}` : basePath
+  } else {
+    return basePath
+  }
 }
 
 export const getWorkspaces = async (
