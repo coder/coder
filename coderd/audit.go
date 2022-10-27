@@ -233,7 +233,8 @@ func (api *API) auditLogDescription(ctx context.Context, alog database.GetAuditL
 
 	// Strings for build updates follow the below format:
 	// "{user} started workspace build for {target}"
-	// where target is a workspace instead of the workspace build
+	// where target is a workspace instead of the workspace build.
+	// Note the workspace name will be bolded on the FE.
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
 		workspaceBytes := []byte(alog.AdditionalFields)
 		var workspaceResourceInfo WorkspaceResourceInfo

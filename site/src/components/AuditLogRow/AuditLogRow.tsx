@@ -30,13 +30,26 @@ const pillTypeByHttpStatus = (
   return "success"
 }
 
-const readableActionMessage = (auditLog: AuditLog) => {
+// the BE returns additional_field as a string, since it's stored as JSON but
+// technically, it's a map, so we adjust the type here.
+type ExtendedAuditLog = Omit<AuditLog, "additional_fields"> & {
+  additional_fields: Record<string, string>
+}
+
+const readableActionMessage = (auditLog: ExtendedAuditLog) => {
   // workspace builds audit logs don't have targets; therefore format them differently
   if (auditLog.resource_type === "workspace_build") {
-    const substr = auditLog.description.trim().split(" ").pop() ?? ""
-    return auditLog.description
+    // remove the "{target}" identifier in the string description as we don't use it
+    const amendedDescription = auditLog.description.substring(
+      0,
+      auditLog.description.lastIndexOf(" "),
+    )
+    return amendedDescription
       .replace("{user}", `<strong>${auditLog.user?.username}</strong>`)
-      .replace(substr, `<strong>${substr}</strong>`)
+      .replace(
+        auditLog.additional_fields.workspaceName,
+        `<strong>${auditLog.additional_fields.workspaceName}</strong>`,
+      )
   }
 
   return auditLog.description
@@ -101,7 +114,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 <span
                   className={styles.auditLogResume}
                   dangerouslySetInnerHTML={{
-                    __html: readableActionMessage(auditLog),
+                    __html: readableActionMessage(
+                      auditLog as unknown as ExtendedAuditLog,
+                    ),
                   }}
                 />
                 <span className={styles.auditLogTime}>
