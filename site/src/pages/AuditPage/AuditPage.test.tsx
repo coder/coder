@@ -65,5 +65,29 @@ describe("AuditPage", () => {
 
       expect(getAuditLogsSpy).toBeCalledWith({ limit: 25, offset: 0, q: query })
     })
+
+    it("resets page to 1 when filter is changed", async () => {
+      const getAuditLogsSpy = jest
+        .spyOn(API, "getAuditLogs")
+        .mockResolvedValue({ audit_logs: [MockAuditLog] })
+
+      history.push(`/audit?page=2`)
+      render(<AuditPage />)
+
+      await waitForLoaderToBeRemoved()
+      getAuditLogsSpy.mockReset()
+
+      const filterField = screen.getByLabelText("Filter")
+      const query = "resource_type:workspace action:create"
+      await userEvent.type(filterField, query)
+
+      await waitFor(() =>
+        expect(getAuditLogsSpy).toBeCalledWith({
+          limit: 25,
+          offset: 0,
+          q: query,
+        }),
+      )
+    })
   })
 })

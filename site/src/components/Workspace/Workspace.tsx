@@ -155,10 +155,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           </Stack>
         }
       >
-        <WorkspaceStatusBadge
-          build={workspace.latest_build}
-          className={styles.statusBadge}
-        />
         <Stack direction="row" spacing={3} alignItems="center">
           {hasTemplateIcon && (
             <img
@@ -168,7 +164,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
           )}
           <div>
-            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+            <PageHeaderTitle>
+              {workspace.name}
+              <WorkspaceStatusBadge
+                build={workspace.latest_build}
+                className={styles.statusBadge}
+              />
+            </PageHeaderTitle>
             <PageHeaderSubtitle condensed>
               {workspace.owner_name}
             </PageHeaderSubtitle>
@@ -241,7 +243,7 @@ const spacerWidth = 300
 export const useStyles = makeStyles((theme) => {
   return {
     statusBadge: {
-      marginBottom: theme.spacing(3),
+      marginLeft: theme.spacing(2),
     },
 
     actions: {
