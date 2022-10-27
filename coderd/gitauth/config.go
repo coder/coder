@@ -86,6 +86,16 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			Scopes:       scope[typ],
 		}
 
+		if entry.AuthURL != "" {
+			oauth2Config.Endpoint.AuthURL = entry.AuthURL
+		}
+		if entry.TokenURL != "" {
+			oauth2Config.Endpoint.TokenURL = entry.TokenURL
+		}
+		if entry.Scopes != nil && len(entry.Scopes) > 0 {
+			oauth2Config.Scopes = entry.Scopes
+		}
+
 		var oauthConfig httpmw.OAuth2Config = oauth2Config
 		// Azure DevOps uses JWT token authentication!
 		if typ == codersdk.GitProviderAzureDevops {

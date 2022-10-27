@@ -242,7 +242,11 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
+	a.closeMutex.Lock()
+	a.connCloseWait.Add(1)
+	a.closeMutex.Unlock()
 	go func() {
+		defer a.connCloseWait.Done()
 		for {
 			conn, err := sshListener.Accept()
 			if err != nil {
@@ -256,7 +260,11 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
+	a.closeMutex.Lock()
+	a.connCloseWait.Add(1)
+	a.closeMutex.Unlock()
 	go func() {
+		defer a.connCloseWait.Done()
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
@@ -290,7 +298,11 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
+	a.closeMutex.Lock()
+	a.connCloseWait.Add(1)
+	a.closeMutex.Unlock()
 	go func() {
+		defer a.connCloseWait.Done()
 		for {
 			conn, err := speedtestListener.Accept()
 			if err != nil {
@@ -311,7 +323,11 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
+	a.closeMutex.Lock()
+	a.connCloseWait.Add(1)
+	a.closeMutex.Unlock()
 	go func() {
+		defer a.connCloseWait.Done()
 		defer statisticsListener.Close()
 		server := &http.Server{
 			Handler:           a.statisticsHandler(),

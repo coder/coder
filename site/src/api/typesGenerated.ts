@@ -354,6 +354,7 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly regex: string
+  readonly scopes: string[]
 }
 
 // From codersdk/gitsshkey.go
