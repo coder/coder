@@ -22,7 +22,6 @@ export const Language = {
 
 export interface BuildsTableProps {
   builds?: TypesGen.WorkspaceBuild[]
-  className?: string
 }
 
 const groupBuildsByDate = (builds?: TypesGen.WorkspaceBuild[]) => {
@@ -48,13 +47,12 @@ const groupBuildsByDate = (builds?: TypesGen.WorkspaceBuild[]) => {
 
 export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
   builds,
-  className,
 }) => {
   const isLoading = !builds
   const buildsByDate = groupBuildsByDate(builds)
 
   return (
-    <TableContainer className={className}>
+    <TableContainer>
       <Table data-testid="builds-table" aria-describedby="builds table">
         <TableBody>
           {isLoading && <TableLoader />}
