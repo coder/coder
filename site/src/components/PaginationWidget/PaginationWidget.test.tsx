@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react"
 import { render } from "../../testHelpers/renderHelpers"
 import { PaginationWidget } from "./PaginationWidget"
+import { createPaginationRef } from "./utils"
 
 describe("PaginatedList", () => {
   it("displays an accessible previous and next button", () => {
@@ -8,20 +9,13 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
+        paginationRef={createPaginationRef({ page: 2, limit: 12 })}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={1}
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
       />,
     )
 
-    expect(
-      screen.getByRole("button", { name: "Previous page" }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { name: "Next page" }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled()
   })
 
   it("displays the expected number of pages with one ellipsis tile", () => {
@@ -29,12 +23,8 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
-        onPageClick={(_) => jest.fn()}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={1}
+        paginationRef={createPaginationRef({ page: 1, limit: 12 })}
       />,
     )
 
@@ -49,12 +39,8 @@ describe("PaginatedList", () => {
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
-        onPageClick={(_) => jest.fn()}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={6}
+        paginationRef={createPaginationRef({ page: 6, limit: 12 })}
       />,
     )
 
@@ -62,5 +48,27 @@ describe("PaginatedList", () => {
     expect(
       container.querySelectorAll(`button[name="Page button"]`),
     ).toHaveLength(5)
+  })
+
+  it("disables the previous button on the first page", () => {
+    render(
+      <PaginationWidget
+        numRecords={100}
+        paginationRef={createPaginationRef({ page: 1, limit: 25 })}
+      />,
+    )
+    const prevButton = screen.getByLabelText("Previous page")
+    expect(prevButton).toBeDisabled()
+  })
+
+  it("disables the next button on the last page", () => {
+    render(
+      <PaginationWidget
+        numRecords={100}
+        paginationRef={createPaginationRef({ page: 4, limit: 25 })}
+      />,
+    )
+    const nextButton = screen.getByLabelText("Next page")
+    expect(nextButton).toBeDisabled()
   })
 })

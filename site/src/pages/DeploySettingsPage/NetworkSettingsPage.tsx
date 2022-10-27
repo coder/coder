@@ -17,7 +17,7 @@ const NetworkSettingsPage: React.FC = () => {
       <Header
         title="Network"
         description="Configure your deployment connectivity."
-        docsHref="https://coder.com/docs/coder-oss/latest/admin/networking"
+        docsHref="https://coder.com/docs/coder-oss/latest/networking"
       />
 
       <OptionsTable
