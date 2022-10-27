@@ -3,7 +3,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
-} from "../../testHelpers/renderHelpers"
+} from "testHelpers/renderHelpers"
 import { AppLink, AppLinkProps } from "./AppLink"
 
 export default {
