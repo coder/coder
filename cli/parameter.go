@@ -38,7 +38,7 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 
 // Returns a parameter value from a given map, if the map exists, else takes input from the user.
 // Throws an error if the map exists but does not include a value for the parameter.
-func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, parameterSchema codersdk.DeprecatedParameterSchema) (string, error) {
+func getDeprecatedParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, parameterSchema codersdk.DeprecatedParameterSchema) (string, error) {
 	var parameterValue string
 	if parameterMap != nil {
 		var ok bool
@@ -48,7 +48,7 @@ func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string
 		}
 	} else {
 		var err error
-		parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+		parameterValue, err = cliui.DeprecatedParameterSchema(cmd, parameterSchema)
 		if err != nil {
 			return "", err
 		}

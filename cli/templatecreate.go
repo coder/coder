@@ -276,7 +276,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\r\n")
 
 		for _, parameterSchema := range missingSchemas {
-			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
+			parameterValue, err := getDeprecatedParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 			if err != nil {
 				return nil, nil, err
 			}

@@ -122,10 +122,10 @@ func create() *cobra.Command {
 			}
 
 			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
-				Template:         template,
-				ExistingParams:   []codersdk.DeprecatedParameter{},
-				ParameterFile:    parameterFile,
-				NewWorkspaceName: workspaceName,
+				Template:                 template,
+				ExistingDeprecatedParams: []codersdk.DeprecatedParameter{},
+				ParameterFile:            parameterFile,
+				NewWorkspaceName:         workspaceName,
 			})
 			if err != nil {
 				return err
@@ -170,10 +170,11 @@ func create() *cobra.Command {
 }
 
 type prepWorkspaceBuildArgs struct {
-	Template         codersdk.Template
-	ExistingParams   []codersdk.DeprecatedParameter
-	ParameterFile    string
-	NewWorkspaceName string
+	Template                 codersdk.Template
+	ExistingParams           []codersdk.WorkspaceBuildParameter
+	ExistingDeprecatedParams []codersdk.DeprecatedParameter
+	ParameterFile            string
+	NewWorkspaceName         string
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
@@ -184,7 +185,7 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 	if err != nil {
 		return nil, err
 	}
-	parameterSchemas, err := client.DeprecatedTemplateVersionSchema(ctx, templateVersion.ID)
+	deprecatedParameterSchemas, err := client.DeprecatedTemplateVersionSchema(ctx, templateVersion.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -201,9 +202,9 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 		}
 	}
 	disclaimerPrinted := false
-	parameters := make([]codersdk.DeprecatedCreateParameterRequest, 0)
-PromptParamLoop:
-	for _, parameterSchema := range parameterSchemas {
+	deprecatedParameters := make([]codersdk.DeprecatedCreateParameterRequest, 0)
+PromptDeprecatedParamLoop:
+	for _, parameterSchema := range deprecatedParameterSchemas {
 		if !parameterSchema.AllowOverrideSource {
 			continue
 		}
@@ -214,21 +215,21 @@ PromptParamLoop:
 
 		// Param file is all or nothing
 		if !useParamFile {
-			for _, e := range args.ExistingParams {
+			for _, e := range args.ExistingDeprecatedParams {
 				if e.Name == parameterSchema.Name {
 					// If the param already exists, we do not need to prompt it again.
 					// The workspace scope will reuse params for each build.
-					continue PromptParamLoop
+					continue PromptDeprecatedParamLoop
 				}
 			}
 		}
 
-		parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
+		parameterValue, err := getDeprecatedParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 		if err != nil {
 			return nil, err
 		}
 
-		parameters = append(parameters, codersdk.DeprecatedCreateParameterRequest{
+		deprecatedParameters = append(deprecatedParameters, codersdk.DeprecatedCreateParameterRequest{
 			Name:              parameterSchema.Name,
 			SourceValue:       parameterValue,
 			SourceScheme:      codersdk.DeprecatedParameterSourceSchemeData,
@@ -241,7 +242,7 @@ PromptParamLoop:
 	after := time.Now()
 	dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		WorkspaceName:   args.NewWorkspaceName,
-		ParameterValues: parameters,
+		ParameterValues: deprecatedParameters,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
@@ -281,5 +282,5 @@ PromptParamLoop:
 		return nil, err
 	}
 
-	return parameters, nil
+	return deprecatedParameters, nil
 }

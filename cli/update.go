@@ -48,10 +48,10 @@ func update() *cobra.Command {
 			}
 
 			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
-				Template:         template,
-				ExistingParams:   existingParams,
-				ParameterFile:    parameterFile,
-				NewWorkspaceName: workspace.Name,
+				Template:                 template,
+				ExistingDeprecatedParams: existingParams,
+				ParameterFile:            parameterFile,
+				NewWorkspaceName:         workspace.Name,
 			})
 			if err != nil {
 				return nil
