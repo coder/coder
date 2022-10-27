@@ -78,6 +78,8 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.body2.fontSize,
     borderTop: `1px solid ${theme.palette.divider}`,
     fontFamily: MONOSPACE_FONT_FAMILY,
+    position: "relative",
+    zIndex: 2,
   },
 
   diffColumn: {
