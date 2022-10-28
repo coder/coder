@@ -33,7 +33,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			organization, err := currentOrganization(cmd, client)
+			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
 				return err
 			}

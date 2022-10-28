@@ -2,7 +2,6 @@ import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
-import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
 import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
@@ -16,9 +15,10 @@ import {
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
+import { TableDateRow } from "components/TableDateRow/TableDateRow"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { AuditHelpTooltip } from "components/Tooltips"
-import { FC } from "react"
+import { FC, Fragment } from "react"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 
 export const Language = {
@@ -37,6 +37,27 @@ const presetFilters = [
   { query: "resource_type:user action:delete", name: "Deleted users" },
 ]
 
+const groupAuditLogsByDate = (auditLogs?: AuditLog[]) => {
+  const auditLogsByDate: Record<string, AuditLog[]> = {}
+
+  if (!auditLogs) {
+    return
+  }
+
+  auditLogs.forEach((auditLog) => {
+    const dateKey = new Date(auditLog.time).toDateString()
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (auditLogsByDate[dateKey]) {
+      auditLogsByDate[dateKey].push(auditLog)
+    } else {
+      auditLogsByDate[dateKey] = [auditLog]
+    }
+  })
+
+  return auditLogsByDate
+}
+
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[]
   count?: number
@@ -54,7 +75,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 }) => {
   const isLoading = auditLogs === undefined || count === undefined
   const isEmpty = !isLoading && auditLogs.length === 0
-  const hasResults = !isLoading && auditLogs.length > 0
+  const auditLogsByDate = groupAuditLogsByDate(auditLogs)
 
   return (
     <Margins>
@@ -77,17 +98,23 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
       <TableContainer>
         <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell style={{ paddingLeft: 32 }}>Logs</TableCell>
-            </TableRow>
-          </TableHead>
           <TableBody>
             {isLoading && <TableLoader />}
-            {hasResults &&
-              auditLogs.map((auditLog) => (
-                <AuditLogRow auditLog={auditLog} key={auditLog.id} />
-              ))}
+
+            {auditLogsByDate &&
+              Object.keys(auditLogsByDate).map((dateStr) => {
+                const auditLogs = auditLogsByDate[dateStr]
+
+                return (
+                  <Fragment key={dateStr}>
+                    <TableDateRow date={new Date(dateStr)} />
+                    {auditLogs.map((log) => (
+                      <AuditLogRow key={log.id} auditLog={log} />
+                    ))}
+                  </Fragment>
+                )
+              })}
+
             {isEmpty && (
               <TableRow>
                 <TableCell colSpan={999}>

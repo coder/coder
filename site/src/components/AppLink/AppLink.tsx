@@ -3,14 +3,12 @@ import CircularProgress from "@material-ui/core/CircularProgress"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
-import ComputerIcon from "@material-ui/icons/Computer"
-import PublicOutlinedIcon from "@material-ui/icons/PublicOutlined"
-import LockOutlinedIcon from "@material-ui/icons/LockOutlined"
-import GroupOutlinedIcon from "@material-ui/icons/GroupOutlined"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
-import { FC, PropsWithChildren } from "react"
+import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../util/random"
+import { BaseIcon } from "./BaseIcon"
+import { ShareIcon } from "./ShareIcon"
 
 export const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -19,76 +17,50 @@ export const Language = {
 
 export interface AppLinkProps {
   appsHost?: string
-  username: TypesGen.User["username"]
-  workspaceName: TypesGen.Workspace["name"]
-  agentName: TypesGen.WorkspaceAgent["name"]
-  appName: TypesGen.WorkspaceApp["name"]
-  appIcon?: TypesGen.WorkspaceApp["icon"]
-  appCommand?: TypesGen.WorkspaceApp["command"]
-  appSubdomain: TypesGen.WorkspaceApp["subdomain"]
-  appSharingLevel: TypesGen.WorkspaceApp["sharing_level"]
-  health: TypesGen.WorkspaceApp["health"]
+  workspace: TypesGen.Workspace
+  app: TypesGen.WorkspaceApp
+  agent: TypesGen.WorkspaceAgent
 }
 
-export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
+export const AppLink: FC<AppLinkProps> = ({
   appsHost,
-  username,
-  workspaceName,
-  agentName,
-  appName,
-  appIcon,
-  appCommand,
-  appSubdomain,
-  appSharingLevel,
-  health,
+  app,
+  workspace,
+  agent,
 }) => {
   const styles = useStyles()
+  const username = workspace.owner_name
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
-  let href = `/@${username}/${workspaceName}.${agentName}/apps/${encodeURIComponent(
-    appName,
-  )}/`
-  if (appCommand) {
-    href = `/@${username}/${workspaceName}.${agentName}/terminal?command=${encodeURIComponent(
-      appCommand,
-    )}`
+  let href = `/@${username}/${workspace.name}.${
+    agent.name
+  }/apps/${encodeURIComponent(app.name)}/`
+  if (app.command) {
+    href = `/@${username}/${workspace.name}.${
+      agent.name
+    }/terminal?command=${encodeURIComponent(app.command)}`
   }
-  if (appsHost && appSubdomain) {
-    const subdomain = `${appName}--${agentName}--${workspaceName}--${username}`
+  if (appsHost && app.subdomain) {
+    const subdomain = `${app.name}--${agent.name}--${workspace.name}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
   }
 
   let canClick = true
-  let icon = appIcon ? (
-    <img alt={`${appName} Icon`} src={appIcon} />
-  ) : (
-    <ComputerIcon />
-  )
-
-  let shareIcon = <LockOutlinedIcon />
-  let shareTooltip = "Private, only accessible by you"
-  if (appSharingLevel === "authenticated") {
-    shareIcon = <GroupOutlinedIcon />
-    shareTooltip = "Shared with all authenticated users"
-  }
-  if (appSharingLevel === "public") {
-    shareIcon = <PublicOutlinedIcon />
-    shareTooltip = "Shared publicly"
-  }
+  let icon = <BaseIcon app={app} />
 
   let primaryTooltip = ""
-  if (health === "initializing") {
+  if (app.health === "initializing") {
     canClick = false
     icon = <CircularProgress size={16} />
     primaryTooltip = "Initializing..."
   }
-  if (health === "unhealthy") {
+  if (app.health === "unhealthy") {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
     primaryTooltip = "Unhealthy"
   }
-  if (!appsHost && appSubdomain) {
+  if (!appsHost && app.subdomain) {
     canClick = false
     icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />
     primaryTooltip =
@@ -99,11 +71,11 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
     <Button
       size="small"
       startIcon={icon}
-      endIcon={<Tooltip title={shareTooltip}>{shareIcon}</Tooltip>}
+      endIcon={<ShareIcon app={app} />}
       className={styles.button}
       disabled={!canClick}
     >
-      <span className={styles.appName}>{appName}</span>
+      <span className={styles.appName}>{app.name}</span>
     </Button>
   )
 
@@ -120,7 +92,7 @@ export const AppLink: FC<PropsWithChildren<AppLinkProps>> = ({
                   event.preventDefault()
                   window.open(
                     href,
-                    Language.appTitle(appName, generateRandomString(12)),
+                    Language.appTitle(app.name, generateRandomString(12)),
                     "width=900,height=600",
                   )
                 }

@@ -11,6 +11,7 @@ func enterpriseOnly() []*cobra.Command {
 		server(),
 		features(),
 		licenses(),
+		groups(),
 	}
 }
 

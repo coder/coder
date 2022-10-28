@@ -39,6 +39,7 @@ const useStyles = makeStyles<Theme, PillProps>((theme) => ({
       icon ? theme.spacing(0.75) : theme.spacing(1.5),
     paddingRight: theme.spacing(1.5),
     whiteSpace: "nowrap",
+    fontWeight: 400,
   },
 
   pillColor: {
@@ -54,16 +55,16 @@ const useStyles = makeStyles<Theme, PillProps>((theme) => ({
 
   iconWrapper: {
     marginRight: theme.spacing(0.5),
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: theme.spacing(1.75),
+    height: theme.spacing(1.75),
     lineHeight: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
 
     "& > svg": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
+      width: theme.spacing(1.75),
+      height: theme.spacing(1.75),
     },
   },
 }))

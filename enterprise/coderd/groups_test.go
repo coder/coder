@@ -420,6 +420,26 @@ func TestGroup(t *testing.T) {
 		require.Equal(t, group, ggroup)
 	})
 
+	t.Run("ByName", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
+		})
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		ggroup, err := client.GroupByOrgAndName(ctx, group.OrganizationID, group.Name)
+		require.NoError(t, err)
+		require.Equal(t, group, ggroup)
+	})
+
 	t.Run("WithUsers", func(t *testing.T) {
 		t.Parallel()
 

@@ -5,13 +5,8 @@ import {
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { FC, useState } from "react"
-import {
-  BuildInfoResponse,
-  Workspace,
-  WorkspaceResource,
-} from "../../api/typesGenerated"
+import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ResourceCard } from "./ResourceCard"
 
 const countAgents = (resource: WorkspaceResource) => {
@@ -20,24 +15,13 @@ const countAgents = (resource: WorkspaceResource) => {
 
 interface ResourcesProps {
   resources: WorkspaceResource[]
-  getResourcesError?: Error | unknown
-  workspace: Workspace
-  canUpdateWorkspace: boolean
-  buildInfo?: BuildInfoResponse | undefined
-  hideSSHButton?: boolean
-  applicationsHost?: string
+  agentRow: (agent: WorkspaceAgent) => JSX.Element
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
   resources,
-  getResourcesError,
-  workspace,
-  canUpdateWorkspace,
-  hideSSHButton,
-  applicationsHost,
-  buildInfo,
+  agentRow,
 }) => {
-  const serverVersion = buildInfo?.version || ""
   const styles = useStyles()
   const [shouldDisplayHideResources, setShouldDisplayHideResources] =
     useState(false)
@@ -49,26 +33,15 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
         .sort((a, b) => countAgents(b) - countAgents(a))
   const hasHideResources = resources.some((r) => r.hide)
 
-  if (getResourcesError) {
-    return <AlertBanner severity="error" error={getResourcesError} />
-  }
-
   return (
     <Stack direction="column" spacing={0}>
-      {displayResources.map((resource) => {
-        return (
-          <ResourceCard
-            key={resource.id}
-            resource={resource}
-            workspace={workspace}
-            applicationsHost={applicationsHost}
-            showApps={canUpdateWorkspace}
-            hideSSHButton={hideSSHButton}
-            serverVersion={serverVersion}
-          />
-        )
-      })}
-
+      {displayResources.map((resource) => (
+        <ResourceCard
+          key={resource.id}
+          resource={resource}
+          agentRow={agentRow}
+        />
+      ))}
       {hasHideResources && (
         <div className={styles.buttonWrapper}>
           <Button

@@ -34,7 +34,7 @@ func Test_readBodyAsError(t *testing.T) {
 		longResponse += "a"
 	}
 
-	unexpectedJSON := marshalJSON(map[string]any{
+	unexpectedJSON := marshal(map[string]any{
 		"hello": "world",
 		"foo":   "bar",
 	})
@@ -49,7 +49,7 @@ func Test_readBodyAsError(t *testing.T) {
 		{
 			name: "JSONWithRequest",
 			req:  httptest.NewRequest(http.MethodGet, exampleURL, nil),
-			res:  newResponse(http.StatusNotFound, jsonCT, marshalJSON(simpleResponse)),
+			res:  newResponse(http.StatusNotFound, jsonCT, marshal(simpleResponse)),
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
@@ -72,7 +72,7 @@ func Test_readBodyAsError(t *testing.T) {
 		{
 			name: "JSONWithoutRequest",
 			req:  nil,
-			res:  newResponse(http.StatusNotFound, jsonCT, marshalJSON(simpleResponse)),
+			res:  newResponse(http.StatusNotFound, jsonCT, marshal(simpleResponse)),
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
@@ -86,7 +86,7 @@ func Test_readBodyAsError(t *testing.T) {
 		{
 			name: "UnauthorizedHelper",
 			req:  nil,
-			res:  newResponse(http.StatusUnauthorized, jsonCT, marshalJSON(simpleResponse)),
+			res:  newResponse(http.StatusUnauthorized, jsonCT, marshal(simpleResponse)),
 			assert: func(t *testing.T, err error) {
 				sdkErr := assertSDKError(t, err)
 
@@ -190,7 +190,7 @@ func newResponse(status int, contentType string, body interface{}) *http.Respons
 	}
 }
 
-func marshalJSON(res any) string {
+func marshal(res any) string {
 	b, err := json.Marshal(res)
 	if err != nil {
 		panic(err)

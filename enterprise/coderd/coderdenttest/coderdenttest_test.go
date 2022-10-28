@@ -44,6 +44,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	a := coderdtest.NewAuthTester(ctx, t, client, api.AGPL, admin)
 	a.URLParams["licenses/{id}"] = fmt.Sprintf("licenses/%d", license.ID)
 	a.URLParams["groups/{group}"] = fmt.Sprintf("groups/%s", group.ID.String())
+	a.URLParams["{groupName}"] = group.Name
 
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
 	assertRoute["GET:/api/v2/entitlements"] = coderdtest.RouteCheck{
@@ -79,7 +80,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		AssertAction: rbac.ActionRead,
 		AssertObject: groupObj,
 	}
-	assertRoute["PATCH:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
+	assertRoute["GET:/api/v2/organizations/{organization}/groups/{groupName}"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: groupObj,
+	}
+	assertRoute["GET:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionRead,
 		AssertObject: groupObj,
 	}
