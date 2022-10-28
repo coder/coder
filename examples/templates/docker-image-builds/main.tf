@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.5.3"
+      version = "0.6.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -34,12 +34,13 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id  = coder_agent.main.id
-  name      = "code-server"
-  url       = "http://localhost:13337/?folder=/home/coder"
-  icon      = "/icon/code.svg"
-  subdomain = false
-  share     = "owner"
+  agent_id     = coder_agent.main.id
+  slug         = "code-server"
+  display_name = "code-server"
+  url          = "http://localhost:13337/?folder=/home/coder"
+  icon         = "/icon/code.svg"
+  subdomain    = false
+  share        = "owner"
 
   healthcheck {
     url       = "http://localhost:13337/healthz"

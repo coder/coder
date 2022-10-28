@@ -89,7 +89,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               wrap="wrap"
             >
               {agent.apps.map((app) => (
-                <AppPreviewLink key={app.name} app={app} />
+                <AppPreviewLink key={app.slug} app={app} />
               ))}
             </Stack>
           </Stack>
