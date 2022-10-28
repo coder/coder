@@ -13,7 +13,11 @@ export const TemplateResourcesTable: FC<
   return (
     <Resources
       resources={resources}
-      agentRow={(agent) => <AgentRowPreview key={agent.id} agent={agent} />}
+      agentRow={(agent, count) => (
+        // Align values if there are more than one row
+        // When it is only one row, it is better to have it "flex" and not hard aligned
+        <AgentRowPreview key={agent.id} agent={agent} alignValues={count > 1} />
+      )}
     />
   )
 }
