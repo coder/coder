@@ -20,7 +20,7 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
       spacing={1}
     >
       <BaseIcon app={app} />
-      {app.name}
+      {app.display_name}
       <ShareIcon app={app} />
     </Stack>
   )

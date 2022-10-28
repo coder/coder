@@ -200,7 +200,8 @@ export const MockTemplate: TypesGen.Template = {
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
-  name: "test-app",
+  slug: "test-app",
+  display_name: "Test App",
   icon: "",
   subdomain: false,
   health: "disabled",

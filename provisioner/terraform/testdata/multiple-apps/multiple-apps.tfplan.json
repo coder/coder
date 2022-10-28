@@ -30,10 +30,13 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "display_name": null,
             "healthcheck": [],
             "icon": null,
             "name": null,
             "relative_path": null,
+            "share": "owner",
+            "slug": "app1",
             "subdomain": null,
             "url": null
           },
@@ -50,6 +53,7 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "display_name": null,
             "healthcheck": [
               {
                 "interval": 5,
@@ -60,6 +64,8 @@
             "icon": null,
             "name": null,
             "relative_path": null,
+            "share": "owner",
+            "slug": "app2",
             "subdomain": true,
             "url": null
           },
@@ -76,10 +82,13 @@
           "schema_version": 0,
           "values": {
             "command": null,
+            "display_name": null,
             "healthcheck": [],
             "icon": null,
             "name": null,
             "relative_path": null,
+            "share": "owner",
+            "slug": "app3",
             "subdomain": false,
             "url": null
           },
@@ -142,10 +151,13 @@
         "before": null,
         "after": {
           "command": null,
+          "display_name": null,
           "healthcheck": [],
           "icon": null,
           "name": null,
           "relative_path": null,
+          "share": "owner",
+          "slug": "app1",
           "subdomain": null,
           "url": null
         },
@@ -171,6 +183,7 @@
         "before": null,
         "after": {
           "command": null,
+          "display_name": null,
           "healthcheck": [
             {
               "interval": 5,
@@ -181,6 +194,8 @@
           "icon": null,
           "name": null,
           "relative_path": null,
+          "share": "owner",
+          "slug": "app2",
           "subdomain": true,
           "url": null
         },
@@ -206,10 +221,13 @@
         "before": null,
         "after": {
           "command": null,
+          "display_name": null,
           "healthcheck": [],
           "icon": null,
           "name": null,
           "relative_path": null,
+          "share": "owner",
+          "slug": "app3",
           "subdomain": false,
           "url": null
         },
@@ -249,7 +267,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.5.0"
+        "version_constraint": "0.6.0"
       },
       "null": {
         "name": "null",
@@ -283,6 +301,9 @@
           "expressions": {
             "agent_id": {
               "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+            },
+            "slug": {
+              "constant_value": "app1"
             }
           },
           "schema_version": 0
@@ -310,6 +331,9 @@
                 }
               }
             ],
+            "slug": {
+              "constant_value": "app2"
+            },
             "subdomain": {
               "constant_value": true
             }
@@ -325,6 +349,9 @@
           "expressions": {
             "agent_id": {
               "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+            },
+            "slug": {
+              "constant_value": "app3"
             },
             "subdomain": {
               "constant_value": false
