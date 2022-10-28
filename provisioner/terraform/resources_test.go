@@ -110,13 +110,15 @@ func TestConvertResources(t *testing.T) {
 				Architecture:    "amd64",
 				Apps: []*proto.App{
 					{
-						Name: "app1",
+						Slug:        "app1",
+						DisplayName: "app1",
 						// Subdomain defaults to false if unspecified.
 						Subdomain: false,
 					},
 					{
-						Name:      "app2",
-						Subdomain: true,
+						Slug:        "app2",
+						DisplayName: "app2",
+						Subdomain:   true,
 						Healthcheck: &proto.Healthcheck{
 							Url:       "http://localhost:13337/healthz",
 							Interval:  5,
@@ -124,8 +126,9 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					{
-						Name:      "app3",
-						Subdomain: false,
+						Slug:        "app3",
+						DisplayName: "app3",
+						Subdomain:   false,
 					},
 				},
 				Auth: &proto.Agent_Token{},
@@ -182,12 +185,23 @@ func TestConvertResources(t *testing.T) {
 					expectedNoMetadata = append(expectedNoMetadata, resourceCopy)
 				}
 
-				resourcesWant, err := json.Marshal(expectedNoMetadata)
+				// Convert expectedNoMetadata and resources into a
+				// []map[string]interface{} so they can be compared easily.
+				data, err := json.Marshal(expectedNoMetadata)
 				require.NoError(t, err)
-				resourcesGot, err := json.Marshal(resources)
+				var expectedNoMetadataMap []map[string]interface{}
+				err = json.Unmarshal(data, &expectedNoMetadataMap)
 				require.NoError(t, err)
-				require.Equal(t, string(resourcesWant), string(resourcesGot))
+
+				data, err = json.Marshal(resources)
+				require.NoError(t, err)
+				var resourcesMap []map[string]interface{}
+				err = json.Unmarshal(data, &resourcesMap)
+				require.NoError(t, err)
+
+				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 			})
+
 			t.Run("Provision", func(t *testing.T) {
 				t.Parallel()
 				tfStateRaw, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.json"))
@@ -212,15 +226,65 @@ func TestConvertResources(t *testing.T) {
 						}
 					}
 				}
-				resourcesWant, err := json.Marshal(expected)
+				// Convert expectedNoMetadata and resources into a
+				// []map[string]interface{} so they can be compared easily.
+				data, err := json.Marshal(expected)
 				require.NoError(t, err)
-				resourcesGot, err := json.Marshal(resources)
+				var expectedMap []map[string]interface{}
+				err = json.Unmarshal(data, &expectedMap)
 				require.NoError(t, err)
 
-				require.Equal(t, string(resourcesWant), string(resourcesGot))
+				data, err = json.Marshal(resources)
+				require.NoError(t, err)
+				var resourcesMap []map[string]interface{}
+				err = json.Unmarshal(data, &resourcesMap)
+				require.NoError(t, err)
+
+				require.Equal(t, expectedMap, resourcesMap)
 			})
 		})
 	}
+}
+
+func TestAppSlugValidation(t *testing.T) {
+	t.Parallel()
+
+	// nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+
+	// Load the multiple-apps state file and edit it.
+	dir := filepath.Join(filepath.Dir(filename), "testdata", "multiple-apps")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "multiple-apps.tfplan.dot"))
+	require.NoError(t, err)
+
+	// Change all slugs to be invalid.
+	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+		if resource.Type == "coder_app" {
+			resource.AttributeValues["slug"] = "$$$ invalid slug $$$"
+		}
+	}
+
+	resources, err := terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
+	require.Nil(t, resources)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid app slug")
+
+	// Change all slugs to be identical and valid.
+	for _, resource := range tfPlan.PlannedValues.RootModule.Resources {
+		if resource.Type == "coder_app" {
+			resource.AttributeValues["slug"] = "valid"
+		}
+	}
+
+	resources, err = terraform.ConvertResources(tfPlan.PlannedValues.RootModule, string(tfPlanGraph))
+	require.Nil(t, resources)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate app slug")
 }
 
 func TestInstanceIDAssociation(t *testing.T) {
@@ -304,7 +368,7 @@ func sortResources(resources []*proto.Resource) {
 	for _, resource := range resources {
 		for _, agent := range resource.Agents {
 			sort.Slice(agent.Apps, func(i, j int) bool {
-				return agent.Apps[i].Name < agent.Apps[j].Name
+				return agent.Apps[i].Slug < agent.Apps[j].Slug
 			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {

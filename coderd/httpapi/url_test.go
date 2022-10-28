@@ -25,7 +25,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name: "AppName",
 			URL: httpapi.ApplicationURL{
-				AppName:       "app",
+				AppSlug:       "app",
 				Port:          0,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -36,7 +36,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name: "Port",
 			URL: httpapi.ApplicationURL{
-				AppName:       "",
+				AppSlug:       "",
 				Port:          8080,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -47,7 +47,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name: "Both",
 			URL: httpapi.ApplicationURL{
-				AppName:       "app",
+				AppSlug:       "app",
 				Port:          8080,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -111,7 +111,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Name:      "AppName--Agent--Workspace--User",
 			Subdomain: "app--agent--workspace--user",
 			Expected: httpapi.ApplicationURL{
-				AppName:       "app",
+				AppSlug:       "app",
 				Port:          0,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -122,7 +122,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Name:      "Port--Agent--Workspace--User",
 			Subdomain: "8080--agent--workspace--user",
 			Expected: httpapi.ApplicationURL{
-				AppName:       "",
+				AppSlug:       "",
 				Port:          8080,
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
@@ -131,9 +131,9 @@ func TestParseSubdomainAppURL(t *testing.T) {
 		},
 		{
 			Name:      "HyphenatedNames",
-			Subdomain: "app-name--agent-name--workspace-name--user-name",
+			Subdomain: "app-slug--agent-name--workspace-name--user-name",
 			Expected: httpapi.ApplicationURL{
-				AppName:       "app-name",
+				AppSlug:       "app-slug",
 				Port:          0,
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
