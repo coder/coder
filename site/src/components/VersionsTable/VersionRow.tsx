@@ -1,77 +1,50 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
-import { WorkspaceBuild } from "api/typesGenerated"
+import { TemplateVersion } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import { useClickable } from "hooks/useClickable"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import {
-  displayWorkspaceBuildDuration,
-  getDisplayWorkspaceBuildInitiatedBy,
-} from "util/workspace"
 
 export interface VersionRowProps {
-  version: WorkspaceVersion
+  version: TemplateVersion
 }
 
-export const VersionRow: React.FC<VersionRowProps> = ({ build }) => {
+export const VersionRow: React.FC<VersionRowProps> = ({ version }) => {
   const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build)
-  const navigate = useNavigate()
-  const clickableProps = useClickable(() =>
-    navigate(`builds/${build.build_number}`),
-  )
+  const { t } = useTranslation("templatePage")
 
   return (
     <TableRow
-      hover
-      data-testid={`build-${build.id}`}
-      className={styles.buildRow}
-      {...clickableProps}
+      className={styles.versionRow}
+      data-testid={`version-${version.id}`}
     >
-      <TableCell className={styles.buildCell}>
+      <TableCell className={styles.versionCell}>
         <Stack
           direction="row"
           alignItems="center"
-          className={styles.buildWrapper}
+          className={styles.versionWrapper}
         >
           <Stack direction="row" alignItems="center">
-            <BuildAvatar build={build} />
-            <div>
-              <Stack
-                className={styles.buildSummary}
-                direction="row"
-                alignItems="center"
-                spacing={1}
-              >
-                <span>
-                  <strong>{initiatedBy}</strong>{" "}
-                  {build.reason !== "initiator"
-                    ? t("buildMessage.automatically")
-                    : ""}
-                  <strong>{t(`buildMessage.${build.transition}`)}</strong>{" "}
-                  {t("buildMessage.theWorkspace")}
-                </span>
+            <UserAvatar
+              username={version.created_by.username}
+              avatarURL={version.created_by.avatar_url}
+            />
+            <Stack
+              className={styles.versionSummary}
+              direction="row"
+              alignItems="center"
+              spacing={1}
+            >
+              <span>
+                <strong>{version.created_by.username}</strong>{" "}
+                {t("createdVersion")} <strong>{version.name}</strong>
+              </span>
 
-                <span className={styles.buildTime}>
-                  {new Date(build.created_at).toLocaleTimeString()}
-                </span>
-              </Stack>
-
-              <Stack direction="row" spacing={1}>
-                <span className={styles.buildInfo}>
-                  {t("buildData.reason")}: <strong>{build.reason}</strong>
-                </span>
-
-                <span className={styles.buildInfo}>
-                  {t("buildData.duration")}:{" "}
-                  <strong>{displayWorkspaceBuildDuration(build)}</strong>
-                </span>
-              </Stack>
-            </div>
+              <span className={styles.versionTime}>
+                {new Date(version.created_at).toLocaleTimeString()}
+              </span>
+            </Stack>
           </Stack>
         </Stack>
       </TableCell>
@@ -80,16 +53,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({ build }) => {
 }
 
 const useStyles = makeStyles((theme) => ({
-  buildRow: {
-    cursor: "pointer",
-
-    "&:focus": {
-      outlineStyle: "solid",
-      outlineOffset: -1,
-      outlineWidth: 2,
-      outlineColor: theme.palette.secondary.dark,
-    },
-
+  versionRow: {
     "&:not(:last-child) td:before": {
       position: "absolute",
       top: 20,
@@ -102,42 +66,23 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  buildWrapper: {
+  versionWrapper: {
     padding: theme.spacing(2, 4),
   },
 
-  buildCell: {
+  versionCell: {
     padding: "0 !important",
     position: "relative",
     borderBottom: 0,
   },
 
-  buildSummary: {
+  versionSummary: {
     ...theme.typography.body1,
     fontFamily: "inherit",
   },
 
-  buildInfo: {
-    ...theme.typography.body2,
-    fontSize: 12,
-    fontFamily: "inherit",
-    color: theme.palette.text.secondary,
-    display: "block",
-  },
-
-  buildTime: {
+  versionTime: {
     color: theme.palette.text.secondary,
     fontSize: 12,
-  },
-
-  buildRight: {
-    width: "auto",
-  },
-
-  buildExtraInfo: {
-    ...theme.typography.body2,
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    color: theme.palette.text.secondary,
-    whiteSpace: "nowrap",
   },
 }))
