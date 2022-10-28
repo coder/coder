@@ -74,7 +74,7 @@ export const AgentRow: FC<AgentRowProps> = ({
           <>
             {agent.apps.map((app) => (
               <AppLink
-                key={app.name}
+                key={app.slug}
                 appsHost={applicationsHost}
                 app={app}
                 agent={agent}

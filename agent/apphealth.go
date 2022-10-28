@@ -33,7 +33,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 		hasHealthchecksEnabled := false
 		health := make(map[string]codersdk.WorkspaceAppHealth, 0)
 		for _, app := range apps {
-			health[app.Name] = app.Health
+			health[app.DisplayName] = app.Health
 			if !hasHealthchecksEnabled && app.Health != codersdk.WorkspaceAppHealthDisabled {
 				hasHealthchecksEnabled = true
 			}
@@ -85,21 +85,21 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 					}()
 					if err != nil {
 						mu.Lock()
-						if failures[app.Name] < int(app.Healthcheck.Threshold) {
+						if failures[app.DisplayName] < int(app.Healthcheck.Threshold) {
 							// increment the failure count and keep status the same.
 							// we will change it when we hit the threshold.
-							failures[app.Name]++
+							failures[app.DisplayName]++
 						} else {
 							// set to unhealthy if we hit the failure threshold.
 							// we stop incrementing at the threshold to prevent the failure value from increasing forever.
-							health[app.Name] = codersdk.WorkspaceAppHealthUnhealthy
+							health[app.DisplayName] = codersdk.WorkspaceAppHealthUnhealthy
 						}
 						mu.Unlock()
 					} else {
 						mu.Lock()
 						// we only need one successful health check to be considered healthy.
-						health[app.Name] = codersdk.WorkspaceAppHealthHealthy
-						failures[app.Name] = 0
+						health[app.DisplayName] = codersdk.WorkspaceAppHealthHealthy
+						failures[app.DisplayName] = 0
 						mu.Unlock()
 					}
 

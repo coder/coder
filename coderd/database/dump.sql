@@ -399,7 +399,7 @@ CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     agent_id uuid NOT NULL,
-    name character varying(64) NOT NULL,
+    display_name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
@@ -408,7 +408,8 @@ CREATE TABLE workspace_apps (
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
     health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
     subdomain boolean DEFAULT false NOT NULL,
-    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL
+    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL,
+    slug text NOT NULL
 );
 
 CREATE TABLE workspace_builds (
@@ -548,7 +549,7 @@ ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_apps
-    ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, name);
+    ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);

@@ -51,7 +51,11 @@ func TestScheduleShow(t *testing.T) {
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
 			assert.Contains(t, lines[0], "Starts at    7:30AM Mon-Fri (Europe/Dublin)")
-			assert.Contains(t, lines[1], "Starts next  7:30AM IST on ")
+			assert.Contains(t, lines[1], "Starts next  7:30AM")
+			// it should have either IST or GMT
+			if !strings.Contains(lines[1], "IST") && !strings.Contains(lines[1], "GMT") {
+				t.Error("expected either IST or GMT")
+			}
 			assert.Contains(t, lines[2], "Stops at     8h after start")
 			assert.NotContains(t, lines[3], "Stops next   -")
 		}
@@ -137,7 +141,11 @@ func TestScheduleStart(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
 		assert.Contains(t, lines[0], "Starts at    9:30AM Mon-Fri (Europe/Dublin)")
-		assert.Contains(t, lines[1], "Starts next  9:30AM IST on")
+		assert.Contains(t, lines[1], "Starts next  9:30AM")
+		// it should have either IST or GMT
+		if !strings.Contains(lines[1], "IST") && !strings.Contains(lines[1], "GMT") {
+			t.Error("expected either IST or GMT")
+		}
 	}
 
 	// Ensure autostart schedule updated
