@@ -31,18 +31,27 @@ export const AppLink: FC<AppLinkProps> = ({
   const styles = useStyles()
   const username = workspace.owner_name
 
+  let appSlug = app.slug
+  let appDisplayName = app.display_name
+  if (!appSlug) {
+    appSlug = appDisplayName
+  }
+  if (!appDisplayName) {
+    appDisplayName = appSlug
+  }
+
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
   let href = `/@${username}/${workspace.name}.${
     agent.name
-  }/apps/${encodeURIComponent(app.name)}/`
+  }/apps/${encodeURIComponent(appSlug)}/`
   if (app.command) {
     href = `/@${username}/${workspace.name}.${
       agent.name
     }/terminal?command=${encodeURIComponent(app.command)}`
   }
   if (appsHost && app.subdomain) {
-    const subdomain = `${app.name}--${agent.name}--${workspace.name}--${username}`
+    const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
   }
 
@@ -75,7 +84,7 @@ export const AppLink: FC<AppLinkProps> = ({
       className={styles.button}
       disabled={!canClick}
     >
-      <span className={styles.appName}>{app.name}</span>
+      <span className={styles.appName}>{appDisplayName}</span>
     </Button>
   )
 
@@ -92,7 +101,7 @@ export const AppLink: FC<AppLinkProps> = ({
                   event.preventDefault()
                   window.open(
                     href,
-                    Language.appTitle(app.name, generateRandomString(12)),
+                    Language.appTitle(appDisplayName, generateRandomString(12)),
                     "width=900,height=600",
                   )
                 }

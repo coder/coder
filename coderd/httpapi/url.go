@@ -14,8 +14,8 @@ var (
 	// Remove the "starts with" and "ends with" regex components.
 	nameRegex = strings.Trim(UsernameValidRegex.String(), "^$")
 	appURL    = regexp.MustCompile(fmt.Sprintf(
-		// {PORT/APP_NAME}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-		`^(?P<AppName>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
+		// {PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
+		`^(?P<AppSlug>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
 		nameRegex))
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
@@ -23,8 +23,8 @@ var (
 
 // ApplicationURL is a parsed application URL hostname.
 type ApplicationURL struct {
-	// Only one of AppName or Port will be set.
-	AppName       string
+	// Only one of AppSlug or Port will be set.
+	AppSlug       string
 	Port          uint16
 	AgentName     string
 	WorkspaceName string
@@ -34,12 +34,12 @@ type ApplicationURL struct {
 // String returns the application URL hostname without scheme. You will likely
 // want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
-	appNameOrPort := a.AppName
+	appSlugOrPort := a.AppSlug
 	if a.Port != 0 {
-		appNameOrPort = strconv.Itoa(int(a.Port))
+		appSlugOrPort = strconv.Itoa(int(a.Port))
 	}
 
-	return fmt.Sprintf("%s--%s--%s--%s", appNameOrPort, a.AgentName, a.WorkspaceName, a.Username)
+	return fmt.Sprintf("%s--%s--%s--%s", appSlugOrPort, a.AgentName, a.WorkspaceName, a.Username)
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If
@@ -51,7 +51,7 @@ func (a ApplicationURL) String() string {
 //
 // Subdomains should be in the form:
 //
-//	{PORT/APP_NAME}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
+//	{PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
 //	(eg. https://8080--main--dev--dean.hi.c8s.io)
 func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)
@@ -60,9 +60,9 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	}
 	matchGroup := matches[0]
 
-	appName, port := AppNameOrPort(matchGroup[appURL.SubexpIndex("AppName")])
+	appSlug, port := AppSlugOrPort(matchGroup[appURL.SubexpIndex("AppSlug")])
 	return ApplicationURL{
-		AppName:       appName,
+		AppSlug:       appSlug,
 		Port:          port,
 		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
 		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
@@ -70,9 +70,9 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	}, nil
 }
 
-// AppNameOrPort takes a string and returns either the input string or a port
+// AppSlugOrPort takes a string and returns either the input string or a port
 // number.
-func AppNameOrPort(val string) (string, uint16) {
+func AppSlugOrPort(val string) (string, uint16) {
 	port, err := strconv.ParseUint(val, 10, 16)
 	if err != nil || port == 0 {
 		port = 0
