@@ -21,7 +21,7 @@ type TemplateVersion struct {
 	Name           string         `json:"name"`
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
-	CreatedBy      *User          `json:"created_by"`
+	CreatedBy      User           `json:"created_by"`
 }
 
 // TemplateVersion returns a template version by ID.

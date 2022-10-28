@@ -923,7 +923,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User) codersdk.TemplateVersion {
-	createdBy := &codersdk.User{
+	createdBy := codersdk.User{
 		ID:        user.ID,
 		Username:  user.Username,
 		Email:     user.Email,

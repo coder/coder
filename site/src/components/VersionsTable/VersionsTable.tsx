@@ -32,15 +32,9 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
   return (
     <TableContainer>
       <Table data-testid="versions-table">
-        <TableHead>
-          <TableRow>
-            <TableCell width="30%">{Language.nameLabel}</TableCell>
-            <TableCell width="30%">{Language.createdAtLabel}</TableCell>
-            <TableCell width="40%">{Language.createdByLabel}</TableCell>
-          </TableRow>
-        </TableHead>
         <TableBody>
           {isLoading && <TableLoader />}
+          {versions && <Timeline items={versions} />}
           {versions &&
             versions
               .slice()

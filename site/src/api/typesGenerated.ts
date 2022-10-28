@@ -656,7 +656,7 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by?: User
+  readonly created_by: User
 }
 
 // From codersdk/templates.go
