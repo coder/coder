@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
+import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { combineClasses } from "util/combineClasses"
@@ -75,6 +76,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
               {agent.apps.map((app) => (
                 <AppPreviewLink key={app.name} app={app} />
               ))}
+              <Maybe condition={agent.apps.length === 0}>
+                <span className={styles.agentDataValue}>
+                  {t("labels.noApps")}
+                </span>
+              </Maybe>
             </Stack>
           </Stack>
         </Stack>
