@@ -130,7 +130,7 @@ const useStyles = makeStyles((theme) => ({
         color: theme.palette.text.secondary,
       },
 
-      "& .key": {
+      "& .key, & .property": {
         color: colors.turquoise[7],
       },
     },
