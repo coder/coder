@@ -260,16 +260,13 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		return database.GetAuditLogsOffsetParams{}, nil
 	}
 	query = strings.ToLower(query)
-	fmt.Println("KIRA query", query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
 	// dropped.
 	elements := splitQueryParameterByDelimiter(query, ' ', true)
-	fmt.Println("MARGE elements", elements)
 
 	for _, element := range elements {
 		parts := splitQueryParameterByDelimiter(element, ':', false)
-		fmt.Println("MARGOT parts", parts)
 
 		switch len(parts) {
 		case 1:
@@ -287,15 +284,26 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	// Using the query param parser here just returns consistent errors with
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
-	filter := database.GetAuditLogsOffsetParams{
-		ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
-		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
-		Action:       actionFromString(parser.String(searchParams, "", "action")),
-		Username:     parser.String(searchParams, "", "username"),
-		Email:        parser.String(searchParams, "", "email"),
-		TimeFrom: time.Date(
-			2022, 10, 27, 00, 00, 00, 000000000, time.UTC),
-	}
+	const layout = "2006-01-02"
+
+	var (
+		timeFromString    = parser.String(searchParams, "", "time_from")
+		timeToString      = parser.String(searchParams, "", "time_to")
+		parsedTimeFrom, _ = time.Parse(layout, timeFromString)
+		parsedTimeTo, _   = time.Parse(layout, timeToString)
+		filter            = database.GetAuditLogsOffsetParams{
+			ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
+			ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
+			Action:       actionFromString(parser.String(searchParams, "", "action")),
+			Username:     parser.String(searchParams, "", "username"),
+			Email:        parser.String(searchParams, "", "email"),
+			TimeFrom:     parsedTimeFrom,
+			TimeTo:       parsedTimeTo,
+		}
+	)
+
+	fmt.Println("FROM!", parsedTimeFrom)
+	fmt.Println("TO!", parsedTimeTo)
 
 	return filter, parser.Errors
 }

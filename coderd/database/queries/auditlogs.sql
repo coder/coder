@@ -53,7 +53,13 @@ WHERE
 	-- Filter by time_from
 	AND CASE
 		WHEN @time_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" > @time_from
+			"time" >= @time_from
+		ELSE true
+	END
+	-- Filter by time_to
+	AND CASE
+		WHEN @time_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= @time_to
 		ELSE true
 	END
 ORDER BY
