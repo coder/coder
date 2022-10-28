@@ -11,6 +11,6 @@ ALTER TABLE "workspace_apps" ALTER COLUMN "slug" SET NOT NULL;
 ALTER TABLE "workspace_apps" ALTER COLUMN "slug" DROP DEFAULT;
 
 -- add unique index on "slug" column
-ALTER TABLE "workspace_apps" ADD CONSTRAINT "workspace_apps_agent_id_slug_key" UNIQUE ("agent_id", "slug");
+ALTER TABLE "workspace_apps" ADD CONSTRAINT "workspace_apps_agent_id_slug_idx" UNIQUE ("agent_id", "slug");
 
 COMMIT;

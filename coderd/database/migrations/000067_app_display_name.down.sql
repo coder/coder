@@ -18,7 +18,7 @@ WITH row_numbers AS (
 UPDATE
     workspace_apps
 SET
-	display_name = workspace_apps.display_name || floor(random() * 10000)::text
+    display_name = workspace_apps.display_name || floor(random() * 10000)::text
 FROM
     row_numbers
 WHERE
