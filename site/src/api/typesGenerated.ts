@@ -41,9 +41,9 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly old?: any
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly new?: any
   readonly secret: boolean
 }
@@ -55,7 +55,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -384,7 +384,7 @@ export interface Healthcheck {
 export interface License {
   readonly id: number
   readonly uploaded_at: string
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
 }
 
@@ -577,7 +577,7 @@ export interface Role {
 // From codersdk/sse.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly data: any
 }
 
