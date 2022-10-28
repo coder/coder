@@ -441,7 +441,7 @@ SELECT
     users.avatar_url AS user_avatar_url
 FROM
 	audit_logs
-LEFT JOIN
+LEFT JOIN	
     users ON audit_logs.user_id = users.id
 WHERE
     -- Filter resource_type
@@ -480,6 +480,12 @@ WHERE
 			users.email = $8
 		ELSE true
 	END
+	-- Filter by time_from
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" > $9
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
@@ -497,6 +503,7 @@ type GetAuditLogsOffsetParams struct {
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
+	TimeFrom       time.Time `db:"time_from" json:"time_from"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -535,6 +542,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Action,
 		arg.Username,
 		arg.Email,
+		arg.TimeFrom,
 	)
 	if err != nil {
 		return nil, err

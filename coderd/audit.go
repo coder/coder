@@ -34,6 +34,8 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
+	fmt.Println("BLOOP FILTER", filter)
+
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -50,6 +52,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Action:       filter.Action,
 		Username:     filter.Username,
 		Email:        filter.Email,
+		TimeFrom:     filter.TimeFrom,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -257,12 +260,17 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		return database.GetAuditLogsOffsetParams{}, nil
 	}
 	query = strings.ToLower(query)
+	fmt.Println("KIRA query", query)
 	// Because we do this in 2 passes, we want to maintain quotes on the first
 	// pass.Further splitting occurs on the second pass and quotes will be
 	// dropped.
 	elements := splitQueryParameterByDelimiter(query, ' ', true)
+	fmt.Println("MARGE elements", elements)
+
 	for _, element := range elements {
 		parts := splitQueryParameterByDelimiter(element, ':', false)
+		fmt.Println("MARGOT parts", parts)
+
 		switch len(parts) {
 		case 1:
 			// No key:value pair.
@@ -285,6 +293,8 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Action:       actionFromString(parser.String(searchParams, "", "action")),
 		Username:     parser.String(searchParams, "", "username"),
 		Email:        parser.String(searchParams, "", "email"),
+		TimeFrom: time.Date(
+			2022, 10, 27, 00, 00, 00, 000000000, time.UTC),
 	}
 
 	return filter, parser.Errors

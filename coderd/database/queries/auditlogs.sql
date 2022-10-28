@@ -11,7 +11,7 @@ SELECT
     users.avatar_url AS user_avatar_url
 FROM
 	audit_logs
-LEFT JOIN
+LEFT JOIN	
     users ON audit_logs.user_id = users.id
 WHERE
     -- Filter resource_type
@@ -48,6 +48,12 @@ WHERE
 	AND CASE
 		WHEN @email :: text != '' THEN
 			users.email = @email
+		ELSE true
+	END
+	-- Filter by time_from
+	AND CASE
+		WHEN @time_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" > @time_from
 		ELSE true
 	END
 ORDER BY
