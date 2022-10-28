@@ -225,6 +225,14 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
 
+	// Strings for workspace_builds follow the below format:
+	// "{user} started workspace build for {target}"
+	// where target is a workspace instead of the workspace build,
+	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
+	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
+		str += " for"
+	}
+
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
 	if alog.ResourceType != database.ResourceTypeGitSshKey {
@@ -287,6 +295,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 	case codersdk.ResourceTypeUser:
 		return resourceTypeString
 	case codersdk.ResourceTypeWorkspace:
+		return resourceTypeString
+	case codersdk.ResourceTypeWorkspaceBuild:
 		return resourceTypeString
 	case codersdk.ResourceTypeGitSSHKey:
 		return resourceTypeString

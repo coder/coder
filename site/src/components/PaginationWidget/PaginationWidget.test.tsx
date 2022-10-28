@@ -1,67 +1,74 @@
 import { screen } from "@testing-library/react"
 import { render } from "../../testHelpers/renderHelpers"
 import { PaginationWidget } from "./PaginationWidget"
+import { createPaginationRef } from "./utils"
 
 describe("PaginatedList", () => {
-  it("displays an accessible previous and next button regardless of the number of pages", async () => {
-    const { container } = render(
+  it("displays an accessible previous and next button", () => {
+    render(
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
+        paginationRef={createPaginationRef({ page: 2, limit: 12 })}
+        numRecords={200}
       />,
     )
 
-    expect(
-      await screen.findByRole("button", { name: "Previous page" }),
-    ).toBeTruthy()
-    expect(
-      await screen.findByRole("button", { name: "Next page" }),
-    ).toBeTruthy()
-    // Shouldn't render any pages if no records are passed in
-    expect(
-      await container.querySelectorAll(`button[name="Page button"]`),
-    ).toHaveLength(0)
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled()
   })
 
-  it("displays the expected number of pages with one ellipsis tile", async () => {
+  it("displays the expected number of pages with one ellipsis tile", () => {
     const { container } = render(
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
-        onPageClick={(_) => jest.fn()}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={1}
+        paginationRef={createPaginationRef({ page: 1, limit: 12 })}
       />,
     )
 
     // 7 total spaces. 6 are page numbers, one is ellipsis
     expect(
-      await container.querySelectorAll(`button[name="Page button"]`),
+      container.querySelectorAll(`button[name="Page button"]`),
     ).toHaveLength(6)
   })
 
-  it("displays the expected number of pages with two ellipsis tiles", async () => {
+  it("displays the expected number of pages with two ellipsis tiles", () => {
     const { container } = render(
       <PaginationWidget
         prevLabel="Previous"
         nextLabel="Next"
-        onPrevClick={() => jest.fn()}
-        onNextClick={() => jest.fn()}
-        onPageClick={(_) => jest.fn()}
         numRecords={200}
-        numRecordsPerPage={12}
-        activePage={6}
+        paginationRef={createPaginationRef({ page: 6, limit: 12 })}
       />,
     )
 
     // 7 total spaces. 2 sets of ellipsis on either side of the active page
     expect(
-      await container.querySelectorAll(`button[name="Page button"]`),
+      container.querySelectorAll(`button[name="Page button"]`),
     ).toHaveLength(5)
+  })
+
+  it("disables the previous button on the first page", () => {
+    render(
+      <PaginationWidget
+        numRecords={100}
+        paginationRef={createPaginationRef({ page: 1, limit: 25 })}
+      />,
+    )
+    const prevButton = screen.getByLabelText("Previous page")
+    expect(prevButton).toBeDisabled()
+  })
+
+  it("disables the next button on the last page", () => {
+    render(
+      <PaginationWidget
+        numRecords={100}
+        paginationRef={createPaginationRef({ page: 4, limit: 25 })}
+      />,
+    )
+    const nextButton = screen.getByLabelText("Next page")
+    expect(nextButton).toBeDisabled()
   })
 })

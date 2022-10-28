@@ -54,13 +54,13 @@ export const TemplateSummaryPageView: FC<
   }
 
   return (
-    <Stack spacing={2.5}>
+    <Stack spacing={4}>
       {deleteError}
-      {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
       <TemplateStats
         template={template}
         activeVersion={activeTemplateVersion}
       />
+      {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
       <TemplateResourcesTable
         resources={getStartedResources(templateResources)}
       />

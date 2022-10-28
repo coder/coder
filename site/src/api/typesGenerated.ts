@@ -65,8 +65,7 @@ export interface AuditLog {
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: string
+  readonly additional_fields: Record<string, string>
   readonly description: string
   readonly user?: User
 }
@@ -354,6 +353,7 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly regex: string
+  readonly scopes: string[]
 }
 
 // From codersdk/gitsshkey.go
@@ -916,7 +916,7 @@ export interface WorkspacesRequest extends Pagination {
 export type APIKeyScope = "all" | "application_connect"
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "write"
+export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
@@ -976,6 +976,7 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+  | "workspace_build"
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"

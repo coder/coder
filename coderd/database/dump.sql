@@ -14,7 +14,9 @@ CREATE TYPE app_sharing_level AS ENUM (
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
-    'delete'
+    'delete',
+    'start',
+    'stop'
 );
 
 CREATE TYPE build_reason AS ENUM (
@@ -88,7 +90,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace',
     'git_ssh_key',
     'api_key',
-    'group'
+    'group',
+    'workspace_build'
 );
 
 CREATE TYPE user_status AS ENUM (

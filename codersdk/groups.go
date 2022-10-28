@@ -58,6 +58,23 @@ func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]G
 	return groups, json.NewDecoder(res.Body).Decode(&groups)
 }
 
+func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name string) (Group, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/groups/%s", orgID.String(), name),
+		nil,
+	)
+	if err != nil {
+		return Group{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return Group{}, readBodyAsError(res)
+	}
+	var resp Group
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/groups/%s", group.String()),

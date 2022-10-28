@@ -108,13 +108,14 @@ type TLSConfig struct {
 }
 
 type GitAuthConfig struct {
-	ID           string `json:"id"`
-	Type         string `json:"type"`
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"-" yaml:"client_secret"`
-	AuthURL      string `json:"auth_url"`
-	TokenURL     string `json:"token_url"`
-	Regex        string `json:"regex"`
+	ID           string   `json:"id"`
+	Type         string   `json:"type"`
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"-" yaml:"client_secret"`
+	AuthURL      string   `json:"auth_url"`
+	TokenURL     string   `json:"token_url"`
+	Regex        string   `json:"regex"`
+	Scopes       []string `json:"scopes"`
 }
 
 type Flaggable interface {
