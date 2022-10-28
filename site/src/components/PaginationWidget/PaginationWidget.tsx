@@ -34,14 +34,11 @@ export const PaginationWidget = ({
   const currentPage = paginationState.context.page
   const numRecordsPerPage = paginationState.context.limit
 
-  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
+  const numPages = numRecords
+    ? Math.ceil(numRecords / numRecordsPerPage)
+    : undefined
   const firstPageActive = currentPage === 1 && numPages !== 0
   const lastPageActive = currentPage === numPages && numPages !== 0
-
-  // No need to display any pagination if we know the number of pages is 1 or 0
-  if (numPages <= 1 || numRecords === 0) {
-    return null
-  }
 
   return (
     <div style={containerStyle} className={styles.defaultContainerStyles}>
@@ -54,7 +51,7 @@ export const PaginationWidget = ({
         <KeyboardArrowLeft />
         <div>{prevLabel}</div>
       </Button>
-      <Maybe condition={numPages > 0}>
+      <Maybe condition={numPages !== undefined}>
         <ChooseOne>
           <Cond condition={isMobile}>
             <PageButton
@@ -64,24 +61,25 @@ export const PaginationWidget = ({
             />
           </Cond>
           <Cond>
-            {buildPagedList(numPages, currentPage).map((page) =>
-              typeof page !== "number" ? (
-                <PageButton
-                  key={`Page${page}`}
-                  activePage={currentPage}
-                  placeholder="..."
-                  disabled
-                />
-              ) : (
-                <PageButton
-                  key={`Page${page}`}
-                  activePage={currentPage}
-                  page={page}
-                  numPages={numPages}
-                  onPageClick={() => send({ type: "GO_TO_PAGE", page })}
-                />
-              ),
-            )}
+            {numPages &&
+              buildPagedList(numPages, currentPage).map((page) =>
+                typeof page !== "number" ? (
+                  <PageButton
+                    key={`Page${page}`}
+                    activePage={currentPage}
+                    placeholder="..."
+                    disabled
+                  />
+                ) : (
+                  <PageButton
+                    key={`Page${page}`}
+                    activePage={currentPage}
+                    page={page}
+                    numPages={numPages}
+                    onPageClick={() => send({ type: "GO_TO_PAGE", page })}
+                  />
+                ),
+              )}
           </Cond>
         </ChooseOne>
       </Maybe>
