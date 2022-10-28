@@ -327,7 +327,7 @@ CREATE TABLE template_versions (
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
-    created_by uuid
+    created_by uuid NOT NULL
 );
 
 CREATE TABLE templates (
