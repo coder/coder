@@ -38,12 +38,15 @@ export interface UsersContext {
   getUsersError?: Error | unknown
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
+  usernameToSuspend?: TypesGen.User["username"]
   suspendUserError?: Error | unknown
   // Delete user
   userIdToDelete?: TypesGen.User["id"]
+  usernameToDelete?: TypesGen.User["username"]
   deleteUserError?: Error | unknown
   // Activate user
   userIdToActivate?: TypesGen.User["id"]
+  usernameToActivate?: TypesGen.User["username"]
   activateUserError?: Error | unknown
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"]
@@ -59,15 +62,27 @@ export interface UsersContext {
 export type UsersEvent =
   | { type: "GET_USERS"; query?: string }
   // Suspend events
-  | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
+  | {
+      type: "SUSPEND_USER"
+      userId: TypesGen.User["id"]
+      username: TypesGen.User["username"]
+    }
   | { type: "CONFIRM_USER_SUSPENSION" }
   | { type: "CANCEL_USER_SUSPENSION" }
   // Delete events
-  | { type: "DELETE_USER"; userId: TypesGen.User["id"] }
+  | {
+      type: "DELETE_USER"
+      userId: TypesGen.User["id"]
+      username: TypesGen.User["username"]
+    }
   | { type: "CONFIRM_USER_DELETE" }
   | { type: "CANCEL_USER_DELETE" }
   // Activate events
-  | { type: "ACTIVATE_USER"; userId: TypesGen.User["id"] }
+  | {
+      type: "ACTIVATE_USER"
+      userId: TypesGen.User["id"]
+      username: TypesGen.User["username"]
+    }
   | { type: "CONFIRM_USER_ACTIVATION" }
   | { type: "CANCEL_USER_ACTIVATION" }
   // Reset password events
@@ -152,18 +167,19 @@ export const usersMachine =
           tags: "loading",
         },
         idle: {
+          entry: "clearSelectedUser",
           on: {
             SUSPEND_USER: {
               target: "confirmUserSuspension",
-              actions: "assignUserIdToSuspend",
+              actions: "assignUserToSuspend",
             },
             DELETE_USER: {
               target: "confirmUserDeletion",
-              actions: "assignUserIdToDelete",
+              actions: "assignUserToDelete",
             },
             ACTIVATE_USER: {
               target: "confirmUserActivation",
-              actions: "assignUserIdToActivate",
+              actions: "assignUserToActivate",
             },
             RESET_USER_PASSWORD: {
               target: "confirmUserPasswordReset",
@@ -391,6 +407,16 @@ export const usersMachine =
       },
 
       actions: {
+        clearSelectedUser: assign({
+          userIdToSuspend: (_) => undefined,
+          usernameToSuspend: (_) => undefined,
+          userIdToDelete: (_) => undefined,
+          usernameToDelete: (_) => undefined,
+          userIdToActivate: (_) => undefined,
+          usernameToActivate: (_) => undefined,
+          userIdToResetPassword: (_) => undefined,
+          userIdToUpdateRoles: (_) => undefined,
+        }),
         assignUsers: assign({
           users: (_, event) => event.data,
         }),
@@ -400,14 +426,17 @@ export const usersMachine =
         assignGetUsersError: assign({
           getUsersError: (_, event) => event.data,
         }),
-        assignUserIdToSuspend: assign({
+        assignUserToSuspend: assign({
           userIdToSuspend: (_, event) => event.userId,
+          usernameToSuspend: (_, event) => event.username,
         }),
-        assignUserIdToDelete: assign({
+        assignUserToDelete: assign({
           userIdToDelete: (_, event) => event.userId,
+          usernameToDelete: (_, event) => event.username,
         }),
-        assignUserIdToActivate: assign({
+        assignUserToActivate: assign({
           userIdToActivate: (_, event) => event.userId,
+          usernameToActivate: (_, event) => event.username,
         }),
         assignUserIdToResetPassword: assign({
           userIdToResetPassword: (_, event) => event.userId,
