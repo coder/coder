@@ -34,7 +34,8 @@ const groupBuildsByDate = (builds?: TypesGen.WorkspaceBuild[]) => {
   builds.forEach((build) => {
     const dateKey = new Date(build.created_at).toDateString()
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    // Unsure why this is here but we probably need to fix it.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- see above
     if (buildsByDate[dateKey]) {
       buildsByDate[dateKey].push(build)
     } else {

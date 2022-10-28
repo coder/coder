@@ -47,7 +47,7 @@ const groupAuditLogsByDate = (auditLogs?: AuditLog[]) => {
   auditLogs.forEach((auditLog) => {
     const dateKey = new Date(auditLog.time).toDateString()
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- TODO look into this
     if (auditLogsByDate[dateKey]) {
       auditLogsByDate[dateKey].push(auditLog)
     } else {
