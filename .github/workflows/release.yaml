@@ -168,14 +168,17 @@ jobs:
             ./build/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v0
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
       - name: Setup GCloud SDK
         uses: 'google-github-actions/setup-gcloud@v0'
+
       - name: Publish Helm Chart
         run: |
           version="$(./scripts/version.sh)"
