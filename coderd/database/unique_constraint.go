@@ -16,7 +16,7 @@ const (
 	UniqueProvisionerDaemonsNameKey                UniqueConstraint = "provisioner_daemons_name_key"                   // ALTER TABLE ONLY provisioner_daemons ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
 	UniqueSiteConfigsKeyKey                        UniqueConstraint = "site_configs_key_key"                           // ALTER TABLE ONLY site_configs ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 	UniqueTemplateVersionsTemplateIDNameKey        UniqueConstraint = "template_versions_template_id_name_key"         // ALTER TABLE ONLY template_versions ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
-	UniqueWorkspaceAppsAgentIDNameKey              UniqueConstraint = "workspace_apps_agent_id_name_key"               // ALTER TABLE ONLY workspace_apps ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, name);
+	UniqueWorkspaceAppsAgentIDSlugIndex            UniqueConstraint = "workspace_apps_agent_id_slug_idx"               // ALTER TABLE ONLY workspace_apps ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 	UniqueWorkspaceBuildsJobIDKey                  UniqueConstraint = "workspace_builds_job_id_key"                    // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 	UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey UniqueConstraint = "workspace_builds_workspace_id_build_number_key" // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 	UniqueIndexOrganizationName                    UniqueConstraint = "idx_organization_name"                          // CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);

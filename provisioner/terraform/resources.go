@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -25,7 +26,12 @@ type agentAttributes struct {
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID     string                     `mapstructure:"agent_id"`
+	AgentID string `mapstructure:"agent_id"`
+	// Slug is required in terraform, but to avoid breaking existing users we
+	// will default to the resource name if it is not specified.
+	Slug        string `mapstructure:"slug"`
+	DisplayName string `mapstructure:"display_name"`
+	// Name is deprecated in favor of DisplayName.
 	Name        string                     `mapstructure:"name"`
 	Icon        string                     `mapstructure:"icon"`
 	URL         string                     `mapstructure:"url"`
@@ -214,19 +220,40 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	}
 
 	// Associate Apps with agents.
+	appSlugs := make(map[string]struct{})
 	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_app" {
 			continue
 		}
+
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
-		if attrs.Name == "" {
-			// Default to the resource name if none is set!
-			attrs.Name = resource.Name
+
+		// Default to the resource name if none is set!
+		if attrs.Slug == "" {
+			attrs.Slug = resource.Name
 		}
+		if attrs.DisplayName == "" {
+			if attrs.Name != "" {
+				// Name is deprecated but still accepted.
+				attrs.DisplayName = attrs.Name
+			} else {
+				attrs.DisplayName = attrs.Slug
+			}
+		}
+
+		if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
+			return nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
+		}
+
+		if _, exists := appSlugs[attrs.Slug]; exists {
+			return nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
+		}
+		appSlugs[attrs.Slug] = struct{}{}
+
 		var healthcheck *proto.Healthcheck
 		if len(attrs.Healthcheck) != 0 {
 			healthcheck = &proto.Healthcheck{
@@ -253,7 +280,8 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:         attrs.Name,
+					Slug:         attrs.Slug,
+					DisplayName:  attrs.DisplayName,
 					Command:      attrs.Command,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
