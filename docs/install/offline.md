@@ -6,7 +6,7 @@ Coder can run in offline / air-gapped environments.
 
 First, build and push a container image extending our official image with the following:
 
-- Terraform [(supported versions)](https://github.com/coder/coder/blob/main/provisioner/terraform/serve.go#L24-L25)
+- Terraform [(supported versions)](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
 - CLI config (.tfrc) for Terraform referring to [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
 - [Terraform Providers](https://registry.terraform.io) for templates
   - These could also be specified via a volume mount (Docker) or [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol). See below for details.
