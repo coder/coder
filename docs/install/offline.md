@@ -27,7 +27,7 @@ RUN mkdir -p /opt/terraform
 # In order to run Coder airgapped or within private networks,
 # Terraform has to be bundled into the image in PATH or /opt.
 #
-# See https://github.com/coder/coder/blob/main/provisioner/terraform/serve.go#L24-L25
+# See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.3.0
 RUN curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
