@@ -563,10 +563,8 @@ export const getAuditLogs = async (
     searchParams.set("offset", options.offset.toString())
   }
   if (options.q) {
-    console.log('q', options.q)
     searchParams.set("q", options.q)
   }
-  console.log('searchParams', searchParams)
 
   const response = await axios.get(`/api/v2/audit?${searchParams.toString()}`)
   return response.data

@@ -50,16 +50,16 @@ WHERE
 			users.email = @email
 		ELSE true
 	END
-	-- Filter by time_from
+	-- Filter by date_from
 	AND CASE
-		WHEN @time_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" >= @time_from
+		WHEN @date_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= @date_from
 		ELSE true
 	END
-	-- Filter by time_to
+	-- Filter by date_to
 	AND CASE
-		WHEN @time_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" <= @time_to
+		WHEN @date_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= @date_to
 		ELSE true
 	END
 ORDER BY

@@ -34,7 +34,8 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
-	fmt.Println("BLOOP FILTER", filter)
+	fmt.Println("FILTER", filter.DateFrom)
+	fmt.Println("FILTER", filter.DateTo)
 
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -52,7 +53,8 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Action:       filter.Action,
 		Username:     filter.Username,
 		Email:        filter.Email,
-		TimeFrom:     filter.TimeFrom,
+		DateFrom:     filter.DateFrom,
+		DateTo:       filter.DateTo,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -287,23 +289,33 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	const layout = "2006-01-02"
 
 	var (
-		timeFromString    = parser.String(searchParams, "", "time_from")
-		timeToString      = parser.String(searchParams, "", "time_to")
-		parsedTimeFrom, _ = time.Parse(layout, timeFromString)
-		parsedTimeTo, _   = time.Parse(layout, timeToString)
-		filter            = database.GetAuditLogsOffsetParams{
+		dateFromString    = parser.String(searchParams, "", "date_from")
+		dateToString      = parser.String(searchParams, "", "date_to")
+		parsedDateFrom, _ = time.Parse(layout, dateFromString)
+		parsedDateTo, _   = time.Parse(layout, dateToString)
+	)
+
+	if dateToString != "" {
+		parsedDateTo = parsedDateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second) // parsedDateTo goes to 23:59
+	}
+
+	if dateToString != "" && parsedDateTo.Before(parsedDateFrom) {
+		return database.GetAuditLogsOffsetParams{}, []codersdk.ValidationError{
+			{Field: "q", Detail: fmt.Sprintf("DateTo value %q cannot be before than DateFrom", parsedDateTo)},
+		}
+	}
+
+	var (
+		filter = database.GetAuditLogsOffsetParams{
 			ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
 			ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
 			Action:       actionFromString(parser.String(searchParams, "", "action")),
 			Username:     parser.String(searchParams, "", "username"),
 			Email:        parser.String(searchParams, "", "email"),
-			TimeFrom:     parsedTimeFrom,
-			TimeTo:       parsedTimeTo,
+			DateFrom:     parsedDateFrom,
+			DateTo:       parsedDateTo,
 		}
 	)
-
-	fmt.Println("FROM!", parsedTimeFrom)
-	fmt.Println("TO!", parsedTimeTo)
 
 	return filter, parser.Errors
 }

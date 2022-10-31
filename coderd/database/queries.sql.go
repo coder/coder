@@ -480,13 +480,13 @@ WHERE
 			users.email = $8
 		ELSE true
 	END
-	-- Filter by time_from
+	-- Filter by date_from
 	AND CASE
 		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
 			"time" >= $9
 		ELSE true
 	END
-	-- Filter by time_to
+	-- Filter by date_to
 	AND CASE
 		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
 			"time" <= $10
@@ -509,8 +509,8 @@ type GetAuditLogsOffsetParams struct {
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
-	TimeFrom       time.Time `db:"time_from" json:"time_from"`
-	TimeTo         time.Time `db:"time_to" json:"time_to"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -549,8 +549,8 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Action,
 		arg.Username,
 		arg.Email,
-		arg.TimeFrom,
-		arg.TimeTo,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	if err != nil {
 		return nil, err
