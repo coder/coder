@@ -12,6 +12,8 @@ const groupByDate = <TData,>(
   items.forEach((item) => {
     const dateKey = getDate(item).toDateString()
 
+    // Is not a guarantee a value is defined when access it dynamically
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (itemsByDate[dateKey]) {
       itemsByDate[dateKey].push(item)
     } else {
