@@ -1,9 +1,17 @@
-import { lighten, Theme } from "@material-ui/core/styles"
+import { lighten, Theme, StyleRules } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
+import { SkeletonClassKey } from "@material-ui/lab"
 import { colors } from "./colors"
 import { borderRadius, borderRadiusSm } from "./constants"
 
-export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
+type ExtendedOverrides = Overrides & {
+  MuiSkeleton: Partial<StyleRules<SkeletonClassKey>>
+}
+
+export const getOverrides = ({
+  palette,
+  breakpoints,
+}: Theme): ExtendedOverrides => {
   return {
     MuiCssBaseline: {
       "@global": {
@@ -190,8 +198,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         marginTop: 8,
       },
     },
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- The Mui types don't accept the MuiSkeleton but it works. I tried to extends the Overrides interface with no success.
-    // @ts-ignore
     MuiSkeleton: {
       root: {
         backgroundColor: palette.divider,
