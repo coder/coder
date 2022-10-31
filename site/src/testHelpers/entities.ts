@@ -517,10 +517,6 @@ export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   template_id: "test-template",
 }
 
-export const MockWorkspaceCountResponse: TypesGen.WorkspaceCountResponse = {
-  count: 26, // just over 1 page
-}
-
 export const MockUserAgent: Types.UserAgent = {
   browser: "Chrome 99.0.4844",
   device: "Other",

@@ -235,10 +235,7 @@ export const workspacesMachine =
         events: {} as WorkspacesEvent,
         services: {} as {
           getWorkspaces: {
-            data: TypesGen.Workspace[]
-          }
-          getWorkspacesCount: {
-            data: { count: number }
+            data: TypesGen.WorkspacesResponse
           }
           updateWorkspaceRefs: {
             data: {
@@ -255,39 +252,7 @@ export const workspacesMachine =
           actions: "triggerUpdateVersion",
         },
       },
-      type: "parallel",
       states: {
-        count: {
-          initial: "gettingCount",
-          states: {
-            idle: {},
-            gettingCount: {
-              entry: "clearGetCountError",
-              invoke: {
-                src: "getWorkspacesCount",
-                id: "getWorkspacesCount",
-                onDone: [
-                  {
-                    target: "idle",
-                    actions: "assignCount",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: "assignGetCountError",
-                  },
-                ],
-              },
-            },
-          },
-          on: {
-            UPDATE_FILTER: {
-              target: ".gettingCount",
-              actions: ["assignFilter", "sendResetPage"],
-            },
-          },
-        },
         workspaces: {
           initial: "startingPagination",
           states: {
@@ -310,6 +275,9 @@ export const workspacesMachine =
                   },
                   {
                     target: "updatingWorkspaceRefs",
+                  },
+                  {
+                    actions: "assignCount",
                   },
                 ],
                 onError: [
@@ -358,9 +326,12 @@ export const workspacesMachine =
       actions: {
         assignWorkspaceRefs: assign({
           workspaceRefs: (_, event) =>
-            event.data.map((data) => {
+            event.data.workspaces.map((data) => {
               return spawn(workspaceItemMachine.withContext({ data }), data.id)
             }),
+        }),
+        assignCount: assign({
+          count: (_, event) => event.data.count,
         }),
         assignPaginationRef: assign({
           paginationRef: (context) =>
@@ -403,15 +374,6 @@ export const workspacesMachine =
             return event.data.refsToKeep.concat(newWorkspaceRefs)
           },
         }),
-        assignCount: assign({
-          count: (_, event) => event.data.count,
-        }),
-        assignGetCountError: assign({
-          getCountError: (_, event) => event.data,
-        }),
-        clearGetCountError: assign({
-          getCountError: (_) => undefined,
-        }),
       },
       services: {
         getWorkspaces: (context) => {
@@ -429,7 +391,7 @@ export const workspacesMachine =
         updateWorkspaceRefs: (context, event) => {
           const refsToKeep: WorkspaceItemMachineRef[] = []
           context.workspaceRefs?.forEach((ref) => {
-            const matchingWorkspace = event.data.find(
+            const matchingWorkspace = event.data.workspaces.find(
               (workspace) => ref.id === workspace.id,
             )
             if (matchingWorkspace) {
@@ -443,7 +405,7 @@ export const workspacesMachine =
             }
           })
 
-          const newWorkspaces = event.data.filter(
+          const newWorkspaces = event.data.workspaces.filter(
             (workspace) =>
               !context.workspaceRefs?.find((ref) => ref.id === workspace.id),
           )
@@ -453,8 +415,6 @@ export const workspacesMachine =
             newWorkspaces,
           })
         },
-        getWorkspacesCount: (context) =>
-          API.getWorkspacesCount({ q: context.filter }),
       },
     },
   )
