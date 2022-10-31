@@ -618,11 +618,11 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err, "get current user details")
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err, "get workspaces")
-		require.Len(t, workspaces, 1, "expected 1 workspace")
+		require.Len(t, res.Workspaces, 1, "expected 1 workspace")
 
 		appHost, err := client.GetAppHost(ctx)
 		require.NoError(t, err, "get app host")
@@ -631,7 +631,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			AppSlug:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
-			WorkspaceName: workspaces[0].Name,
+			WorkspaceName: res.Workspaces[0].Name,
 			Username:      me.Username,
 		}.String()
 

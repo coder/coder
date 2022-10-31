@@ -621,9 +621,9 @@ func TestTemplateMetrics(t *testing.T) {
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
-	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	assert.Zero(t, workspaces[0].LastUsedAt)
+	assert.Zero(t, res.Workspaces[0].LastUsedAt)
 
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: slogtest.Make(t, nil).Named("tailnet"),
@@ -672,9 +672,9 @@ func TestTemplateMetrics(t *testing.T) {
 		"BuildTimeStats never loaded",
 	)
 
-	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		database.Now(), workspaces[0].LastUsedAt, time.Minute,
+		database.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
 }

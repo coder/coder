@@ -1279,11 +1279,11 @@ func TestWorkspacesByUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 0)
+		require.Len(t, res.Workspaces, 0)
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
@@ -1313,13 +1313,13 @@ func TestWorkspacesByUser(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		workspaces, err := newUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+		res, err := newUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 0)
+		require.Len(t, res.Workspaces, 0)
 
-		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 1)
+		require.Len(t, res.Workspaces, 1)
 	})
 }
 
