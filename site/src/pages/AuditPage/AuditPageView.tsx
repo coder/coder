@@ -15,10 +15,10 @@ import {
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
-import { TableDateRow } from "components/TableDateRow/TableDateRow"
 import { TableLoader } from "components/TableLoader/TableLoader"
+import { Timeline } from "components/Timeline/Timeline"
 import { AuditHelpTooltip } from "components/Tooltips"
-import { FC, Fragment } from "react"
+import { FC } from "react"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 
 export const Language = {
@@ -37,27 +37,6 @@ const presetFilters = [
   { query: "resource_type:user action:delete", name: "Deleted users" },
 ]
 
-const groupAuditLogsByDate = (auditLogs?: AuditLog[]) => {
-  const auditLogsByDate: Record<string, AuditLog[]> = {}
-
-  if (!auditLogs) {
-    return
-  }
-
-  auditLogs.forEach((auditLog) => {
-    const dateKey = new Date(auditLog.time).toDateString()
-
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- TODO look into this
-    if (auditLogsByDate[dateKey]) {
-      auditLogsByDate[dateKey].push(auditLog)
-    } else {
-      auditLogsByDate[dateKey] = [auditLog]
-    }
-  })
-
-  return auditLogsByDate
-}
-
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[]
   count?: number
@@ -75,7 +54,6 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 }) => {
   const isLoading = auditLogs === undefined || count === undefined
   const isEmpty = !isLoading && auditLogs.length === 0
-  const auditLogsByDate = groupAuditLogsByDate(auditLogs)
 
   return (
     <Margins>
@@ -101,19 +79,13 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
           <TableBody>
             {isLoading && <TableLoader />}
 
-            {auditLogsByDate &&
-              Object.keys(auditLogsByDate).map((dateStr) => {
-                const auditLogs = auditLogsByDate[dateStr]
-
-                return (
-                  <Fragment key={dateStr}>
-                    <TableDateRow date={new Date(dateStr)} />
-                    {auditLogs.map((log) => (
-                      <AuditLogRow key={log.id} auditLog={log} />
-                    ))}
-                  </Fragment>
-                )
-              })}
+            {auditLogs && (
+              <Timeline
+                items={auditLogs}
+                getDate={(log) => new Date(log.time)}
+                row={(log) => <AuditLogRow key={log.id} auditLog={log} />}
+              />
+            )}
 
             {isEmpty && (
               <TableRow>
