@@ -457,6 +457,60 @@ func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	return active, nil
 }
 
+func (q *fakeQuerier) GetFilteredUserCount(_ context.Context, params database.GetFilteredUserCountParams) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	users := make([]database.User, len(q.users))
+
+	if params.Deleted {
+		tmp := make([]database.User, 0, len(users))
+		for _, user := range users {
+			if user.Deleted {
+				tmp = append(tmp, user)
+			}
+		}
+		users = tmp
+	}
+
+	if params.Search != "" {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if strings.Contains(strings.ToLower(user.Email), strings.ToLower(params.Search)) {
+				tmp = append(tmp, users[i])
+			} else if strings.Contains(strings.ToLower(user.Username), strings.ToLower(params.Search)) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if len(params.Status) > 0 {
+		usersFilteredByStatus := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.ContainsCompare(params.Status, user.Status, func(a, b database.UserStatus) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
+				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
+			}
+		}
+		users = usersFilteredByStatus
+	}
+
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
+		usersFilteredByRole := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
+				usersFilteredByRole = append(usersFilteredByRole, users[i])
+			}
+		}
+
+		users = usersFilteredByRole
+	}
+
+	return int64(len(users)), nil
+}
+
 func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

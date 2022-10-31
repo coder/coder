@@ -47,6 +47,14 @@ type User struct {
 	AvatarURL       string      `json:"avatar_url"`
 }
 
+type UserCountRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+}
+
+type UserCountResponse struct {
+	Count int64 `json:"count"`
+}
+
 type CreateFirstUserRequest struct {
 	Email            string `json:"email" validate:"required,email"`
 	Username         string `json:"username" validate:"required,username"`
