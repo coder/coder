@@ -33,3 +33,12 @@ BunchOfApps.args = {
     ],
   },
 }
+
+export const NoApps = Template.bind({})
+NoApps.args = {
+  ...Example.args,
+  agent: {
+    ...MockWorkspaceAgent,
+    apps: [],
+  },
+}

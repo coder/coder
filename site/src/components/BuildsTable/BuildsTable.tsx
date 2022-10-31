@@ -13,11 +13,6 @@ import { BuildRow } from "./BuildRow"
 
 export const Language = {
   emptyMessage: "No builds found",
-  inProgressLabel: "In progress",
-  actionLabel: "Action",
-  durationLabel: "Duration",
-  startedAtLabel: "Started at",
-  statusLabel: "Status",
 }
 
 export interface BuildsTableProps {

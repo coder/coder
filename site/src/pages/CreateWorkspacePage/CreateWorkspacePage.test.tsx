@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
+/* eslint-disable @typescript-eslint/no-floating-promises -- TODO figure out why this is*/
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
@@ -62,3 +62,4 @@ describe("CreateWorkspacePage", () => {
     )
   })
 })
+/* eslint-enable @typescript-eslint/no-floating-promises -- TODO figure out why this is*/
