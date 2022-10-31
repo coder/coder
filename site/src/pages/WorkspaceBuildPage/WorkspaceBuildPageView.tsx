@@ -1,9 +1,12 @@
+import { BuildAvatar } from "components/BuildsTable/BuildAvatar"
 import { FC } from "react"
+import { useParams } from "react-router-dom"
 import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
+  PageHeaderSubtitle,
   PageHeaderTitle,
 } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
@@ -18,6 +21,13 @@ const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   )
 }
 
+const useBuildNumber = () => {
+  const { buildNumber } = useParams()
+  if (!buildNumber) {
+    throw new Error("Build number not found")
+  }
+  return buildNumber
+}
 export interface WorkspaceBuildPageViewProps {
   logs: ProvisionerJobLog[] | undefined
   build: WorkspaceBuild | undefined
@@ -27,13 +37,25 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   logs,
   build,
 }) => {
+  const buildNumber = useBuildNumber()
+
   return (
     <Margins>
-      <PageHeader>
-        <PageHeaderTitle>Logs</PageHeaderTitle>
-      </PageHeader>
+      {build && (
+        <PageHeader>
+          <Stack direction="row" alignItems="center" spacing={3}>
+            <BuildAvatar build={build} size={48} />
+            <div>
+              <PageHeaderTitle>Build #{buildNumber}</PageHeaderTitle>
+              <PageHeaderSubtitle condensed>
+                {build.initiator_name}
+              </PageHeaderSubtitle>
+            </div>
+          </Stack>
+        </PageHeader>
+      )}
 
-      <Stack>
+      <Stack spacing={4}>
         {build &&
           build.transition === "delete" &&
           build.job.status === "failed" && (
