@@ -296,9 +296,10 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:  "trace",
 			},
 			HoneycombAPIKey: &codersdk.DeploymentConfigField[string]{
-				Name:  "Trace Honeycomb API Key",
-				Usage: "Enables trace exporting to Honeycomb.io using the provided API Key.",
-				Flag:  "trace-honeycomb-api-key",
+				Name:   "Trace Honeycomb API Key",
+				Usage:  "Enables trace exporting to Honeycomb.io using the provided API Key.",
+				Flag:   "trace-honeycomb-api-key",
+				Secret: true,
 			},
 		},
 		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{

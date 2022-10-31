@@ -292,7 +292,7 @@ export interface DeploymentConfig {
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig
   readonly tls: TLSConfig
-  readonly trace_enable: DeploymentConfigField<boolean>
+  readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
   readonly auto_import_templates: DeploymentConfigField<string[]>
@@ -662,6 +662,12 @@ export interface TemplateVersion {
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface TraceConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly honeycomb_api_key: DeploymentConfigField<string>
 }
 
 // From codersdk/templates.go
