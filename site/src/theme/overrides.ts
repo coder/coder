@@ -15,10 +15,6 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         ":root": {
           colorScheme: palette.type,
         },
-        // // Unfortunately, there is no style for MuiSkeleton so we have to style it globally
-        // ".MuiSkeleton-root": {
-        //   backgroundColor: palette.text.secondary,
-        // },
       },
     },
     MuiAvatar: {
