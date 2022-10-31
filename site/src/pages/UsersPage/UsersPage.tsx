@@ -46,6 +46,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     userIdToResetPassword,
     newUserPassword,
     paginationRef,
+    count
   } = usersState.context
 
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
@@ -60,7 +61,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   // - users are loading or
   // - the user can edit the users but the roles are loading
   const isLoading =
-    usersState.matches("gettingUsers") ||
+    usersState.matches("users.gettingUsers") ||
     (canEditUsers && rolesState.matches("gettingRoles"))
 
   // Fetch roles on component mount
@@ -81,6 +82,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <UsersPageView
         roles={roles}
         users={users}
+        count={count}
         onListWorkspaces={(user) => {
           navigate(
             "/workspaces?filter=" +
@@ -107,7 +109,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           })
         }}
         error={getUsersError}
-        isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
+        isUpdatingUserRoles={usersState.matches("users.updatingUserRoles")}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         filter={usersState.context.filter}
@@ -119,8 +121,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
 
       {userToBeDeleted && (
         <DeleteDialog
-          isOpen={usersState.matches("confirmUserDeletion")}
-          confirmLoading={usersState.matches("deletingUser")}
+          isOpen={usersState.matches("users.confirmUserDeletion")}
+          confirmLoading={usersState.matches("users.deletingUser")}
           name={userToBeDeleted.username}
           entity="user"
           onConfirm={() => {
@@ -135,8 +137,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={usersState.matches("confirmUserSuspension")}
-        confirmLoading={usersState.matches("suspendingUser")}
+        open={usersState.matches("users.confirmUserSuspension")}
+        confirmLoading={usersState.matches("users.suspendingUser")}
         title={Language.suspendDialogTitle}
         confirmText={Language.suspendDialogAction}
         onConfirm={() => {
@@ -156,8 +158,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <ConfirmDialog
         type="success"
         hideCancel={false}
-        open={usersState.matches("confirmUserActivation")}
-        confirmLoading={usersState.matches("activatingUser")}
+        open={usersState.matches("users.confirmUserActivation")}
+        confirmLoading={usersState.matches("users.activatingUser")}
         title={Language.activateDialogTitle}
         confirmText={Language.activateDialogAction}
         onConfirm={() => {
@@ -175,10 +177,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       />
 
       <ResetPasswordDialog
-        loading={usersState.matches("resettingUserPassword")}
+        loading={usersState.matches("users.resettingUserPassword")}
         user={userToResetPassword}
         newPassword={newUserPassword}
-        open={usersState.matches("confirmUserPasswordReset")}
+        open={usersState.matches("users.confirmUserPasswordReset")}
         onClose={() => {
           usersSend("CANCEL_USER_PASSWORD_RESET")
         }}

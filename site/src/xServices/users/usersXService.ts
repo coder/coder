@@ -54,6 +54,8 @@ export interface UsersContext {
   updateUserRolesError?: Error | unknown
   paginationContext: PaginationContext
   paginationRef: PaginationMachineRef
+  count: number
+  getCountError: Error | unknown
 }
 
 export type UsersEvent =
@@ -86,39 +88,76 @@ export type UsersEvent =
   | { type: "UPDATE_PAGE"; page: string }
 
 export const usersMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAHogCMADiLcA7AFYVAFgCcW5bNkaAbACZDAGhABPOVsNEAzN1XGDhw92PduW+wF9fFqgY2PiERDA4lDQAqmiY7BBsxNQAbiwA1sQRscE8-EggwqLiVJIyCPKyRHryyk4m9lrGzfYW1ggaGqpERvaq9soasqrKfgEgQZi4BFlgkdRQOfEY6CzoRIIANgQAZmsAtuFzS7B5kkVirKUF5QC0ssrGRLV1rs2VyrptiJ3K1cbyHQaUyqSoDVT+QJxEIzIgUCCbMDsLDRLC0ACiADkACIAfVR6IASmcChcSmVEMZOkRDPpgYZ5J4NNx5PZWlY5A8qvZjH15Nx7IZVFp5KoNJCJtDpmF4Yj2Nj0QAZdEAFXR+KwRJJQhElwkN0phi0RAMqncjIZo0Z3wqtSIOgZGg+3HNsglkxhMoRSIAggBhFUASQAaj61RqtXxzrryQaEKZ7Pb7KLBQCTLJ3Kobe5E2adINjE1DE7jO6paFkt72IT0ZqVRHCbjaD6sFgAOoAeUJ2O1hRjVwp8dkxq6A2UFuTyhMWY5CFcdlkhbB8n5vNBZeC0srcuitGxYfVBMbhI7yqwvbJA7jtwBfwF3lG-WHPhtjO4NIZ7lk9Q0fI3UwrOEq13fdw2bABxdEL37fVQDuHk7BUTQnEcAEdGzLoaQtdQ+h8Ywp3-T1tyRECD1xAAxQNFTVYko1JGDrjgxB7m6LQjABfCtBUYduFkV9h2qAZv3w5wuIhcYPS3IgAGM2B2Ch0H2JYsFQQQwCoUQ2HYP0O0xSjCQAWQbXEUTRLEsEDXToOKK8mNtRMCyFXpPjcLQbX0FcTU+EtnFwhlCKk2SqHkxTlNU9TNI4P0fUxP0lWM0yMUxCyrLonUbNg6REFBbpmU+LiHipbhOnc-D3xXUURVpWlioCwCgpCpS4mxMBERKbTdP0oyj1xBVlTVay9UYrKKh8e1vHkbRgRUBobS0fQelFRc9F-Nj5EMOrYQahSmowFq2qubSYrixVjL61UoLSvsMuG8paSeYZ7AzNlDHHN65rcGliv5AVPjNExNrCbbQriH1pMoFJmC0nS9MDQzjP9INQyDVL8nSobBxeD8BnsTops6NzZ0MXHFrZKk2NUfQNok8strknaljBiGoai474p6xGQzDSzMUG2M7OFVjuMXQVeNUSmbTqRNlt-NwnuUR5xRpzdANgcKqAgBYlgSJI4SoNJMhIdWICWPnbJG4ZFxNcX+XHbxhzUOa6i8o1vBFdRaTdZWANhNXYDUjWtbidgVjWDZthwPZFKN-31JNuIzcy8oPPfEYXEm3R8NGPjZ1kRwNCUYU8-w2Xv3EqEVdhCBWrmIOMB1qhkn1jJiGrtqwFNq7LyTuRKeNAxmS0UENEeXjJZGapmRGEfVrTwHW5rqJFmD0P1i2XYDiINu5g7hOu4Ywd9CH6oWVFV4uItdzeONMU6TZWpFxH+eiDwcGKEhpftcSRu9YN4hX+ZoQTuaNroYzjJbRMPgeQujUOob85hZxmlTrSEYLpTAKDNM-AB79mAxBXugVYa8I5R0ONgj+u8MCJ1upyWwk9vwsmTMVAw48C7aAZFyMUU59DP2BrtdA9BYCwAAO5rAgISOAcwOqw3hj1ZsrZOzdlxDWOsVDMZimqPAgwxhKbixFO5HCX1ibaABJTV6ygeH0xBhgARwjRHiLQDgI6sV2aakbHI9sXY8TKNVKouMad7T9FsMTI0Csnr6LtAYUWahFxMnMd7IiRB0ASPmHg6xeBBEiPQBABuTc-6JOSUsGxmSIC+LsnndRecmjqD0KMfC7lxwLlMLofot5RTUwrj7MISSHGfziEU0RIcCFh3XpHTe3Tjh9PSbYrJpSLYPGNCoRwoJ3iihXO5IUTwRS6BqMWAYwJn7IEEBAXBy8MCEhYIiWAOTf4tyIIc45QC4jnMubMu4VoTTFSFG+SpGgPp-CnFA4SzhtDl0lJXMI9yTlLGeXAQZhDw4b2jpCx5ZyLlwFecxL8Dghi6FegoPogp+LGlGHoDwahCxOH8OMKgLBq7wAKJJVWZAl70EYFQFm0YbqDluM4E+nxPgsmLCKXkr5uiFktDob8zJXpKw6QkiIvTgicrAXZW47geiSqGHigEi4ZztBBEQfobIjWeBiVoZ+sowDKv5hbHkzwmiDB5M0NwYpfmzjUAXZwZ9OjfjYk9CxwUGZxBUrHDS5tu7UIQKCRQXEhgjzluUnO7Qj4F0qBgqBeF2lgs6cQXhSx9q10yhGwcJgnhGlpI8IeT5xZzQWk6dQ6h+QPHFmMOVgVLF8KZjgm1xa4zVUnkaZkuMvBDD1YgIxpMeRTUphmZ+fsA6a1Sega15tk4ZkUEXV2TgxTCnkO5YYfwnoKHFVSSccS22AW3oq5d9EuXgIUFUHQvFTCvAMHo2cK4C4eCEn0dwXQHhYLfh-OuN70Y2rXWNbRDribzSNUm8dngTTfkBLyFB8aA2NUKVM4p9i5grp7lG+ahq1AijzsCcl8G5wGPcEYpoS0zHP3GSk05-DsOiPw5GjyC5nBeFZOaDwY65xsI-GoWoDb1pqAOUcqFTy0X0rA6u5inR3xrlsCyOoAohhzSMPaGpr03C8TZPPDj3KGkfKMMswzbEbS3AcgKRcSEnArkGPIKlvggA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdAMYD2yAdjkTDjgJaVQDCF1AxBGZcUwG5kA1sToBVNOjZUcAbQAMAXUSgADmVgNGPFSAAeiAIwBWQ-KIBmABwAWCwHYrAJhcA2YwE4ANCACeiZ0Miew8LBxsrCw8Pe1MAXzifVAxsfEJSdho6RmZpTgx0MnQiVQAbAgAzIoBbWjAcCQw8uSVddU1tSl0DBEMneSDXC0MrQ2G3KysffwRo4yJjYxtlh1c1m2NXBKTJVIJichkOMQAFABEAQQAVAFEAfQAxAEkAGVuAJQVlJBB2rQYdD8en1DB4iE5NvYbCMokNvH5EK4NkRbI5XIYbE5DGNDPZtiBkphcPsiITYERYPh0DkoCc8FAmAQAZQOF82hp-oDQD0ALRQ8zyEIWYz2dwhJw2VzTRGOIiGdyjJwWSXyZV4xIE3bE9Jkur0JhQRqYLg8PiUQQiPVG2Bsn5-TrdRA84wuYLyVxWexRDy2Vz2ezShCRGwLRZ+0VOWzGT34sna4i67IG60cApFErlHBVdC1cS7W1qDkOoFOxxOSxK7HySKReSmQNWd0LEJ9L1OWLGeQeWNatIJ3ZEBgQUpgDhYMRYE43AByZzuE5un1adqLzMdCB5SNcKOhNdcddiHsDGJCKOjHjGStsZicPZS8dJA6HI44ZxuLxut3nWEXBd+q65fQnSReZrEcKwfSsJZNgsY9hkGNUIklRZBQsO8iT7R8UkHYdRwuFgrieAA1a57gXJdvkLDo1xLDcQKId1llcGIoUiJx4RmbEbDBP1QXFGIIVFdC9h1J9cI4d4bh-K5v0XO4TguLAsAAdQAeXeM4-3tGjuWAmx7Dlex2MlCEPCGGxjyGbcbEFDxBRskx7FxYSH11Z9R1OS4v3Iu53lUj8sC0gCulonkfW3eUsRiDEfWMaxjxGAy4rDD1wwxLYNTjTC3PEzzSPki4AHEbiC6jAN5DxJTlDEIOhD15TsQMPE7Bi1n9Vs7MbdUdnvbKB3ISgKgYHMjSwVBVDAShNB4DgWFU6dnneABZWT3jucdJxnLAnnm0rORC3SNzMCxgghCw1ja7ioUMY9uKsBiJU2aElVFDEXL67CBqGkbJDG2AJqm5lZouacWHfVb1onKdp223blyo-b1x5Gz7rsMZ3XkeQbLA49NnmDwJXdF1qz9DKeowkldS+4bqiNM4wBHTpZvmxaVp8t8P1uPbi0OnkuIWJEoQ2DY4vsQU4OFOUlXkFw4osLtIneyn+p4b7ackenGaBlgQbBl4IY5z8Svh-8yoOoCNwcAyYjssJG0lFiLIRXobPLaIImDOFFiV0TPtVmmjQuEhGH4JkZrmhanmWiH8MIkjCLhyjTcR0KQSIAmhlFRsBkjetnexIYiFcdsBn9OEZbJzVeuVv3BoDyQg5DsOWR10HwZ82PiOuHbp25nSLZ5ax7sbSYsRcUZroDfOlW3CVIzM1UK5dH3+2w2BxsmiBk0kE1eEHc1hGIdf-s3o0+-KxAy4WAnVUjEY62hW7C-YjHOyWUYYhXrDMApDfKC35gRpUzoEKMUMolQai-xPv-M+JttIXwQKYAyZYGqhCGC4G6+dzrzFMJEHE1ZpaVyyjXH+EAGb1G3hgXeZoLTEDIYzMAsCk7wPNj0RwJ1oyqkSo4aITg4LYiLohX0KFYhf11PQihgCd5pjAZmbMtQJGECYeyM2644puxGJMJYJkHAcSMFiEM1ZMaRCHpiSUYiBx4GDgwUONIgHcD3gIQ+RArFNyUZIc+rDL6ynOpVAYSIIJlmPF2csY8RieGatCMYFjsKuJsUyKRVCZEZggTmFx1jbGMI8XA4KailQLHlJ2L0LYInBPlBWVU3ExjCkqTEn+1MfoYDpLAWAAB3IoEB3hwHqMzSO0cfIKSUmpDSvkpKfk8UjSqRB9K1X8ZKdwMRLJehRFGOsfirDMTqeSBp6sml4Bae09AnTuk4GBm3fWAzFIqXUnOSS0kJmhUxAZQIWjJhmBdHo3osQTomNMJjGIEE1hbKIOgE5djJDNLaR06h+9aEgpOUaSFhyIAPMOi6E6VYx7u2LljY8IQQwXiMshYu78bDAtBWgfUiT0BIuhck8BWZIEUvqIi-ZUKjmootm-HcUYqx1kjBsSyfQUSxDFtozO1hgXIFUBABJhpJDvDICOWAMKnGWmlbK9xGBFXKs5byPo8si4j0KcsMVx4JSDGvPpSCfQzJSplXKo0Oq4DANASkxlaSNX7CdUquAeqnRjFCNMuyr02JO04r44IJ5+jy09C6dUGpKBkDIfAH4xD0iHGoDhEcKiU6HRMNESwywuwDEqh6eKztmpBFxFBFY8tzpDC-pmrI9QaTNFzTzC22J8lz2hO-Wy2JAw8LlOiT0VazK+ibZkDt-dgSCnmL2kwEQB2YJmGGHcaJkqRj9GhTKvYSHkkpHgakBo6QMkoM3GdCC+aYyCHWasFgXD9BcCEQMSIQzywhMXZw+lVREP3b7H+SZqWpoRp23kxdQkQQhJ6dsEYp4zDWPdAmEFGwE2hLw4F7kr1eLohecEazoxREFGLWC+csYhickhFD3p3TAp2aNP+01zYsKRudcs2dGINrhGEXGqoi1OU9PLfcOd6P+0aegTWFDAKsdCuxhifEnJ+icCBVdRgwjzANTLM68tYpibrhJxu8TO2yd5uda2HpYp+gcjLcNRh5QnWLmLDYlUoSxDJXu6ugHD1-wAfKjAOH1wjDBOh8z0Z0r+mMLdJyCwNhOS7EMdR3ZPMU280QRRlD0CBdosF8E98ohl0bH0KY08YhF2lpU5YUFJjAribYzL2X82nigg+5dthmrFwSpLNYMtlTth6xefTatWUHI6V0yljWB7YKLi6Eu8ozIuhK5xHdKzljcRFA4JUxhyVgsy7So5k22EhnYt+3ORlFgYjxcXQynCRZmGOvazVmXnWgeTuBgNjE5Sobiu6R6dnejCjvS2GW0QLxvRSyJVemBDsBuWEEbigpR2Pv+4sUCMtNj8o2VjZL5NIcw6OhEMECPQ3I8DPMyw6PPQLKhPubbCQ4hAA */
   createMachine(
     {
-      tsTypes: {} as import("./usersXService.typegen").Typegen0,
-      schema: {
-        context: {} as UsersContext,
-        events: {} as UsersEvent,
-        services: {} as {
-          getUsers: {
-            data: TypesGen.User[]
-          }
-          createUser: {
-            data: TypesGen.User
-          }
-          suspendUser: {
-            data: TypesGen.User
-          }
-          deleteUser: {
-            data: undefined
-          }
-          activateUser: {
-            data: TypesGen.User
-          }
-          updateUserPassword: {
-            data: undefined
-          }
-          updateUserRoles: {
-            data: TypesGen.User
-          }
+  tsTypes: {} as import("./usersXService.typegen").Typegen0,
+  schema: {
+    context: {} as UsersContext,
+    events: {} as UsersEvent,
+    services: {} as {
+      getUsers: {
+        data: TypesGen.User[]
+      }
+      createUser: {
+        data: TypesGen.User
+      }
+      suspendUser: {
+        data: TypesGen.User
+      }
+      deleteUser: {
+        data: undefined
+      }
+      activateUser: {
+        data: TypesGen.User
+      }
+      updateUserPassword: {
+        data: undefined
+      }
+      updateUserRoles: {
+        data: TypesGen.User
+      }
+      getUserCount: {
+        data: TypesGen.UserCountResponse
+      }
+    },
+  },
+  predictableActionArguments: true,
+  id: "usersState",
+  type: "parallel",
+  states: {
+    count: {
+      initial: "gettingCount",
+      states: {
+        idle: {},
+        gettingCount: {
+          entry: "clearGetCountError",
+          invoke: {
+            src: "getUserCount",
+            id: "getUserCount",
+            onDone: [
+              {
+                target: "idle",
+                actions: "assignCount",
+              },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: "assignGetCountError",
+              },
+            ],
+          },
         },
       },
-      predictableActionArguments: true,
-      id: "usersState",
+      on: {
+        UPDATE_FILTER: {
+          target: ".gettingCount",
+          actions: ["assignFilter", "sendResetPage"],
+        },
+      },
+    },
+    users: {
       initial: "startingPagination",
       states: {
         startingPagination: {
@@ -179,9 +218,6 @@ export const usersMachine =
             UPDATE_PAGE: {
               target: "gettingUsers",
               actions: "updateURL",
-            },
-            UPDATE_FILTER: {
-              actions: ["assignFilter", "sendResetPage"],
             },
           },
         },
@@ -334,6 +370,8 @@ export const usersMachine =
         },
       },
     },
+  },
+},
     {
       services: {
         // Passing API.getUsers directly does not invoke the function properly
@@ -346,6 +384,9 @@ export const usersMachine =
             offset,
             limit,
           })
+        },
+        getUserCount: (context) => {
+          return API.getUserCount(queryToFilter(context.filter))
         },
         suspendUser: (context) => {
           if (!context.userIdToSuspend) {
@@ -393,6 +434,15 @@ export const usersMachine =
       actions: {
         assignUsers: assign({
           users: (_, event) => event.data,
+        }),
+        assignCount: assign({
+          count: (_, event) => event.data.count
+        }),
+        assignGetCountError: assign({
+          getCountError: (_, event) => event.data
+        }),
+        clearGetCountError: assign({
+          getCountError: (_) => undefined
         }),
         assignFilter: assign({
           filter: (_, event) => event.query,
