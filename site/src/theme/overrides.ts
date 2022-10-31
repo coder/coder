@@ -1,7 +1,7 @@
 import { lighten, Theme } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { colors } from "./colors"
-import { borderRadius } from "./constants"
+import { borderRadius, borderRadiusSm } from "./constants"
 
 export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
   return {
@@ -61,7 +61,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         padding: `0 16px`,
         fontSize: 14,
         minHeight: 36,
-        borderRadius: 6,
+        borderRadius: borderRadiusSm,
       },
       iconSizeSmall: {
         width: 14,
@@ -69,7 +69,7 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
         marginLeft: "0 !important",
         marginRight: 8,
 
-        "& svg": {
+        "& svg:not(.MuiCircularProgress-svg)": {
           width: 14,
           height: 14,
         },
@@ -188,6 +188,13 @@ export const getOverrides = ({ palette, breakpoints }: Theme): Overrides => {
 
       marginDense: {
         marginTop: 8,
+      },
+    },
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- The Mui types don't accept the MuiSkeleton but it works. I tried to extends the Overrides interface with no success.
+    // @ts-ignore
+    MuiSkeleton: {
+      root: {
+        backgroundColor: palette.divider,
       },
     },
   }

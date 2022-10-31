@@ -2,6 +2,7 @@ import { Story } from "@storybook/react"
 import {
   MockWorkspace,
   MockWorkspaceAgent,
+  MockWorkspaceAgentConnecting,
   MockWorkspaceApp,
 } from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
@@ -54,6 +55,14 @@ BunchOfApps.args = {
       MockWorkspaceApp,
     ],
   },
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const Connecting = Template.bind({})
+Connecting.args = {
+  agent: MockWorkspaceAgentConnecting,
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,

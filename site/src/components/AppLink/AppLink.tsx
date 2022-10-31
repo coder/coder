@@ -61,7 +61,7 @@ export const AppLink: FC<AppLinkProps> = ({
   let primaryTooltip = ""
   if (app.health === "initializing") {
     canClick = false
-    icon = <CircularProgress size={16} />
+    icon = <CircularProgress size={12} />
     primaryTooltip = "Initializing..."
   }
   if (app.health === "unhealthy") {
