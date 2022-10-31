@@ -522,7 +522,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			user, err := api.Database.GetUserByID(ctx, version.CreatedBy)
+			user, err := store.GetUserByID(ctx, version.CreatedBy)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error on fetching user.",
