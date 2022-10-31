@@ -11,6 +11,7 @@ import { AgentLatency } from "./AgentLatency"
 import { AgentVersion } from "./AgentVersion"
 import { Maybe } from "components/Conditionals/Maybe"
 import { AgentStatus } from "./AgentStatus"
+import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -59,6 +60,11 @@ export const AgentRow: FC<AgentRowProps> = ({
             </Maybe>
 
             <AgentLatency agent={agent} />
+
+            <Maybe condition={agent.status === "connecting"}>
+              <Skeleton width={160} variant="text" />
+              <Skeleton width={36} variant="text" />
+            </Maybe>
           </Stack>
         </div>
       </Stack>
@@ -106,8 +112,8 @@ export const AgentRow: FC<AgentRowProps> = ({
         )}
         {showApps && agent.status === "connecting" && (
           <>
-            <Skeleton width={80} height={36} variant="rect" />
-            <Skeleton width={120} height={36} variant="rect" />
+            <AppLinkSkeleton width={84} />
+            <AppLinkSkeleton width={112} />
           </>
         )}
       </Stack>
