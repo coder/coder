@@ -5,10 +5,13 @@ import { colors } from "./colors"
 import { borderRadius, borderRadiusSm } from "./constants"
 
 type ExtendedOverrides = Overrides & {
-  MuiSkeleton: Partial<StyleRules<SkeletonClassKey>>;
+  MuiSkeleton: Partial<StyleRules<SkeletonClassKey>>
 }
 
-export const getOverrides = ({ palette, breakpoints }: Theme): ExtendedOverrides => {
+export const getOverrides = ({
+  palette,
+  breakpoints,
+}: Theme): ExtendedOverrides => {
   return {
     MuiCssBaseline: {
       "@global": {
