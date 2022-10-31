@@ -41,6 +41,7 @@ type DeploymentConfig struct {
 	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
 	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
+	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 }
 
 type DERP struct {

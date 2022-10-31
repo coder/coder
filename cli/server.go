@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -371,6 +372,25 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
+			}
+
+			if cfg.UpdateCheck.Value {
+				options.UpdateCheckOptions = &updatecheck.Options{
+					// Avoid spamming GitHub API checking for updates.
+					Interval: 24 * time.Hour,
+					// Inform server admins of new versions.
+					Notify: func(r updatecheck.Result) {
+						if semver.Compare(r.Version, buildinfo.Version()) > 0 {
+							options.Logger.Info(
+								context.Background(),
+								"new version of coder available",
+								slog.F("new_version", r.Version),
+								slog.F("url", r.URL),
+								slog.F("upgrade_instructions", "https://coder.com/docs/coder-oss/latest/admin/upgrade"),
+							)
+						}
+					},
+				}
 			}
 
 			if cfg.OAuth2.Github.ClientSecret.Value != "" {
