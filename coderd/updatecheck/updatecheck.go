@@ -136,33 +136,29 @@ func (c *Checker) start() {
 	t := time.NewTicker(c.opts.Interval)
 	defer t.Stop()
 
-	doCheck := func() {
-		rr, err := c.update()
-		if err != nil {
-			if xerrors.Is(err, context.Canceled) {
-				return
-			}
-			c.log.Error(c.ctx, "update check failed", slog.Error(err))
-		} else {
-			c.notifyIfNewer(r, rr)
-			r = rr
-		}
+	diff := time.Until(r.Checked.Add(c.opts.Interval))
+	if diff > 0 {
+		c.log.Info(c.ctx, "time until next update check", slog.F("duration", diff))
+		t.Reset(diff)
+	} else {
 		c.log.Info(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
-		t.Reset(c.opts.Interval)
-	}
-
-	if !r.Checked.IsZero() {
-		diff := time.Until(r.Checked.Add(c.opts.Interval))
-		if diff > 0 {
-			c.log.Info(c.ctx, "time until next update check", slog.F("duration", diff))
-			t.Reset(diff)
-		}
 	}
 
 	for {
 		select {
 		case <-t.C:
-			doCheck()
+			rr, err := c.update()
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return
+				}
+				c.log.Error(c.ctx, "update check failed", slog.Error(err))
+			} else {
+				c.notifyIfNewer(r, rr)
+				r = rr
+			}
+			c.log.Info(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
+			t.Reset(c.opts.Interval)
 		case <-c.ctx.Done():
 			return
 		}
