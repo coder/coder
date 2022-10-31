@@ -132,7 +132,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		ProxyTrustedHeaders: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Headers",
 			Flag:  "proxy-trusted-headers",
-			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-IP True-Client-Ip, X-Forwarded-for",
+			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
 		},
 		ProxyTrustedOrigins: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Origins",
