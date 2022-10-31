@@ -125,9 +125,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				shouldCoderTrace = cfg.Telemetry.Trace.Value
 			}
 
-			if cfg.TraceEnable.Value || shouldCoderTrace {
+			if cfg.Trace.Enable.Value || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default: cfg.TraceEnable.Value,
+					Default: cfg.Trace.Enable.Value,
 					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
