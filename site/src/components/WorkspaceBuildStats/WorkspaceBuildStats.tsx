@@ -1,5 +1,6 @@
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { displayWorkspaceBuildDuration } from "../../util/workspace"
@@ -11,10 +12,12 @@ export interface WorkspaceBuildStatsProps {
 export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({
   build,
 }) => {
+  const { t } = useTranslation("buildPage")
+
   return (
     <Stats>
       <StatsItem
-        label="Workspace"
+        label={t("stats.workspace")}
         value={
           <Link to={`/@${build.workspace_owner_name}/${build.workspace_name}`}>
             {build.workspace_name}
@@ -22,14 +25,14 @@ export const WorkspaceBuildStats: FC<WorkspaceBuildStatsProps> = ({
         }
       />
       <StatsItem
-        label="Duration"
+        label={t("stats.duration")}
         value={displayWorkspaceBuildDuration(build)}
       />
       <StatsItem
-        label="Started at"
+        label={t("stats.startedAt")}
         value={new Date(build.created_at).toLocaleString()}
       />
-      <StatsItem label="Action" value={build.transition} />
+      <StatsItem label={t("stats.action")} value={build.transition} />
     </Stats>
   )
 }
