@@ -25,24 +25,27 @@ const StyledBadge = withStyles((theme) => ({
   },
 }))(Badge)
 
+interface StyledAvatarProps {
+  size?: number
+}
+
 const StyledAvatar = withStyles((theme) => ({
   root: {
     background: theme.palette.divider,
     color: theme.palette.text.primary,
     border: `2px solid ${theme.palette.divider}`,
-    width: ({ size }: { size?: number }) => size,
-    height: ({ size }: { size?: number }) => size,
+    width: ({ size }: StyledAvatarProps) => size,
+    height: ({ size }: StyledAvatarProps) => size,
 
     "& svg": {
-      width: ({ size }: { size?: number }) => (size ? size / 2 : 18),
-      height: ({ size }: { size?: number }) => (size ? size / 2 : 18),
+      width: ({ size }: StyledAvatarProps) => (size ? size / 2 : 18),
+      height: ({ size }: StyledAvatarProps) => (size ? size / 2 : 18),
     },
   },
 }))(Avatar)
 
-export type BuildAvatarProps = {
+export interface BuildAvatarProps extends StyledAvatarProps {
   build: WorkspaceBuild
-  size?: number
 }
 
 const iconByTransition: Record<WorkspaceTransition, JSX.Element> = {
