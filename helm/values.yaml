@@ -82,24 +82,24 @@ coder:
         - podAffinityTerm:
             labelSelector:
               matchExpressions:
-                - key: app.kubernetes.io/name
+                - key: app.coder.com
                   operator: In
                   values:
-                    - "coder"
+                    - "true"
             topologyKey: kubernetes.io/hostname
           weight: 1
 
   # coder.tolerations -- Tolerations for tainted nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-  tolerations:
+  tolerations: {}
     # - key: "key"
-    #  operator: "Equal"
-    #  value: "value"
-    #  effect: "NoSchedule"
+    #   operator: "Equal"
+    #   value: "value"
+    #   effect: "NoSchedule"
 
   # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
-  nodeSelector:
+  nodeSelector: {}
   #  kubernetes.io/os: linux
 
   # coder.service -- The Service object to expose for Coder.

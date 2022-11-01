@@ -33,15 +33,17 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: 60
-      {{- if .Values.coder.affinity }}
-      affinity: {{- toYaml .Values.coder.affinity | nindent 8 }}
+      {{- with .Values.coder.affinity }}
+      affinity:
+      {{- toYaml .Values.coder.affinity | nindent 8 }}
       {{- end }}
       {{- with .Values.coder.tolerations }}
       tolerations:
       {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.coder.nodeSelector }}
-      nodeSelector: {{ toYaml .Values.coder.nodeSelector | nindent 8 }}
+      {{- with .Values.coder.nodeSelector }}
+      nodeSelector:
+      {{ toYaml .Values.coder.nodeSelector | nindent 8 }}
       {{- end }}
       containers:
         - name: coder
