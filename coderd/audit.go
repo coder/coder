@@ -34,8 +34,6 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
-	fmt.Println("FILTER", filter.DateFrom)
-	fmt.Println("FILTER", filter.DateTo)
 
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
