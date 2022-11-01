@@ -240,7 +240,7 @@ describe("UsersPage", () => {
 
   describe("pagination", () => {
     it("goes to next and previous page", async () => {
-      renderPage()
+      const { container } = renderPage()
       const user = userEvent.setup()
 
       const mock = jest
@@ -248,6 +248,9 @@ describe("UsersPage", () => {
         .mockResolvedValueOnce([MockUser, MockUser2])
 
       const nextButton = await screen.findByLabelText("Next page")
+      expect(nextButton).toBeEnabled()
+      const previousButton = await screen.findByLabelText("Previous page")
+      expect(previousButton).toBeDisabled()
       await user.click(nextButton)
 
       await waitFor(() =>
@@ -255,12 +258,15 @@ describe("UsersPage", () => {
       )
 
       mock.mockClear()
-      const previousButton = await screen.findByLabelText("Previous page")
       await user.click(previousButton)
 
       await waitFor(() =>
         expect(API.getUsers).toBeCalledWith({ offset: 0, limit: 25, q: "" }),
       )
+
+      const pageButtons = await container.querySelectorAll(`button[name="Page button"]`)
+      // count handler says there are 2 pages of results
+      expect(pageButtons.length).toBe(2)
     })
   })
 
