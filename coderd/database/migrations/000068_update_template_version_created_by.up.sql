@@ -8,6 +8,7 @@ SET
         (SELECT id FROM users WHERE rbac_roles @> '{owner}' AND deleted = 'f' ORDER BY created_at ASC LIMIT 1),
         -- If there are no owners, assign to the first user.
         (SELECT id FROM users WHERE deleted = 'f' ORDER BY created_at ASC LIMIT 1)
+        -- If you have no users I'm not sure what else to tell you.
     )
 WHERE
     created_by IS NULL;
