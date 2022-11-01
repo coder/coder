@@ -57,5 +57,6 @@ const useStyles = makeStyles((theme) => ({
     userSelect: "none",
     width: theme.spacing(12.5),
     display: "inline-block",
+    color: theme.palette.text.secondary,
   },
 }))
