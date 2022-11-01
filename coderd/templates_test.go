@@ -480,7 +480,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Contains(t, apiErr.Message, "Invalid request")
-		require.Len(t, apiErr.Validations, 2)
+		require.Len(t, apiErr.Validations, 1)
 		assert.Equal(t, apiErr.Validations[0].Field, "max_ttl_ms")
 
 		updated, err := client.Template(ctx, template.ID)

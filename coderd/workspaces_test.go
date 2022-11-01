@@ -325,32 +325,6 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, "time until shutdown must be less than 7 days", apiErr.Validations[0].Detail)
 		})
 	})
-
-	t.Run("InvalidAutostart", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		req := codersdk.CreateWorkspaceRequest{
-			TemplateID:        template.ID,
-			Name:              "testing",
-			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
-		}
-		_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, apiErr.Validations[0].Field, "schedule")
-		require.Equal(t, apiErr.Validations[0].Detail, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
-	})
 }
 
 func TestWorkspaceByOwnerAndName(t *testing.T) {
