@@ -103,6 +103,7 @@
     "eslint-import-resolver-alias": "1.1.2",
     "eslint-import-resolver-typescript": "3.5.0",
     "eslint-plugin-compat": "4.0.2",
+    "eslint-plugin-eslint-comments": "^3.2.0",
     "eslint-plugin-import": "2.26.0",
     "eslint-plugin-jest": "27.0.1",
     "eslint-plugin-jsx-a11y": "6.6.1",

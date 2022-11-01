@@ -624,7 +624,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			ValueType: "any",
 			AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment("Embedded anonymous struct, please fix by naming it"),
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
 			),
 		}, nil
 	case *types.Map:
@@ -688,6 +688,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/google/uuid.UUID":
 			return TypescriptType{ValueType: "string"}, nil
+		case "encoding/json.RawMessage":
+			return TypescriptType{ValueType: "Record<string, string>"}, nil
 		}
 
 		// Then see if the type is defined elsewhere. If it is, we can just
@@ -734,7 +736,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		if _, ok := n.Underlying().(*types.Struct); ok {
 			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
 			)}, nil
 		}
 
@@ -759,7 +761,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		intf := ty
 		if intf.Empty() {
 			return TypescriptType{ValueType: "any",
-				AboveTypeLine: indentedComment("eslint-disable-next-line")}, nil
+				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed")}, nil
 		}
 		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	case *types.TypeParam:

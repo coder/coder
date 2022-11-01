@@ -658,10 +658,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			Name:           namesgenerator.GetRandomName(1),
 			Readme:         "",
 			JobID:          job.ID,
-			CreatedBy: uuid.NullUUID{
-				UUID:  opts.userID,
-				Valid: true,
-			},
+			CreatedBy:      opts.userID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %w", err)

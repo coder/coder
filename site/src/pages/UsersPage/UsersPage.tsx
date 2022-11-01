@@ -1,5 +1,6 @@
 import { useActor, useMachine } from "@xstate/react"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+import { getPaginationContext } from "components/PaginationWidget/utils"
 import { usePermissions } from "hooks/usePermissions"
 import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
@@ -25,10 +26,15 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const xServices = useContext(XServiceContext)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const filter = searchParams.get("filter") ?? undefined
+  const filter = searchParams.get("filter") ?? ""
   const [usersState, usersSend] = useMachine(usersMachine, {
     context: {
       filter,
+      paginationContext: getPaginationContext(searchParams),
+    },
+    actions: {
+      updateURL: (context, event) =>
+        setSearchParams({ page: event.page, filter: context.filter }),
     },
   })
   const {
@@ -39,6 +45,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     userIdToActivate,
     userIdToResetPassword,
     newUserPassword,
+    paginationRef,
   } = usersState.context
 
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
@@ -55,14 +62,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const isLoading =
     usersState.matches("gettingUsers") ||
     (canEditUsers && rolesState.matches("gettingRoles"))
-
-  // Fetch users on component mount
-  useEffect(() => {
-    usersSend({
-      type: "GET_USERS",
-      query: filter,
-    })
-  }, [filter, usersSend])
 
   // Fetch roles on component mount
   useEffect(() => {
@@ -113,9 +112,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         canEditUsers={canEditUsers}
         filter={usersState.context.filter}
         onFilter={(query) => {
-          searchParams.set("filter", query)
-          setSearchParams(searchParams)
+          usersSend({ type: "UPDATE_FILTER", query })
         }}
+        paginationRef={paginationRef}
       />
 
       {userToBeDeleted && (
