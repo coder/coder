@@ -65,24 +65,27 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The default if no organizations are specified is to allow all.
 	var selectedMembership *github.Membership
-	for _, membership := range memberships {
-		if membership.GetState() != "active" {
-			continue
-		}
-		for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
-			if *membership.Organization.Login != allowed {
+	if len(api.GithubOAuth2Config.AllowOrganizations) > 0 {
+		for _, membership := range memberships {
+			if membership.GetState() != "active" {
 				continue
 			}
-			selectedMembership = membership
-			break
+			for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
+				if *membership.Organization.Login != allowed {
+					continue
+				}
+				selectedMembership = membership
+				break
+			}
 		}
-	}
-	if selectedMembership == nil {
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "You aren't a member of the authorized Github organizations!",
-		})
-		return
+		if selectedMembership == nil {
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+				Message: "You aren't a member of the authorized Github organizations!",
+			})
+			return
+		}
 	}
 
 	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(ctx, oauthClient)
@@ -95,7 +98,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The default if no teams are specified is to allow all.
-	if len(api.GithubOAuth2Config.AllowTeams) > 0 {
+	if len(api.GithubOAuth2Config.AllowOrganizations) > 0 && len(api.GithubOAuth2Config.AllowTeams) > 0 {
 		var allowedTeam *github.Membership
 		for _, allowTeam := range api.GithubOAuth2Config.AllowTeams {
 			if allowTeam.Organization != *selectedMembership.Organization.Login {
