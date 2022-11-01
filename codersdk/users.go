@@ -353,6 +353,31 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 	return users, json.NewDecoder(res.Body).Decode(&users)
 }
 
+func (c *Client) UserCount(ctx context.Context, req UserCountRequest) (UserCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/count", nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			var params []string
+			if req.SearchQuery != "" {
+				params = append(params, req.SearchQuery)
+			}
+			q.Set("q", strings.Join(params, " "))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return UserCountResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserCountResponse{}, readBodyAsError(res)
+	}
+
+	var count UserCountResponse
+	return count, nil
+}
+
 // OrganizationsByUser returns all organizations the user is a member of.
 func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organization, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", user), nil)

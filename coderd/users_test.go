@@ -1255,6 +1255,74 @@ func TestGetUsers(t *testing.T) {
 	})
 }
 
+func TestGetFilteredUserCount(t *testing.T) {
+	t.Parallel()
+	t.Run("AllUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		// No params is all users
+		count, err := client.UserCount(ctx, codersdk.UserCountRequest{})
+		require.NoError(t, err)
+		require.Equal(t, count, 2)
+	})
+	t.Run("ActiveUsers", func(t *testing.T) {
+		t.Parallel()
+		active := make([]codersdk.User, 0)
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		firstUser, err := client.User(ctx, first.UserID.String())
+		require.NoError(t, err, "")
+		active = append(active, firstUser)
+
+		// Alice will be suspended
+		alice, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		bruno, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "bruno@email.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+		active = append(active, bruno)
+
+		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		count, err := client.UserCount(ctx, codersdk.UserCountRequest{
+			Status: codersdk.UserStatusActive,
+		})
+		require.NoError(t, err)
+		require.Equal(t, count, 1)
+	})
+}
+
+func TestFilteredUserCount(t *testing.T) {
+	t.Parallel()
+
+}
+
 func TestPostTokens(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
