@@ -65,7 +65,7 @@ INSERT INTO
 		provisioner,
 		active_version_id,
 		description,
-		max_ttl,
+		default_ttl,
 		created_by,
 		icon,
 		user_acl,
@@ -98,7 +98,7 @@ UPDATE
 SET
 	updated_at = $2,
 	description = $3,
-	max_ttl = $4,
+	default_ttl = $4,
 	name = $5,
 	icon = $6
 WHERE

@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	maxTTLDefault = 24 * 7 * time.Hour
+	defaultTTL = 24 * 7 * time.Hour
 )
 
 // Auto-importable templates. These can be auto-imported after the first user
@@ -210,9 +210,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	maxTTL := maxTTLDefault
-	if createTemplate.MaxTTLMillis != nil {
-		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	maxTTL := defaultTTL
+	if createTemplate.DefaultTTLMillis != nil {
+		maxTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
 	if maxTTL < 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -224,11 +224,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if maxTTL > maxTTLDefault {
+	if maxTTL > defaultTTL {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid create template request.",
 			Validations: []codersdk.ValidationError{
-				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()},
+				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + defaultTTL.String()},
 			},
 		})
 		return
@@ -247,7 +247,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Provisioner:     importJob.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     createTemplate.Description,
-			MaxTtl:          int64(maxTTL),
+			DefaultTtl:      int64(maxTTL),
 			CreatedBy:       apiKey.UserID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -456,11 +456,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var validErrs []codersdk.ValidationError
-	if req.MaxTTLMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	if req.DefaultTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()})
+	if req.DefaultTTLMillis > defaultTTL.Milliseconds() {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Cannot be greater than " + defaultTTL.String()})
 	}
 
 	if len(validErrs) > 0 {
@@ -490,7 +490,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
 			req.Icon == template.Icon &&
-			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() {
+			req.DefaultTTLMillis == time.Duration(template.DefaultTtl).Milliseconds() {
 			return nil
 		}
 
@@ -498,7 +498,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		name := req.Name
 		desc := req.Description
 		icon := req.Icon
-		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
+		maxTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 
 		if name == "" {
 			name = template.Name
@@ -513,7 +513,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Name:        name,
 			Description: desc,
 			Icon:        icon,
-			MaxTtl:      int64(maxTTL),
+			DefaultTtl:  int64(maxTTL),
 		})
 		if err != nil {
 			return err
@@ -657,7 +657,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			Provisioner:     job.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     "This template was auto-imported by Coder.",
-			MaxTtl:          int64(maxTTLDefault),
+			DefaultTtl:      int64(defaultTTL),
 			CreatedBy:       opts.userID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -762,7 +762,7 @@ func (api *API) convertTemplate(
 		BuildTimeStats:      buildTimeStats,
 		Description:         template.Description,
 		Icon:                template.Icon,
-		MaxTTLMillis:        time.Duration(template.MaxTtl).Milliseconds(),
+		DefaultTTLMillis:    time.Duration(template.DefaultTtl).Milliseconds(),
 		CreatedByID:         template.CreatedBy,
 		CreatedByName:       createdByName,
 	}

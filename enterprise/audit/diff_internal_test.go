@@ -250,7 +250,7 @@ func Test_diff(t *testing.T) {
 				Name:            "rust",
 				Provisioner:     database.ProvisionerTypeTerraform,
 				ActiveVersionID: uuid.UUID{3},
-				MaxTtl:          int64(time.Hour),
+				DefaultTtl:      int64(time.Hour),
 				CreatedBy:       uuid.UUID{4},
 			},
 			exp: audit.Map{

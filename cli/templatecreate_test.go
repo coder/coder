@@ -53,7 +53,6 @@ func TestTemplateCreate(t *testing.T) {
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--max-ttl", "24h",
-			"--min-autostart-interval", "2h",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)

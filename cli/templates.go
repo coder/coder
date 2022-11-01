@@ -75,7 +75,7 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) (s
 			Provisioner:          template.Provisioner,
 			ActiveVersionID:      template.ActiveVersionID,
 			UsedBy:               cliui.Styles.Fuchsia.Render(formatActiveDevelopers(template.ActiveUserCount)),
-			MaxTTL:               (time.Duration(template.MaxTTLMillis) * time.Millisecond),
+			MaxTTL:               (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
 			MinAutostartInterval: (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond),
 		}
 	}

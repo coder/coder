@@ -239,10 +239,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(int64(0))
+			ctr.DefaultTTLMillis = ptr.Ref(int64(0))
 		})
 		// Given: the template has no max TTL set
-		require.Zero(t, template.MaxTTLMillis)
+		require.Zero(t, template.DefaultTTLMillis)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		// When: we create a workspace with autostop not enabled
@@ -260,15 +260,15 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateTTL := 24 * time.Hour.Milliseconds()
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(templateTTL)
+			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = nil // ensure that no default TTL is set
 		})
 		// TTL should be set by the template
-		require.Equal(t, template.MaxTTLMillis, templateTTL)
-		require.Equal(t, template.MaxTTLMillis, template.MaxTTLMillis, workspace.TTLMillis)
+		require.Equal(t, template.DefaultTTLMillis, templateTTL)
+		require.Equal(t, template.DefaultTTLMillis, template.DefaultTTLMillis, workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {
@@ -313,7 +313,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID: template.ID,
 				Name:       "testing",
-				TTLMillis:  ptr.Ref(template.MaxTTLMillis + time.Minute.Milliseconds()),
+				TTLMillis:  ptr.Ref(template.DefaultTTLMillis + time.Minute.Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 			require.Error(t, err)
@@ -1162,21 +1162,23 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			expectedError: "time until shutdown must be less than 7 days",
 		},
 		{
-			name:           "above template maximum ttl",
-			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
-			expectedError:  "ttl_ms: time until shutdown must be below template maximum 8h0m0s",
-			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
+			name:          "above template maximum ttl",
+			ttlMillis:     ptr.Ref((12 * time.Hour).Milliseconds()),
+			expectedError: "ttl_ms: time until shutdown must be below template maximum 8h0m0s",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+			},
 		},
 		{
 			name:           "no template maximum ttl",
 			ttlMillis:      ptr.Ref((7 * 24 * time.Hour).Milliseconds()),
-			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref(int64(0)) },
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.DefaultTTLMillis = ptr.Ref(int64(0)) },
 		},
 		{
 			name:           "above maximum ttl even with no template max",
 			ttlMillis:      ptr.Ref((365 * 24 * time.Hour).Milliseconds()),
 			expectedError:  "ttl_ms: time until shutdown must be less than 7 days",
-			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref(int64(0)) },
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.DefaultTTLMillis = ptr.Ref(int64(0)) },
 		},
 	}
 
@@ -1297,7 +1299,7 @@ func TestWorkspaceExtend(t *testing.T) {
 	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
 
 	// And with a deadline greater than the template max_ttl should also fail
-	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
+	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.DefaultTTLMillis) * time.Millisecond).Add(time.Minute)
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
 		Deadline: deadlineExceedsMaxTTL,
 	})
