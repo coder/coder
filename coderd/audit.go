@@ -34,7 +34,6 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 
 	queryStr := r.URL.Query().Get("q")
 	filter, errs := auditSearchQuery(queryStr)
-
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -261,10 +260,8 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	// pass.Further splitting occurs on the second pass and quotes will be
 	// dropped.
 	elements := splitQueryParameterByDelimiter(query, ' ', true)
-
 	for _, element := range elements {
 		parts := splitQueryParameterByDelimiter(element, ':', false)
-
 		switch len(parts) {
 		case 1:
 			// No key:value pair.
