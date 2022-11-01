@@ -245,7 +245,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 
 		event := sseEvent{
 			payload: buf.Bytes(),
-			errC:    make(chan error, 1),
+			errC:    make(chan error, 1), // Buffered to prevent deadlock.
 		}
 
 		select {
@@ -253,10 +253,20 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 			return r.Context().Err()
 		case <-ctx.Done():
 			return ctx.Err()
-		case eventC <- event:
-			return <-event.errC
 		case <-closed:
 			return xerrors.New("server sent event sender closed")
+		case eventC <- event:
+			// Re-check closure signals after sending the event to allow
+			// for early exit. We don't check closed here because it
+			// can't happen while processing the event.
+			select {
+			case <-r.Context().Done():
+				return r.Context().Err()
+			case <-ctx.Done():
+				return ctx.Err()
+			case err := <-event.errC:
+				return err
+			}
 		}
 	}
 
