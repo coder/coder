@@ -216,7 +216,18 @@ func NewConn(options *Options) (*Conn, error) {
 		server.sendNode()
 	})
 	wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+		server.logger.Info(context.Background(), "netinfo callback", slog.F("netinfo", ni))
+		// If the lastMutex is blocked, it's possible that
+		// multiple NetInfo callbacks occur at the same time.
+		//
+		// We need to ensure only the latest is sent!
+		asOf := time.Now()
 		server.lastMutex.Lock()
+		if asOf.Before(server.lastNetInfo) {
+			server.lastMutex.Unlock()
+			return
+		}
+		server.lastNetInfo = asOf
 		server.lastPreferredDERP = ni.PreferredDERP
 		server.lastDERPLatency = ni.DERPLatency
 		server.lastMutex.Unlock()
@@ -269,6 +280,7 @@ type Conn struct {
 	// It's only possible to store these values via status functions,
 	// so the values must be stored for retrieval later on.
 	lastStatus        time.Time
+	lastNetInfo       time.Time
 	lastEndpoints     []string
 	lastPreferredDERP int
 	lastDERPLatency   map[string]float64
