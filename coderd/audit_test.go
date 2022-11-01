@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -54,12 +55,14 @@ func TestAuditLogsFilter(t *testing.T) {
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeTemplate,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeUser,
 			ResourceID:   userResourceID,
+			Time:         time.Date(2022, 8, 16, 14, 30, 45, 100, time.UTC), // 2022-8-16 14:30:45
 		})
 		require.NoError(t, err)
 
@@ -126,6 +129,11 @@ func TestAuditLogsFilter(t *testing.T) {
 				Name:           "FilterWithInvalidAction",
 				SearchQuery:    "action:invalid",
 				ExpectedResult: 3,
+			},
+			{
+				Name:           "FilterWithDateFrom",
+				SearchQuery:    "action:create date_from:2022-08-15 date_to:2022-08-15",
+				ExpectedResult: 1,
 			},
 		}
 

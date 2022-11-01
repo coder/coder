@@ -145,10 +145,13 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if params.ResourceID == uuid.Nil {
 		params.ResourceID = uuid.New()
 	}
+	if params.Time.IsZero() {
+		params.Time = time.Now()
+	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
-		Time:             time.Now(),
+		Time:             params.Time,
 		UserID:           user.ID,
 		Ip:               ipNet,
 		UserAgent:        r.UserAgent(),
