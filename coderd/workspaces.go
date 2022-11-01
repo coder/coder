@@ -867,7 +867,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendEvent, err := httpapi.ServerSentEventSender(rw, r)
+	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error setting up server-sent events.",
@@ -875,6 +875,10 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		<-senderClosed
+	}()
 
 	// Ignore all trace spans after this, they're not too useful.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
@@ -884,6 +888,8 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-senderClosed:
 			return
 		case <-t.C:
 			workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
