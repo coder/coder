@@ -163,7 +163,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.suspendDialogMessagePrefix}{" "}
+            {Language.suspendDialogMessagePrefix}
+            {usernameToSuspend && " "}
             <strong>{usernameToSuspend ?? ""}</strong>?
           </>
         }
@@ -187,7 +188,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.activateDialogMessagePrefix}{" "}
+            {Language.activateDialogMessagePrefix}
+            {usernameToActivate && " "}
             <strong>{usernameToActivate ?? ""}</strong>?
           </>
         }
