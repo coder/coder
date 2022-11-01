@@ -29,7 +29,7 @@ type DeploymentConfig struct {
 	OIDC                        *OIDCConfig                             `json:"oidc" typescript:",notnull"`
 	Telemetry                   *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
 	TLS                         *TLSConfig                              `json:"tls" typescript:",notnull"`
-	TraceEnable                 *DeploymentConfigField[bool]            `json:"trace_enable" typescript:",notnull"`
+	Trace                       *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie            *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
 	SSHKeygenAlgorithm          *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
 	AutoImportTemplates         *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
@@ -105,6 +105,11 @@ type TLSConfig struct {
 	ClientCAFile *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
 	KeyFiles     *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
 	MinVersion   *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+}
+
+type TraceConfig struct {
+	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {

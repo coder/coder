@@ -289,10 +289,18 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: "tls12",
 			},
 		},
-		TraceEnable: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Trace Enable",
-			Usage: "Whether application tracing data is collected.",
-			Flag:  "trace",
+		Trace: &codersdk.TraceConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
+				Name:  "Trace Enable",
+				Usage: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+				Flag:  "trace",
+			},
+			HoneycombAPIKey: &codersdk.DeploymentConfigField[string]{
+				Name:   "Trace Honeycomb API Key",
+				Usage:  "Enables trace exporting to Honeycomb.io using the provided API Key.",
+				Flag:   "trace-honeycomb-api-key",
+				Secret: true,
+			},
 		},
 		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Secure Auth Cookie",
