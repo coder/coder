@@ -5,7 +5,11 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockAuditLog, MockAuditLog2 } from "testHelpers/entities"
+import {
+  MockAuditLog,
+  MockAuditLog2,
+  MockAuditLogWithWorkspaceBuild,
+} from "testHelpers/entities"
 import { AuditLogRow, AuditLogRowProps } from "./AuditLogRow"
 
 export default {
@@ -37,4 +41,9 @@ export const WithDiff = Template.bind({})
 WithDiff.args = {
   auditLog: MockAuditLog2,
   defaultIsDiffOpen: true,
+}
+
+export const WithWorkspaceBuild = Template.bind({})
+WithWorkspaceBuild.args = {
+  auditLog: MockAuditLogWithWorkspaceBuild,
 }

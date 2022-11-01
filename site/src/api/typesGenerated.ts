@@ -41,9 +41,9 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly old?: any
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly new?: any
   readonly secret: boolean
 }
@@ -55,7 +55,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -65,8 +65,7 @@ export interface AuditLog {
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: string
+  readonly additional_fields: Record<string, string>
   readonly description: string
   readonly user?: User
 }
@@ -354,6 +353,7 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly regex: string
+  readonly scopes: string[]
 }
 
 // From codersdk/gitsshkey.go
@@ -384,7 +384,7 @@ export interface Healthcheck {
 export interface License {
   readonly id: number
   readonly uploaded_at: string
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
 }
 
@@ -577,7 +577,7 @@ export interface Role {
 // From codersdk/sse.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly data: any
 }
 
@@ -656,8 +656,7 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by_id: string
-  readonly created_by_name: string
+  readonly created_by: User
 }
 
 // From codersdk/templates.go
@@ -823,7 +822,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
-  readonly name: string
+  readonly slug: string
+  readonly display_name: string
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean

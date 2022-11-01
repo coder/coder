@@ -1,14 +1,14 @@
 -- name: GetWorkspaceAppsByAgentID :many
-SELECT * FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC;
+SELECT * FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC;
 
 -- name: GetWorkspaceAppsByAgentIDs :many
-SELECT * FROM workspace_apps WHERE agent_id = ANY(@ids :: uuid [ ]) ORDER BY name ASC;
+SELECT * FROM workspace_apps WHERE agent_id = ANY(@ids :: uuid [ ]) ORDER BY slug ASC;
 
--- name: GetWorkspaceAppByAgentIDAndName :one
-SELECT * FROM workspace_apps WHERE agent_id = $1 AND name = $2;
+-- name: GetWorkspaceAppByAgentIDAndSlug :one
+SELECT * FROM workspace_apps WHERE agent_id = $1 AND slug = $2;
 
 -- name: GetWorkspaceAppsCreatedAfter :many
-SELECT * FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC;
+SELECT * FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC;
 
 -- name: InsertWorkspaceApp :one
 INSERT INTO
@@ -16,7 +16,8 @@ INSERT INTO
         id,
         created_at,
         agent_id,
-        name,
+        slug,
+        display_name,
         icon,
         command,
         url,
@@ -28,7 +29,7 @@ INSERT INTO
         health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
 
 -- name: UpdateWorkspaceAppHealthByID :exec
 UPDATE

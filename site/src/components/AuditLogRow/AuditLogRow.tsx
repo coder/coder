@@ -16,10 +16,17 @@ import userAgentParser from "ua-parser-js"
 import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
 
-const readableActionMessage = (auditLog: AuditLog) => {
+export const readableActionMessage = (auditLog: AuditLog): string => {
+  let target = auditLog.resource_target.trim()
+
+  // audit logs with a resource_type of workspace build use workspace name as a target
+  if (auditLog.resource_type === "workspace_build") {
+    target = auditLog.additional_fields.workspaceName.trim()
+  }
+
   return auditLog.description
     .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
-    .replace("{target}", `<strong>${auditLog.resource_target.trim()}</strong>`)
+    .replace("{target}", `<strong>${target}</strong>`)
 }
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {

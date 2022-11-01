@@ -1,16 +1,9 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { Skeleton } from "@material-ui/lab"
-import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { FC, useState } from "react"
-import { Workspace, WorkspaceResource } from "../../api/typesGenerated"
-import { AppLink } from "../AppLink/AppLink"
-import { SSHButton } from "../SSHButton/SSHButton"
+import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
-import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { ResourceAvatar } from "./ResourceAvatar"
 import { SensitiveValue } from "./SensitiveValue"
-import { AgentLatency } from "./AgentLatency"
-import { AgentVersion } from "./AgentVersion"
 import {
   OpenDropdown,
   CloseDropdown,
@@ -19,25 +12,13 @@ import IconButton from "@material-ui/core/IconButton"
 import Tooltip from "@material-ui/core/Tooltip"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CopyableValue } from "components/CopyableValue/CopyableValue"
-import { AgentStatus } from "./AgentStatus"
 
 export interface ResourceCardProps {
   resource: WorkspaceResource
-  workspace: Workspace
-  applicationsHost: string | undefined
-  showApps: boolean
-  hideSSHButton?: boolean
-  serverVersion: string
+  agentRow: (agent: WorkspaceAgent) => JSX.Element
 }
 
-export const ResourceCard: FC<ResourceCardProps> = ({
-  resource,
-  workspace,
-  applicationsHost,
-  showApps,
-  hideSSHButton,
-  serverVersion,
-}) => {
+export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false)
   const styles = useStyles()
@@ -113,102 +94,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({
       </Stack>
 
       {resource.agents && resource.agents.length > 0 && (
-        <div>
-          {resource.agents.map((agent) => {
-            return (
-              <Stack
-                key={agent.id}
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                className={styles.agentRow}
-              >
-                <Stack direction="row" alignItems="baseline">
-                  <div className={styles.agentStatusWrapper}>
-                    <AgentStatus agent={agent} />
-                  </div>
-                  <div>
-                    <div className={styles.agentName}>{agent.name}</div>
-                    <Stack
-                      direction="row"
-                      alignItems="baseline"
-                      className={styles.agentData}
-                      spacing={1}
-                    >
-                      <span className={styles.agentOS}>
-                        {agent.operating_system}
-                      </span>
-
-                      <Maybe condition={agent.status === "connected"}>
-                        <AgentVersion
-                          agent={agent}
-                          serverVersion={serverVersion}
-                        />
-                      </Maybe>
-
-                      <AgentLatency agent={agent} />
-                    </Stack>
-                  </div>
-                </Stack>
-
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  wrap="wrap"
-                  maxWidth="750px"
-                >
-                  {showApps && agent.status === "connected" && (
-                    <>
-                      {agent.apps.map((app) => (
-                        <AppLink
-                          key={app.name}
-                          appsHost={applicationsHost}
-                          appIcon={app.icon}
-                          appName={app.name}
-                          appCommand={app.command}
-                          appSubdomain={app.subdomain}
-                          username={workspace.owner_name}
-                          workspaceName={workspace.name}
-                          agentName={agent.name}
-                          health={app.health}
-                          appSharingLevel={app.sharing_level}
-                        />
-                      ))}
-
-                      <TerminalLink
-                        workspaceName={workspace.name}
-                        agentName={agent.name}
-                        userName={workspace.owner_name}
-                      />
-                      {!hideSSHButton && (
-                        <SSHButton
-                          workspaceName={workspace.name}
-                          agentName={agent.name}
-                        />
-                      )}
-                      {applicationsHost !== undefined && (
-                        <PortForwardButton
-                          host={applicationsHost}
-                          workspaceName={workspace.name}
-                          agentId={agent.id}
-                          agentName={agent.name}
-                          username={workspace.owner_name}
-                        />
-                      )}
-                    </>
-                  )}
-                  {showApps && agent.status === "connecting" && (
-                    <>
-                      <Skeleton width={80} height={36} variant="rect" />
-                      <Skeleton width={120} height={36} variant="rect" />
-                    </>
-                  )}
-                </Stack>
-              </Stack>
-            )
-          })}
-        </div>
+        <div>{resource.agents.map(agentRow)}</div>
       )}
     </div>
   )
@@ -269,35 +155,5 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
-  },
-
-  agentRow: {
-    padding: theme.spacing(3, 4),
-    backgroundColor: theme.palette.background.paperLight,
-    fontSize: 16,
-
-    "&:not(:last-child)": {
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-  },
-
-  agentStatusWrapper: {
-    width: theme.spacing(4.5),
-    display: "flex",
-    justifyContent: "center",
-  },
-
-  agentName: {
-    fontWeight: 600,
-  },
-
-  agentOS: {
-    textTransform: "capitalize",
-  },
-
-  agentData: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
   },
 }))

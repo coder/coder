@@ -16,7 +16,6 @@ import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
-import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
@@ -24,6 +23,7 @@ import {
   EstimateTransitionTime,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
+import { AgentRow } from "components/Resources/AgentRow"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -87,6 +87,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
+  const serverVersion = buildInfo?.version || ""
   const hasTemplateIcon =
     workspace.template_icon && workspace.template_icon !== ""
 
@@ -207,32 +208,38 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           />
         )}
 
-        {typeof resources !== "undefined" && resources.length > 0 && (
-          <Resources
-            resources={resources}
-            getResourcesError={
-              workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]
-            }
-            workspace={workspace}
-            canUpdateWorkspace={canUpdateWorkspace}
-            buildInfo={buildInfo}
-            hideSSHButton={hideSSHButton}
-            applicationsHost={applicationsHost}
+        {Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
+          <AlertBanner
+            severity="error"
+            error={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
           />
         )}
 
-        <WorkspaceSection
-          contentsProps={{ className: styles.timelineContents }}
-        >
-          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner
-              severity="error"
-              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
-            />
-          ) : (
-            <BuildsTable builds={builds} className={styles.timelineTable} />
-          )}
-        </WorkspaceSection>
+        {typeof resources !== "undefined" && resources.length > 0 && (
+          <Resources
+            resources={resources}
+            agentRow={(agent) => (
+              <AgentRow
+                key={agent.id}
+                agent={agent}
+                workspace={workspace}
+                applicationsHost={applicationsHost}
+                showApps={canUpdateWorkspace}
+                hideSSHButton={hideSSHButton}
+                serverVersion={serverVersion}
+              />
+            )}
+          />
+        )}
+
+        {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+          <AlertBanner
+            severity="error"
+            error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+          />
+        ) : (
+          <BuildsTable builds={builds} />
+        )}
       </Stack>
     </Margins>
   )
@@ -275,10 +282,6 @@ export const useStyles = makeStyles((theme) => {
 
     timelineContents: {
       margin: 0,
-    },
-
-    timelineTable: {
-      border: 0,
     },
   }
 })
