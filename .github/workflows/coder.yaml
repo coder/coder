@@ -89,7 +89,7 @@ jobs:
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -171,7 +171,7 @@ jobs:
   gen:
     name: "style/gen"
     timeout-minutes: 8
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     steps:
@@ -276,7 +276,7 @@ jobs:
 
   test-go:
     name: "test/go"
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || matrix.os }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -356,7 +356,7 @@ jobs:
 
   test-go-postgres:
     name: "test/go/postgres"
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -417,7 +417,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
     if: |

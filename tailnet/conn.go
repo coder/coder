@@ -33,6 +33,7 @@ import (
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/cryptorand"
 
 	"cdr.dev/slog"
@@ -447,7 +448,7 @@ func (c *Conn) sendNode() {
 	}
 	node := &Node{
 		ID:            c.netMap.SelfNode.ID,
-		AsOf:          c.lastStatus,
+		AsOf:          database.Now(),
 		Key:           c.netMap.SelfNode.Key,
 		Addresses:     c.netMap.SelfNode.Addresses,
 		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
