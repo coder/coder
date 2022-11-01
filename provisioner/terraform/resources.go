@@ -382,12 +382,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		resources = append(resources, &proto.Resource{
-			Name:     resource.Name,
-			Type:     resource.Type,
-			Agents:   agents,
-			Hide:     resourceHidden[label],
-			Icon:     resourceIcon[label],
-			Metadata: resourceMetadata[label],
+			Name:         resource.Name,
+			Type:         resource.Type,
+			Agents:       agents,
+			Hide:         resourceHidden[label],
+			Icon:         resourceIcon[label],
+			Metadata:     resourceMetadata[label],
+			InstanceType: applyInstanceType(resource),
 		})
 	}
 
@@ -403,6 +404,31 @@ func convertAddressToLabel(address string) string {
 type graphResource struct {
 	Label string
 	Depth uint
+}
+
+// applyInstanceType sets the instance type on an agent if it matches
+// one of the special resource types that we track.
+func applyInstanceType(resource *tfjson.StateResource) string {
+	key, isValid := map[string]string{
+		"google_compute_instance":         "machine_type",
+		"aws_instance":                    "instance_type",
+		"aws_spot_instance_request":       "instance_type",
+		"azurerm_linux_virtual_machine":   "size",
+		"azurerm_windows_virtual_machine": "size",
+	}[resource.Type]
+	if !isValid {
+		return ""
+	}
+
+	instanceTypeRaw, isValid := resource.AttributeValues[key]
+	if !isValid {
+		return ""
+	}
+	instanceType, isValid := instanceTypeRaw.(string)
+	if !isValid {
+		return ""
+	}
+	return instanceType
 }
 
 // applyAutomaticInstanceID checks if the resource is one of a set of *magical* IDs
