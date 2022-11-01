@@ -194,15 +194,17 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf(
-		"http://{{port}}--%s--%s--%s%s",
-		proxyTestAgentName,
-		workspace.Name,
-		"testuser",
-		strings.ReplaceAll(appHost, "*", ""),
-	), metadata.VSCodePortProxyURI)
+	if appHost != "" {
+		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf(
+			"http://{{port}}--%s--%s--%s%s",
+			proxyTestAgentName,
+			workspace.Name,
+			"testuser",
+			strings.ReplaceAll(appHost, "*", ""),
+		), metadata.VSCodePortProxyURI)
+	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),
