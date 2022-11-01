@@ -3019,7 +3019,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl
 FROM
 	templates
 WHERE
@@ -3042,7 +3042,6 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.ActiveVersionID,
 		&i.Description,
 		&i.MaxTtl,
-		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3053,7 +3052,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl
 FROM
 	templates
 WHERE
@@ -3084,7 +3083,6 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.ActiveVersionID,
 		&i.Description,
 		&i.MaxTtl,
-		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3094,7 +3092,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -3118,7 +3116,6 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.ActiveVersionID,
 			&i.Description,
 			&i.MaxTtl,
-			&i.MinAutostartInterval,
 			&i.CreatedBy,
 			&i.Icon,
 			&i.UserACL,
@@ -3139,7 +3136,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl
 FROM
 	templates
 WHERE
@@ -3198,7 +3195,6 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.ActiveVersionID,
 			&i.Description,
 			&i.MaxTtl,
-			&i.MinAutostartInterval,
 			&i.CreatedBy,
 			&i.Icon,
 			&i.UserACL,
@@ -3235,7 +3231,7 @@ INSERT INTO
 		group_acl
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl
 `
 
 type InsertTemplateParams struct {
@@ -3282,7 +3278,6 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.ActiveVersionID,
 		&i.Description,
 		&i.MaxTtl,
-		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3300,7 +3295,7 @@ SET
 WHERE
 	id = $3
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3323,7 +3318,6 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.ActiveVersionID,
 		&i.Description,
 		&i.MaxTtl,
-		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3386,7 +3380,7 @@ SET
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, created_by, icon, user_acl, group_acl
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -3419,7 +3413,6 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.ActiveVersionID,
 		&i.Description,
 		&i.MaxTtl,
-		&i.MinAutostartInterval,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,

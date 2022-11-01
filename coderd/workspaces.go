@@ -333,7 +333,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule, time.Duration(template.MinAutostartInterval))
+	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Autostart Schedule.",
@@ -666,16 +666,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		api.Logger.Error(ctx, "fetch workspace template", slog.F("workspace_id", workspace.ID), slog.F("template_id", workspace.TemplateID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error fetching workspace template.",
-		})
-		return
-	}
-
-	dbSched, err := validWorkspaceSchedule(req.Schedule, time.Duration(template.MinAutostartInterval))
+	dbSched, err := validWorkspaceSchedule(req.Schedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid autostart schedule.",
@@ -1149,18 +1140,14 @@ func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration)
 	return nil
 }
 
-func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error) {
+func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 	if ptr.NilOrEmpty(s) {
 		return sql.NullString{}, nil
 	}
 
-	sched, err := schedule.Weekly(*s)
+	_, err := schedule.Weekly(*s)
 	if err != nil {
 		return sql.NullString{}, err
-	}
-
-	if schedMin := sched.Min(); schedMin < min {
-		return sql.NullString{}, xerrors.Errorf("Minimum autostart interval %s below template minimum %s", schedMin, min)
 	}
 
 	return sql.NullString{
