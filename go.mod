@@ -158,7 +158,7 @@ require (
 require github.com/jmoiron/sqlx v1.3.5
 
 require (
-	cloud.google.com/go/compute/metadata v0.1.0
+	cloud.google.com/go/compute/metadata v0.2.1
 	github.com/adrg/xdg v0.4.0
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/spf13/viper v1.13.0
