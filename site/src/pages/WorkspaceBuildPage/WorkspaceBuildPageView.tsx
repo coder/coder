@@ -1,6 +1,5 @@
 import { BuildAvatar } from "components/BuildsTable/BuildAvatar"
 import { FC } from "react"
-import { useParams } from "react-router-dom"
 import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
 import { Margins } from "../../components/Margins/Margins"
@@ -21,13 +20,6 @@ const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   )
 }
 
-const useBuildNumber = () => {
-  const { buildNumber } = useParams()
-  if (!buildNumber) {
-    throw new Error("Build number not found")
-  }
-  return buildNumber
-}
 export interface WorkspaceBuildPageViewProps {
   logs: ProvisionerJobLog[] | undefined
   build: WorkspaceBuild | undefined
@@ -37,8 +29,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   logs,
   build,
 }) => {
-  const buildNumber = useBuildNumber()
-
   return (
     <Margins>
       {build && (
@@ -46,7 +36,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           <Stack direction="row" alignItems="center" spacing={3}>
             <BuildAvatar build={build} size={48} />
             <div>
-              <PageHeaderTitle>Build #{buildNumber}</PageHeaderTitle>
+              <PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
               <PageHeaderSubtitle condensed>
                 {build.initiator_name}
               </PageHeaderSubtitle>
