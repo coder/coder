@@ -1272,9 +1272,9 @@ func TestGetFilteredUserCount(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 		})
 		// No params is all users
-		count, err := client.UserCount(ctx, codersdk.UserCountRequest{})
+		response, err := client.UserCount(ctx, codersdk.UserCountRequest{})
 		require.NoError(t, err)
-		require.Equal(t, count, 2)
+		require.Equal(t, 2, int(response.Count))
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
@@ -1310,17 +1310,12 @@ func TestGetFilteredUserCount(t *testing.T) {
 		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
-		count, err := client.UserCount(ctx, codersdk.UserCountRequest{
+		response, err := client.UserCount(ctx, codersdk.UserCountRequest{
 			Status: codersdk.UserStatusActive,
 		})
 		require.NoError(t, err)
-		require.Equal(t, count, 1)
+		require.Equal(t, 1, int(response.Count))
 	})
-}
-
-func TestFilteredUserCount(t *testing.T) {
-	t.Parallel()
-
 }
 
 func TestPostTokens(t *testing.T) {

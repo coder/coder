@@ -48,6 +48,12 @@ type User struct {
 }
 
 type UserCountRequest struct {
+	Search string `json:"search,omitempty" typescript:"-"`
+	// Filter users by status.
+	Status UserStatus `json:"status,omitempty" typescript:"-"`
+	// Filter users that have the given role.
+	Role string `json:"role,omitempty" typescript:"-"`
+
 	SearchQuery string `json:"q,omitempty"`
 }
 
@@ -358,6 +364,15 @@ func (c *Client) UserCount(ctx context.Context, req UserCountRequest) (UserCount
 		func(r *http.Request) {
 			q := r.URL.Query()
 			var params []string
+			if req.Search != "" {
+				params = append(params, req.Search)
+			}
+			if req.Status != "" {
+				params = append(params, "status:"+string(req.Status))
+			}
+			if req.Role != "" {
+				params = append(params, "role:"+req.Role)
+			}
 			if req.SearchQuery != "" {
 				params = append(params, req.SearchQuery)
 			}
@@ -375,7 +390,7 @@ func (c *Client) UserCount(ctx context.Context, req UserCountRequest) (UserCount
 	}
 
 	var count UserCountResponse
-	return count, nil
+	return count, json.NewDecoder(res.Body).Decode(&count)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.
