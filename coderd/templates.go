@@ -26,8 +26,7 @@ import (
 )
 
 var (
-	maxTTLDefault               = 24 * 7 * time.Hour
-	minAutostartIntervalDefault = time.Hour
+	maxTTLDefault = 24 * 7 * time.Hour
 )
 
 // Auto-importable templates. These can be auto-imported after the first user
