@@ -125,9 +125,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				shouldCoderTrace = cfg.Telemetry.Trace.Value
 			}
 
-			if cfg.TraceEnable.Value || shouldCoderTrace {
+			if cfg.Trace.Enable.Value || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default: cfg.TraceEnable.Value,
+					Default: cfg.Trace.Enable.Value,
 					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
@@ -225,7 +225,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cfg.AccessURL.Value = tunnel.URL
 
 				if cfg.WildcardAccessURL.Value == "" {
-					u, err := parseURL(ctx, tunnel.URL)
+					u, err := parseURL(tunnel.URL)
 					if err != nil {
 						return xerrors.Errorf("parse tunnel url: %w", err)
 					}
@@ -235,7 +235,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			accessURLParsed, err := parseURL(ctx, cfg.AccessURL.Value)
+			accessURLParsed, err := parseURL(cfg.AccessURL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse URL: %w", err)
 			}
@@ -469,7 +469,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(ctx, cfg.Telemetry.URL.Value)
+			telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse telemetry url: %w", err)
 			}
@@ -779,32 +779,19 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 	return root
 }
 
-// parseURL parses a string into a URL. It works around some technically correct
-// but undesired behavior of url.Parse by prepending a scheme if one does not
-// exist so that the URL does not get parsed improperly.
-func parseURL(ctx context.Context, u string) (*url.URL, error) {
+// parseURL parses a string into a URL.
+func parseURL(u string) (*url.URL, error) {
 	var (
 		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
 	)
 
 	if !hasScheme {
-		// Append a scheme if it doesn't have one. Otherwise the hostname
-		// will likely get parsed as the scheme and cause methods like Hostname()
-		// to return an empty string, largely obviating the purpose of this
-		// function.
-		u = "https://" + u
+		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
 	}
 
 	parsed, err := url.Parse(u)
 	if err != nil {
 		return nil, err
-	}
-
-	// If the specified url is a loopback device and no scheme has been
-	// specified, prefer http over https. It's unlikely anyone intends to use
-	// https on a loopback and if they do they can specify a scheme.
-	if local, _ := isLocalURL(ctx, parsed); local && !hasScheme {
-		parsed.Scheme = "http"
 	}
 
 	return parsed, nil

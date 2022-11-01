@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
@@ -233,6 +233,9 @@ func (r *Runner) ForceStop() {
 }
 
 func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	ctx, span := r.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if !r.okToSend {
@@ -247,9 +250,6 @@ func (r *Runner) doCleanFinish(ctx context.Context) {
 		failedJob    *proto.FailedJob
 		completedJob *proto.CompletedJob
 	)
-
-	ctx, span := r.startTrace(ctx, tracing.FuncName())
-	defer span.End()
 
 	// push the fail/succeed write onto the defer stack before the cleanup, so
 	// that cleanup happens before this.

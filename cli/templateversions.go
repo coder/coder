@@ -45,7 +45,7 @@ func templateVersionsList() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}
-			organization, err := currentOrganization(cmd, client)
+			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -94,7 +94,7 @@ func displayTemplateVersions(activeVersionID uuid.UUID, templateVersions ...code
 		rows[i] = templateVersionRow{
 			Name:      templateVersion.Name,
 			CreatedAt: templateVersion.CreatedAt,
-			CreatedBy: templateVersion.CreatedByName,
+			CreatedBy: templateVersion.CreatedBy.Username,
 			Status:    strings.Title(string(templateVersion.Job.Status)),
 			Active:    activeStatus,
 		}

@@ -19,7 +19,8 @@ be used as a Coder application. For example:
 # Note: Portainer must be already running in the workspace
 resource "coder_app" "portainer" {
   agent_id      = coder_agent.main.id
-  name          = "portainer"
+  slug          = "portainer"
+  display_name  = "Portainer"
   icon          = "https://simpleicons.org/icons/portainer.svg"
   url           = "https://localhost:9443/api/status"
 
@@ -75,10 +76,11 @@ You'll also need to specify a `coder_app` resource related to the agent. This is
 
 ```hcl
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.main.id
-  name     = "code-server"
-  url      = "http://localhost:13337/?folder=/home/coder"
-  icon     = "/icon/code.svg"
+  agent_id     = coder_agent.main.id
+  slug         = "code-server"
+  display_name = "code-server"
+  url          = "http://localhost:13337/?folder=/home/coder"
+  icon         = "/icon/code.svg"
 
   healthcheck {
     url       = "http://localhost:13337/healthz"
@@ -179,10 +181,11 @@ EOT
 }
 
 resource "coder_app" "intellij" {
-  agent_id      = coder_agent.coder.id
-  name          = "${var.jetbrains-ide}"
-  icon          = "/icon/intellij.svg"
-  url           = "http://localhost:8997/"
+  agent_id     = coder_agent.coder.id
+  slug         = "intellij"
+  display_name = "${var.jetbrains-ide}"
+  icon         = "/icon/intellij.svg"
+  url          = "http://localhost:8997/"
 
   healthcheck {
     url       = "http://localhost:8997/"
@@ -197,9 +200,9 @@ resource "coder_app" "intellij" {
 
 You can also reference/use to these pre-built templates with JetBrains projector:
 
-- IntelliJ ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-intellij), [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
+- IntelliJ ([Docker](https://github.com/sharkymark/v2-templates/tree/e815748bf5d029da15dac29fb25a6fd4ef8e73bf/the-archives/docker-with-intellij), [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
 
-- PyCharm ([Docker](https://github.com/mark-theshark/v2-templates/tree/main/docker-with-pycharm), [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm)
+- PyCharm ([Docker](https://github.com/sharkymark/v2-templates/tree/e815748bf5d029da15dac29fb25a6fd4ef8e73bf/the-archives/docker-with-pycharm), [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm)
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace on a Kubernetes cluster to use the Kubernetes pod template examples.
 
@@ -219,7 +222,7 @@ data "coder_workspace" "me" {}
 ## string in the base_url. This caveat is unique to Jupyter.
 
 locals {
-  jupyter_base_path = "/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/jupyter/"
+  jupyter_base_path = "/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/JupyterLab/"
 }
 
 resource "coder_agent" "coder" {
@@ -233,10 +236,11 @@ EOF
 }
 
 resource "coder_app" "jupyter" {
-  agent_id = coder_agent.coder.id
-  name     = "JupyterLab"
-  url      = "http://localhost:8888${local.jupyter_base_path}"
-  icon     = "/icon/jupyter.svg"
+  agent_id     = coder_agent.coder.id
+  slug         = "jupyter"
+  display_name = "JupyterLab"
+  url          = "http://localhost:8888${local.jupyter_base_path}"
+  icon         = "/icon/jupyter.svg"
 
   healthcheck {
     url       = "http://localhost:8888${local.jupyter_base_path}"

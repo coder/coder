@@ -1861,7 +1861,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 	return workspaceAgents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
+func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1869,7 +1869,7 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg dat
 		if app.AgentID != arg.AgentID {
 			continue
 		}
-		if app.Name != arg.Name {
+		if app.Slug != arg.Slug {
 			continue
 		}
 		return app, nil
@@ -2522,7 +2522,8 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		ID:                   arg.ID,
 		AgentID:              arg.AgentID,
 		CreatedAt:            arg.CreatedAt,
-		Name:                 arg.Name,
+		Slug:                 arg.Slug,
+		DisplayName:          arg.DisplayName,
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,

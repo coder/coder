@@ -132,7 +132,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		ProxyTrustedHeaders: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Headers",
 			Flag:  "proxy-trusted-headers",
-			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-IP True-Client-Ip, X-Forwarded-for",
+			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
 		},
 		ProxyTrustedOrigins: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Origins",
@@ -289,10 +289,18 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: "tls12",
 			},
 		},
-		TraceEnable: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Trace Enable",
-			Usage: "Whether application tracing data is collected.",
-			Flag:  "trace",
+		Trace: &codersdk.TraceConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
+				Name:  "Trace Enable",
+				Usage: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+				Flag:  "trace",
+			},
+			HoneycombAPIKey: &codersdk.DeploymentConfigField[string]{
+				Name:   "Trace Honeycomb API Key",
+				Usage:  "Enables trace exporting to Honeycomb.io using the provided API Key.",
+				Flag:   "trace-honeycomb-api-key",
+				Secret: true,
+			},
 		},
 		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Secure Auth Cookie",
@@ -462,13 +470,19 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 			if prop == "-" {
 				prop = fve.Tag.Get("yaml")
 			}
-			value := vip.Get(fmt.Sprintf("%s.%d.%s", key, entry, prop))
+			configKey := fmt.Sprintf("%s.%d.%s", key, entry, prop)
+			value := vip.Get(configKey)
 			if value == nil {
 				continue
 			}
 			if instance == nil {
 				newType := reflect.Indirect(reflect.New(elementType))
 				instance = &newType
+			}
+			switch instance.Field(i).Type().String() {
+			case "[]string":
+				value = vip.GetStringSlice(configKey)
+			default:
 			}
 			instance.Field(i).Set(reflect.ValueOf(value))
 		}

@@ -115,6 +115,16 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.TLS.MinVersion.Value, "tls10")
 		},
 	}, {
+		Name: "Trace",
+		Env: map[string]string{
+			"CODER_TRACE_ENABLE":            "true",
+			"CODER_TRACE_HONEYCOMB_API_KEY": "my-honeycomb-key",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Trace.Enable.Value, true)
+			require.Equal(t, config.Trace.HoneycombAPIKey.Value, "my-honeycomb-key")
+		},
+	}, {
 		Name: "OIDC",
 		Env: map[string]string{
 			"CODER_OIDC_ISSUER_URL":    "https://accounts.google.com",
@@ -158,6 +168,7 @@ func TestConfig(t *testing.T) {
 			"CODER_GITAUTH_0_AUTH_URL":      "https://auth.com",
 			"CODER_GITAUTH_0_TOKEN_URL":     "https://token.com",
 			"CODER_GITAUTH_0_REGEX":         "github.com",
+			"CODER_GITAUTH_0_SCOPES":        "read write",
 
 			"CODER_GITAUTH_1_ID":            "another",
 			"CODER_GITAUTH_1_TYPE":          "gitlab",
@@ -177,6 +188,7 @@ func TestConfig(t *testing.T) {
 				AuthURL:      "https://auth.com",
 				TokenURL:     "https://token.com",
 				Regex:        "github.com",
+				Scopes:       []string{"read", "write"},
 			}, {
 				ID:           "another",
 				Type:         "gitlab",
@@ -190,6 +202,7 @@ func TestConfig(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Helper()
 			for key, value := range tc.Env {
 				t.Setenv(key, value)
 			}

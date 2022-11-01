@@ -16,11 +16,11 @@
             "auth": "google-instance-identity",
             "dir": null,
             "env": null,
-            "id": "248ed639-3dbe-479e-909a-37d5d226529f",
+            "id": "1156666a-c202-4c54-9831-6b62dbf665fe",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "8bee2595-095f-4965-ade2-deef475023d6"
+            "token": "80a893a4-fcb1-4a3a-824d-74cf5317d307"
           },
           "sensitive_values": {}
         },
@@ -32,8 +32,8 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "248ed639-3dbe-479e-909a-37d5d226529f",
-            "id": "edbfac7a-a88d-433a-ab7c-be3816656477",
+            "agent_id": "1156666a-c202-4c54-9831-6b62dbf665fe",
+            "id": "ec6451f5-fea2-4d6f-aedc-822b93723abd",
             "instance_id": "example"
           },
           "sensitive_values": {},
@@ -47,7 +47,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5674804341417746589",
+            "id": "5076117657273396114",
             "triggers": null
           },
           "sensitive_values": {},

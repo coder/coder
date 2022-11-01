@@ -6,20 +6,14 @@ import {
   WorkspaceResource,
 } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import { Markdown } from "components/Markdown/Markdown"
+import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "components/TemplateStats/TemplateStats"
 import { VersionsTable } from "components/VersionsTable/VersionsTable"
-import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import { DAUChart } from "./DAUChart"
-
-const Language = {
-  readmeTitle: "README",
-  resourcesTitle: "Resources",
-}
 
 export interface TemplateSummaryPageViewProps {
   template: Template
@@ -64,14 +58,14 @@ export const TemplateSummaryPageView: FC<
       <TemplateResourcesTable
         resources={getStartedResources(templateResources)}
       />
-      <WorkspaceSection
-        title={Language.readmeTitle}
-        contentsProps={{ className: styles.readmeContents }}
-      >
+
+      <div className={styles.markdownSection}>
+        <div className={styles.readmeLabel}>README.md</div>
         <div className={styles.markdownWrapper}>
-          <Markdown>{readme.body}</Markdown>
+          <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
         </div>
-      </WorkspaceSection>
+      </div>
+
       <VersionsTable versions={templateVersions} />
     </Stack>
   )
@@ -79,12 +73,23 @@ export const TemplateSummaryPageView: FC<
 
 export const useStyles = makeStyles((theme) => {
   return {
-    readmeContents: {
-      margin: 0,
-    },
-    markdownWrapper: {
+    markdownSection: {
       background: theme.palette.background.paper,
-      padding: theme.spacing(3, 4),
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: theme.shape.borderRadius,
+    },
+
+    readmeLabel: {
+      color: theme.palette.text.secondary,
+      fontWeight: 600,
+      padding: theme.spacing(2, 3),
+      borderBottom: `1px solid ${theme.palette.divider}`,
+    },
+
+    markdownWrapper: {
+      padding: theme.spacing(0, 3, 5),
+      maxWidth: 800,
+      margin: "auto",
     },
   }
 })
