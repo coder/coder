@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@v1.12.8
+        uses: crate-ci/typos@v1.12.12
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
