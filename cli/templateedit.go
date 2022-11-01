@@ -13,11 +13,10 @@ import (
 
 func templateEdit() *cobra.Command {
 	var (
-		name                 string
-		description          string
-		icon                 string
-		maxTTL               time.Duration
-		minAutostartInterval time.Duration
+		name        string
+		description string
+		icon        string
+		maxTTL      time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -40,11 +39,10 @@ func templateEdit() *cobra.Command {
 
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
-				Name:                       name,
-				Description:                description,
-				Icon:                       icon,
-				MaxTTLMillis:               maxTTL.Milliseconds(),
-				MinAutostartIntervalMillis: minAutostartInterval.Milliseconds(),
+				Name:         name,
+				Description:  description,
+				Icon:         icon,
+				MaxTTLMillis: maxTTL.Milliseconds(),
 			}
 
 			_, err = client.UpdateTemplateMeta(cmd.Context(), template.ID, req)
@@ -60,7 +58,6 @@ func templateEdit() *cobra.Command {
 	cmd.Flags().StringVarP(&description, "description", "", "", "Edit the template description")
 	cmd.Flags().StringVarP(&icon, "icon", "", "", "Edit the template icon path")
 	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown - workspaces created from this template cannot stay running longer than this.")
-	cmd.Flags().DurationVarP(&minAutostartInterval, "min-autostart-interval", "", 0, "Edit the template minimum autostart interval - workspaces created from this template must wait at least this long between autostarts.")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd

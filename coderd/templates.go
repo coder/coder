@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -236,28 +235,22 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	minAutostartInterval := minAutostartIntervalDefault
-	if !ptr.NilOrZero(createTemplate.MinAutostartIntervalMillis) {
-		minAutostartInterval = time.Duration(*createTemplate.MinAutostartIntervalMillis) * time.Millisecond
-	}
-
 	var dbTemplate database.Template
 	var template codersdk.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
 		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:                   uuid.New(),
-			CreatedAt:            now,
-			UpdatedAt:            now,
-			OrganizationID:       organization.ID,
-			Name:                 createTemplate.Name,
-			Provisioner:          importJob.Provisioner,
-			ActiveVersionID:      templateVersion.ID,
-			Description:          createTemplate.Description,
-			MaxTtl:               int64(maxTTL),
-			MinAutostartInterval: int64(minAutostartInterval),
-			CreatedBy:            apiKey.UserID,
-			UserACL:              database.TemplateACL{},
+			ID:              uuid.New(),
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			OrganizationID:  organization.ID,
+			Name:            createTemplate.Name,
+			Provisioner:     importJob.Provisioner,
+			ActiveVersionID: templateVersion.ID,
+			Description:     createTemplate.Description,
+			MaxTtl:          int64(maxTTL),
+			CreatedBy:       apiKey.UserID,
+			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
 				organization.ID.String(): []rbac.Action{rbac.ActionRead},
 			},
@@ -467,9 +460,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.MaxTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.MinAutostartIntervalMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "min_autostart_interval_ms", Detail: "Must be a positive integer."})
-	}
 	if req.MaxTTLMillis > maxTTLDefault.Milliseconds() {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Cannot be greater than " + maxTTLDefault.String()})
 	}
@@ -501,8 +491,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
 			req.Icon == template.Icon &&
-			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
-			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
+			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() {
 			return nil
 		}
 
@@ -511,7 +500,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		desc := req.Description
 		icon := req.Icon
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
-		minAutostartInterval := time.Duration(req.MinAutostartIntervalMillis) * time.Millisecond
 
 		if name == "" {
 			name = template.Name
@@ -519,18 +507,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if desc == "" {
 			desc = template.Description
 		}
-		if minAutostartInterval == 0 {
-			minAutostartInterval = time.Duration(template.MinAutostartInterval)
-		}
 
 		updated, err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
-			ID:                   template.ID,
-			UpdatedAt:            database.Now(),
-			Name:                 name,
-			Description:          desc,
-			Icon:                 icon,
-			MaxTtl:               int64(maxTTL),
-			MinAutostartInterval: int64(minAutostartInterval),
+			ID:          template.ID,
+			UpdatedAt:   database.Now(),
+			Name:        name,
+			Description: desc,
+			Icon:        icon,
+			MaxTtl:      int64(maxTTL),
 		})
 		if err != nil {
 			return err
@@ -666,18 +650,17 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 
 		// Create template
 		template, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:                   uuid.New(),
-			CreatedAt:            now,
-			UpdatedAt:            now,
-			OrganizationID:       opts.orgID,
-			Name:                 opts.name,
-			Provisioner:          job.Provisioner,
-			ActiveVersionID:      templateVersion.ID,
-			Description:          "This template was auto-imported by Coder.",
-			MaxTtl:               int64(maxTTLDefault),
-			MinAutostartInterval: int64(minAutostartIntervalDefault),
-			CreatedBy:            opts.userID,
-			UserACL:              database.TemplateACL{},
+			ID:              uuid.New(),
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			OrganizationID:  opts.orgID,
+			Name:            opts.name,
+			Provisioner:     job.Provisioner,
+			ActiveVersionID: templateVersion.ID,
+			Description:     "This template was auto-imported by Coder.",
+			MaxTtl:          int64(maxTTLDefault),
+			CreatedBy:       opts.userID,
+			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
 				opts.orgID.String(): []rbac.Action{rbac.ActionRead},
 			},

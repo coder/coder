@@ -1456,7 +1456,6 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
 		tpl.MaxTtl = arg.MaxTtl
-		tpl.MinAutostartInterval = arg.MinAutostartInterval
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
@@ -2227,25 +2226,20 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	if arg.MinAutostartInterval == 0 {
-		arg.MinAutostartInterval = int64(time.Hour)
-	}
-
 	//nolint:gosimple
 	template := database.Template{
-		ID:                   arg.ID,
-		CreatedAt:            arg.CreatedAt,
-		UpdatedAt:            arg.UpdatedAt,
-		OrganizationID:       arg.OrganizationID,
-		Name:                 arg.Name,
-		Provisioner:          arg.Provisioner,
-		ActiveVersionID:      arg.ActiveVersionID,
-		Description:          arg.Description,
-		MaxTtl:               arg.MaxTtl,
-		MinAutostartInterval: arg.MinAutostartInterval,
-		CreatedBy:            arg.CreatedBy,
-		UserACL:              arg.UserACL,
-		GroupACL:             arg.GroupACL,
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		OrganizationID:  arg.OrganizationID,
+		Name:            arg.Name,
+		Provisioner:     arg.Provisioner,
+		ActiveVersionID: arg.ActiveVersionID,
+		Description:     arg.Description,
+		MaxTtl:          arg.MaxTtl,
+		CreatedBy:       arg.CreatedBy,
+		UserACL:         arg.UserACL,
+		GroupACL:        arg.GroupACL,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil

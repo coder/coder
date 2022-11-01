@@ -310,11 +310,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
 		})
 		req := codersdk.UpdateTemplateMeta{
-			Name:                       "new-template-name",
-			Description:                "lorem ipsum dolor sit amet et cetera",
-			Icon:                       "/icons/new-icon.png",
-			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
-			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
+			Name:         "new-template-name",
+			Description:  "lorem ipsum dolor sit amet et cetera",
+			Icon:         "/icons/new-icon.png",
+			MaxTTLMillis: 12 * time.Hour.Milliseconds(),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -330,7 +329,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 
 		// Extra paranoid: did it _really_ happen?
 		updated, err = client.Template(ctx, template.ID)
@@ -340,7 +338,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 
 		require.Len(t, auditor.AuditLogs, 4)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
@@ -444,11 +441,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
-			Name:                       template.Name,
-			Description:                template.Description,
-			Icon:                       template.Icon,
-			MaxTTLMillis:               template.MaxTTLMillis,
-			MinAutostartIntervalMillis: template.MinAutostartIntervalMillis,
+			Name:         template.Name,
+			Description:  template.Description,
+			Icon:         template.Icon,
+			MaxTTLMillis: template.MaxTTLMillis,
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "not modified")
@@ -478,8 +474,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
-			MaxTTLMillis:               -int64(time.Hour),
-			MinAutostartIntervalMillis: -int64(time.Hour),
+			MaxTTLMillis: -int64(time.Hour),
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		var apiErr *codersdk.Error
@@ -487,7 +482,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Invalid request")
 		require.Len(t, apiErr.Validations, 2)
 		assert.Equal(t, apiErr.Validations[0].Field, "max_ttl_ms")
-		assert.Equal(t, apiErr.Validations[1].Field, "min_autostart_interval_ms")
 
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
