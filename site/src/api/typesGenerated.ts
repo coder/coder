@@ -620,7 +620,6 @@ export interface Template {
   readonly description: string
   readonly icon: string
   readonly default_ttl_ms: number
-  readonly min_autostart_interval_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
 }

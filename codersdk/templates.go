@@ -23,14 +23,13 @@ type Template struct {
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount            int                    `json:"active_user_count"`
-	BuildTimeStats             TemplateBuildTimeStats `json:"build_time_stats"`
-	Description                string                 `json:"description"`
-	Icon                       string                 `json:"icon"`
-	DefaultTTLMillis           int64                  `json:"default_ttl_ms"`
-	MinAutostartIntervalMillis int64                  `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.UUID              `json:"created_by_id"`
-	CreatedByName              string                 `json:"created_by_name"`
+	ActiveUserCount  int                    `json:"active_user_count"`
+	BuildTimeStats   TemplateBuildTimeStats `json:"build_time_stats"`
+	Description      string                 `json:"description"`
+	Icon             string                 `json:"icon"`
+	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
+	CreatedByID      uuid.UUID              `json:"created_by_id"`
+	CreatedByName    string                 `json:"created_by_name"`
 }
 
 type TemplateBuildTimeStats struct {

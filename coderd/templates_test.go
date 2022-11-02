@@ -407,7 +407,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
@@ -441,7 +440,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
 	})
 
 	t.Run("RemoveIcon", func(t *testing.T) {
