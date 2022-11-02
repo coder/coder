@@ -265,7 +265,7 @@ export const CreateWorkspacePageView: FC<
 
               <Stack
                 direction="column"
-                spacing={3} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
                 className={styles.formSectionFields}
               >
                 {props.templateSchema.map((schema) => (

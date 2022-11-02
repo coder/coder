@@ -43,7 +43,7 @@ export const ParameterInput: FC<
   const styles = useStyles()
 
   return (
-    <Stack direction="column" spacing={1}>
+    <Stack direction="column" spacing={0.75}>
       <ParameterLabel schema={schema} />
       <div className={styles.input}>
         <ParameterField
@@ -128,12 +128,13 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
     display: "block",
-    marginBottom: theme.spacing(1),
+    marginBottom: theme.spacing(0.5),
   },
   labelDescription: {
     fontSize: 16,
     color: theme.palette.text.primary,
     display: "block",
+    fontWeight: 600,
   },
   input: {
     display: "flex",
