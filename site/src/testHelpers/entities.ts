@@ -83,7 +83,7 @@ export const MockUser: TypesGen.User = {
 }
 
 export const MockUserCountResponse: TypesGen.UserCountResponse = {
-  count: 26
+  count: 26,
 }
 
 export const MockUserAdmin: TypesGen.User = {

@@ -50,7 +50,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     userIdToResetPassword,
     newUserPassword,
     paginationRef,
-    count
+    count,
   } = usersState.context
 
   const { updateUsers: canEditUsers } = usePermissions()

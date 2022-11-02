@@ -107,7 +107,6 @@ export const getUser = async (): Promise<TypesGen.User> => {
   return response.data
 }
 
-
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",
@@ -140,7 +139,9 @@ export const getUsers = async (
   return response.data
 }
 
-export const getUserCount = async (options: TypesGen.UserCountRequest): Promise<TypesGen.UserCountResponse> => {
+export const getUserCount = async (
+  options: TypesGen.UserCountRequest,
+): Promise<TypesGen.UserCountResponse> => {
   const url = getURLWithSearchParams("/api/v2/users/count", options)
   const response = await axios.get(url.toString())
   return response.data
