@@ -144,8 +144,12 @@ func Test_Runner(t *testing.T) {
 			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		}()
 
-		runner := workspacebuild.NewRunner(client, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
+		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
+			OrganizationID: user.OrganizationID,
+			UserID:         codersdk.Me,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+			},
 		})
 
 		logs := bytes.NewBuffer(nil)
@@ -202,8 +206,12 @@ func Test_Runner(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-		runner := workspacebuild.NewRunner(client, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
+		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
+			OrganizationID: user.OrganizationID,
+			UserID:         codersdk.Me,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+			},
 		})
 
 		logs := bytes.NewBuffer(nil)

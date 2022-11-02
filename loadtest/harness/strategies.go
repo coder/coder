@@ -86,7 +86,7 @@ type TimeoutExecutionStrategyWrapper struct {
 	Inner   ExecutionStrategy
 }
 
-var _ ExecutionStrategy = &TimeoutExecutionStrategyWrapper{}
+var _ ExecutionStrategy = TimeoutExecutionStrategyWrapper{}
 
 type timeoutRunnerWrapper struct {
 	timeout time.Duration
@@ -103,7 +103,7 @@ func (t timeoutRunnerWrapper) Run(ctx context.Context, id string, logs io.Writer
 }
 
 // Execute implements ExecutionStrategy.
-func (t *TimeoutExecutionStrategyWrapper) Execute(ctx context.Context, runs []*TestRun) error {
+func (t TimeoutExecutionStrategyWrapper) Execute(ctx context.Context, runs []*TestRun) error {
 	for _, run := range runs {
 		oldRunner := run.runner
 		run.runner = timeoutRunnerWrapper{
@@ -121,7 +121,7 @@ type ShuffleExecutionStrategyWrapper struct {
 	Inner ExecutionStrategy
 }
 
-var _ ExecutionStrategy = &ShuffleExecutionStrategyWrapper{}
+var _ ExecutionStrategy = ShuffleExecutionStrategyWrapper{}
 
 type cryptoRandSource struct{}
 
@@ -141,7 +141,7 @@ func (cryptoRandSource) Int63() int64 {
 func (cryptoRandSource) Seed(_ int64) {}
 
 // Execute implements ExecutionStrategy.
-func (s *ShuffleExecutionStrategyWrapper) Execute(ctx context.Context, runs []*TestRun) error {
+func (s ShuffleExecutionStrategyWrapper) Execute(ctx context.Context, runs []*TestRun) error {
 	shuffledRuns := make([]*TestRun, len(runs))
 	copy(shuffledRuns, runs)
 

@@ -15,33 +15,24 @@ import (
 )
 
 type Runner struct {
-	client *codersdk.Client
-	orgID  uuid.UUID
-	userID string
-	req    codersdk.CreateWorkspaceRequest
-
+	client      *codersdk.Client
+	cfg         Config
 	workspaceID uuid.UUID
 }
 
 var _ harness.Runnable = &Runner{}
 var _ harness.Cleanable = &Runner{}
 
-// NewRunner creates a new workspace build loadtest Runner. The provided request
-// will be used verbatim, but the name will be set to a random value if unset.
-//
-// The Cleanup method will delete the workspace if it was successfully created.
-func NewRunner(client *codersdk.Client, orgID uuid.UUID, userID string, req codersdk.CreateWorkspaceRequest) *Runner {
+func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client: client,
-		orgID:  orgID,
-		userID: userID,
-		req:    req,
+		cfg:    cfg,
 	}
 }
 
 // Run implements Runnable.
 func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
-	req := r.req
+	req := r.cfg.Request
 	if req.Name == "" {
 		randName, err := cryptorand.HexString(8)
 		if err != nil {
@@ -51,7 +42,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	}
 
 	after := time.Now()
-	workspace, err := r.client.CreateWorkspace(ctx, r.orgID, r.userID, req)
+	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
 	}
