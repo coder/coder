@@ -217,11 +217,11 @@ This template will use the Docker socket present on
 the Coder host, which is not necessarily your local machine.
 
 You can specify a different host in the template file and
-surpress this warning.
+suppress this warning.
 ', 'none', '', false, 'provisioner_variable', false, '', false, 'Cancelling template create.', 'contains(["Continue using /var/run/docker.sock on the Coder host"], var.step1_docker_host_warning)', 'hcl', '', 2) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('f239329d-2328-437b-a3e6-470f7e91fd99', '2022-11-02 13:36:23.908523+02', '391d562a-af1a-4f4c-81d3-244f3006d9c7', 'step2_arch', 'arch: What architecture is your Docker host on?', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be amd64, arm64, or armv7.', 'contains(["amd64", "arm64", "armv7"], var.step2_arch)', 'hcl', '', 3) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('1bbddc70-22ff-4f8b-a423-64a0260f1eda', '2022-11-02 13:36:23.909951+02', '391d562a-af1a-4f4c-81d3-244f3006d9c7', 'step3_OS', 'What operating system is your Coder host on?
-', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be MacOS, Windows, or Linux.', 'contains(["MacOS", "Windows", "Linux"], var.step3_OS)', 'hcl', '', 4) ON CONFLICT DO NOTHING;
+', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be macOS, Windows, or Linux.', 'contains(["macOS", "Windows", "Linux"], var.step3_OS)', 'hcl', '', 4) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('c7ed9a02-6a1c-46e1-925d-51b505599ac2', '2022-11-02 13:36:27.402454+02', '8cbdb824-fe5d-4496-8f87-e2c31d24d442', 'docker_image', 'What Docker image would you like to use for your workspace?', 'data', 'base', true, 'provisioner_variable', false, '', true, 'Invalid Docker image!', 'contains(["base", "java", "node"], var.docker_image)', 'hcl', '', 1) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('f8cb7a23-e732-4ee9-a263-8c9383e856d4', '2022-11-02 13:36:27.397704+02', '8cbdb824-fe5d-4496-8f87-e2c31d24d442', 'step1_docker_host_warning', 'Is Docker running on the Coder host?
 
@@ -229,11 +229,11 @@ This template will use the Docker socket present on
 the Coder host, which is not necessarily your local machine.
 
 You can specify a different host in the template file and
-surpress this warning.
+suppress this warning.
 ', 'none', '', false, 'provisioner_variable', false, '', false, 'Cancelling template create.', 'contains(["Continue using /var/run/docker.sock on the Coder host"], var.step1_docker_host_warning)', 'hcl', '', 2) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('15e99f3d-c60c-4649-9442-c84e8639b9f8', '2022-11-02 13:36:27.399443+02', '8cbdb824-fe5d-4496-8f87-e2c31d24d442', 'step2_arch', 'arch: What architecture is your Docker host on?', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be amd64, arm64, or armv7.', 'contains(["amd64", "arm64", "armv7"], var.step2_arch)', 'hcl', '', 3) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('cdd9dfa6-0550-4a53-9bb7-8465628dedcc', '2022-11-02 13:36:27.40081+02', '8cbdb824-fe5d-4496-8f87-e2c31d24d442', 'step3_OS', 'What operating system is your Coder host on?
-', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be MacOS, Windows, or Linux.', 'contains(["MacOS", "Windows", "Linux"], var.step3_OS)', 'hcl', '', 4) ON CONFLICT DO NOTHING;
+', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be macOS, Windows, or Linux.', 'contains(["macOS", "Windows", "Linux"], var.step3_OS)', 'hcl', '', 4) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('8320ac9e-cbb8-4e1e-810b-c78edb19fad4', '2022-11-02 13:31:33.386083+02', '8cff6071-0a97-4c99-9fff-dc3507dd259b', 'docker_arch', 'Specify architecture of docker host (amd64, arm64, or armv7)', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be amd64, arm64, or armv7.', 'contains(["amd64", "arm64", "armv7"], var.docker_arch)', 'hcl', '', 1) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('a81f23fe-d849-4773-afec-64d332f672a9', '2022-11-02 13:31:33.384416+02', '8cff6071-0a97-4c99-9fff-dc3507dd259b', 'docker_host', 'Specify location of Docker socket (check `docker context ls` if you''re not sure)', 'none', '', false, 'provisioner_variable', false, '', false, '', '', 'none', '', 2) ON CONFLICT DO NOTHING;
 INSERT INTO public.parameter_schemas VALUES ('47c7b35e-09cd-452f-83fe-d674ffbb645c', '2022-11-02 13:30:35.394671+02', 'ba1deb9c-0e65-4849-9ac8-c1652bffd2a0', 'docker_arch', 'Specify architecture of docker host (amd64, arm64, or armv7)', 'none', '', false, 'provisioner_variable', false, '', false, 'Value must be amd64, arm64, or armv7.', 'contains(["amd64", "arm64", "armv7"], var.docker_arch)', 'hcl', '', 1) ON CONFLICT DO NOTHING;
@@ -2099,7 +2099,7 @@ See `params.sample.yaml` for more information.
 This template has the following predefined parameters:
 
 - `docker_host`: Path to (or address of) the Docker socket.
-  > You can determine the correct value for this by runnning
+  > You can determine the correct value for this by running
   > `docker context ls`.
 - `docker_arch`: Architecture of the host running Docker.
   This can be `amd64`, `arm64`, or `armv7`.
@@ -2125,7 +2125,7 @@ See `params.sample.yaml` for more information.
 This template has the following predefined parameters:
 
 - `docker_host`: Path to (or address of) the Docker socket.
-  > You can determine the correct value for this by runnning
+  > You can determine the correct value for this by running
   > `docker context ls`.
 - `docker_arch`: Architecture of the host running Docker.
   This can be `amd64`, `arm64`, or `armv7`.
@@ -2151,7 +2151,7 @@ See `params.sample.yaml` for more information.
 This template has the following predefined parameters:
 
 - `docker_host`: Path to (or address of) the Docker socket.
-  > You can determine the correct value for this by runnning
+  > You can determine the correct value for this by running
   > `docker context ls`.
 - `docker_arch`: Architecture of the host running Docker.
   This can be `amd64`, `arm64`, or `armv7`.
@@ -2177,7 +2177,7 @@ See `params.sample.yaml` for more information.
 This template has the following predefined parameters:
 
 - `docker_host`: Path to (or address of) the Docker socket.
-  > You can determine the correct value for this by runnning
+  > You can determine the correct value for this by running
   > `docker context ls`.
 - `docker_arch`: Architecture of the host running Docker.
   This can be `amd64`, `arm64`, or `armv7`.
