@@ -71,6 +71,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			Action:       codersdk.AuditActionDelete,
 			ResourceType: codersdk.ResourceTypeUser,
 			ResourceID:   userResourceID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 
@@ -131,8 +132,18 @@ func TestAuditLogsFilter(t *testing.T) {
 				ExpectedResult: 3,
 			},
 			{
-				Name:           "FilterWithDateFrom",
+				Name:           "FilterOnCreateSingleDay",
 				SearchQuery:    "action:create date_from:2022-08-15 date_to:2022-08-15",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnCreateDateFrom",
+				SearchQuery:    "action:create date_from:2022-08-15",
+				ExpectedResult: 2,
+			},
+			{
+				Name:           "FilterOnCreateDateTo",
+				SearchQuery:    "action:create date_to:2022-08-15",
 				ExpectedResult: 1,
 			},
 		}
