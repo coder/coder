@@ -70,6 +70,16 @@ The workspace will be stopped and started:
 coder update <workspace-name>
 ```
 
+## Repairing workspaces
+
+Use the following command to prompt the user to re-enter template input
+variables in an existing workspace. e.g., a workspace fails to build when the
+workspace state is out of sync with updates to the workspace's template.
+
+```console
+coder update <your workspace name> --always-prompt
+```
+
 ## Logging
 
 Coder stores macOS and Linux logs at the following locations:
