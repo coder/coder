@@ -72,9 +72,9 @@ coder update <workspace-name>
 
 ## Repairing workspaces
 
-Use the following command to prompt the user to re-enter template input
-variables in an existing workspace. e.g., a workspace fails to build when the
-workspace state is out of sync with updates to the workspace's template.
+Use the following command to re-enter template input
+variables in an existing workspace. This command is useful when a workspace fails
+to build because its state is out of sync with the template.
 
 ```console
 coder update <your workspace name> --always-prompt

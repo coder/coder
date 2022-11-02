@@ -42,8 +42,7 @@ the PostgreSQL interactive terminal), output the connection URL with the followi
 
 ```console
 $ coder server postgres-builtin-url
-
-psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
+$ psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
 ## System packages
