@@ -290,7 +290,7 @@ export const CreateWorkspacePageView: FC<
             onCancel={props.onCancel}
             isLoading={props.creatingWorkspace}
             submitDisabled={!canSubmit}
-            submitLabel="Create workspace"
+            submitLabel={t("createWorkspace")}
           />
         </Stack>
       </form>

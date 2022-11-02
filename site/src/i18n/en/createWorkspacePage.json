@@ -1,5 +1,6 @@
 {
   "templateLabel": "Template",
   "nameLabel": "Workspace Name",
-  "ownerLabel": "Owner"
+  "ownerLabel": "Owner",
+  "createWorkspace": "Create workspace"
 }
