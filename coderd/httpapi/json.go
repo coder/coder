@@ -8,7 +8,12 @@ import (
 )
 
 // Duration wraps time.Duration and provides better JSON marshaling and
-// unmarshaling.
+// unmarshaling. The default time.Duration marshals as an integer and only
+// accepts integers when unmarshaling, which is not very user friendly as users
+// cannot write durations like "1h30m".
+//
+// This type marshals as a string like "1h30m", and unmarshals from either a
+// string or an integer.
 type Duration time.Duration
 
 var _ json.Marshaler = Duration(0)

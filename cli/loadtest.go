@@ -37,25 +37,21 @@ func loadtest() *cobra.Command {
 			}
 
 			var (
-				configReader io.Reader
-				configCloser io.Closer
+				configReader io.ReadCloser
 			)
 			if configPath == "-" {
-				configReader = cmd.InOrStdin()
+				configReader = io.NopCloser(cmd.InOrStdin())
 			} else {
 				f, err := os.Open(configPath)
 				if err != nil {
 					return xerrors.Errorf("open config file %q: %w", configPath, err)
 				}
 				configReader = f
-				configCloser = f
 			}
 
 			var config LoadTestConfig
 			err := json.NewDecoder(configReader).Decode(&config)
-			if configCloser != nil {
-				_ = configCloser.Close()
-			}
+			_ = configReader.Close()
 			if err != nil {
 				return xerrors.Errorf("read config file %q: %w", configPath, err)
 			}
@@ -87,7 +83,7 @@ func loadtest() *cobra.Command {
 				}
 			}
 			if !ok {
-				return xerrors.Errorf("Not logged in as site owner. Load testing is only available to the site owner.")
+				return xerrors.Errorf("Not logged in as site owner. Load testing is only available to site owners.")
 			}
 
 			// Disable ratelimits for future requests.
@@ -100,8 +96,8 @@ func loadtest() *cobra.Command {
 			for i, t := range config.Tests {
 				name := fmt.Sprintf("%s-%d", t.Type, i)
 
-				for i := 0; i < t.Count; i++ {
-					id := strconv.Itoa(i)
+				for j := 0; j < t.Count; j++ {
+					id := strconv.Itoa(j)
 					runner, err := t.NewRunner(client)
 					if err != nil {
 						return xerrors.Errorf("create %q runner for %s/%s: %w", t.Type, name, id, err)
