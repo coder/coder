@@ -44,6 +44,10 @@ type Client struct {
 	HTTPClient   *http.Client
 	SessionToken string
 	URL          *url.URL
+
+	// BypassRatelimits is an optional flag that can be set by the site owner to
+	// disable ratelimit checks for the client.
+	BypassRatelimits bool
 }
 
 type RequestOption func(*http.Request)
@@ -87,6 +91,9 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 	req.Header.Set(SessionCustomHeader, c.SessionToken)
+	if c.BypassRatelimits {
+		req.Header.Set(BypassRatelimitHeader, "true")
+	}
 
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

@@ -376,9 +376,20 @@ type provisionerJobLogsMessage struct {
 
 func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
 	logger := api.Logger.With(slog.F("job_id", jobID))
-	bufferedLogs := make(chan database.ProvisionerJobLog, 128)
-	closeSubscribe, err := api.Pubsub.Subscribe(provisionerJobLogsChannel(jobID),
+
+	var (
+		closed       = make(chan struct{})
+		bufferedLogs = make(chan database.ProvisionerJobLog, 128)
+	)
+	closeSubscribe, err := api.Pubsub.Subscribe(
+		provisionerJobLogsChannel(jobID),
 		func(ctx context.Context, message []byte) {
+			select {
+			case <-closed:
+				return
+			default:
+			}
+
 			jlMsg := provisionerJobLogsMessage{}
 			err := json.Unmarshal(message, &jlMsg)
 			if err != nil {
@@ -399,9 +410,11 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 			}
 			if jlMsg.EndOfLogs {
 				logger.Debug(ctx, "got End of Logs")
+				close(closed)
 				close(bufferedLogs)
 			}
-		})
+		},
+	)
 	if err != nil {
 		return nil, nil, err
 	}
