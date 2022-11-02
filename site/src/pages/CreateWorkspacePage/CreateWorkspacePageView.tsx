@@ -308,6 +308,8 @@ const useStyles = makeStyles((theme) => ({
   formSectionInfo: {
     width: 312,
     flexShrink: 0,
+    position: "sticky",
+    top: theme.spacing(3),
   },
 
   formSectionInfoTitle: {
