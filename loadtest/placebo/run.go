@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/loadtest/harness"
 )
 
@@ -27,7 +29,7 @@ func NewRunner(cfg Config) *Runner {
 
 // Run implements Runnable.
 func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
-	sleepDur := r.cfg.Sleep
+	sleepDur := time.Duration(r.cfg.Sleep)
 	if r.cfg.Jitter > 0 {
 		//nolint:gosec // not used for crypto
 		sleepDur += time.Duration(rand.Int63n(int64(r.cfg.Jitter)))
@@ -44,6 +46,19 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
+		}
+	}
+
+	if r.cfg.FailureChance > 0 {
+		_, _ = fmt.Fprintf(logs, "failure chance is %f\n", r.cfg.FailureChance)
+		_, _ = fmt.Fprintln(logs, "rolling the dice of fate...")
+		//nolint:gosec // not used for crypto
+		roll := rand.Float64()
+		_, _ = fmt.Fprintf(logs, "rolled: %f\n", roll)
+
+		if roll < r.cfg.FailureChance {
+			_, _ = fmt.Fprintln(logs, ":(")
+			return xerrors.New("test failed due to configured failure chance")
 		}
 	}
 

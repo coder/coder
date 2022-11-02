@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/loadtest/harness"
 	"github.com/coder/coder/loadtest/placebo"
@@ -17,7 +18,7 @@ type LoadTestConfig struct {
 	Tests    []LoadTest       `json:"tests"`
 	// Timeout sets a timeout for the entire test run, to control the timeout
 	// for each individual run use strategy.timeout.
-	Timeout time.Duration `json:"timeout"`
+	Timeout httpapi.Duration `json:"timeout"`
 }
 
 type LoadTestStrategyType string
@@ -44,7 +45,7 @@ type LoadTestStrategy struct {
 	// Timeout is the maximum amount of time to run each test for. This is
 	// independent of the timeout specified in the test run. A timeout of 0
 	// disables the timeout.
-	Timeout time.Duration `json:"timeout"`
+	Timeout httpapi.Duration `json:"timeout"`
 }
 
 func (s LoadTestStrategy) ExecutionStrategy() harness.ExecutionStrategy {
@@ -69,7 +70,7 @@ func (s LoadTestStrategy) ExecutionStrategy() harness.ExecutionStrategy {
 
 	if s.Timeout > 0 {
 		strategy = harness.TimeoutExecutionStrategyWrapper{
-			Timeout: s.Timeout,
+			Timeout: time.Duration(s.Timeout),
 			Inner:   strategy,
 		}
 	}

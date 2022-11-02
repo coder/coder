@@ -3,11 +3,13 @@ package placebo_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/loadtest/placebo"
 )
 
@@ -31,7 +33,7 @@ func Test_Runner(t *testing.T) {
 		t.Parallel()
 
 		r := placebo.NewRunner(placebo.Config{
-			Sleep: 100 * time.Millisecond,
+			Sleep: httpapi.Duration(100 * time.Millisecond),
 		})
 
 		start := time.Now()
@@ -47,8 +49,8 @@ func Test_Runner(t *testing.T) {
 		t.Parallel()
 
 		r := placebo.NewRunner(placebo.Config{
-			Sleep:  100 * time.Millisecond,
-			Jitter: 100 * time.Millisecond,
+			Sleep:  httpapi.Duration(100 * time.Millisecond),
+			Jitter: httpapi.Duration(100 * time.Millisecond),
 		})
 
 		start := time.Now()
@@ -60,5 +62,34 @@ func Test_Runner(t *testing.T) {
 		logsStr := logs.String()
 		require.Contains(t, logsStr, "sleeping for")
 		require.NotContains(t, logsStr, "sleeping for 100ms")
+	})
+
+	t.Run("Timeout", func(t *testing.T) {
+		t.Parallel()
+
+		r := placebo.NewRunner(placebo.Config{
+			Sleep: httpapi.Duration(100 * time.Millisecond),
+		})
+
+		//nolint:gocritic // we're testing timeouts here so we want specific values
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		err := r.Run(ctx, "", io.Discard)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+
+	t.Run("FailureChance", func(t *testing.T) {
+		t.Parallel()
+
+		r := placebo.NewRunner(placebo.Config{
+			FailureChance: 1,
+		})
+
+		logs := bytes.NewBuffer(nil)
+		err := r.Run(context.Background(), "", logs)
+		require.Error(t, err)
+		require.Contains(t, logs.String(), ":(")
 	})
 }

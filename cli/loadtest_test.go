@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/loadtest/placebo"
 	"github.com/coder/coder/loadtest/workspacebuild"
@@ -40,11 +41,11 @@ func TestLoadTest(t *testing.T) {
 					Type:  cli.LoadTestTypePlacebo,
 					Count: 10,
 					Placebo: &placebo.Config{
-						Sleep: 10 * time.Millisecond,
+						Sleep: httpapi.Duration(10 * time.Millisecond),
 					},
 				},
 			},
-			Timeout: 1 * time.Second,
+			Timeout: httpapi.Duration(testutil.WaitShort),
 		}
 
 		configBytes, err := json.Marshal(config)
@@ -99,7 +100,7 @@ func TestLoadTest(t *testing.T) {
 					},
 				},
 			},
-			Timeout: 10 * time.Second,
+			Timeout: httpapi.Duration(testutil.WaitLong),
 		}
 
 		d := t.TempDir()

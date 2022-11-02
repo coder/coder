@@ -116,7 +116,7 @@ func loadtest() *cobra.Command {
 			testCtx := cmd.Context()
 			if config.Timeout > 0 {
 				var cancel func()
-				testCtx, cancel = context.WithTimeout(testCtx, config.Timeout)
+				testCtx, cancel = context.WithTimeout(testCtx, time.Duration(config.Timeout))
 				defer cancel()
 			}
 
