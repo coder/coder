@@ -86,6 +86,8 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 		Action:       filter.Action,
 		Username:     filter.Username,
 		Email:        filter.Email,
+		DateFrom:     filter.DateFrom,
+		DateTo:       filter.DateTo,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
