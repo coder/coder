@@ -1278,16 +1278,14 @@ func TestGetFilteredUserCount(t *testing.T) {
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
-		active := make([]codersdk.User, 0)
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		firstUser, err := client.User(ctx, first.UserID.String())
+		_, err := client.User(ctx, first.UserID.String())
 		require.NoError(t, err, "")
-		active = append(active, firstUser)
 
 		// Alice will be suspended
 		alice, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
@@ -1297,15 +1295,6 @@ func TestGetFilteredUserCount(t *testing.T) {
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
-
-		bruno, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "bruno@email.com",
-			Username:       "bruno",
-			Password:       "password",
-			OrganizationID: first.OrganizationID,
-		})
-		require.NoError(t, err)
-		active = append(active, bruno)
 
 		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
