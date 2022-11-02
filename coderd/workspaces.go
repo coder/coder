@@ -784,13 +784,6 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	resp := codersdk.Response{}
 
 	err := api.Database.InTx(func(s database.Store) error {
-		template, err := s.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			code = http.StatusInternalServerError
-			resp.Message = "Error fetching workspace template!"
-			return xerrors.Errorf("get workspace template: %w", err)
-		}
-
 		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
 			code = http.StatusInternalServerError
@@ -824,7 +817,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.DefaultTtl)); err != nil {
+		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
 			// Normally, we would put the validation error in Validations, but this endpoint is
 			// not tied to a form or specific named user input on the FE.
@@ -1121,7 +1114,7 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 	}, nil
 }
 
-func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration) error {
+func validWorkspaceDeadline(startedAt, newDeadline time.Time) error {
 	soon := time.Now().Add(29 * time.Minute)
 	if newDeadline.Before(soon) {
 		return errDeadlineTooSoon
@@ -1130,11 +1123,6 @@ func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration)
 	// No idea how this could happen.
 	if newDeadline.Before(startedAt) {
 		return errDeadlineBeforeStart
-	}
-
-	delta := newDeadline.Sub(startedAt)
-	if delta > max {
-		return errDeadlineOverTemplateMax
 	}
 
 	return nil

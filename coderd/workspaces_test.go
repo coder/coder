@@ -298,32 +298,6 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
 			require.Equal(t, "time until shutdown must be at least one minute", apiErr.Validations[0].Detail)
 		})
-
-		t.Run("AboveMax", func(t *testing.T) {
-			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			req := codersdk.CreateWorkspaceRequest{
-				TemplateID: template.ID,
-				Name:       "testing",
-				TTLMillis:  ptr.Ref(template.DefaultTTLMillis + time.Minute.Milliseconds()),
-			}
-			_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-			require.Error(t, err)
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-			require.Len(t, apiErr.Validations, 1)
-			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-			require.Equal(t, "time until shutdown must be less than 7 days", apiErr.Validations[0].Detail)
-		})
 	})
 }
 
@@ -1297,14 +1271,6 @@ func TestWorkspaceExtend(t *testing.T) {
 		Deadline: deadlineTooSoon,
 	})
 	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
-
-	// And with a deadline greater than the template max_ttl should also fail
-	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.DefaultTTLMillis) * time.Millisecond).Add(time.Minute)
-	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: deadlineExceedsMaxTTL,
-	})
-
-	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
 
 	// Updating with a deadline 30 minutes in the future should succeed
 	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)

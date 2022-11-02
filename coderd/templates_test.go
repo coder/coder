@@ -138,27 +138,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "max_ttl_ms: Must be a positive integer")
-	})
-
-	t.Run("MaxTTLTooHigh", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-			Name:             "testing",
-			VersionID:        version.ID,
-			DefaultTTLMillis: ptr.Ref(365 * 24 * time.Hour.Milliseconds()),
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "max_ttl_ms: Cannot be greater than")
+		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
 	})
 
 	t.Run("NoMaxTTL", func(t *testing.T) {
@@ -388,33 +368,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "max_ttl_ms: Must be a positive integer")
-
-		// Ensure no update occurred
-		updated, err := client.Template(ctx, template.ID)
-		require.NoError(t, err)
-		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
-		assert.Equal(t, updated.DefaultTTLMillis, template.DefaultTTLMillis)
-	})
-
-	t.Run("MaxTTLTooHigh", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-		})
-		req := codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: 365 * 24 * time.Hour.Milliseconds(),
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "max_ttl_ms: Cannot be greater than")
+		require.ErrorContains(t, err, "default_ttl_ms: Must be a positive integer")
 
 		// Ensure no update occurred
 		updated, err := client.Template(ctx, template.ID)
@@ -478,7 +432,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Contains(t, apiErr.Message, "Invalid request")
 		require.Len(t, apiErr.Validations, 1)
-		assert.Equal(t, apiErr.Validations[0].Field, "max_ttl_ms")
+		assert.Equal(t, apiErr.Validations[0].Field, "default_ttl_ms")
 
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)

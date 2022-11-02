@@ -258,7 +258,7 @@ func Test_diff(t *testing.T) {
 				"name":              audit.OldNew{Old: "", New: "rust"},
 				"provisioner":       audit.OldNew{Old: database.ProvisionerType(""), New: database.ProvisionerTypeTerraform},
 				"active_version_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
-				"max_ttl":           audit.OldNew{Old: int64(0), New: int64(time.Hour)},
+				"default_ttl":       audit.OldNew{Old: int64(0), New: int64(time.Hour)},
 				"created_by":        audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
 			},
 		},

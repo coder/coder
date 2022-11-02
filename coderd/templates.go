@@ -25,10 +25,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var (
-	defaultTTL = 24 * 7 * time.Hour
-)
-
 // Auto-importable templates. These can be auto-imported after the first user
 // has been created.
 type AutoImportTemplate string
@@ -210,25 +206,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	maxTTL := defaultTTL
+	var ttl time.Duration
 	if createTemplate.DefaultTTLMillis != nil {
-		maxTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
+		ttl = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
-	if maxTTL < 0 {
+	if ttl < 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid create template request.",
 			Validations: []codersdk.ValidationError{
-				{Field: "max_ttl_ms", Detail: "Must be a positive integer."},
-			},
-		})
-		return
-	}
-
-	if maxTTL > defaultTTL {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid create template request.",
-			Validations: []codersdk.ValidationError{
-				{Field: "max_ttl_ms", Detail: "Cannot be greater than " + defaultTTL.String()},
+				{Field: "default_ttl_ms", Detail: "Must be a positive integer."},
 			},
 		})
 		return
@@ -247,7 +233,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Provisioner:     importJob.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     createTemplate.Description,
-			DefaultTtl:      int64(maxTTL),
+			DefaultTtl:      int64(ttl),
 			CreatedBy:       apiKey.UserID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -459,9 +445,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.DefaultTTLMillis > defaultTTL.Milliseconds() {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Cannot be greater than " + defaultTTL.String()})
-	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -657,7 +640,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			Provisioner:     job.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     "This template was auto-imported by Coder.",
-			DefaultTtl:      int64(defaultTTL),
+			DefaultTtl:      0,
 			CreatedBy:       opts.userID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
