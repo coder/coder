@@ -25,7 +25,6 @@ const CreateWorkspacePage: FC = () => {
     shallowEqual,
   )
   const workspaceQuotaEnabled = featureVisibility[FeatureNames.WorkspaceQuota]
-
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
@@ -89,7 +88,8 @@ const CreateWorkspacePage: FC = () => {
           })
         }}
         onCancel={() => {
-          navigate("/templates")
+          // Go back
+          navigate(-1)
         }}
         onSubmit={(request) => {
           send({

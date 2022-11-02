@@ -53,7 +53,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
-	cloud.google.com/go/compute v1.10.0
+	cloud.google.com/go/compute v1.12.1 // indirect
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/andybalholm/brotli v1.0.4
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
@@ -83,7 +83,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.104.2
+	github.com/gohugoio/hugo v0.105.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/golang-migrate/migrate/v4 v4.15.2
@@ -106,8 +106,7 @@ require (
 	github.com/mattn/go-isatty v0.0.16
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/moby/moby v20.10.18+incompatible
-	github.com/nhatthm/otelsql v0.4.0
+	github.com/moby/moby v20.10.21+incompatible
 	github.com/open-policy-agent/opa v0.44.0
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/pion/udp v0.1.1
@@ -128,24 +127,24 @@ require (
 	go.opentelemetry.io/otel v1.11.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.1
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.10.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.1
 	go.opentelemetry.io/otel/sdk v1.11.1
 	go.opentelemetry.io/otel/trace v1.11.1
 	go.uber.org/atomic v1.10.0
 	go.uber.org/goleak v1.2.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/crypto v0.1.0
 	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
-	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220919091848-fb04ddd9f9c8
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
-	golang.org/x/text v0.3.8-0.20211105212822-18b340fc7af2
-	golang.org/x/tools v0.1.11
-	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
+	golang.org/x/mod v0.6.0
+	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
+	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
+	golang.org/x/sys v0.1.0
+	golang.org/x/term v0.1.0
+	golang.org/x/text v0.4.0
+	golang.org/x/tools v0.2.0
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20220920152132-bb719d3a6e2c
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
-	google.golang.org/api v0.98.0
+	google.golang.org/api v0.100.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -159,13 +158,15 @@ require (
 require github.com/jmoiron/sqlx v1.3.5
 
 require (
+	cloud.google.com/go/compute/metadata v0.2.1
 	github.com/adrg/xdg v0.4.0
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/spf13/viper v1.13.0
+	go.nhat.io/otelsql v0.7.0
 )
 
 require (
-	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
@@ -221,7 +222,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -278,7 +279,7 @@ require (
 	github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
-	github.com/tdewolff/parse/v2 v2.6.3 // indirect
+	github.com/tdewolff/parse/v2 v2.6.4 // indirect
 	github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
@@ -288,22 +289,22 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
-	github.com/yuin/goldmark v1.4.15 // indirect
+	github.com/yuin/goldmark v1.5.2 // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.1 // indirect
-	go.opentelemetry.io/otel/metric v0.31.0 // indirect
+	go.opentelemetry.io/otel/metric v0.33.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
-	golang.org/x/net v0.0.0-20220909164309-bea034e7d591 // indirect
+	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220915135415-7fd63a7952de // indirect
-	google.golang.org/grpc v1.50.1 // indirect
+	google.golang.org/genproto v0.0.0-20221024183307-1bc688fe9f3e // indirect
+	google.golang.org/grpc v1.50.1
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect

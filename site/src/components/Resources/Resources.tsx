@@ -15,7 +15,7 @@ const countAgents = (resource: WorkspaceResource) => {
 
 interface ResourcesProps {
   resources: WorkspaceResource[]
-  agentRow: (agent: WorkspaceAgent) => JSX.Element
+  agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => JSX.Element
 }
 
 export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
@@ -39,7 +39,7 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
         <ResourceCard
           key={resource.id}
           resource={resource}
-          agentRow={agentRow}
+          agentRow={(agent) => agentRow(agent, countAgents(resource))}
         />
       ))}
       {hasHideResources && (

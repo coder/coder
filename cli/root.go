@@ -70,6 +70,7 @@ func init() {
 }
 
 func Core() []*cobra.Command {
+	// Please re-sort this list alphabetically if you change it!
 	return []*cobra.Command{
 		configSSH(),
 		create(),
@@ -77,26 +78,27 @@ func Core() []*cobra.Command {
 		dotfiles(),
 		gitssh(),
 		list(),
+		loadtest(),
 		login(),
 		logout(),
 		parameters(),
 		portForward(),
 		publickey(),
+		rename(),
 		resetPassword(),
 		schedules(),
 		show(),
-		ssh(),
 		speedtest(),
+		ssh(),
 		start(),
 		state(),
 		stop(),
-		rename(),
 		templates(),
+		tokens(),
 		update(),
 		users(),
 		versionCmd(),
 		workspaceAgent(),
-		tokens(),
 	}
 }
 

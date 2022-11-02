@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
+/* eslint-disable @typescript-eslint/no-floating-promises -- TODO look into this */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
@@ -349,3 +349,4 @@ describe("WorkspacePage", () => {
     })
   })
 })
+/* eslint-enable @typescript-eslint/no-floating-promises -- TODO look into this */

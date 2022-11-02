@@ -87,6 +87,12 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 		// same identifier to resolve.
 		rawConn, err, _ = c.connGroup.Do(id.String(), func() (interface{}, error) {
 			c.closeMutex.Lock()
+			select {
+			case <-c.closed:
+				c.closeMutex.Unlock()
+				return nil, xerrors.New("closed")
+			default:
+			}
 			c.closeGroup.Add(1)
 			c.closeMutex.Unlock()
 			agentConn, err := c.dialer(r, id)

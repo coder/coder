@@ -25,20 +25,26 @@ const StyledBadge = withStyles((theme) => ({
   },
 }))(Badge)
 
+interface StyledAvatarProps {
+  size?: number
+}
+
 const StyledAvatar = withStyles((theme) => ({
   root: {
     background: theme.palette.divider,
     color: theme.palette.text.primary,
     border: `2px solid ${theme.palette.divider}`,
+    width: ({ size }: StyledAvatarProps) => size,
+    height: ({ size }: StyledAvatarProps) => size,
 
     "& svg": {
-      width: 18,
-      height: 18,
+      width: ({ size }: StyledAvatarProps) => (size ? size / 2 : 18),
+      height: ({ size }: StyledAvatarProps) => (size ? size / 2 : 18),
     },
   },
 }))(Avatar)
 
-export type BuildAvatarProps = {
+export interface BuildAvatarProps extends StyledAvatarProps {
   build: WorkspaceBuild
 }
 
@@ -48,7 +54,7 @@ const iconByTransition: Record<WorkspaceTransition, JSX.Element> = {
   delete: <DeleteOutlined />,
 }
 
-export const BuildAvatar: FC<BuildAvatarProps> = ({ build }) => {
+export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
   const theme = useTheme<Theme>()
   const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build)
 
@@ -65,7 +71,9 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build }) => {
       }}
       badgeContent={<div></div>}
     >
-      <StyledAvatar>{iconByTransition[build.transition]}</StyledAvatar>
+      <StyledAvatar size={size}>
+        {iconByTransition[build.transition]}
+      </StyledAvatar>
     </StyledBadge>
   )
 }

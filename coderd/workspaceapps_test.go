@@ -160,23 +160,27 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 							},
 							Apps: []*proto.App{
 								{
-									Name:         proxyTestAppNameFake,
+									Slug:         proxyTestAppNameFake,
+									DisplayName:  proxyTestAppNameFake,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									// Hopefully this IP and port doesn't exist.
 									Url: "http://127.1.0.1:65535",
 								},
 								{
-									Name:         proxyTestAppNameOwner,
+									Slug:         proxyTestAppNameOwner,
+									DisplayName:  proxyTestAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									Url:          appURL,
 								},
 								{
-									Name:         proxyTestAppNameAuthenticated,
+									Slug:         proxyTestAppNameAuthenticated,
+									DisplayName:  proxyTestAppNameAuthenticated,
 									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 									Url:          appURL,
 								},
 								{
-									Name:         proxyTestAppNamePublic,
+									Slug:         proxyTestAppNamePublic,
+									DisplayName:  proxyTestAppNamePublic,
 									SharingLevel: proto.AppSharingLevel_PUBLIC,
 									Url:          appURL,
 								},
@@ -635,7 +639,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err, "get app host")
 
 		subdomain := httpapi.ApplicationURL{
-			AppName:       appName,
+			AppSlug:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspaces[0].Name,
@@ -866,7 +870,7 @@ func TestAppSharing(t *testing.T) {
 			proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
 		}
 		for _, app := range agnt.Apps {
-			found[app.Name] = app.SharingLevel
+			found[app.DisplayName] = app.SharingLevel
 		}
 		require.Equal(t, expected, found, "apps have incorrect sharing levels")
 

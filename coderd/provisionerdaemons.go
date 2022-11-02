@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -749,12 +750,17 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Name:       protoResource.Name,
 		Hide:       protoResource.Hide,
 		Icon:       protoResource.Icon,
+		InstanceType: sql.NullString{
+			String: protoResource.InstanceType,
+			Valid:  protoResource.InstanceType != "",
+		},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
+	var appSlugs = make(map[string]struct{})
 	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
@@ -806,6 +812,18 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
+			slug := app.Slug
+			if slug == "" {
+				return xerrors.Errorf("app must have a slug or name set")
+			}
+			if !provisioner.AppSlugRegex.MatchString(slug) {
+				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
+			}
+			if _, exists := appSlugs[slug]; exists {
+				return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
+			}
+			appSlugs[slug] = struct{}{}
+
 			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
 				app.Healthcheck = &sdkproto.Healthcheck{}
@@ -823,11 +841,12 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:        uuid.New(),
-				CreatedAt: database.Now(),
-				AgentID:   dbAgent.ID,
-				Name:      app.Name,
-				Icon:      app.Icon,
+				ID:          uuid.New(),
+				CreatedAt:   database.Now(),
+				AgentID:     dbAgent.ID,
+				Slug:        slug,
+				DisplayName: app.DisplayName,
+				Icon:        app.Icon,
 				Command: sql.NullString{
 					String: app.Command,
 					Valid:  app.Command != "",

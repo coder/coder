@@ -48,8 +48,6 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
-
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
 export function assignableRole(
@@ -61,6 +59,12 @@ export function assignableRole(
     assignable: assignable,
   }
 }
+
+export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
+export const MockAssignableSiteRoles = [
+  assignableRole(MockUserAdminRole, true),
+  assignableRole(MockAuditorRole, true),
+]
 
 export const MockMemberPermissions = {
   viewAuditLog: false,
@@ -171,8 +175,7 @@ name:Template test
 You can add instructions here
 
 [Some link info](https://coder.com)`,
-  created_by_id: "test-creator-id",
-  created_by_name: "test_creator",
+  created_by: MockUser,
 }
 
 export const MockTemplate: TypesGen.Template = {
@@ -200,7 +203,8 @@ export const MockTemplate: TypesGen.Template = {
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
-  name: "test-app",
+  slug: "test-app",
+  display_name: "Test App",
   icon: "",
   subdomain: false,
   health: "disabled",

@@ -1,17 +1,26 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
+import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { combineClasses } from "util/combineClasses"
 import { WorkspaceAgent } from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
 
-export interface AgentRowPreviewProps {
+interface AgentRowPreviewStyles {
+  // Helpful when there are more than one row so the values are aligned
+  // When it is only one row, it is better to have than "flex" and not hard aligned
+  alignValues?: boolean
+}
+export interface AgentRowPreviewProps extends AgentRowPreviewStyles {
   agent: WorkspaceAgent
 }
 
-export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
-  const styles = useStyles()
+export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
+  agent,
+  alignValues,
+}) => {
+  const styles = useStyles({ alignValues })
   const { t } = useTranslation("agent")
 
   return (
@@ -36,7 +45,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             direction="row"
             alignItems="baseline"
             spacing={1}
-            className={combineClasses([styles.noShrink, styles.agentDataItem])}
+            className={combineClasses([
+              styles.noShrink,
+              styles.agentDataItem,
+              styles.agentDataName,
+            ])}
           >
             <span>{t("labels.agent").toString()}:</span>
             <span className={styles.agentDataValue}>{agent.name}</span>
@@ -46,7 +59,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
             direction="row"
             alignItems="baseline"
             spacing={1}
-            className={combineClasses([styles.noShrink, styles.agentDataItem])}
+            className={combineClasses([
+              styles.noShrink,
+              styles.agentDataItem,
+              styles.agentDataOS,
+            ])}
           >
             <span>{t("labels.os").toString()}:</span>
             <span
@@ -73,8 +90,13 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({ agent }) => {
               wrap="wrap"
             >
               {agent.apps.map((app) => (
-                <AppPreviewLink key={app.name} app={app} />
+                <AppPreviewLink key={app.slug} app={app} />
               ))}
+              <Maybe condition={agent.apps.length === 0}>
+                <span className={styles.agentDataValue}>
+                  {t("labels.noApps")}
+                </span>
+              </Maybe>
             </Stack>
           </Stack>
         </Stack>
@@ -139,6 +161,20 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.down("sm")]: {
       gap: theme.spacing(2),
       flexWrap: "wrap",
+    },
+  },
+
+  agentDataName: {
+    [theme.breakpoints.up("sm")]: {
+      minWidth: ({ alignValues }: AgentRowPreviewStyles) =>
+        alignValues ? 240 : undefined,
+    },
+  },
+
+  agentDataOS: {
+    [theme.breakpoints.up("sm")]: {
+      minWidth: ({ alignValues }: AgentRowPreviewStyles) =>
+        alignValues ? 100 : undefined,
     },
   },
 

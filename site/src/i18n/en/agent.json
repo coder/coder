@@ -7,6 +7,7 @@
   "labels": {
     "agent": "Agent",
     "os": "OS",
-    "apps": "Apps"
+    "apps": "Apps",
+    "noApps": "None"
   }
 }

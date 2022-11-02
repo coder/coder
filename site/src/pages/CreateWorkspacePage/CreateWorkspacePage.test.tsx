@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
+/* eslint-disable @typescript-eslint/no-floating-promises -- TODO figure out why this is*/
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
-import { Language as FooterLanguage } from "components/FormFooter/FormFooter"
 import i18next from "i18next"
 import {
   MockTemplate,
@@ -17,6 +16,7 @@ import CreateWorkspacePage from "./CreateWorkspacePage"
 const { t } = i18next
 
 const nameLabelText = t("nameLabel", { ns: "createWorkspacePage" })
+const createWorkspaceText = t("createWorkspace", { ns: "createWorkspacePage" })
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -48,7 +48,7 @@ describe("CreateWorkspacePage", () => {
       target: { value: "test" },
     })
 
-    const submitButton = screen.getByText(FooterLanguage.defaultSubmitLabel)
+    const submitButton = screen.getByText(createWorkspaceText)
     userEvent.click(submitButton)
 
     await waitFor(() =>
@@ -62,3 +62,4 @@ describe("CreateWorkspacePage", () => {
     )
   })
 })
+/* eslint-enable @typescript-eslint/no-floating-promises -- TODO figure out why this is*/

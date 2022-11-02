@@ -20,7 +20,7 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
       spacing={1}
     >
       <BaseIcon app={app} />
-      {app.name}
+      {app.display_name}
       <ShareIcon app={app} />
     </Stack>
   )
@@ -35,9 +35,10 @@ const useStyles = makeStyles((theme) => ({
     background: theme.palette.background.paper,
     flexShrink: 0,
     width: "fit-content",
+    fontSize: 12,
 
     "& img, & svg": {
-      width: 14,
+      width: 13,
     },
   },
 }))

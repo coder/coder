@@ -600,7 +600,7 @@ type TemplateVersion struct {
 	Name           string        `db:"name" json:"name"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.NullUUID `db:"created_by" json:"created_by"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
 type User struct {
@@ -667,7 +667,7 @@ type WorkspaceApp struct {
 	ID                   uuid.UUID          `db:"id" json:"id"`
 	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
 	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
-	Name                 string             `db:"name" json:"name"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
@@ -677,6 +677,7 @@ type WorkspaceApp struct {
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
+	Slug                 string             `db:"slug" json:"slug"`
 }
 
 type WorkspaceBuild struct {
@@ -695,14 +696,15 @@ type WorkspaceBuild struct {
 }
 
 type WorkspaceResource struct {
-	ID         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
-	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Type       string              `db:"type" json:"type"`
-	Name       string              `db:"name" json:"name"`
-	Hide       bool                `db:"hide" json:"hide"`
-	Icon       string              `db:"icon" json:"icon"`
+	ID           uuid.UUID           `db:"id" json:"id"`
+	CreatedAt    time.Time           `db:"created_at" json:"created_at"`
+	JobID        uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition   WorkspaceTransition `db:"transition" json:"transition"`
+	Type         string              `db:"type" json:"type"`
+	Name         string              `db:"name" json:"name"`
+	Hide         bool                `db:"hide" json:"hide"`
+	Icon         string              `db:"icon" json:"icon"`
+	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 }
 
 type WorkspaceResourceMetadatum struct {

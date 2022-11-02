@@ -1,12 +1,16 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
-import { containerWidth, sidePadding } from "../../theme/constants"
+import {
+  containerWidth,
+  containerWidthMedium,
+  sidePadding,
+} from "../../theme/constants"
 
 type Size = "regular" | "medium" | "small"
 
 const widthBySize: Record<Size, number> = {
   regular: containerWidth,
-  medium: containerWidth / 2,
+  medium: containerWidthMedium,
   small: containerWidth / 3,
 }
 

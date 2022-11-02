@@ -115,6 +115,16 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.TLS.MinVersion.Value, "tls10")
 		},
 	}, {
+		Name: "Trace",
+		Env: map[string]string{
+			"CODER_TRACE_ENABLE":            "true",
+			"CODER_TRACE_HONEYCOMB_API_KEY": "my-honeycomb-key",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Trace.Enable.Value, true)
+			require.Equal(t, config.Trace.HoneycombAPIKey.Value, "my-honeycomb-key")
+		},
+	}, {
 		Name: "OIDC",
 		Env: map[string]string{
 			"CODER_OIDC_ISSUER_URL":    "https://accounts.google.com",
@@ -192,6 +202,7 @@ func TestConfig(t *testing.T) {
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Helper()
 			for key, value := range tc.Env {
 				t.Setenv(key, value)
 			}
