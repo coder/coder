@@ -26,8 +26,11 @@ func loadtest() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "loadtest --config <path>",
 		Short: "Load test the Coder API",
-		Long:  "",
-		Args:  cobra.ExactArgs(0),
+		// TODO: documentation and a JSON scheme file
+		Long: "Perform load tests against the Coder server. The load tests " +
+			"configurable via a JSON file.",
+		Hidden: true,
+		Args:   cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if configPath == "" {
 				return xerrors.New("config is required")
