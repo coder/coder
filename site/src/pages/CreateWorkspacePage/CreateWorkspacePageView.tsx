@@ -164,7 +164,7 @@ export const CreateWorkspacePageView: FC<
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
-        <Stack direction="column" spacing={10}>
+        <Stack direction="column" spacing={10} className={styles.formSections}>
           {/* General info */}
           <div className={styles.formSection}>
             <div className={styles.formSectionInfo}>
@@ -299,10 +299,21 @@ export const CreateWorkspacePageView: FC<
 }
 
 const useStyles = makeStyles((theme) => ({
+  formSections: {
+    [theme.breakpoints.down("md")]: {
+      gap: theme.spacing(8),
+    },
+  },
+
   formSection: {
     display: "flex",
     alignItems: "flex-start",
     gap: theme.spacing(15),
+
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      gap: theme.spacing(2),
+    },
   },
 
   formSectionInfo: {
@@ -310,6 +321,11 @@ const useStyles = makeStyles((theme) => ({
     flexShrink: 0,
     position: "sticky",
     top: theme.spacing(3),
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+      position: "initial",
+    },
   },
 
   formSectionInfoTitle: {
@@ -360,6 +376,10 @@ const useStyles = makeStyles((theme) => ({
 const useFormFooterStyles = makeStyles((theme) => ({
   button: {
     minWidth: theme.spacing(23),
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+    },
   },
   footer: {
     display: "flex",
@@ -367,5 +387,10 @@ const useFormFooterStyles = makeStyles((theme) => ({
     justifyContent: "flex-start",
     flexDirection: "row-reverse",
     gap: theme.spacing(2),
+
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      gap: theme.spacing(1),
+    },
   },
 }))
