@@ -300,7 +300,7 @@ export const CreateWorkspacePageView: FC<
 
 const useStyles = makeStyles((theme) => ({
   formSections: {
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       gap: theme.spacing(8),
     },
   },
@@ -310,7 +310,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "flex-start",
     gap: theme.spacing(15),
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
       gap: theme.spacing(2),
     },
@@ -322,7 +322,7 @@ const useStyles = makeStyles((theme) => ({
     position: "sticky",
     top: theme.spacing(3),
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       width: "100%",
       position: "initial",
     },
@@ -377,7 +377,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
   button: {
     minWidth: theme.spacing(23),
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       width: "100%",
     },
   },
@@ -388,7 +388,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
     flexDirection: "row-reverse",
     gap: theme.spacing(2),
 
-    [theme.breakpoints.down("md")]: {
+    [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
       gap: theme.spacing(1),
     },
