@@ -9,6 +9,7 @@ export const lightButtonShadow = "0 2px 2px rgba(0, 23, 121, 0.08)"
 export const emptyBoxShadow = "none"
 export const navHeight = 62
 export const containerWidth = 1380
+export const containerWidthMedium = 1080
 export const sidePadding = 24
 export const TitleIconSize = 48
 export const CardRadius = 2
