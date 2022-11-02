@@ -203,5 +203,10 @@ export const getOverrides = ({
         backgroundColor: palette.divider,
       },
     },
+    MuiLinearProgress: {
+      root: {
+        borderRadius: 999,
+      },
+    },
   }
 }
