@@ -179,13 +179,28 @@ export const CreateWorkspacePageView: FC<
               spacing={1}
               className={styles.formSectionFields}
             >
-              <TextField
-                disabled
-                fullWidth
-                label={t("templateLabel")}
-                value={props.selectedTemplate?.name || props.templateName}
-                variant="outlined"
-              />
+              {props.selectedTemplate && (
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  className={styles.template}
+                  alignItems="center"
+                >
+                  <div className={styles.templateIcon}>
+                    <img src={props.selectedTemplate.icon} alt="" />
+                  </div>
+                  <Stack direction="column" spacing={0.5}>
+                    <span className={styles.templateName}>
+                      {props.selectedTemplate.name}
+                    </span>
+                    {props.selectedTemplate.description && (
+                      <span className={styles.templateDescription}>
+                        {props.selectedTemplate.description}
+                      </span>
+                    )}
+                  </Stack>
+                </Stack>
+              )}
 
               <TextField
                 {...getFieldHelpers("name")}
@@ -238,22 +253,22 @@ export const CreateWorkspacePageView: FC<
           )}
 
           {/* Template params */}
-          <div className={styles.formSection}>
-            <div className={styles.formSectionInfo}>
-              <h2 className={styles.formSectionInfoTitle}>Template params</h2>
-              <p className={styles.formSectionInfoDescription}>
-                Those values are provided by your template&lsquo;s Terraform
-                configuration.
-              </p>
-            </div>
+          {props.templateSchema && props.templateSchema.length > 0 && (
+            <div className={styles.formSection}>
+              <div className={styles.formSectionInfo}>
+                <h2 className={styles.formSectionInfoTitle}>Template params</h2>
+                <p className={styles.formSectionInfoDescription}>
+                  Those values are provided by your template&lsquo;s Terraform
+                  configuration.
+                </p>
+              </div>
 
-            <Stack
-              direction="column"
-              spacing={3} // Spacing here is diff because the fields here don't have the MUI floating label spacing
-              className={styles.formSectionFields}
-            >
-              {props.templateSchema &&
-                props.templateSchema.map((schema) => (
+              <Stack
+                direction="column"
+                spacing={3} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                className={styles.formSectionFields}
+              >
+                {props.templateSchema.map((schema) => (
                   <ParameterInput
                     disabled={form.isSubmitting}
                     key={schema.id}
@@ -266,8 +281,9 @@ export const CreateWorkspacePageView: FC<
                     schema={schema}
                   />
                 ))}
-            </Stack>
-          </div>
+              </Stack>
+            </div>
+          )}
 
           <FormFooter
             styles={formFooterStyles}
@@ -311,6 +327,31 @@ const useStyles = makeStyles((theme) => ({
 
   formSectionFields: {
     width: "100%",
+  },
+
+  template: {
+    padding: theme.spacing(2.5, 3),
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+  },
+
+  templateName: {
+    fontSize: 16,
+  },
+
+  templateDescription: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+
+  templateIcon: {
+    width: theme.spacing(5),
+    lineHeight: 1,
+
+    "& img": {
+      width: "100%",
+    },
   },
 }))
 
