@@ -3,11 +3,17 @@
 package migrations_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/golang-migrate/migrate/v4"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/golang-migrate/migrate/v4/source/stub"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -126,6 +132,114 @@ func TestCheckLatestVersion(t *testing.T) {
 				errMessage = err.Error()
 			}
 			require.Equal(t, tc.expectedResult, errMessage)
+		})
+	}
+}
+
+func setupMigrate(t *testing.T, db *sql.DB, name, path string) (source.Driver, *migrate.Migrate) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	conn, err := db.Conn(ctx)
+	require.NoError(t, err)
+
+	dbDriver, err := migratepostgres.WithConnection(ctx, conn, &migratepostgres.Config{
+		MigrationsTable: "test_migrate_" + name,
+	})
+	require.NoError(t, err)
+
+	dirFS := os.DirFS(path)
+	d, err := iofs.New(dirFS, ".")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		d.Close()
+	})
+
+	m, err := migrate.NewWithInstance(name, d, "", dbDriver)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		m.Close()
+	})
+
+	return d, m
+}
+
+func TestMigrateUpWithFixtures(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip()
+		return
+	}
+
+	type testCase struct {
+		name string
+		path string
+	}
+	tests := []testCase{
+		{
+			name: "fixtures",
+			path: filepath.Join("testdata", "fixtures"),
+		},
+		// More test cases added via glob below.
+	}
+
+	// Folders in testdata/full_dumps represent fixtures for a full
+	// deployment of Coder.
+	matches, err := filepath.Glob(filepath.Join("testdata", "full_dumps", "*"))
+	require.NoError(t, err)
+	for _, match := range matches {
+		tests = append(tests, testCase{
+			name: filepath.Base(match),
+			path: match,
+		})
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := testSQLDB(t)
+
+			// Prepare database for stepping up.
+			err := migrations.Down(db)
+			require.NoError(t, err)
+
+			// Initialize migrations for fixtures.
+			fDriver, fMigrate := setupMigrate(t, db, tt.name, tt.path)
+
+			nextStep, err := migrations.Stepper(db)
+			require.NoError(t, err)
+
+			var fixtureVer uint
+			nextFixtureVer, err := fDriver.First()
+			require.NoError(t, err)
+
+			for {
+				version, more, err := nextStep()
+				require.NoError(t, err)
+
+				if !more {
+					// We reached the end of the migrations.
+					break
+				}
+
+				if nextFixtureVer == version {
+					err = fMigrate.Steps(1)
+					require.NoError(t, err)
+					fixtureVer = version
+
+					nv, _ := fDriver.Next(nextFixtureVer)
+					if nv > 0 {
+						nextFixtureVer = nv
+					}
+				}
+
+				t.Logf("migrated to version %d, fixture version %d", version, fixtureVer)
+			}
 		})
 	}
 }
