@@ -94,7 +94,7 @@ func displayTemplateVersions(activeVersionID uuid.UUID, templateVersions ...code
 		rows[i] = templateVersionRow{
 			Name:      templateVersion.Name,
 			CreatedAt: templateVersion.CreatedAt,
-			CreatedBy: templateVersion.CreatedByName,
+			CreatedBy: templateVersion.CreatedBy.Username,
 			Status:    strings.Title(string(templateVersion.Job.Status)),
 			Active:    activeStatus,
 		}

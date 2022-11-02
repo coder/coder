@@ -327,7 +327,7 @@ CREATE TABLE template_versions (
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
-    created_by uuid
+    created_by uuid NOT NULL
 );
 
 CREATE TABLE templates (
@@ -442,7 +442,8 @@ CREATE TABLE workspace_resources (
     type character varying(192) NOT NULL,
     name character varying(64) NOT NULL,
     hide boolean DEFAULT false NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    instance_type character varying(256)
 );
 
 CREATE TABLE workspaces (

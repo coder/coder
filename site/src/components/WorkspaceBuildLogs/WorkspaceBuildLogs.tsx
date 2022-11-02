@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
-import { FC } from "react"
+import { FC, Fragment } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
@@ -59,7 +59,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
         const shouldDisplayDuration = duration !== undefined
 
         return (
-          <div key={stage}>
+          <Fragment key={stage}>
             <div className={styles.header}>
               <div>{stage}</div>
               {shouldDisplayDuration && (
@@ -69,7 +69,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
               )}
             </div>
             {!isEmpty && <Logs lines={lines} className={styles.codeBlock} />}
-          </div>
+          </Fragment>
         )
       })}
     </div>
@@ -84,7 +84,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   header: {
-    fontSize: theme.typography.body1.fontSize,
+    fontSize: 14,
     padding: theme.spacing(2),
     paddingLeft: theme.spacing(4),
     paddingRight: theme.spacing(4),
@@ -92,6 +92,19 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.background.paper,
     display: "flex",
     alignItems: "center",
+    fontFamily: "Inter",
+
+    "&:first-child": {
+      borderTopLeftRadius: theme.shape.borderRadius,
+      borderTopRightRadius: theme.shape.borderRadius,
+    },
+
+    "&:last-child": {
+      borderBottom: 0,
+      borderTop: `1px solid ${theme.palette.divider}`,
+      borderBottomLeftRadius: theme.shape.borderRadius,
+      borderBottomRightRadius: theme.shape.borderRadius,
+    },
   },
 
   duration: {

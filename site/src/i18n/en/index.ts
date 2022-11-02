@@ -5,6 +5,7 @@ import templatePage from "./templatePage.json"
 import templatesPage from "./templatesPage.json"
 import workspacePage from "./workspacePage.json"
 import agent from "./agent.json"
+import buildPage from "./buildPage.json"
 
 export const en = {
   common,
@@ -14,4 +15,5 @@ export const en = {
   templatesPage,
   createWorkspacePage,
   agent,
+  buildPage,
 }
