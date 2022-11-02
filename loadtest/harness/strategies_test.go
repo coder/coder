@@ -16,9 +16,8 @@ import (
 	"github.com/coder/coder/loadtest/harness"
 )
 
+//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_LinearExecutionStrategy(t *testing.T) {
-	t.Parallel()
-
 	var (
 		lastSeenI int64 = -1
 		count     int64
@@ -27,6 +26,7 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 		atomic.AddInt64(&count, 1)
 		swapped := atomic.CompareAndSwapInt64(&lastSeenI, int64(i-1), int64(i))
 		assert.True(t, swapped)
+		time.Sleep(2 * time.Millisecond)
 		return nil
 	})
 	strategy := harness.LinearExecutionStrategy{}
@@ -42,9 +42,8 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ConcurrentExecutionStrategy(t *testing.T) {
-	t.Parallel()
-
 	runs := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
 		time.Sleep(1 * time.Second)
 		return nil
@@ -67,9 +66,8 @@ func Test_ConcurrentExecutionStrategy(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ParallelExecutionStrategy(t *testing.T) {
-	t.Parallel()
-
 	runs := strategyTestData(10, func(_ context.Context, _ int, _ io.Writer) error {
 		time.Sleep(1 * time.Second)
 		return nil
@@ -79,6 +77,7 @@ func Test_ParallelExecutionStrategy(t *testing.T) {
 	}
 
 	startTime := time.Now()
+	time.Sleep(time.Millisecond)
 	err := strategy.Execute(context.Background(), runs)
 	require.NoError(t, err)
 
@@ -111,10 +110,9 @@ func Test_ParallelExecutionStrategy(t *testing.T) {
 	require.Equal(t, 5, withinRange)
 }
 
+//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_TimeoutExecutionStrategy(t *testing.T) {
-	t.Parallel()
-
-	runs := strategyTestData(10, func(ctx context.Context, _ int, _ io.Writer) error {
+	runs := strategyTestData(1, func(ctx context.Context, _ int, _ io.Writer) error {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -127,7 +125,7 @@ func Test_TimeoutExecutionStrategy(t *testing.T) {
 	})
 	strategy := harness.TimeoutExecutionStrategyWrapper{
 		Timeout: 100 * time.Millisecond,
-		Inner:   harness.ConcurrentExecutionStrategy{},
+		Inner:   harness.LinearExecutionStrategy{},
 	}
 
 	err := strategy.Execute(context.Background(), runs)
@@ -138,9 +136,8 @@ func Test_TimeoutExecutionStrategy(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ShuffleExecutionStrategyWrapper(t *testing.T) {
-	t.Parallel()
-
 	runs := strategyTestData(100000, func(_ context.Context, i int, _ io.Writer) error {
 		// t.Logf("run %d", i)
 		return nil

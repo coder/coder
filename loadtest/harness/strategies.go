@@ -60,15 +60,16 @@ var _ ExecutionStrategy = ParallelExecutionStrategy{}
 func (p ParallelExecutionStrategy) Execute(ctx context.Context, runs []*TestRun) error {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, p.Limit)
+	defer close(sem)
 
 	for _, run := range runs {
 		run := run
 
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
 			defer func() {
 				<-sem
+				wg.Done()
 			}()
 			sem <- struct{}{}
 			_ = run.Run(ctx)

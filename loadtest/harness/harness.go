@@ -20,7 +20,7 @@ type ExecutionStrategy interface {
 // TestHarness runs a bunch of registered test runs using the given
 // ExecutionStrategy.
 type TestHarness struct {
-	execStrat ExecutionStrategy
+	strategy ExecutionStrategy
 
 	mut     *sync.Mutex
 	runIDs  map[string]struct{}
@@ -30,13 +30,13 @@ type TestHarness struct {
 }
 
 // NewTestHarness creates a new TestHarness with the given ExecutionStrategy.
-func NewTestHarness(execStrat ExecutionStrategy) *TestHarness {
+func NewTestHarness(strategy ExecutionStrategy) *TestHarness {
 	return &TestHarness{
-		execStrat: execStrat,
-		mut:       new(sync.Mutex),
-		runIDs:    map[string]struct{}{},
-		runs:      []*TestRun{},
-		done:      make(chan struct{}),
+		strategy: strategy,
+		mut:      new(sync.Mutex),
+		runIDs:   map[string]struct{}{},
+		runs:     []*TestRun{},
+		done:     make(chan struct{}),
 	}
 }
 
@@ -63,7 +63,7 @@ func (h *TestHarness) Run(ctx context.Context) (err error) {
 		}
 	}()
 
-	err = h.execStrat.Execute(ctx, h.runs)
+	err = h.strategy.Execute(ctx, h.runs)
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }

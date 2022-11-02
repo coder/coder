@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -180,12 +179,14 @@ func Test_TestHarness(t *testing.T) {
 			t.Parallel()
 
 			var (
+				started    = make(chan struct{})
 				endRun     = make(chan struct{})
 				testsEnded = make(chan struct{})
 			)
 			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", testFns{
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
+					close(started)
 					<-endRun
 					return nil
 				},
@@ -196,12 +197,12 @@ func Test_TestHarness(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			time.Sleep(100 * time.Millisecond)
+			<-started
 			require.Panics(t, func() {
 				h.Results()
 			})
-
 			close(endRun)
+
 			<-testsEnded
 			_ = h.Results()
 		})
@@ -220,12 +221,14 @@ func Test_TestHarness(t *testing.T) {
 			t.Parallel()
 
 			var (
+				started    = make(chan struct{})
 				endRun     = make(chan struct{})
 				testsEnded = make(chan struct{})
 			)
 			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", testFns{
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
+					close(started)
 					<-endRun
 					return nil
 				},
@@ -236,14 +239,13 @@ func Test_TestHarness(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			time.Sleep(100 * time.Millisecond)
+			<-started
 			require.Panics(t, func() {
 				h.Cleanup(context.Background())
 			})
-
 			close(endRun)
-			<-testsEnded
 
+			<-testsEnded
 			err := h.Cleanup(context.Background())
 			require.NoError(t, err)
 		})
