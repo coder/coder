@@ -64,6 +64,7 @@ func main() {
 		"/^--/d",
 		// Public is implicit in the schema.
 		"s/ public\\./ /",
+		"s/::public\\./::/",
 		// Remove database settings.
 		"s/SET .* = .*;//g",
 		// Remove select statements. These aren't useful
