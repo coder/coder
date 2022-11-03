@@ -212,7 +212,7 @@ CREATE SEQUENCE licenses_id_seq
     NO MAXVALUE
     CACHE 1;
 
-ALTER SEQUENCE licenses_id_seq OWNED BY public.licenses.id;
+ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
@@ -460,7 +460,7 @@ CREATE TABLE workspaces (
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
-ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
+ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
