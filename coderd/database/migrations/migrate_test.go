@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -15,11 +16,14 @@ import (
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/golang-migrate/migrate/v4/source/stub"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -165,6 +169,31 @@ func setupMigrate(t *testing.T, db *sql.DB, name, path string) (source.Driver, *
 	return d, m
 }
 
+type tableStats struct {
+	mu sync.Mutex
+	s  map[string]int
+}
+
+func (s *tableStats) Add(table string, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.s[table] = s.s[table] + n
+}
+
+func (s *tableStats) Empty() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var m []string
+	for table, n := range s.s {
+		if n == 0 {
+			m = append(m, table)
+		}
+	}
+	return m
+}
+
 func TestMigrateUpWithFixtures(t *testing.T) {
 	t.Parallel()
 
@@ -176,11 +205,16 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	type testCase struct {
 		name string
 		path string
+
+		// For determining if test case table stats
+		// are used to determine test coverage.
+		useStats bool
 	}
 	tests := []testCase{
 		{
-			name: "fixtures",
-			path: filepath.Join("testdata", "fixtures"),
+			name:     "fixtures",
+			path:     filepath.Join("testdata", "fixtures"),
+			useStats: true,
 		},
 		// More test cases added via glob below.
 	}
@@ -191,10 +225,41 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	require.NoError(t, err)
 	for _, match := range matches {
 		tests = append(tests, testCase{
-			name: filepath.Base(match),
-			path: match,
+			name:     filepath.Base(match),
+			path:     match,
+			useStats: true,
 		})
 	}
+
+	// These tables are allowed to have zero rows for now,
+	// but we should eventually add fixtures for them.
+	ignoredTablesForStats := []string{
+		"audit_logs",
+		"git_auth_links",
+		"group_members",
+		"licenses",
+		"replicas",
+	}
+	s := &tableStats{s: make(map[string]int)}
+
+	// This will run after all subtests have run and fail the test if
+	// new tables have been added without covering them with fixtures.
+	t.Cleanup(func() {
+		emptyTables := s.Empty()
+		slices.Sort(emptyTables)
+		for _, table := range ignoredTablesForStats {
+			i := slices.Index(emptyTables, table)
+			if i >= 0 {
+				emptyTables = slices.Delete(emptyTables, i, i+1)
+			}
+		}
+		if len(emptyTables) > 0 {
+			t.Logf("The following tables have zero rows, consider adding fixtures for them or create a full database dump:")
+			t.Errorf("tables have zero rows: %v", emptyTables)
+			// TODO(mafredri): Placeholder URL.
+			t.Logf("See https://github.com/coder/coder/blob/main/migrations/README.md#creating-fixtures for more information")
+		}
+	})
 
 	for _, tt := range tests {
 		tt := tt
@@ -203,6 +268,8 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 			t.Parallel()
 
 			db := testSQLDB(t)
+
+			ctx, _ := testutil.Context(t)
 
 			// Prepare database for stepping up.
 			err := migrations.Down(db)
@@ -239,6 +306,29 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 				}
 
 				t.Logf("migrated to version %d, fixture version %d", version, fixtureVer)
+			}
+
+			// Gather number of rows for all existing tables
+			// at the end of the migrations and fixtures.
+			var tables pq.StringArray
+			err = db.QueryRowContext(ctx, `
+				SELECT array_agg(tablename)
+				FROM pg_catalog.pg_tables
+				WHERE
+					schemaname != 'information_schema'
+					AND schemaname != 'pg_catalog'
+					AND tablename NOT LIKE 'test_migrate_%'
+			`).Scan(&tables)
+			require.NoError(t, err)
+
+			for _, table := range tables {
+				var count int
+				err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count)
+				require.NoError(t, err)
+
+				if tt.useStats {
+					s.Add(table, count)
+				}
 			}
 		})
 	}
