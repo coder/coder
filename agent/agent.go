@@ -221,6 +221,13 @@ func (a *agent) run(ctx context.Context) error {
 }
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*tailnet.Conn, error) {
+	a.closeMutex.Lock()
+	if a.isClosed() {
+		a.closeMutex.Unlock()
+		return nil, xerrors.New("closed")
+	}
+	a.connCloseWait.Add(1)
+	a.closeMutex.Unlock()
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
@@ -242,9 +249,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
