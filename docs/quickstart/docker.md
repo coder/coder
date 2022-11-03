@@ -31,7 +31,7 @@ Coder with Docker has the following advantages:
 
 1.  In new terminal, [install Coder](../install/) in order to connect to your deployment through the CLI.
 
-    ```sh
+    ```shell
     curl -L https://coder.com/install.sh | sh
     ```
 
