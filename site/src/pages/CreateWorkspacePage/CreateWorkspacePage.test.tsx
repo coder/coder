@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises -- TODO figure out why this is*/
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
@@ -49,7 +48,7 @@ describe("CreateWorkspacePage", () => {
     })
 
     const submitButton = screen.getByText(createWorkspaceText)
-    userEvent.click(submitButton)
+    await userEvent.click(submitButton)
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
@@ -62,4 +61,3 @@ describe("CreateWorkspacePage", () => {
     )
   })
 })
-/* eslint-enable @typescript-eslint/no-floating-promises -- TODO figure out why this is*/

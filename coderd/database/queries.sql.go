@@ -405,6 +405,18 @@ WHERE
 			user_id = (SELECT id from users WHERE users.email = $6 )
 		ELSE true
 	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= $7
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= $8
+		ELSE true
+	END
 `
 
 type GetAuditLogCountParams struct {
@@ -414,6 +426,8 @@ type GetAuditLogCountParams struct {
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
 }
 
 func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
@@ -424,6 +438,8 @@ func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountP
 		arg.Action,
 		arg.Username,
 		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -480,6 +496,18 @@ WHERE
 			users.email = $8
 		ELSE true
 	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= $10
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
@@ -497,6 +525,8 @@ type GetAuditLogsOffsetParams struct {
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -535,6 +565,8 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Action,
 		arg.Username,
 		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	if err != nil {
 		return nil, err

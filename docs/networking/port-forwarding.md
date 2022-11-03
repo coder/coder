@@ -47,10 +47,38 @@ For more examples, see `coder port-forward --help`.
 > To enable port forwarding via the dashboard, Coder must be configured with a
 > [wildcard access URL](../admin/configure.md#wildcard-access-url).
 
-Use the "Port forward" button in the dashboard to access ports
-running on your workspace.
+### From an arbitrary port
+
+One way to port forward in the dashboard is to use the "Port forward" button to specify an arbitrary port. Coder will also detect if processes are running, and will list them below the port picklist to click an open the running processes in the browser.
 
 ![Port forwarding in the UI](../images/port-forward-dashboard.png)
+
+### From an coder_app resource
+
+Another way to port forward is to configure a `coder_app` resource in the workspace's template. This approach shows a visual application icon in the dashboard. See the following `coder_app` example for a Node React app and note the `subdomain` and `share` settings:
+
+```sh
+# node app
+resource "coder_app" "node-react-app" {
+  agent_id = coder_agent.dev.id
+  name     = "node-react-app"
+  icon     = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/React-icon.svg/2300px-React-icon.svg.png"
+  url      = "http://localhost:3000"
+  subdomain = true
+  share     = "authenticated"
+
+  healthcheck {
+    url       = "http://localhost:3000/healthz"
+    interval  = 10
+    threshold = 30
+  }  
+
+}
+```
+
+Valid `share` values include `owner` - private to the user, `authenticated` - accessible by any user authenticated to the Coder deployment, and `public` - accessible by users outside of the Coder deployment.
+
+![Port forwarding from an app in the UI](../images/coderapp-port-forward.png)
 
 ## SSH
 

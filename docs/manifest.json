@@ -76,19 +76,19 @@
         },
         {
           "title": "Google Cloud Platform",
-          "description": "Setup Coder with Google Cloud Platform",
+          "description": "Setup Coder on a GCP Compute Engine VM",
           "icon_path": "./images/google-cloud.svg",
           "path": "./quickstart/google-cloud-platform.md"
         },
         {
           "title": "AWS",
-          "description": "Setup Coder with AWS",
+          "description": "Setup Coder on an AWS EC2 VM",
           "icon_path": "./images/aws.svg",
           "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
-          "description": "Setup Coder with Azure",
+          "description": "Setup Coder on an Azure VM",
           "icon_path": "./images/azure.svg",
           "path": "./quickstart/azure.md"
         }

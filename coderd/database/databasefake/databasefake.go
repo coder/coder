@@ -2995,6 +2995,16 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
@@ -3054,6 +3064,16 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 		if arg.Email != "" {
 			user, err := q.GetUserByID(context.Background(), alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
 				continue
 			}
 		}
