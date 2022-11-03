@@ -50,6 +50,18 @@ WHERE
 			users.email = @email
 		ELSE true
 	END
+	-- Filter by date_from
+	AND CASE
+		WHEN @date_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= @date_from
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN @date_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= @date_to
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
@@ -97,6 +109,18 @@ WHERE
 	AND CASE
 		WHEN @email :: text != '' THEN
 			user_id = (SELECT id from users WHERE users.email = @email )
+		ELSE true
+	END
+	-- Filter by date_from
+	AND CASE
+		WHEN @date_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= @date_from
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN @date_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= @date_to
 		ELSE true
 	END;
 
