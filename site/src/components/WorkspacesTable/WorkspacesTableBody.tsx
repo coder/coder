@@ -3,21 +3,15 @@ import Link from "@material-ui/core/Link"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC } from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import { Link as RouterLink, useSearchParams } from "react-router-dom"
 import { workspaceFilterQuery } from "../../util/filters"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableLoader } from "../TableLoader/TableLoader"
 import { WorkspacesRow } from "./WorkspacesRow"
-
-export const Language = {
-  emptyCreateWorkspaceMessage: "Create your first workspace",
-  emptyCreateWorkspaceDescription:
-    "Start editing your source code and building your software.",
-  createFromTemplateButton: "Create from template",
-  emptyResultsMessage: "No results matched your search",
-}
 
 interface TableBodyProps {
   isLoading?: boolean
@@ -28,46 +22,53 @@ interface TableBodyProps {
 export const WorkspacesTableBody: FC<
   React.PropsWithChildren<TableBodyProps>
 > = ({ isLoading, workspaceRefs, filter }) => {
-  if (isLoading) {
-    return <TableLoader />
-  }
-
-  if (!workspaceRefs || workspaceRefs.length === 0) {
-    return (
-      <>
-        {filter === workspaceFilterQuery.me ||
-        filter === workspaceFilterQuery.all ? (
-          <TableRow>
-            <TableCell colSpan={999}>
-              <EmptyState
-                message={Language.emptyCreateWorkspaceMessage}
-                description={Language.emptyCreateWorkspaceDescription}
-                cta={
-                  <Link underline="none" component={RouterLink} to="/templates">
-                    <Button startIcon={<AddCircleOutline />}>
-                      {Language.createFromTemplateButton}
-                    </Button>
-                  </Link>
-                }
-              />
-            </TableCell>
-          </TableRow>
-        ) : (
-          <TableRow>
-            <TableCell colSpan={999}>
-              <EmptyState message={Language.emptyResultsMessage} />
-            </TableCell>
-          </TableRow>
-        )}
-      </>
-    )
-  }
+  const [searchParams, _] = useSearchParams()
+  const page = parseInt(searchParams.get("page") ?? "1")
+  const { t } = useTranslation("workspacesPage")
+  console.log(searchParams.get("page"), page)
 
   return (
-    <>
-      {workspaceRefs.map((workspaceRef) => (
-        <WorkspacesRow workspaceRef={workspaceRef} key={workspaceRef.id} />
-      ))}
-    </>
+    <ChooseOne>
+      <Cond condition={Boolean(isLoading)}>
+        <TableLoader />
+      </Cond>
+      <Cond condition={!workspaceRefs || workspaceRefs.length === 0}>
+        <TableRow>
+          <TableCell colSpan={999}>
+            <ChooseOne>
+              <Cond condition={page > 1}>
+                <EmptyState message={t("emptyPageMessage")} />
+              </Cond>
+              <Cond condition={filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all}>
+                <EmptyState
+                  message={t("emptyCreateWorkspaceMessage")}
+                  description={t("emptyCreateWorkspaceDescription")}
+                  cta={
+                    <Link
+                      underline="none"
+                      component={RouterLink}
+                      to="/templates"
+                    >
+                      <Button startIcon={<AddCircleOutline />}>
+                        {t("createFromTemplateButton")}
+                      </Button>
+                    </Link>
+                  }
+                />
+              </Cond>
+              <Cond>
+                <EmptyState message={t("emptyResultsMessage")} />
+              </Cond>
+            </ChooseOne>
+          </TableCell>
+        </TableRow>
+      </Cond>
+      <Cond>
+        {workspaceRefs &&
+          workspaceRefs.map((workspaceRef) => (
+            <WorkspacesRow workspaceRef={workspaceRef} key={workspaceRef.id} />
+          ))}
+      </Cond>
+    </ChooseOne>
   )
 }
