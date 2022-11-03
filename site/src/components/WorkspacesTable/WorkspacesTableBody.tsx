@@ -6,7 +6,7 @@ import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { Link as RouterLink, useSearchParams } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
 import { workspaceFilterQuery } from "../../util/filters"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { EmptyState } from "../EmptyState/EmptyState"
@@ -17,15 +17,14 @@ interface TableBodyProps {
   isLoading?: boolean
   workspaceRefs?: WorkspaceItemMachineRef[]
   filter?: string
+  isNonInitialPage: boolean
 }
 
 export const WorkspacesTableBody: FC<
   React.PropsWithChildren<TableBodyProps>
-> = ({ isLoading, workspaceRefs, filter }) => {
-  const [searchParams, _] = useSearchParams()
-  const page = parseInt(searchParams.get("page") ?? "1")
+> = ({ isLoading, workspaceRefs, filter, isNonInitialPage }) => {
   const { t } = useTranslation("workspacesPage")
-  console.log(searchParams.get("page"), page)
+  console.log(isNonInitialPage)
 
   return (
     <ChooseOne>
@@ -36,7 +35,7 @@ export const WorkspacesTableBody: FC<
         <TableRow>
           <TableCell colSpan={999}>
             <ChooseOne>
-              <Cond condition={page > 1}>
+              <Cond condition={isNonInitialPage}>
                 <EmptyState message={t("emptyPageMessage")} />
               </Cond>
               <Cond condition={filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all}>

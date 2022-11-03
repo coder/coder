@@ -36,6 +36,7 @@ export interface WorkspacesPageViewProps {
   filter?: string
   onFilter: (query: string) => void
   paginationRef: PaginationMachineRef
+  isNonInitialPage: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -49,6 +50,7 @@ export const WorkspacesPageView: FC<
   filter,
   onFilter,
   paginationRef,
+  isNonInitialPage
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
@@ -105,6 +107,7 @@ export const WorkspacesPageView: FC<
         isLoading={isLoading}
         workspaceRefs={workspaceRefs}
         filter={filter}
+        isNonInitialPage={isNonInitialPage}
       />
 
       <PaginationWidget numRecords={count} paginationRef={paginationRef} />
