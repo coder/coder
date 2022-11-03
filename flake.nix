@@ -41,6 +41,7 @@
             shfmt
             sqlc
             terraform
+            tflint
             typos
             yarn
             zip

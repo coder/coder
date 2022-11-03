@@ -374,7 +374,7 @@ else
 endif
 .PHONY: fmt/shfmt
 
-lint: lint/shellcheck lint/go
+lint: lint/shellcheck lint/tflint lint/go
 .PHONY: lint
 
 lint/go:
@@ -387,6 +387,13 @@ lint/shellcheck: $(shell shfmt -f .)
 	echo "--- shellcheck"
 	shellcheck --external-sources $(shell shfmt -f .)
 .PHONY: lint/shellcheck
+
+lint/tflint: $(shell ls -d examples/templates/*/*.tf) $(shell ls -d dogfood/*.tf)
+	tflint --init
+	for i in $^ ; do \
+        tflint $$i ; \
+    done
+.PHONY: lint/tflint
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \

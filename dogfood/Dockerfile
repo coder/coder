@@ -172,6 +172,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \
     dpkg -i gh.deb
 
+# Install tflint
+RUN curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
 # Install frontend utilities
 RUN apt-get update && \
     # Node.js (from nodesource) and Yarn (from yarnpkg)
