@@ -236,7 +236,7 @@ func newConfig() *codersdk.DeploymentConfig {
 
 		Telemetry: &codersdk.TelemetryConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{
-				Name:    "Telemetry",
+				Name:    "Telemetry Enable",
 				Usage:   "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
 				Flag:    "telemetry",
 				Default: flag.Lookup("test.v") == nil,
