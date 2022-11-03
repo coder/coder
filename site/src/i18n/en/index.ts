@@ -7,6 +7,7 @@ import workspacePage from "./workspacePage.json"
 import agent from "./agent.json"
 import buildPage from "./buildPage.json"
 import workspacesPage from "./workspacesPage.json"
+import usersPage from "./usersPage.json"
 
 export const en = {
   common,
@@ -18,4 +19,5 @@ export const en = {
   agent,
   buildPage,
   workspacesPage,
+  usersPage,
 }
