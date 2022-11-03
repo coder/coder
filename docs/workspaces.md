@@ -76,7 +76,7 @@ Use the following command to re-enter template input
 variables in an existing workspace. This command is useful when a workspace fails
 to build because its state is out of sync with the template.
 
-```console
+```sh
 coder update <your workspace name> --always-prompt
 ```
 
