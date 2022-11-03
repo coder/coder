@@ -468,16 +468,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
-			if err != nil {
-				return xerrors.Errorf("parse telemetry url: %w", err)
-			}
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
 			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.Telemetry.Enable.Flag) {
 				cfg.Telemetry.Enable.Value = false
 			}
 			if cfg.Telemetry.Enable.Value {
+				// Parse the raw telemetry URL!
+				telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
+				if err != nil {
+					return xerrors.Errorf("parse telemetry url: %w", err)
+				}
+
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
