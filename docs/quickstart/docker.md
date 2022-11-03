@@ -15,7 +15,7 @@ Coder with Docker has the following advantages:
 
 1. Run Coder with Docker.
 
-    ```sh
+    ```shell
     export CODER_DATA=$HOME/.config/coderv2-docker
     export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
     mkdir -p $CODER_DATA
