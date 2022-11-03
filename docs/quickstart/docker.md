@@ -40,7 +40,7 @@ Coder with Docker has the following advantages:
 
 1.  Pull the "Docker" example template using the interactive `coder templates init`:
 
-    ```sh
+    ```shell
     coder templates init
     cd docker
     ```
