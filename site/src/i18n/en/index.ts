@@ -17,5 +17,5 @@ export const en = {
   createWorkspacePage,
   agent,
   buildPage,
-  workspacesPage
+  workspacesPage,
 }

@@ -50,7 +50,7 @@ export const WorkspacesPageView: FC<
   filter,
   onFilter,
   paginationRef,
-  isNonInitialPage
+  isNonInitialPage,
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },

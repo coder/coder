@@ -38,7 +38,12 @@ export const WorkspacesTableBody: FC<
               <Cond condition={isNonInitialPage}>
                 <EmptyState message={t("emptyPageMessage")} />
               </Cond>
-              <Cond condition={filter === workspaceFilterQuery.me || filter === workspaceFilterQuery.all}>
+              <Cond
+                condition={
+                  filter === workspaceFilterQuery.me ||
+                  filter === workspaceFilterQuery.all
+                }
+              >
                 <EmptyState
                   message={t("emptyCreateWorkspaceMessage")}
                   description={t("emptyCreateWorkspaceDescription")}
