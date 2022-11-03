@@ -18,10 +18,10 @@ import (
 var (
 	// TerraformVersion is the version of Terraform used internally
 	// when Terraform is not available on the system.
-	TerraformVersion = version.Must(version.NewVersion("1.3.0"))
+	TerraformVersion = version.Must(version.NewVersion("1.3.4"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.3.0"))
+	maxTerraformVersion = version.Must(version.NewVersion("1.3.4"))
 
 	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )
