@@ -299,17 +299,15 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		}
 	}
 
-	var (
-		filter = database.GetAuditLogsOffsetParams{
-			ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
-			ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
-			Action:       actionFromString(parser.String(searchParams, "", "action")),
-			Username:     parser.String(searchParams, "", "username"),
-			Email:        parser.String(searchParams, "", "email"),
-			DateFrom:     parsedDateFrom,
-			DateTo:       parsedDateTo,
-		}
-	)
+	filter := database.GetAuditLogsOffsetParams{
+		ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
+		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
+		Action:       actionFromString(parser.String(searchParams, "", "action")),
+		Username:     parser.String(searchParams, "", "username"),
+		Email:        parser.String(searchParams, "", "email"),
+		DateFrom:     parsedDateFrom,
+		DateTo:       parsedDateTo,
+	}
 
 	return filter, parser.Errors
 }

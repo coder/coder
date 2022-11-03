@@ -2995,12 +2995,12 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
-		if arg.DateFrom != (time.Time{}) {
+		if !arg.DateFrom.IsZero() {
 			if alog.Time.Before(arg.DateFrom) {
 				continue
 			}
 		}
-		if arg.DateTo != (time.Time{}) {
+		if !arg.DateTo.IsZero() {
 			if alog.Time.After(arg.DateTo) {
 				continue
 			}
@@ -3067,12 +3067,12 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 				continue
 			}
 		}
-		if arg.DateFrom != (time.Time{}) {
+		if !arg.DateFrom.IsZero() {
 			if alog.Time.Before(arg.DateFrom) {
 				continue
 			}
 		}
-		if arg.DateTo != (time.Time{}) {
+		if !arg.DateTo.IsZero() {
 			if alog.Time.After(arg.DateTo) {
 				continue
 			}
