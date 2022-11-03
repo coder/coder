@@ -156,22 +156,19 @@ func workspaceAgent() *cobra.Command {
 			closer := agent.New(agent.Options{
 				Client: client,
 				Logger: logger,
-				ExchangeToken: func(ctx context.Context) error {
+				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
-						return nil
+						return client.SessionToken, nil
 					}
 					resp, err := exchangeToken(ctx)
 					if err != nil {
-						return err
+						return "", err
 					}
 					client.SessionToken = resp.SessionToken
-					return nil
+					return "", nil
 				},
 				EnvironmentVariables: map[string]string{
-					// Override the "CODER_AGENT_TOKEN" variable in all
-					// shells so "gitssh" and "gitaskpass" works!
-					"CODER_AGENT_TOKEN": client.SessionToken,
-					"GIT_ASKPASS":       executablePath,
+					"GIT_ASKPASS": executablePath,
 				},
 			})
 			<-cmd.Context().Done()
