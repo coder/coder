@@ -23,7 +23,7 @@ Coder configuration is defined via [environment variables](../admin/configure.md
 The database client requires the connection string provided via the `CODER_PG_CONNECTION_URL` variable.
 
 ```sh
-export CODER_PG_CONNECTION_URL="postgres://coder@localhost/coder?password=secret42&sslmode=disable"
+export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable"
 ```
 
 ## Custom schema
@@ -50,7 +50,7 @@ Once the schema is created, you can list all schemas with `\dn`:
 In this case the database client requires the modified connection string:
 
 ```sh
-export CODER_PG_CONNECTION_URL="postgres://coder@localhost/coder?password=secret42&sslmode=disable&search_path=myschema"
+export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable&search_path=myschema"
 ```
 
 The `search_path` parameter determines the order of schemas in which they are visited while looking for a specific table.
