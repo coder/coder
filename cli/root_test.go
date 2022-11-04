@@ -54,12 +54,10 @@ func TestCommandHelp(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			// Unset all CODER_ environment variables for a clean slate.
+			// Unset all environment variables for a clean slate.
 			for _, kv := range os.Environ() {
 				name := strings.Split(kv, "=")[0]
-				if _, ok := tt.env[name]; !ok && strings.HasPrefix(name, "CODER_") {
-					t.Setenv(name, "")
-				}
+				t.Setenv(name, "")
 			}
 			// Override environment variables for a reproducible test.
 			for k, v := range tt.env {
