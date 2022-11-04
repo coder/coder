@@ -295,6 +295,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:  "Trace Enable",
 				Usage: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
 				Flag:  "trace",
+				Env:   "CODER_TRACE", // Override default environment.
 			},
 			HoneycombAPIKey: &codersdk.DeploymentConfigField[string]{
 				Name:   "Trace Honeycomb API Key",

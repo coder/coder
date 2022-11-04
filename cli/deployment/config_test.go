@@ -117,7 +117,7 @@ func TestConfig(t *testing.T) {
 	}, {
 		Name: "Trace",
 		Env: map[string]string{
-			"CODER_TRACE_ENABLE":            "true",
+			"CODER_TRACE":                   "true",
 			"CODER_TRACE_HONEYCOMB_API_KEY": "my-honeycomb-key",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
@@ -212,6 +212,7 @@ func TestConfig(t *testing.T) {
 	}, {
 		Name: "Env fields are populated with manual or automatic name",
 		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Trace.Enable.Env, "CODER_TRACE")                    // Manual
 			require.Equal(t, config.Telemetry.Enable.Env, "CODER_TELEMETRY")            // Manual
 			require.Equal(t, config.Prometheus.Address.Env, "CODER_PROMETHEUS_ADDRESS") // Automatic
 		},
