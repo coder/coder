@@ -49,7 +49,7 @@ For more examples, see `coder port-forward --help`.
 > URL is not specified, Coder will create [a publicly accessible
 > URL](../admin/configure#tunnel) to reverse proxy the deployment, and port
 > forwarding will work. There is a known limitation where if the port forwarding
-> URL length is greater than 63 characters, port fordwarding will not work.
+> URL length is greater than 63 characters, port forwarding will not work.
 
 ### From an arbitrary port
 
