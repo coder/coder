@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
@@ -34,6 +35,7 @@ const (
 
 type Runner struct {
 	tracer              trace.Tracer
+	metrics             Metrics
 	job                 *proto.AcquiredJob
 	sender              JobUpdater
 	logger              slog.Logger
@@ -65,6 +67,12 @@ type Runner struct {
 	okToSend bool
 }
 
+type Metrics struct {
+	ConcurrentJobs *prometheus.GaugeVec
+	// JobTimings also counts the total amount of jobs.
+	JobTimings *prometheus.HistogramVec
+}
+
 type JobUpdater interface {
 	UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	FailJob(ctx context.Context, in *proto.FailedJob) error
@@ -82,6 +90,7 @@ func NewRunner(
 	updateInterval time.Duration,
 	forceCancelInterval time.Duration,
 	tracer trace.Tracer,
+	metrics Metrics,
 ) *Runner {
 	m := new(sync.Mutex)
 
@@ -91,6 +100,7 @@ func NewRunner(
 
 	return &Runner{
 		tracer:              tracer,
+		metrics:             metrics,
 		job:                 job,
 		sender:              updater,
 		logger:              logger.With(slog.F("job_id", job.JobId)),
@@ -120,8 +130,21 @@ func NewRunner(
 // that goroutine on the context passed into Fail(), and it marks okToSend false to signal us here
 // that this function should not also send a terminal message.
 func (r *Runner) Run() {
+	start := time.Now()
 	ctx, span := r.startTrace(r.notStopped, tracing.FuncName())
 	defer span.End()
+
+	concurrentGauge := r.metrics.ConcurrentJobs.WithLabelValues(r.job.Provisioner)
+	concurrentGauge.Inc()
+	defer func() {
+		status := "success"
+		if r.failedJob != nil {
+			status = "failed"
+		}
+
+		concurrentGauge.Dec()
+		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(float64(time.Since(start).Milliseconds()))
+	}()
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()

@@ -33,11 +33,6 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 	go func() {
 		defer ticker.Stop()
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
 			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, database.Now().Add(-1*time.Hour))
 			if err != nil {
 				continue
@@ -47,6 +42,12 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 				distinctUsers[apiKey.UserID] = struct{}{}
 			}
 			gauge.Set(float64(len(distinctUsers)))
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
 	}()
 	return cancelFunc, nil
@@ -77,11 +78,6 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 	go func() {
 		defer ticker.Stop()
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
 			builds, err := db.GetLatestWorkspaceBuilds(ctx)
 			if err != nil {
 				continue
@@ -99,6 +95,12 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 			for _, job := range jobs {
 				status := coderd.ConvertProvisionerJobStatus(job)
 				gauge.WithLabelValues(string(status)).Add(1)
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
 			}
 		}
 	}()
