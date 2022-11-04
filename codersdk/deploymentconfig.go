@@ -131,6 +131,7 @@ type DeploymentConfigField[T Flaggable] struct {
 	Name       string `json:"name"`
 	Usage      string `json:"usage"`
 	Flag       string `json:"flag"`
+	Env        string `json:"env"`
 	Shorthand  string `json:"shorthand"`
 	Enterprise bool   `json:"enterprise"`
 	Hidden     bool   `json:"hidden"`
@@ -146,6 +147,7 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 		Name       string `json:"name"`
 		Usage      string `json:"usage"`
 		Flag       string `json:"flag"`
+		Env        string `json:"env"`
 		Shorthand  string `json:"shorthand"`
 		Enterprise bool   `json:"enterprise"`
 		Hidden     bool   `json:"hidden"`
@@ -156,6 +158,7 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 		Name:       f.Name,
 		Usage:      f.Usage,
 		Flag:       f.Flag,
+		Env:        f.Env,
 		Shorthand:  f.Shorthand,
 		Enterprise: f.Enterprise,
 		Hidden:     f.Hidden,

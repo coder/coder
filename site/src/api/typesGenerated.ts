@@ -310,6 +310,7 @@ export interface DeploymentConfigField<T extends Flaggable> {
   readonly name: string
   readonly usage: string
   readonly flag: string
+  readonly env: string
   readonly shorthand: string
   readonly enterprise: boolean
   readonly hidden: boolean

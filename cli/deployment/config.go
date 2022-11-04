@@ -239,6 +239,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:    "Telemetry Enable",
 				Usage:   "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
 				Flag:    "telemetry",
+				Env:     "CODER_TELEMETRY", // Override default environment.
 				Default: flag.Lookup("test.v") == nil,
 			},
 			Trace: &codersdk.DeploymentConfigField[bool]{
@@ -396,22 +397,26 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 	// otherwise Viper will get confused if the parent struct is
 	// assigned a value.
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
+		env := val.FieldByName("Env").String()
+		if env == "" {
+			env = formatEnv(prefix)
+		}
 		value := val.FieldByName("Value").Interface()
 		switch value.(type) {
 		case string:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetString(vip.GetString(prefix))
 		case bool:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetBool(vip.GetBool(prefix))
 		case int:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetInt(int64(vip.GetInt(prefix)))
 		case time.Duration:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetInt(int64(vip.GetDuration(prefix)))
 		case []string:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			// As of October 21st, 2022 we supported delimiting a string
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
@@ -569,15 +574,20 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 		if flg == "" {
 			return
 		}
+
+		env := val.FieldByName("Env").String()
+		if env == "" {
+			env = formatEnv(prefix)
+		}
 		usage := val.FieldByName("Usage").String()
-		usage = fmt.Sprintf("%s\n%s", usage, cliui.Styles.Placeholder.Render("Consumes $"+formatEnv(prefix)))
+		usage = fmt.Sprintf("%s\n%s", usage, cliui.Styles.Placeholder.Render("Consumes $"+env))
 		shorthand := val.FieldByName("Shorthand").String()
 		hidden := val.FieldByName("Hidden").Bool()
 		value := val.FieldByName("Default").Interface()
 
 		// Allow currently set environment variables
 		// to override default values in help output.
-		vip.MustBindEnv(prefix, formatEnv(prefix))
+		vip.MustBindEnv(prefix, env)
 
 		switch value.(type) {
 		case string:

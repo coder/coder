@@ -35,7 +35,7 @@ func TestConfig(t *testing.T) {
 			"CODER_PROVISIONER_DAEMONS":  "5",
 			"CODER_SECURE_AUTH_COOKIE":   "true",
 			"CODER_SSH_KEYGEN_ALGORITHM": "potato",
-			"CODER_TELEMETRY":            "false",
+			"CODER_TELEMETRY":            "true",
 			"CODER_TELEMETRY_TRACE":      "false",
 			"CODER_WILDCARD_ACCESS_URL":  "something-wildcard.com",
 		},
@@ -50,7 +50,7 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.ProvisionerDaemons.Value, 5)
 			require.Equal(t, config.SecureAuthCookie.Value, true)
 			require.Equal(t, config.SSHKeygenAlgorithm.Value, "potato")
-			require.Equal(t, config.Telemetry.Enable.Value, false)
+			require.Equal(t, config.Telemetry.Enable.Value, true)
 			require.Equal(t, config.Telemetry.Trace.Value, false)
 			require.Equal(t, config.WildcardAccessURL.Value, "something-wildcard.com")
 		},
