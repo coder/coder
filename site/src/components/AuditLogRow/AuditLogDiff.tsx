@@ -83,14 +83,12 @@ const useStyles = makeStyles((theme) => ({
   },
 
   diffColumn: {
-    width: "50%",
+    flex: 1,
     paddingTop: theme.spacing(2),
     paddingBottom: theme.spacing(2.5),
     paddingRight: theme.spacing(2),
     lineHeight: "160%",
     alignSelf: "stretch",
-    maxWidth: "50%",
-    overflowX: "auto",
   },
 
   diffOld: {
