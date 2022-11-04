@@ -74,16 +74,19 @@ func TestCommandHelp(t *testing.T) {
 			err := root.ExecuteContext(ctx)
 			require.NoError(t, err)
 
+			got := buf.Bytes()
+			// Remove CRLF newlines (Windows).
+			got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
+
 			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
 				t.Logf("update golden file for: %q: %s", tt.name, gf)
-				err = os.WriteFile(gf, buf.Bytes(), 0o600)
+				err = os.WriteFile(gf, got, 0o600)
 				require.NoError(t, err, "update golden file")
 			}
 
 			want, err := os.ReadFile(gf)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
-			got := buf.Bytes()
 			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
 		})
 	}
