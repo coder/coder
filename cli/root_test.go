@@ -87,6 +87,8 @@ func TestCommandHelp(t *testing.T) {
 
 			want, err := os.ReadFile(gf)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
+			// Remove CRLF newlines (Windows).
+			want = bytes.ReplaceAll(want, []byte{'\r', '\n'}, []byte{'\n'})
 			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
 		})
 	}
