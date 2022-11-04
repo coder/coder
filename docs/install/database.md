@@ -67,7 +67,7 @@ search_path
 Using the `search_path` in the connection string corresponds to the following `psql` command:
 
 ```sql
-SET search_path TO myschema;
+ALTER ROLE coder SET search_path = myschema;
 ```
 
 ## Troubleshooting
