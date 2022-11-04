@@ -97,8 +97,8 @@ much data as possible.
 There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
-- Partial fixtures [`migrations/testdata/fixtures`](./coderd/database/migrations/testdata/fixtures)
-- Full database dumps [`migrations/testdata/full_dumps`](./coderd/database/migrations/testdata/full_dumps)
+- Partial fixtures [`migrations/testdata/fixtures`](../coderd/database/migrations/testdata/fixtures)
+- Full database dumps [`migrations/testdata/full_dumps`](../coderd/database/migrations/testdata/full_dumps)
 
 Both types behave like database migrations (they also [`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors Coder migrations such that when migration
 number `000022` is applied, fixture `000022` is applied afterwards.
@@ -119,7 +119,7 @@ $ ./coderd/database/migrations/create_fixture.sh my fixture
 ```
 
 Then add some queries to insert data and commit the file to the repo. See
-[`000024_example.up.sql`](./coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
+[`000024_example.up.sql`](../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
 for an example.
 
 To create a full dump, run a fully fledged Coder deployment and use it to
