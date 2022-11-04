@@ -212,8 +212,8 @@ func TestConfig(t *testing.T) {
 	}, {
 		Name: "Env fields are populated with manual or automatic name",
 		Valid: func(config *codersdk.DeploymentConfig) {
-			require.Equal(t, config.Telemetry.Enable.Env, "CODER_TELEMETRY")
-			require.Equal(t, config.Prometheus.Address.Env, "CODER_PROMETHEUS_ADDRESS")
+			require.Equal(t, config.Telemetry.Enable.Env, "CODER_TELEMETRY")            // Manual
+			require.Equal(t, config.Prometheus.Address.Env, "CODER_PROMETHEUS_ADDRESS") // Automatic
 		},
 	}} {
 		tc := tc
