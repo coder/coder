@@ -15,9 +15,6 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 (
 	cd "$SCRIPT_DIR"
 
-	# if migration name is an empty string exit
-	[[ -z "${*}" ]] && (echo "Must provide a fixture name" && exit 1)
-
 	latest_migration=$(basename "$(find . -maxdepth 1 -name "*.up.sql" | sort -n | tail -n 1)")
 	if [[ -n "${*}" ]]; then
 		name=$*
