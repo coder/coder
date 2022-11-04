@@ -505,23 +505,21 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.Value, "pprof")()
 			}
 			if cfg.Prometheus.Enable.Value {
-				options.PrometheusRegistry = prometheus.NewRegistry()
-				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+				options.PrometheusRegisterer = prometheus.DefaultRegisterer
+				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegisterer, options.Database, 0)
 				if err != nil {
 					return xerrors.Errorf("register active users prometheus metric: %w", err)
 				}
 				defer closeUsersFunc()
 
-				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegisterer, options.Database, 0)
 				if err != nil {
 					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
 				}
 				defer closeWorkspacesFunc()
 
 				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
-					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				), cfg.Prometheus.Address.Value, "prometheus")()
+				defer serveHandler(ctx, logger, promhttp.Handler(), cfg.Prometheus.Address.Value, "prometheus")()
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
