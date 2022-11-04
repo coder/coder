@@ -69,7 +69,10 @@ WHERE
 		WHEN cardinality(@rbac_role :: text[]) > 0 AND 'member' != ANY(@rbac_role :: text[])
 		THEN rbac_roles && @rbac_role :: text[]
 		ELSE true
-	END;
+	END
+	-- Authorize Filter clause will be injected below in GetAuthorizedUserCount
+	-- @authorize_filter
+;
 
 -- name: InsertUser :one
 INSERT INTO

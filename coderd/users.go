@@ -263,18 +263,13 @@ func (api *API) userCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count, err := api.Database.GetFilteredUserCount(ctx, database.GetFilteredUserCountParams{
+	count, err := api.Database.GetAuthorizedUserCount(ctx, database.GetFilteredUserCountParams{
 		Search:   params.Search,
 		Status:   params.Status,
 		RbacRole: params.RbacRole,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
-		httpapi.Forbidden(rw)
 		return
 	}
 

@@ -457,7 +457,12 @@ func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	return active, nil
 }
 
-func (q *fakeQuerier) GetFilteredUserCount(_ context.Context, params database.GetFilteredUserCountParams) (int64, error) {
+func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
+	count, err := q.GetAuthorizedUserCount(ctx, arg, nil)
+	return count, err
+}
+
+func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -506,6 +511,13 @@ func (q *fakeQuerier) GetFilteredUserCount(_ context.Context, params database.Ge
 		}
 
 		users = usersFilteredByRole
+	}
+
+	for _, user := range q.workspaces {
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(user.RBACObject()) {
+			continue
+		}
 	}
 
 	return int64(len(users)), nil
