@@ -221,12 +221,18 @@ func (a *agent) run(ctx context.Context) error {
 }
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*tailnet.Conn, error) {
+	a.closeMutex.Lock()
+	if a.isClosed() {
+		a.closeMutex.Unlock()
+		return nil, xerrors.New("closed")
+	}
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
 	if err != nil {
+		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	a.network = network
@@ -237,14 +243,13 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		}
 		return a.stats.wrapConn(conn)
 	})
+	a.connCloseWait.Add(4)
+	a.closeMutex.Unlock()
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -260,9 +265,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -298,9 +300,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -323,9 +322,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		defer statisticsListener.Close()
@@ -569,7 +565,6 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// Set environment variables reliable detection of being inside a
 	// Coder workspace.
 	cmd.Env = append(cmd.Env, "CODER=true")
-
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
@@ -584,6 +579,10 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	dstAddr, dstPort := "0.0.0.0", "0"
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
+
+	// This adds the ports dialog to code-server that enables
+	// proxying a port dynamically.
+	cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", metadata.VSCodePortProxyURI))
 
 	// Hide Coder message on code-server's "Getting Started" page
 	cmd.Env = append(cmd.Env, "CS_DISABLE_GETTING_STARTED_OVERRIDE=true")

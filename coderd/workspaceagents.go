@@ -83,6 +83,46 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resource.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	vscodeProxyURI := strings.ReplaceAll(api.AppHostname, "*",
+		fmt.Sprintf("%s://{{port}}--%s--%s--%s",
+			api.AccessURL.Scheme,
+			workspaceAgent.Name,
+			workspace.Name,
+			owner.Username,
+		))
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentMetadata{
 		Apps:                 convertApps(dbApps),
@@ -91,6 +131,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
 		Directory:            apiAgent.Directory,
+		VSCodePortProxyURI:   vscodeProxyURI,
 	})
 }
 

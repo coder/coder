@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -559,6 +560,7 @@ func TestAgent(t *testing.T) {
 			agentID: uuid.New(),
 			metadata: codersdk.WorkspaceAgentMetadata{
 				GitAuthConfigs: 1,
+				DERPMap:        &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *codersdk.AgentStats),
 			coordinator: tailnet.NewCoordinator(),
