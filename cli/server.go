@@ -516,14 +516,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				defer closeUsersFunc()
 
-				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegisterer, options.Database, 0)
+				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
 					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
 				}
 				defer closeWorkspacesFunc()
 
 				//nolint:revive
-				defer serveHandler(ctx, logger, promhttp.Handler(), cfg.Prometheus.Address.Value, "prometheus")()
+				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+				), cfg.Prometheus.Address.Value, "prometheus")()
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
