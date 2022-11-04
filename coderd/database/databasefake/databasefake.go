@@ -461,7 +461,7 @@ func (q *fakeQuerier) GetFilteredUserCount(_ context.Context, params database.Ge
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	users := make([]database.User, len(q.users))
+	users := append([]database.User{}, q.users...)
 
 	if params.Deleted {
 		tmp := make([]database.User, 0, len(users))
