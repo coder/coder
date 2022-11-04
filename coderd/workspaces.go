@@ -37,11 +37,10 @@ var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
 	ttlMax = 7 * 24 * time.Hour
 
-	errTTLMin                  = xerrors.New("time until shutdown must be at least one minute")
-	errTTLMax                  = xerrors.New("time until shutdown must be less than 7 days")
-	errDeadlineTooSoon         = xerrors.New("new deadline must be at least 30 minutes in the future")
-	errDeadlineBeforeStart     = xerrors.New("new deadline must be before workspace start time")
-	errDeadlineOverTemplateMax = xerrors.New("new deadline is greater than template allows")
+	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
+	errTTLMax              = xerrors.New("time until shutdown must be less than 7 days")
+	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
+	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
 
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
