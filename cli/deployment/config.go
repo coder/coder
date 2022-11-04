@@ -385,6 +385,18 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfi
 	return dc, nil
 }
 
+func setEnv(prefix string, vip *viper.Viper, val reflect.Value) {
+	env := val.FieldByName("Env").String()
+	if env == "" {
+		env = formatEnv(prefix)
+	}
+	// Ensure the Env field is always populated.
+	val.FieldByName("Env").SetString(env)
+
+	// Ensure the auto-generated or manually named env is bound.
+	vip.MustBindEnv(prefix, env)
+}
+
 func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 	val := reflect.Indirect(reflect.ValueOf(target))
 	typ := val.Type()
@@ -397,26 +409,22 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 	// otherwise Viper will get confused if the parent struct is
 	// assigned a value.
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
-		env := val.FieldByName("Env").String()
-		if env == "" {
-			env = formatEnv(prefix)
-		}
 		value := val.FieldByName("Value").Interface()
 		switch value.(type) {
 		case string:
-			vip.MustBindEnv(prefix, env)
+			setEnv(prefix, vip, val)
 			val.FieldByName("Value").SetString(vip.GetString(prefix))
 		case bool:
-			vip.MustBindEnv(prefix, env)
+			setEnv(prefix, vip, val)
 			val.FieldByName("Value").SetBool(vip.GetBool(prefix))
 		case int:
-			vip.MustBindEnv(prefix, env)
+			setEnv(prefix, vip, val)
 			val.FieldByName("Value").SetInt(int64(vip.GetInt(prefix)))
 		case time.Duration:
-			vip.MustBindEnv(prefix, env)
+			setEnv(prefix, vip, val)
 			val.FieldByName("Value").SetInt(int64(vip.GetDuration(prefix)))
 		case []string:
-			vip.MustBindEnv(prefix, env)
+			setEnv(prefix, vip, val)
 			// As of October 21st, 2022 we supported delimiting a string
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
