@@ -199,6 +199,16 @@ func TestConfig(t *testing.T) {
 				Regex:        "gitlab.com",
 			}}, config.GitAuth.Value)
 		},
+	}, {
+		Name: "Wrong env must not break default values",
+		Env: map[string]string{
+			"CODER_PROMETHEUS_ENABLE": "true",
+			"CODER_PROMETHEUS":        "true", // Wrong env name, must not break prom addr.
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Prometheus.Enable.Value, true)
+			require.Equal(t, config.Prometheus.Address.Value, config.Prometheus.Address.Default)
+		},
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
