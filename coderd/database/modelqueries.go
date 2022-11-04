@@ -203,6 +203,6 @@ func insertAuthorizedFilter(query string, authorizedFilter rbac.AuthorizeFilter,
 	if !strings.Contains(query, replace) {
 		return "", xerrors.Errorf("query does not contain authorized replace string, this is not an authorized query")
 	}
-	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(config)), 1)
+	filter := strings.Replace(getWorkspaces, replace, fmt.Sprintf(" AND %s", authorizedFilter.SQLString(config)), 1)
 	return filter, nil
 }
