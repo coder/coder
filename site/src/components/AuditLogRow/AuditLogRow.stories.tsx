@@ -34,12 +34,31 @@ const Template: Story<AuditLogRowProps> = (args) => (
 
 export const NoDiff = Template.bind({})
 NoDiff.args = {
-  auditLog: MockAuditLog,
+  auditLog: {
+    ...MockAuditLog,
+    diff: {},
+  },
 }
 
 export const WithDiff = Template.bind({})
 WithDiff.args = {
   auditLog: MockAuditLog2,
+  defaultIsDiffOpen: true,
+}
+
+export const WithLongDiffRow = Template.bind({})
+WithLongDiffRow.args = {
+  auditLog: {
+    ...MockAuditLog2,
+    diff: {
+      ...MockAuditLog2.diff,
+      icon: {
+        old: "https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png",
+        new: "https://www.docker.com/wp-content/uploads/2022/03/vertical-logo-monochromatic.png",
+        secret: false,
+      },
+    },
+  },
   defaultIsDiffOpen: true,
 }
 
