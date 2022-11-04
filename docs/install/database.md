@@ -4,7 +4,7 @@ For production deployments, we recommend using an external [PostgreSQL](https://
 
 ## Basic configuration
 
-Before starting the Coder server, prepare the database server. Create a role and a database.
+Before starting the Coder server, prepare the database server by creating a role and a database.
 Remember that the role must have access to the created database.
 
 With `psql`:
