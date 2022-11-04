@@ -60,7 +60,7 @@ to log in and manage templates.
 1. Add the Coder Helm repo:
 
    ```console
-   helm repo add coder https://helm.coder.com/v2
+   helm repo add coder-v2 https://helm.coder.com/v2
    ```
 
 1. Create a secret with the database URL:
@@ -118,7 +118,7 @@ to log in and manage templates.
 1. Run the following command to install the chart in your cluster.
 
    ```sh
-   helm install coder coder/coder \
+   helm install coder coder-v2/coder \
        --namespace coder \
        --values values.yaml
    ```
@@ -142,7 +142,7 @@ you can run the following command:
 
 ```sh
 helm repo update
-helm upgrade coder coder/coder \
+helm upgrade coder coder-v2/coder \
   --namespace coder \
   -f values.yaml
 ```

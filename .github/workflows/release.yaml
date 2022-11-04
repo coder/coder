@@ -170,7 +170,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Authenticate to Google Cloud
-        id: auth
         uses: google-github-actions/auth@v0
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
@@ -181,6 +180,7 @@ jobs:
 
       - name: Publish Helm Chart
         run: |
+          set -euo pipefail
           version="$(./scripts/version.sh)"
           mkdir -p build/helm
           cp "build/coder_helm_${version}.tgz" build/helm
