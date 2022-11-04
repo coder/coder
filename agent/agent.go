@@ -226,14 +226,13 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		a.closeMutex.Unlock()
 		return nil, xerrors.New("closed")
 	}
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
 	if err != nil {
+		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	a.network = network
@@ -244,6 +243,8 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		}
 		return a.stats.wrapConn(conn)
 	})
+	a.connCloseWait.Add(4)
+	a.closeMutex.Unlock()
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
@@ -264,9 +265,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -302,9 +300,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -327,9 +322,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		defer statisticsListener.Close()
