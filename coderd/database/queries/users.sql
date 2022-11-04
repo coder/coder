@@ -37,7 +37,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::public.user_status AND deleted = false;
+    status = 'active'::user_status AND deleted = false;
 
 -- name: InsertUser :one
 INSERT INTO

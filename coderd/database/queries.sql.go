@@ -3907,7 +3907,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::public.user_status AND deleted = false
+    status = 'active'::user_status AND deleted = false
 `
 
 func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
