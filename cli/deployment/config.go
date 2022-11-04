@@ -137,7 +137,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		ProxyTrustedOrigins: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Origins",
 			Flag:  "proxy-trusted-origins",
-			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. example.com",
+			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
 		},
 		CacheDirectory: &codersdk.DeploymentConfigField[string]{
 			Name:    "Cache Directory",
