@@ -394,14 +394,16 @@ gen: \
 	coderd/database/querier.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
-	site/src/api/typesGenerated.ts
+	site/src/api/typesGenerated.ts \
+	cli/testdata/golden
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts"
-	for file in $$files; do
+	files=($$files cli/testdata/*.golden)
+	for file in "$${files[@]}"; do
 		echo "$$file"
 		if [ ! -f "$$file" ]; then
 			echo "File '$$file' does not exist"
@@ -442,6 +444,10 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site
 	yarn run format:types
+
+cli/testdata/golden: $(wildcard cli/testdata/*.golden)
+	go test ./cli -run=TestCommandHelp -update
+.PHONY: cli/testdata/golden
 
 test: test-clean
 	gotestsum -- -v -short ./...

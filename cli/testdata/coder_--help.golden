@@ -1,0 +1,67 @@
+Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
+
+Usage:
+  coder [flags]
+
+  coder [command]
+
+Get Started:
+  - Start a Coder server:                                                       
+
+      [;m$ coder server[0m 
+
+  - Get started by creating a template from an example:                         
+
+      [;m$ coder templates init[0m 
+
+Commands:
+  completion     Generate the autocompletion script for the specified shell
+  dotfiles       Checkout and install a dotfiles repository from a Git URL
+  help           Help about any command
+  login          Authenticate with Coder deployment
+  logout         Unauthenticate your local session
+  port-forward   Forward ports from machine to a workspace
+  publickey      Output your Coder public key used for Git operations
+  reset-password Directly connect to the database to reset a user's password
+  server         Start a Coder server
+  state          Manually manage Terraform state to fix broken workspaces
+  templates      Manage templates
+  tokens         Manage personal access tokens
+  users          Manage users
+  version        Show coder version
+
+Workspace Commands:
+  config-ssh     Add an SSH Host entry for your workspaces "ssh coder.workspace"
+  create         Create a workspace
+  delete         Delete a workspace
+  list           List workspaces
+  schedule       Schedule automated start and stop times for workspaces
+  show           Display details of a workspace's resources and agents
+  speedtest      Run upload and download tests from your machine to a workspace
+  ssh            Start a shell into a workspace
+  start          Start a workspace
+  stop           Stop a workspace
+  update         Update a workspace
+
+Flags:
+      --experimental          Enable experimental features. Experimental features are not
+                              ready for production.
+                              Consumes $CODER_EXPERIMENTAL
+      --global-config coder   Path to the global coder config directory.
+                              Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
+      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
+                              Consumes $CODER_HEADER
+  -h, --help                  help for coder
+      --no-feature-warning    Suppress warnings about unlicensed features.
+                              Consumes $CODER_NO_FEATURE_WARNING
+      --no-version-warning    Suppress warning when client and server versions do not match.
+                              Consumes $CODER_NO_VERSION_WARNING
+      --token string          Specify an authentication token. For security reasons setting
+                              CODER_SESSION_TOKEN is preferred.
+                              Consumes $CODER_SESSION_TOKEN
+      --url string            URL to a deployment.
+                              Consumes $CODER_URL
+  -v, --verbose               Enable verbose output.
+                              Consumes $CODER_VERBOSE
+
+Use "coder [command] --help" for more information about a command.
