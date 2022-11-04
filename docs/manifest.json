@@ -56,6 +56,11 @@
           "path": "./install/offline.md"
         },
         {
+          "title": "External database",
+          "description": "Use external PostgreSQL database",
+          "path": "./install/database.md"
+        },
+        {
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
