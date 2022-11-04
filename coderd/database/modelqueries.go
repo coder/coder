@@ -19,6 +19,7 @@ import (
 type customQuerier interface {
 	templateQuerier
 	workspaceQuerier
+	userQuerier
 }
 
 type templateQuerier interface {
