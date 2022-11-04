@@ -341,7 +341,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, time.Duration(template.DefaultTtl))
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, template.DefaultTtl)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -729,7 +729,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("fetch workspace template: %w", err)
 		}
 
-		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.DefaultTtl))
+		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTtl)
 		if err != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
@@ -1087,9 +1087,16 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, error) {
+func validWorkspaceTTLMillis(millis *int64, def int64) (sql.NullInt64, error) {
 	if ptr.NilOrZero(millis) {
-		return sql.NullInt64{}, nil
+		if def == 0 {
+			return sql.NullInt64{}, nil
+		}
+
+		return sql.NullInt64{
+			Int64: def,
+			Valid: true,
+		}, nil
 	}
 
 	dur := time.Duration(*millis) * time.Millisecond
@@ -1100,11 +1107,6 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 
 	if truncated > ttlMax {
 		return sql.NullInt64{}, errTTLMax
-	}
-
-	// template level
-	if max > 0 && truncated > max {
-		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be below template maximum %s", max.String())
 	}
 
 	return sql.NullInt64{
