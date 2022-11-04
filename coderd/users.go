@@ -273,6 +273,11 @@ func (api *API) userCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserCountResponse{
 		Count: count,
 	})
