@@ -56,7 +56,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
-	ExchangeToken          func(ctx context.Context) error
+	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
@@ -78,6 +78,11 @@ func New(options Options) io.Closer {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
+	if options.ExchangeToken == nil {
+		options.ExchangeToken = func(ctx context.Context) (string, error) {
+			return "", nil
+		}
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
@@ -97,7 +102,7 @@ func New(options Options) io.Closer {
 type agent struct {
 	logger        slog.Logger
 	client        Client
-	exchangeToken func(ctx context.Context) error
+	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
 
 	reconnectingPTYs       sync.Map
@@ -110,8 +115,9 @@ type agent struct {
 
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
-	metadata  atomic.Value
-	sshServer *ssh.Server
+	metadata     atomic.Value
+	sessionToken atomic.Pointer[string]
+	sshServer    *ssh.Server
 
 	network *tailnet.Conn
 	stats   *Stats
@@ -147,14 +153,13 @@ func (a *agent) run(ctx context.Context) error {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
-	if a.exchangeToken != nil {
-		err := a.exchangeToken(ctx)
-		if err != nil {
-			return xerrors.Errorf("exchange token: %w", err)
-		}
+	sessionToken, err := a.exchangeToken(ctx)
+	if err != nil {
+		return xerrors.Errorf("exchange token: %w", err)
 	}
+	a.sessionToken.Store(&sessionToken)
 
-	err := a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
+	err = a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
 	}
@@ -570,6 +575,9 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
+
+	// Specific Coder subcommands require the agent token exposed!
+	cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_AGENT_TOKEN=%s", *a.sessionToken.Load()))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
 	// and thus expected to be present by SSH clients). Since the agent does

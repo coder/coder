@@ -533,9 +533,9 @@ func TestAgent(t *testing.T) {
 		}
 		initialized := atomic.Int32{}
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
+			ExchangeToken: func(ctx context.Context) (string, error) {
 				initialized.Add(1)
-				return nil
+				return "", nil
 			},
 			Client: client,
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
@@ -567,8 +567,8 @@ func TestAgent(t *testing.T) {
 		}
 		filesystem := afero.NewMemMapFs()
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
-				return nil
+			ExchangeToken: func(ctx context.Context) (string, error) {
+				return "", nil
 			},
 			Client:     client,
 			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
