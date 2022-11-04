@@ -149,7 +149,6 @@ func setupMigrate(t *testing.T, db *sql.DB, name, path string) (source.Driver, *
 	require.NoError(t, err)
 
 	dbDriver, err := migratepostgres.WithConnection(ctx, conn, &migratepostgres.Config{
-		SchemaName:      "public",
 		MigrationsTable: "test_migrate_" + name,
 	})
 	require.NoError(t, err)
