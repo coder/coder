@@ -57,11 +57,10 @@ to log in and manage templates.
    [Postgres operator](https://github.com/zalando/postgres-operator) to
    manage PostgreSQL deployments on your Kubernetes cluster.
 
-1. Download the latest `coder_helm` package from
-   [GitHub releases](https://github.com/coder/coder/releases).
+1. Add the Coder Helm repo:
 
    ```console
-   wget https://github.com/coder/coder/releases/download/<release>/coder_helm_<release>.tgz
+   helm repo add coder-v2 https://helm.coder.com/v2
    ```
 
 1. Create a secret with the database URL:
@@ -116,10 +115,10 @@ to log in and manage templates.
    > [values.yaml](https://github.com/coder/coder/blob/main/helm/values.yaml)
    > file directly.
 
-1. Run the following commands to install the chart in your cluster.
+1. Run the following command to install the chart in your cluster.
 
    ```sh
-   helm install coder ./coder_helm_x.y.z.tgz \
+   helm install coder coder-v2/coder \
        --namespace coder \
        --values values.yaml
    ```
@@ -139,12 +138,13 @@ to log in and manage templates.
 ## Upgrading Coder via Helm
 
 To upgrade Coder in the future or change values,
-you can run the following command with a new `coder_helm_x.y.z.tgz` file from GitHub releases:
+you can run the following command:
 
-```console
-$ helm upgrade coder ./coder_helm_x.y.z.tgz \
-    --namespace coder \
-    -f values.yaml
+```sh
+helm repo update
+helm upgrade coder coder-v2/coder \
+  --namespace coder \
+  -f values.yaml
 ```
 
 ## Troubleshooting
