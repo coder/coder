@@ -456,9 +456,7 @@ export const workspaceMachine = createMachine(
                 on: {
                   REFRESH_TIMELINE: {
                     target: "#workspaceState.ready.timeline.gettingBuilds",
-                    cond: {
-                      type: "moreBuildsAvailable",
-                    },
+                    cond: "moreBuildsAvailable",
                   },
                 },
               },
