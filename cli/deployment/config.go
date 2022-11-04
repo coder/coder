@@ -370,7 +370,6 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfi
 		return nil, xerrors.Errorf("get global config from flag: %w", err)
 	}
 	vip.SetEnvPrefix("coder")
-	vip.AutomaticEnv()
 
 	if flg != "" {
 		vip.SetConfigFile(flg + "/server.yaml")
@@ -393,21 +392,26 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 		typ = val.Type()
 	}
 
-	// Manually bind to env to support CODER_$INDEX_$FIELD format for structured slices.
-	_ = vip.BindEnv(prefix, formatEnv(prefix))
-
+	// Ensure that we only bind env variables to proper fields,
+	// otherwise Viper will get confused if the parent struct is
+	// assigned a value.
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		value := val.FieldByName("Value").Interface()
 		switch value.(type) {
 		case string:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetString(vip.GetString(prefix))
 		case bool:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetBool(vip.GetBool(prefix))
 		case int:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetInt(int64(vip.GetInt(prefix)))
 		case time.Duration:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetInt(int64(vip.GetDuration(prefix)))
 		case []string:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			// As of October 21st, 2022 we supported delimiting a string
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
@@ -422,6 +426,7 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			}
 			val.FieldByName("Value").Set(reflect.ValueOf(value))
 		case []codersdk.GitAuthConfig:
+			// Do not bind to CODER_GITAUTH, instead bind to CODER_GITAUTH_0_*, etc.
 			values := readSliceFromViper[codersdk.GitAuthConfig](vip, prefix, value)
 			val.FieldByName("Value").Set(reflect.ValueOf(values))
 		default:
@@ -471,6 +476,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 				prop = fve.Tag.Get("yaml")
 			}
 			configKey := fmt.Sprintf("%s.%d.%s", key, entry, prop)
+
+			// Ensure the env entry for this key is registered
+			// before checking value.
+			vip.MustBindEnv(configKey, formatEnv(configKey))
+
 			value := vip.Get(configKey)
 			if value == nil {
 				continue
@@ -502,7 +512,6 @@ func NewViper() *viper.Viper {
 	dc := newConfig()
 	vip := viper.New()
 	vip.SetEnvPrefix("coder")
-	vip.AutomaticEnv()
 	vip.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 	setViperDefaults("", vip, dc)
@@ -565,6 +574,10 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 		shorthand := val.FieldByName("Shorthand").String()
 		hidden := val.FieldByName("Hidden").Bool()
 		value := val.FieldByName("Default").Interface()
+
+		// Allow currently set environment variables
+		// to override default values in help output.
+		vip.MustBindEnv(prefix, formatEnv(prefix))
 
 		switch value.(type) {
 		case string:
