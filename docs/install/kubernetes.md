@@ -48,7 +48,7 @@ to log in and manage templates.
    The cluster-internal DB URL for the above database is:
 
    ```console
-   postgres://coder:coder@postgres-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+   postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
    ```
 
    > Ensure you set up periodic backups so you don't lose data.
