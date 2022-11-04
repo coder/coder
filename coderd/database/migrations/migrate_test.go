@@ -256,8 +256,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 		if len(emptyTables) > 0 {
 			t.Logf("The following tables have zero rows, consider adding fixtures for them or create a full database dump:")
 			t.Errorf("tables have zero rows: %v", emptyTables)
-			// TODO(mafredri): Placeholder URL.
-			t.Logf("See https://github.com/coder/coder/blob/main/migrations/README.md#creating-fixtures for more information")
+			t.Logf("See https://github.com/coder/coder/blob/main/docs/CONTRIBUTING.md#database-fixtures-for-testing-migrations for more information")
 		}
 	})
 
