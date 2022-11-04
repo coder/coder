@@ -1,9 +1,6 @@
 -- Example:
 -- This migration is applied after migrations/000024_site_config.up.sql
+-- and inserts a value into site_configs that must not cause issues in
+-- future migrations.
 
--- noop
-/*
-
-INSERT INTO users (id, username, ...) VALUES ('583fb393-3cc8-4a38-accf-7182074f981f', 'user-that-could-break-in-the-future', ...);
-
-*/
+INSERT INTO site_configs(key, value) VALUES ('mytest', 'example');
