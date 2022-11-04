@@ -48,7 +48,6 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 				distinctUsers[apiKey.UserID] = struct{}{}
 			}
 			gauge.Set(float64(len(distinctUsers)))
-
 		}
 	}()
 	return cancelFunc, nil
