@@ -263,11 +263,20 @@ func (api *API) userCount(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceUser.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	count, err := api.Database.GetAuthorizedUserCount(ctx, database.GetFilteredUserCountParams{
 		Search:   params.Search,
 		Status:   params.Status,
 		RbacRole: params.RbacRole,
-	})
+	}, sqlFilter)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
