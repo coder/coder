@@ -82,9 +82,9 @@ func TestCommandHelp(t *testing.T) {
 			}
 
 			want, err := os.ReadFile(gf)
-			require.NoError(t, err, "read golden file, run \"make gen\" and commit the changes")
+			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 			got := buf.Bytes()
-			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make gen\", verify and commit the changes", gf)
+			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
 		})
 	}
 }
