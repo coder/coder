@@ -31,6 +31,16 @@ variable "namespace" {
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
 }
 
+variable "home_disk_size" {
+  type        = number
+  description = "How large would you like your home volume to be (in GB)?"
+  default     = 10
+  validation {
+    condition     = var.home_disk_size >= 1
+    error_message = "Value must be greater than or equal to 1."
+  }
+}
+
 provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
   config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
@@ -85,7 +95,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
     access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
-        storage = "10Gi"
+        storage = "${var.home_disk_size}Gi"
       }
     }
   }
@@ -103,9 +113,8 @@ resource "kubernetes_pod" "main" {
       fs_group    = "1000"
     }
     container {
-      name  = "dev"
-      image = "registry.gitlab.com/sharingio/environment/environment:2022.09.30.0909"
-      # image   = "codercom/enterprise-base:ubuntu"
+      name    = "dev"
+      image   = "codercom/enterprise-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
@@ -115,7 +124,7 @@ resource "kubernetes_pod" "main" {
         value = coder_agent.main.token
       }
       volume_mount {
-        mount_path = "/home/ii"
+        mount_path = "/home/coder"
         name       = "home"
         read_only  = false
       }
