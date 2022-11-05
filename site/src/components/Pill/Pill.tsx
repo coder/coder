@@ -1,6 +1,5 @@
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import { FC } from "react"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { PaletteIndex } from "theme/palettes"
 import { combineClasses } from "util/combineClasses"
 
@@ -28,20 +27,19 @@ export const Pill: FC<PillProps> = (props) => {
 
 const useStyles = makeStyles<Theme, PillProps>((theme) => ({
   wrapper: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
     display: "inline-flex",
     alignItems: "center",
     borderWidth: 1,
     borderStyle: "solid",
     borderRadius: 99999,
-    fontSize: 14,
-    fontWeight: 500,
+    fontSize: 12,
     color: "#FFF",
     height: theme.spacing(3),
     paddingLeft: ({ icon }) =>
       icon ? theme.spacing(0.75) : theme.spacing(1.5),
     paddingRight: theme.spacing(1.5),
     whiteSpace: "nowrap",
+    fontWeight: 400,
   },
 
   pillColor: {
@@ -57,16 +55,16 @@ const useStyles = makeStyles<Theme, PillProps>((theme) => ({
 
   iconWrapper: {
     marginRight: theme.spacing(0.5),
-    width: theme.spacing(2),
-    height: theme.spacing(2),
+    width: theme.spacing(1.75),
+    height: theme.spacing(1.75),
     lineHeight: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
 
     "& > svg": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
+      width: theme.spacing(1.75),
+      height: theme.spacing(1.75),
     },
   },
 }))

@@ -1,9 +1,11 @@
+import { BuildAvatar } from "components/BuildsTable/BuildAvatar"
 import { FC } from "react"
 import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
+  PageHeaderSubtitle,
   PageHeaderTitle,
 } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
@@ -29,11 +31,21 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 }) => {
   return (
     <Margins>
-      <PageHeader>
-        <PageHeaderTitle>Logs</PageHeaderTitle>
-      </PageHeader>
+      {build && (
+        <PageHeader>
+          <Stack direction="row" alignItems="center" spacing={3}>
+            <BuildAvatar build={build} size={48} />
+            <div>
+              <PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
+              <PageHeaderSubtitle condensed>
+                {build.initiator_name}
+              </PageHeaderSubtitle>
+            </div>
+          </Stack>
+        </PageHeader>
+      )}
 
-      <Stack>
+      <Stack spacing={4}>
         {build &&
           build.transition === "delete" &&
           build.job.status === "failed" && (

@@ -101,12 +101,13 @@ func speedtest() *cobra.Command {
 			}
 			tableWriter := cliui.Table()
 			tableWriter.AppendHeader(table.Row{"Interval", "Transfer", "Bandwidth"})
+			startTime := results[0].IntervalStart
 			for _, r := range results {
 				if r.Total {
 					tableWriter.AppendSeparator()
 				}
 				tableWriter.AppendRow(table.Row{
-					fmt.Sprintf("%.2f-%.2f sec", r.IntervalStart.Seconds(), r.IntervalEnd.Seconds()),
+					fmt.Sprintf("%.2f-%.2f sec", r.IntervalStart.Sub(startTime).Seconds(), r.IntervalEnd.Sub(startTime).Seconds()),
 					fmt.Sprintf("%.4f MBits", r.MegaBits()),
 					fmt.Sprintf("%.4f Mbits/sec", r.MBitsPerSecond()),
 				})

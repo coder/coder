@@ -539,10 +539,11 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 // ConvertWorkspaceResource anonymizes a workspace resource.
 func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceResource {
 	return WorkspaceResource{
-		ID:         resource.ID,
-		JobID:      resource.JobID,
-		Transition: resource.Transition,
-		Type:       resource.Type,
+		ID:           resource.ID,
+		JobID:        resource.JobID,
+		Transition:   resource.Transition,
+		Type:         resource.Type,
+		InstanceType: resource.InstanceType.String,
 	}
 }
 
@@ -667,10 +668,11 @@ type User struct {
 }
 
 type WorkspaceResource struct {
-	ID         uuid.UUID                    `json:"id"`
-	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"transition"`
-	Type       string                       `json:"type"`
+	ID           uuid.UUID                    `json:"id"`
+	JobID        uuid.UUID                    `json:"job_id"`
+	Transition   database.WorkspaceTransition `json:"transition"`
+	Type         string                       `json:"type"`
+	InstanceType string                       `json:"instance_type"`
 }
 
 type WorkspaceResourceMetadata struct {

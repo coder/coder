@@ -1,4 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
+import { createPaginationRef } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
 import { spawn } from "xstate"
 import {
@@ -87,6 +88,9 @@ export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
   argTypes: {
+    paginationRef: {
+      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
+    },
     workspaceRefs: {
       options: [
         ...Object.keys(workspaces),

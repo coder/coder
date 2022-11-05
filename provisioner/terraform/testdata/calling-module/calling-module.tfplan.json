@@ -66,7 +66,9 @@
       "name": "main",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
@@ -95,7 +97,9 @@
       "name": "script",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["read"],
+        "actions": [
+          "read"
+        ],
         "before": null,
         "after": {
           "inputs": {}
@@ -125,7 +129,9 @@
       "name": "example",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -143,7 +149,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.5.0"
+        "version_constraint": "0.6.0"
       },
       "module.module:null": {
         "name": "null",
@@ -175,7 +181,10 @@
           "source": "./module",
           "expressions": {
             "script": {
-              "references": ["coder_agent.main.init_script", "coder_agent.main"]
+              "references": [
+                "coder_agent.main.init_script",
+                "coder_agent.main"
+              ]
             }
           },
           "module": {
@@ -187,7 +196,9 @@
                 "name": "example",
                 "provider_config_key": "module.module:null",
                 "schema_version": 0,
-                "depends_on": ["data.null_data_source.script"]
+                "depends_on": [
+                  "data.null_data_source.script"
+                ]
               },
               {
                 "address": "data.null_data_source.script",
@@ -197,7 +208,9 @@
                 "provider_config_key": "module.module:null",
                 "expressions": {
                   "inputs": {
-                    "references": ["var.script"]
+                    "references": [
+                      "var.script"
+                    ]
                   }
                 },
                 "schema_version": 0
@@ -214,7 +227,9 @@
   "relevant_attributes": [
     {
       "resource": "coder_agent.main",
-      "attribute": ["init_script"]
+      "attribute": [
+        "init_script"
+      ]
     }
   ]
 }

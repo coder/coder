@@ -14,7 +14,9 @@ CREATE TYPE app_sharing_level AS ENUM (
 CREATE TYPE audit_action AS ENUM (
     'create',
     'write',
-    'delete'
+    'delete',
+    'start',
+    'stop'
 );
 
 CREATE TYPE build_reason AS ENUM (
@@ -88,7 +90,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace',
     'git_ssh_key',
     'api_key',
-    'group'
+    'group',
+    'workspace_build'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -130,7 +133,7 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::public.api_key_scope NOT NULL
+    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -209,7 +212,7 @@ CREATE SEQUENCE licenses_id_seq
     NO MAXVALUE
     CACHE 1;
 
-ALTER SEQUENCE licenses_id_seq OWNED BY public.licenses.id;
+ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
@@ -338,7 +341,7 @@ CREATE TABLE template_versions (
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
-    created_by uuid
+    created_by uuid NOT NULL
 );
 
 CREATE TABLE templates (
@@ -375,9 +378,9 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'active'::public.user_status NOT NULL,
+    status user_status DEFAULT 'active'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::public.login_type NOT NULL,
+    login_type login_type DEFAULT 'password'::login_type NOT NULL,
     avatar_url text,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
@@ -410,16 +413,17 @@ CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     agent_id uuid NOT NULL,
-    name character varying(64) NOT NULL,
+    display_name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
     command character varying(65534),
     url character varying(65534),
     healthcheck_url text DEFAULT ''::text NOT NULL,
     healthcheck_interval integer DEFAULT 0 NOT NULL,
     healthcheck_threshold integer DEFAULT 0 NOT NULL,
-    health workspace_app_health DEFAULT 'disabled'::public.workspace_app_health NOT NULL,
+    health workspace_app_health DEFAULT 'disabled'::workspace_app_health NOT NULL,
     subdomain boolean DEFAULT false NOT NULL,
-    sharing_level app_sharing_level DEFAULT 'owner'::public.app_sharing_level NOT NULL
+    sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    slug text NOT NULL
 );
 
 CREATE TABLE workspace_build_parameters (
@@ -440,7 +444,7 @@ CREATE TABLE workspace_builds (
     provisioner_state bytea,
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    reason build_reason DEFAULT 'initiator'::public.build_reason NOT NULL
+    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (
@@ -458,7 +462,8 @@ CREATE TABLE workspace_resources (
     type character varying(192) NOT NULL,
     name character varying(64) NOT NULL,
     hide boolean DEFAULT false NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    instance_type character varying(256)
 );
 
 CREATE TABLE workspaces (
@@ -475,7 +480,7 @@ CREATE TABLE workspaces (
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
-ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
+ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
@@ -568,7 +573,7 @@ ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_apps
-    ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, name);
+    ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);

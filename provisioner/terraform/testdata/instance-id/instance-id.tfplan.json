@@ -122,7 +122,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.5.0"
+        "version_constraint": "0.6.0"
       },
       "null": {
         "name": "null",

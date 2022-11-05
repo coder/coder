@@ -1,4 +1,6 @@
+import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import * as TypesGen from "../../api/typesGenerated"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
@@ -26,6 +28,7 @@ export interface UsersPageViewProps {
     roles: TypesGen.Role["name"][],
   ) => void
   onFilter: (query: string) => void
+  paginationRef: PaginationMachineRef
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
@@ -43,6 +46,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   isLoading,
   filter,
   onFilter,
+  paginationRef,
 }) => {
   const presetFilters = [
     { query: userFilterQuery.active, name: Language.activeUsersFilterName },
@@ -71,6 +75,8 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         canEditUsers={canEditUsers}
         isLoading={isLoading}
       />
+
+      <PaginationWidget paginationRef={paginationRef} />
     </>
   )
 }

@@ -405,6 +405,18 @@ WHERE
 			user_id = (SELECT id from users WHERE users.email = $6 )
 		ELSE true
 	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= $7
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= $8
+		ELSE true
+	END
 `
 
 type GetAuditLogCountParams struct {
@@ -414,6 +426,8 @@ type GetAuditLogCountParams struct {
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
 }
 
 func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
@@ -424,6 +438,8 @@ func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountP
 		arg.Action,
 		arg.Username,
 		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -480,6 +496,18 @@ WHERE
 			users.email = $8
 		ELSE true
 	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= $10
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
@@ -497,6 +525,8 @@ type GetAuditLogsOffsetParams struct {
 	Action         string    `db:"action" json:"action"`
 	Username       string    `db:"username" json:"username"`
 	Email          string    `db:"email" json:"email"`
+	DateFrom       time.Time `db:"date_from" json:"date_from"`
+	DateTo         time.Time `db:"date_to" json:"date_to"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -535,6 +565,8 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Action,
 		arg.Username,
 		arg.Email,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	if err != nil {
 		return nil, err
@@ -1377,8 +1409,8 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 }
 
 const deleteGroupByID = `-- name: DeleteGroupByID :exec
-DELETE FROM 
-	groups 
+DELETE FROM
+	groups
 WHERE
 	id = $1
 `
@@ -1389,8 +1421,8 @@ func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 }
 
 const deleteGroupMember = `-- name: DeleteGroupMember :exec
-DELETE FROM 
-	group_members 
+DELETE FROM
+	group_members
 WHERE
 	user_id = $1
 `
@@ -3749,7 +3781,7 @@ type InsertTemplateVersionParams struct {
 	Name           string        `db:"name" json:"name"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.NullUUID `db:"created_by" json:"created_by"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error) {
@@ -3990,7 +4022,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::public.user_status AND deleted = false
+    status = 'active'::user_status AND deleted = false
 `
 
 func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
@@ -4888,23 +4920,23 @@ func (q *sqlQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg Up
 	return err
 }
 
-const getWorkspaceAppByAgentIDAndName = `-- name: GetWorkspaceAppByAgentIDAndName :one
-SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level FROM workspace_apps WHERE agent_id = $1 AND name = $2
+const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `
 
-type GetWorkspaceAppByAgentIDAndNameParams struct {
+type GetWorkspaceAppByAgentIDAndSlugParams struct {
 	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
-	Name    string    `db:"name" json:"name"`
+	Slug    string    `db:"slug" json:"slug"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg GetWorkspaceAppByAgentIDAndNameParams) (WorkspaceApp, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAppByAgentIDAndName, arg.AgentID, arg.Name)
+func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg GetWorkspaceAppByAgentIDAndSlugParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAppByAgentIDAndSlug, arg.AgentID, arg.Slug)
 	var i WorkspaceApp
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.AgentID,
-		&i.Name,
+		&i.DisplayName,
 		&i.Icon,
 		&i.Command,
 		&i.Url,
@@ -4914,12 +4946,13 @@ func (q *sqlQuerier) GetWorkspaceAppByAgentIDAndName(ctx context.Context, arg Ge
 		&i.Health,
 		&i.Subdomain,
 		&i.SharingLevel,
+		&i.Slug,
 	)
 	return i, err
 }
 
 const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
-SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level FROM workspace_apps WHERE agent_id = $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug FROM workspace_apps WHERE agent_id = $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
@@ -4935,7 +4968,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.ID,
 			&i.CreatedAt,
 			&i.AgentID,
-			&i.Name,
+			&i.DisplayName,
 			&i.Icon,
 			&i.Command,
 			&i.Url,
@@ -4945,6 +4978,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 			&i.Health,
 			&i.Subdomain,
 			&i.SharingLevel,
+			&i.Slug,
 		); err != nil {
 			return nil, err
 		}
@@ -4960,7 +4994,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid
 }
 
 const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
-SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY name ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ]) ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
@@ -4976,7 +5010,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.ID,
 			&i.CreatedAt,
 			&i.AgentID,
-			&i.Name,
+			&i.DisplayName,
 			&i.Icon,
 			&i.Command,
 			&i.Url,
@@ -4986,6 +5020,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 			&i.Health,
 			&i.Subdomain,
 			&i.SharingLevel,
+			&i.Slug,
 		); err != nil {
 			return nil, err
 		}
@@ -5001,7 +5036,7 @@ func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.
 }
 
 const getWorkspaceAppsCreatedAfter = `-- name: GetWorkspaceAppsCreatedAfter :many
-SELECT id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level FROM workspace_apps WHERE created_at > $1 ORDER BY name ASC
+SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug FROM workspace_apps WHERE created_at > $1 ORDER BY slug ASC
 `
 
 func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceApp, error) {
@@ -5017,7 +5052,7 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.ID,
 			&i.CreatedAt,
 			&i.AgentID,
-			&i.Name,
+			&i.DisplayName,
 			&i.Icon,
 			&i.Command,
 			&i.Url,
@@ -5027,6 +5062,7 @@ func (q *sqlQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt
 			&i.Health,
 			&i.Subdomain,
 			&i.SharingLevel,
+			&i.Slug,
 		); err != nil {
 			return nil, err
 		}
@@ -5047,7 +5083,8 @@ INSERT INTO
         id,
         created_at,
         agent_id,
-        name,
+        slug,
+        display_name,
         icon,
         command,
         url,
@@ -5059,14 +5096,15 @@ INSERT INTO
         health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, agent_id, name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug
 `
 
 type InsertWorkspaceAppParams struct {
 	ID                   uuid.UUID          `db:"id" json:"id"`
 	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
 	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
-	Name                 string             `db:"name" json:"name"`
+	Slug                 string             `db:"slug" json:"slug"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
@@ -5083,7 +5121,8 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.ID,
 		arg.CreatedAt,
 		arg.AgentID,
-		arg.Name,
+		arg.Slug,
+		arg.DisplayName,
 		arg.Icon,
 		arg.Command,
 		arg.Url,
@@ -5099,7 +5138,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.ID,
 		&i.CreatedAt,
 		&i.AgentID,
-		&i.Name,
+		&i.DisplayName,
 		&i.Icon,
 		&i.Command,
 		&i.Url,
@@ -5109,6 +5148,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		&i.Health,
 		&i.Subdomain,
 		&i.SharingLevel,
+		&i.Slug,
 	)
 	return i, err
 }
@@ -5641,7 +5681,7 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type
 FROM
 	workspace_resources
 WHERE
@@ -5660,6 +5700,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Name,
 		&i.Hide,
 		&i.Icon,
+		&i.InstanceType,
 	)
 	return i, err
 }
@@ -5774,7 +5815,7 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type
 FROM
 	workspace_resources
 WHERE
@@ -5799,6 +5840,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Name,
 			&i.Hide,
 			&i.Icon,
+			&i.InstanceType,
 		); err != nil {
 			return nil, err
 		}
@@ -5815,7 +5857,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type
 FROM
 	workspace_resources
 WHERE
@@ -5840,6 +5882,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 			&i.Name,
 			&i.Hide,
 			&i.Icon,
+			&i.InstanceType,
 		); err != nil {
 			return nil, err
 		}
@@ -5855,7 +5898,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 }
 
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
-SELECT id, created_at, job_id, transition, type, name, hide, icon FROM workspace_resources WHERE created_at > $1
+SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type FROM workspace_resources WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
@@ -5876,6 +5919,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 			&i.Name,
 			&i.Hide,
 			&i.Icon,
+			&i.InstanceType,
 		); err != nil {
 			return nil, err
 		}
@@ -5892,20 +5936,21 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon)
+	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, job_id, transition, type, name, hide, icon
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type
 `
 
 type InsertWorkspaceResourceParams struct {
-	ID         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
-	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Type       string              `db:"type" json:"type"`
-	Name       string              `db:"name" json:"name"`
-	Hide       bool                `db:"hide" json:"hide"`
-	Icon       string              `db:"icon" json:"icon"`
+	ID           uuid.UUID           `db:"id" json:"id"`
+	CreatedAt    time.Time           `db:"created_at" json:"created_at"`
+	JobID        uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition   WorkspaceTransition `db:"transition" json:"transition"`
+	Type         string              `db:"type" json:"type"`
+	Name         string              `db:"name" json:"name"`
+	Hide         bool                `db:"hide" json:"hide"`
+	Icon         string              `db:"icon" json:"icon"`
+	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -5918,6 +5963,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.Name,
 		arg.Hide,
 		arg.Icon,
+		arg.InstanceType,
 	)
 	var i WorkspaceResource
 	err := row.Scan(
@@ -5929,6 +5975,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Name,
 		&i.Hide,
 		&i.Icon,
+		&i.InstanceType,
 	)
 	return i, err
 }

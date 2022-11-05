@@ -121,7 +121,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, uint16(tcpAddr.Port))
+	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
@@ -139,7 +139,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 	return client, user, workspace, uint16(tcpAddr.Port)
 }
 
-func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, appHost string, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	authToken := uuid.NewString()
 
 	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
@@ -160,23 +160,27 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 							},
 							Apps: []*proto.App{
 								{
-									Name:         proxyTestAppNameFake,
+									Slug:         proxyTestAppNameFake,
+									DisplayName:  proxyTestAppNameFake,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									// Hopefully this IP and port doesn't exist.
 									Url: "http://127.1.0.1:65535",
 								},
 								{
-									Name:         proxyTestAppNameOwner,
+									Slug:         proxyTestAppNameOwner,
+									DisplayName:  proxyTestAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									Url:          appURL,
 								},
 								{
-									Name:         proxyTestAppNameAuthenticated,
+									Slug:         proxyTestAppNameAuthenticated,
+									DisplayName:  proxyTestAppNameAuthenticated,
 									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 									Url:          appURL,
 								},
 								{
-									Name:         proxyTestAppNamePublic,
+									Slug:         proxyTestAppNamePublic,
+									DisplayName:  proxyTestAppNamePublic,
 									SharingLevel: proto.AppSharingLevel_PUBLIC,
 									Url:          appURL,
 								},
@@ -194,6 +198,17 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
+	if appHost != "" {
+		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf(
+			"http://{{port}}--%s--%s--%s%s",
+			proxyTestAgentName,
+			workspace.Name,
+			"testuser",
+			strings.ReplaceAll(appHost, "*", ""),
+		), metadata.VSCodePortProxyURI)
+	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),
@@ -624,7 +639,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err, "get app host")
 
 		subdomain := httpapi.ApplicationURL{
-			AppName:       appName,
+			AppSlug:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspaces[0].Name,
@@ -855,7 +870,7 @@ func TestAppSharing(t *testing.T) {
 			proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
 		}
 		for _, app := range agnt.Apps {
-			found[app.Name] = app.SharingLevel
+			found[app.DisplayName] = app.SharingLevel
 		}
 		require.Equal(t, expected, found, "apps have incorrect sharing levels")
 

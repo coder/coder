@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -278,28 +279,62 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// we only want to create audit logs for delete builds right now
+	auditor := api.Auditor.Load()
+
+	// if user deletes a workspace, audit the workspace
 	if action == rbac.ActionDelete {
-		var (
-			auditor           = api.Auditor.Load()
-			aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-				Audit:   *auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  database.AuditActionDelete,
-			})
-		)
+		aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
 
 		defer commitAudit()
 		aReq.Old = workspace
 	}
 
-	if createBuild.TemplateVersionID == uuid.Nil {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+
+	// if a user starts/stops a workspace, audit the workspace build
+	if action == rbac.ActionUpdate {
+		var auditAction database.AuditAction
+		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
+			auditAction = database.AuditActionStart
+		} else if createBuild.Transition == codersdk.WorkspaceTransitionStop {
+			auditAction = database.AuditActionStop
+		} else {
+			auditAction = database.AuditActionWrite
+		}
+
+		// We pass the workspace name to the Auditor so that it
+		// can form a friendly string for the user.
+		workspaceResourceInfo := map[string]string{
+			"workspaceName": workspace.Name,
+		}
+
+		wriBytes, err := json.Marshal(workspaceResourceInfo)
 		if err != nil {
+			api.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+		}
+
+		aReq, commitAudit := audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           auditAction,
+			AdditionalFields: wriBytes,
+		})
+
+		defer commitAudit()
+		aReq.Old = latestBuild
+	}
+
+	if createBuild.TemplateVersionID == uuid.Nil {
+		if latestBuildErr != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching the latest workspace build.",
-				Detail:  err.Error(),
+				Detail:  latestBuildErr.Error(),
 			})
 			return
 		}

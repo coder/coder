@@ -51,9 +51,9 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	workspace := httpmw.WorkspaceParam(r)
 	agent := httpmw.WorkspaceAgentParam(r)
 
-	// We do not support port proxying on paths, so lookup the app by name.
-	appName := chi.URLParam(r, "workspaceapp")
-	app, ok := api.lookupWorkspaceApp(rw, r, agent.ID, appName)
+	// We do not support port proxying on paths, so lookup the app by slug.
+	appSlug := chi.URLParam(r, "workspaceapp")
+	app, ok := api.lookupWorkspaceApp(rw, r, agent.ID, appSlug)
 	if !ok {
 		return
 	}
@@ -180,8 +180,8 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				agent := httpmw.WorkspaceAgentParam(r)
 
 				var workspaceAppPtr *database.WorkspaceApp
-				if app.AppName != "" {
-					workspaceApp, ok := api.lookupWorkspaceApp(rw, r, agent.ID, app.AppName)
+				if app.AppSlug != "" {
+					workspaceApp, ok := api.lookupWorkspaceApp(rw, r, agent.ID, app.AppSlug)
 					if !ok {
 						return
 					}
@@ -251,14 +251,14 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 	return app, true
 }
 
-// lookupWorkspaceApp looks up the workspace application by name in the given
+// lookupWorkspaceApp looks up the workspace application by slug in the given
 // agent and returns it. If the application is not found or there was a server
 // error while looking it up, an HTML error page is returned and false is
 // returned so the caller can return early.
-func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appName string) (database.WorkspaceApp, bool) {
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndName(r.Context(), database.GetWorkspaceAppByAgentIDAndNameParams{
+func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
+	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(r.Context(), database.GetWorkspaceAppByAgentIDAndSlugParams{
 		AgentID: agentID,
-		Name:    appName,
+		Slug:    appSlug,
 	})
 	if xerrors.Is(err, sql.ErrNoRows) {
 		renderApplicationNotFound(rw, r, api.AccessURL)
@@ -402,12 +402,28 @@ func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, 
 			return false
 		}
 
+		hostSplit := strings.SplitN(api.AppHostname, ".", 2)
+		if len(hostSplit) != 2 {
+			// This should be impossible as we verify the app hostname on
+			// startup, but we'll check anyways.
+			api.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", api.AppHostname))
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusInternalServerError,
+				Title:        "Internal Server Error",
+				Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
+				RetryEnabled: false,
+				DashboardURL: api.AccessURL.String(),
+			})
+			return false
+		}
+
 		// Set the app cookie for all subdomains of api.AppHostname. This cookie
 		// is handled properly by the ExtractAPIKey middleware.
+		cookieHost := "." + hostSplit[1]
 		http.SetCookie(rw, &http.Cookie{
 			Name:     httpmw.DevURLSessionTokenCookie,
 			Value:    apiKey,
-			Domain:   "." + api.AppHostname,
+			Domain:   cookieHost,
 			Path:     "/",
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
@@ -589,21 +605,18 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	// If the app does not exist, but the app name is a port number, then
-	// route to the port as an "anonymous app". We only support HTTP for
-	// port-based URLs.
+	// If the app does not exist, but the app slug is a port number, then route
+	// to the port as an "anonymous app". We only support HTTP for port-based
+	// URLs.
 	//
 	// This is only supported for subdomain-based applications.
 	internalURL := fmt.Sprintf("http://127.0.0.1:%d", proxyApp.Port)
-
-	// If the app name was used instead, fetch the app from the database so we
-	// can get the internal URL.
 	if proxyApp.App != nil {
 		if !proxyApp.App.Url.Valid {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:       http.StatusBadRequest,
 				Title:        "Bad Request",
-				Description:  fmt.Sprintf("Application %q does not have a URL set.", proxyApp.App.Name),
+				Description:  fmt.Sprintf("Application %q does not have a URL set.", proxyApp.App.Slug),
 				RetryEnabled: true,
 				DashboardURL: api.AccessURL.String(),
 			})

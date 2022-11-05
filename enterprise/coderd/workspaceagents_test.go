@@ -83,17 +83,20 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 							},
 							Apps: []*proto.App{
 								{
-									Name:         testAppNameOwner,
+									Slug:         testAppNameOwner,
+									DisplayName:  testAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name:         testAppNameAuthenticated,
+									Slug:         testAppNameAuthenticated,
+									DisplayName:  testAppNameAuthenticated,
 									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name:         testAppNamePublic,
+									Slug:         testAppNamePublic,
+									DisplayName:  testAppNamePublic,
 									SharingLevel: proto.AppSharingLevel_PUBLIC,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},

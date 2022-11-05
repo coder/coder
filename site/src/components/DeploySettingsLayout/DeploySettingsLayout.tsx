@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar"
 import React, {
   createContext,
   PropsWithChildren,
+  Suspense,
   useContext,
   useEffect,
 } from "react"
@@ -52,7 +53,7 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
             <DeploySettingsContext.Provider
               value={{ deploymentConfig: deploymentConfig }}
             >
-              {children}
+              <Suspense fallback={<Loader />}>{children}</Suspense>
             </DeploySettingsContext.Provider>
           ) : (
             <Loader />

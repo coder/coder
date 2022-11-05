@@ -1,8 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import * as TypesGen from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
-import { FullPageForm } from "components/FullPageForm/FullPageForm"
-import { Loader } from "components/Loader/Loader"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
@@ -15,6 +13,9 @@ import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { makeStyles } from "@material-ui/core/styles"
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
+import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -54,10 +55,12 @@ export const CreateWorkspacePageView: FC<
   React.PropsWithChildren<CreateWorkspacePageViewProps>
 > = (props) => {
   const { t } = useTranslation("createWorkspacePage")
-  const [deprecatedParameterValues, setDeprecatedParameterValues] = useState<
+  const styles = useStyles()
+  const formFooterStyles = useFormFooterStyles()
+  const [parameterValues, setParameterValues] = useState<
     Record<string, string>
   >({})
-  const [parameterValues, setParameterValues] = useState<
+  const [deprecatedParameterValues, setDeprecatedParameterValues] = useState<
     Record<string, string>
   >({})
 
@@ -90,10 +93,12 @@ export const CreateWorkspacePageView: FC<
           })
         })
         const parameters: TypesGen.WorkspaceBuildParameter[] = []
-        Object.keys(parameterValues).forEach((key) => parameters.push({
-          name: key,
-          value: parameterValues[key],
-        }))
+        Object.keys(parameterValues).forEach((key) =>
+          parameters.push({
+            name: key,
+            value: parameterValues[key],
+          }),
+        )
 
         props.onSubmit({
           ...request,
@@ -104,10 +109,22 @@ export const CreateWorkspacePageView: FC<
       },
     })
 
+  const canSubmit =
+    props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
+      ? props.workspaceQuota.user_workspace_count <
+        props.workspaceQuota.user_workspace_limit
+      : true
+
+  const isLoading = props.loadingTemplateSchema || props.loadingTemplates
+
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
     props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR],
   )
+
+  if (isLoading) {
+    return <FullScreenLoader />
+  }
 
   if (props.hasTemplateErrors) {
     return (
@@ -144,62 +161,97 @@ export const CreateWorkspacePageView: FC<
     )
   }
 
-  const canSubmit =
-    props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
-      ? props.workspaceQuota.user_workspace_count <
-        props.workspaceQuota.user_workspace_limit
-      : true
+  if (
+    props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]
+  ) {
+    return (
+      <AlertBanner
+        severity="error"
+        error={
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
+          ]
+        }
+      />
+    )
+  }
 
   return (
-    <FullPageForm title="Create workspace" onCancel={props.onCancel}>
+    <FullPageHorizontalForm title="New workspace" onCancel={props.onCancel}>
       <form onSubmit={form.handleSubmit}>
-        <Stack>
-          {Boolean(
-            props.createWorkspaceErrors[
-              CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
-            ],
-          ) && (
-            <AlertBanner
-              severity="error"
-              error={
-                props.createWorkspaceErrors[
-                  CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR
-                ]
-              }
-            />
-          )}
-          <TextField
-            disabled
-            fullWidth
-            label={t("templateLabel")}
-            value={props.selectedTemplate?.name || props.templateName}
-            variant="outlined"
-          />
+        <Stack direction="column" spacing={10} className={styles.formSections}>
+          {/* General info */}
+          <div className={styles.formSection}>
+            <div className={styles.formSectionInfo}>
+              <h2 className={styles.formSectionInfoTitle}>General info</h2>
+              <p className={styles.formSectionInfoDescription}>
+                The template and name of your new workspace.
+              </p>
+            </div>
 
-          {props.loadingTemplateSchema && <Loader />}
-          {props.selectedTemplate &&
-            props.templateSchema &&
-            props.templateParameters && (
-              <>
-                <TextField
-                  {...getFieldHelpers("name")}
-                  disabled={form.isSubmitting}
-                  onChange={onChangeTrimmed(form)}
-                  autoFocus
-                  fullWidth
-                  label={t("nameLabel")}
-                  variant="outlined"
+            <Stack
+              direction="column"
+              spacing={1}
+              className={styles.formSectionFields}
+            >
+              {props.selectedTemplate && (
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  className={styles.template}
+                  alignItems="center"
+                >
+                  <div className={styles.templateIcon}>
+                    <img src={props.selectedTemplate.icon} alt="" />
+                  </div>
+                  <Stack direction="column" spacing={0.5}>
+                    <span className={styles.templateName}>
+                      {props.selectedTemplate.name}
+                    </span>
+                    {props.selectedTemplate.description && (
+                      <span className={styles.templateDescription}>
+                        {props.selectedTemplate.description}
+                      </span>
+                    )}
+                  </Stack>
+                </Stack>
+              )}
+
+              <TextField
+                {...getFieldHelpers("name")}
+                disabled={form.isSubmitting}
+                onChange={onChangeTrimmed(form)}
+                autoFocus
+                fullWidth
+                label={t("nameLabel")}
+                variant="outlined"
+              />
+            </Stack>
+          </div>
+
+          {/* Workspace owner */}
+          {props.canCreateForUser && (
+            <div className={styles.formSection}>
+              <div className={styles.formSectionInfo}>
+                <h2 className={styles.formSectionInfoTitle}>Workspace owner</h2>
+                <p className={styles.formSectionInfoDescription}>
+                  The user that is going to own this workspace. If you are
+                  admin, you can create workspace for others.
+                </p>
+              </div>
+
+              <Stack
+                direction="column"
+                spacing={1}
+                className={styles.formSectionFields}
+              >
+                <UserAutocomplete
+                  value={props.owner}
+                  onChange={props.setOwner}
+                  label={t("ownerLabel")}
+                  inputMargin="dense"
+                  showAvatar
                 />
-
-                {props.canCreateForUser && (
-                  <UserAutocomplete
-                    value={props.owner}
-                    onChange={props.setOwner}
-                    label={t("ownerLabel")}
-                    inputMargin="dense"
-                    showAvatar
-                  />
-                )}
 
                 {props.workspaceQuota && (
                   <WorkspaceQuota
@@ -211,58 +263,163 @@ export const CreateWorkspacePageView: FC<
                     }
                   />
                 )}
+              </Stack>
+            </div>
+          )}
 
-                {props.templateSchema.length > 0 && (
-                  <Stack>
-                    {props.templateSchema.map((schema) => (
-                      <ParameterInput
-                        disabled={form.isSubmitting}
-                        key={schema.id}
-                        onChange={(value) => {
-                          setDeprecatedParameterValues({
-                            ...deprecatedParameterValues,
-                            [schema.name]: value,
-                          })
-                        }}
-                        schema={schema}
-                      />
-                    ))}
-                  </Stack>
-                )}
+          {props.templateParameters &&
+            props.templateParameters.map((parameter) => (
+              <WorkspaceParameter
+                templateParameter={parameter}
+                key={parameter.name}
+                onChange={(value) => {
+                  setParameterValues({
+                    ...parameterValues,
+                    [parameter.name]: value,
+                  })
+                }}
+              />
+            ))}
 
-                {props.templateParameters.map((parameter) => (
-                  <WorkspaceParameter
-                    templateParameter={parameter}
-                    key={parameter.name}
+          {/* Template params */}
+          {props.templateSchema && props.templateSchema.length > 0 && (
+            <div className={styles.formSection}>
+              <div className={styles.formSectionInfo}>
+                <h2 className={styles.formSectionInfoTitle}>Template params</h2>
+                <p className={styles.formSectionInfoDescription}>
+                  Those values are provided by your template&lsquo;s Terraform
+                  configuration.
+                </p>
+              </div>
+
+              <Stack
+                direction="column"
+                spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                className={styles.formSectionFields}
+              >
+                {props.templateSchema.map((schema) => (
+                  <ParameterInput
+                    disabled={form.isSubmitting}
+                    key={schema.id}
                     onChange={(value) => {
-                      setParameterValues({
-                        ...parameterValues,
-                        [parameter.name]: value,
+                      setDeprecatedParameterValues({
+                        ...deprecatedParameterValues,
+                        [schema.name]: value,
                       })
                     }}
+                    schema={schema}
                   />
                 ))}
+              </Stack>
+            </div>
+          )}
 
-                {props.workspaceQuota && (
-                  <WorkspaceQuota
-                    quota={props.workspaceQuota}
-                    error={
-                      props.createWorkspaceErrors[
-                        CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR
-                      ]
-                    }
-                  />
-                )}
-
-                <FormFooter
-                  onCancel={props.onCancel}
-                  isLoading={props.creatingWorkspace}
-                  submitDisabled={!canSubmit}
-                />
-              </>
-            )}
+          <FormFooter
+            styles={formFooterStyles}
+            onCancel={props.onCancel}
+            isLoading={props.creatingWorkspace}
+            submitDisabled={!canSubmit}
+            submitLabel={t("createWorkspace")}
+          />
         </Stack>
       </form>
-    </FullPageForm>
+    </FullPageHorizontalForm>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  formSections: {
+    [theme.breakpoints.down("sm")]: {
+      gap: theme.spacing(8),
+    },
+  },
+
+  formSection: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: theme.spacing(15),
+
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+      gap: theme.spacing(2),
+    },
+  },
+
+  formSectionInfo: {
+    width: 312,
+    flexShrink: 0,
+    position: "sticky",
+    top: theme.spacing(3),
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      position: "initial",
+    },
+  },
+
+  formSectionInfoTitle: {
+    fontSize: 20,
+    color: theme.palette.text.primary,
+    fontWeight: 400,
+    margin: 0,
+    marginBottom: theme.spacing(1),
+  },
+
+  formSectionInfoDescription: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    lineHeight: "160%",
+    margin: 0,
+  },
+
+  formSectionFields: {
+    width: "100%",
+  },
+
+  template: {
+    padding: theme.spacing(2.5, 3),
+    borderRadius: theme.shape.borderRadius,
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+  },
+
+  templateName: {
+    fontSize: 16,
+  },
+
+  templateDescription: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+
+  templateIcon: {
+    width: theme.spacing(5),
+    lineHeight: 1,
+
+    "& img": {
+      width: "100%",
+    },
+  },
+}))
+
+const useFormFooterStyles = makeStyles((theme) => ({
+  button: {
+    minWidth: theme.spacing(23),
+
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+    },
+  },
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    flexDirection: "row-reverse",
+    gap: theme.spacing(2),
+
+    [theme.breakpoints.down("sm")]: {
+      flexDirection: "column",
+      gap: theme.spacing(1),
+    },
+  },
+}))

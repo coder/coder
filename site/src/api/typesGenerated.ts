@@ -41,9 +41,9 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly old?: any
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly new?: any
   readonly secret: boolean
 }
@@ -55,7 +55,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -65,8 +65,7 @@ export interface AuditLog {
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: string
+  readonly additional_fields: Record<string, string>
   readonly description: string
   readonly user?: User
 }
@@ -189,6 +188,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly time?: string
 }
 
 // From codersdk/apikey.go
@@ -279,7 +279,7 @@ export interface DeploymentConfig {
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig
   readonly tls: TLSConfig
-  readonly trace_enable: DeploymentConfigField<boolean>
+  readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
   readonly auto_import_templates: DeploymentConfigField<string[]>
@@ -389,6 +389,7 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly regex: string
+  readonly scopes: string[]
 }
 
 // From codersdk/gitsshkey.go
@@ -419,7 +420,7 @@ export interface Healthcheck {
 export interface License {
   readonly id: number
   readonly uploaded_at: string
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
 }
 
@@ -579,7 +580,7 @@ export interface Role {
 // From codersdk/sse.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly data: any
 }
 
@@ -658,8 +659,7 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by_id: string
-  readonly created_by_name: string
+  readonly created_by: User
 }
 
 // From codersdk/templateversions.go
@@ -688,6 +688,12 @@ export interface TemplateVersionParameterOption {
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface TraceConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly honeycomb_api_key: DeploymentConfigField<string>
 }
 
 // From codersdk/templates.go
@@ -848,7 +854,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
-  readonly name: string
+  readonly slug: string
+  readonly display_name: string
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
@@ -946,7 +953,7 @@ export interface WorkspacesRequest extends Pagination {
 export type APIKeyScope = "all" | "application_connect"
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "write"
+export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
@@ -1006,6 +1013,7 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+  | "workspace_build"
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"

@@ -6,7 +6,6 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 export const Language = {
   of: "of",
@@ -27,7 +26,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
     return (
       <Box>
         <Stack spacing={1} className={styles.stack}>
-          <span className={styles.title}>Workspace Quota</span>
+          <span className={styles.title}>Usage Quota</span>
           <AlertBanner severity="error" error={error} />
         </Stack>
       </Box>
@@ -39,7 +38,7 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
     return (
       <Box>
         <Stack spacing={1} className={styles.stack}>
-          <span className={styles.title}>Workspace Quota</span>
+          <span className={styles.title}>Usage quota</span>
           <LinearProgress color="primary" />
           <div className={styles.label}>
             <Skeleton className={styles.skeleton} />
@@ -64,8 +63,23 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
 
   return (
     <Box>
-      <Stack spacing={1} className={styles.stack}>
-        <span className={styles.title}>Workspace Quota</span>
+      <Stack spacing={1.5} className={styles.stack}>
+        <Stack direction="row" justifyContent="space-between">
+          <span className={styles.title}>Usage Quota</span>
+          <div className={styles.label}>
+            <span className={styles.labelHighlight}>
+              {quota.user_workspace_count}
+            </span>{" "}
+            {Language.of}{" "}
+            <span className={styles.labelHighlight}>
+              {quota.user_workspace_limit}
+            </span>{" "}
+            {quota.user_workspace_limit === 1
+              ? Language.workspace
+              : Language.workspaces}
+            {" used"}
+          </div>
+        </Stack>
         <LinearProgress
           className={
             quota.user_workspace_count >= quota.user_workspace_limit
@@ -75,14 +89,6 @@ export const WorkspaceQuota: FC<WorkspaceQuotaProps> = ({ quota, error }) => {
           value={value}
           variant="determinate"
         />
-        <div className={styles.label}>
-          {quota.user_workspace_count} {Language.of}{" "}
-          {quota.user_workspace_limit}{" "}
-          {quota.user_workspace_limit === 1
-            ? Language.workspace
-            : Language.workspaces}
-          {" used"}
-        </div>
       </Stack>
     </Box>
   )
@@ -101,17 +107,15 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   title: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 21,
-    paddingBottom: "8px",
+    fontSize: 16,
   },
   label: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 12,
-    textTransform: "uppercase",
+    fontSize: 14,
     display: "block",
-    fontWeight: 600,
     color: theme.palette.text.secondary,
+  },
+  labelHighlight: {
+    color: theme.palette.text.primary,
   },
   skeleton: {
     minWidth: "150px",

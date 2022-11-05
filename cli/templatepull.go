@@ -35,7 +35,7 @@ func templatePull() *cobra.Command {
 			}
 
 			// TODO(JonA): Do we need to add a flag for organization?
-			organization, err := currentOrganization(cmd, client)
+			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

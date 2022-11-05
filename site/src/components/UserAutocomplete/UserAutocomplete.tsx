@@ -41,7 +41,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     if (value) {
       sendSearch("SEARCH", { query: value.email })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO look into this
   }, [])
 
   const handleFilterChange = debounce(

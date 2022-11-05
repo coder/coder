@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nhatthm/otelsql"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
+	"go.nhat.io/otelsql"
+	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 )

@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -125,9 +126,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				shouldCoderTrace = cfg.Telemetry.Trace.Value
 			}
 
-			if cfg.TraceEnable.Value || shouldCoderTrace {
+			if cfg.Trace.Enable.Value || shouldCoderTrace {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default: cfg.TraceEnable.Value,
+					Default: cfg.Trace.Enable.Value,
 					Coder:   shouldCoderTrace,
 				})
 				if err != nil {
@@ -225,7 +226,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cfg.AccessURL.Value = tunnel.URL
 
 				if cfg.WildcardAccessURL.Value == "" {
-					u, err := parseURL(ctx, tunnel.URL)
+					u, err := parseURL(tunnel.URL)
 					if err != nil {
 						return xerrors.Errorf("parse tunnel url: %w", err)
 					}
@@ -235,7 +236,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			accessURLParsed, err := parseURL(ctx, cfg.AccessURL.Value)
+			accessURLParsed, err := parseURL(cfg.AccessURL.Value)
 			if err != nil {
 				return xerrors.Errorf("parse URL: %w", err)
 			}
@@ -358,6 +359,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				Experimental:                ExperimentalEnabled(cmd),
 				DeploymentConfig:            cfg,
+				PrometheusRegistry:          prometheus.NewRegistry(),
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -468,16 +470,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(ctx, cfg.Telemetry.URL.Value)
-			if err != nil {
-				return xerrors.Errorf("parse telemetry url: %w", err)
-			}
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
 			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.Telemetry.Enable.Flag) {
 				cfg.Telemetry.Enable.Value = false
 			}
 			if cfg.Telemetry.Enable.Value {
+				// Parse the raw telemetry URL!
+				telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
+				if err != nil {
+					return xerrors.Errorf("parse telemetry url: %w", err)
+				}
+
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
@@ -504,7 +507,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.Value, "pprof")()
 			}
 			if cfg.Prometheus.Enable.Value {
-				options.PrometheusRegistry = prometheus.NewRegistry()
+				options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
+				options.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
 				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
 					return xerrors.Errorf("register active users prometheus metric: %w", err)
@@ -556,8 +561,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					_ = daemon.Close()
 				}
 			}()
+			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := 0; i < cfg.ProvisionerDaemons.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cfg.CacheDirectory.Value, errCh, false)
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg.CacheDirectory.Value, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -779,32 +785,19 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 	return root
 }
 
-// parseURL parses a string into a URL. It works around some technically correct
-// but undesired behavior of url.Parse by prepending a scheme if one does not
-// exist so that the URL does not get parsed improperly.
-func parseURL(ctx context.Context, u string) (*url.URL, error) {
+// parseURL parses a string into a URL.
+func parseURL(u string) (*url.URL, error) {
 	var (
 		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
 	)
 
 	if !hasScheme {
-		// Append a scheme if it doesn't have one. Otherwise the hostname
-		// will likely get parsed as the scheme and cause methods like Hostname()
-		// to return an empty string, largely obviating the purpose of this
-		// function.
-		u = "https://" + u
+		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
 	}
 
 	parsed, err := url.Parse(u)
 	if err != nil {
 		return nil, err
-	}
-
-	// If the specified url is a loopback device and no scheme has been
-	// specified, prefer http over https. It's unlikely anyone intends to use
-	// https on a loopback and if they do they can specify a scheme.
-	if local, _ := isLocalURL(ctx, parsed); local && !hasScheme {
-		parsed.Scheme = "http"
 	}
 
 	return parsed, nil
@@ -837,6 +830,7 @@ func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Dura
 func newProvisionerDaemon(
 	ctx context.Context,
 	coderAPI *coderd.API,
+	metrics provisionerd.Metrics,
 	logger slog.Logger,
 	cacheDir string,
 	errCh chan error,
@@ -913,7 +907,8 @@ func newProvisionerDaemon(
 		UpdateInterval: 500 * time.Millisecond,
 		Provisioners:   provisioners,
 		WorkDirectory:  tempDir,
-		Tracer:         coderAPI.TracerProvider,
+		TracerProvider: coderAPI.TracerProvider,
+		Metrics:        &metrics,
 	}), nil
 }
 
