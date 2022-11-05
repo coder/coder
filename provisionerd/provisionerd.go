@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/yamux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
@@ -41,9 +43,10 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 
 // Options provides customizations to the behavior of a provisioner daemon.
 type Options struct {
-	Filesystem afero.Fs
-	Logger     slog.Logger
-	Tracer     trace.TracerProvider
+	Filesystem     afero.Fs
+	Logger         slog.Logger
+	TracerProvider trace.TracerProvider
+	Metrics        *Metrics
 
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
@@ -66,14 +69,19 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	if opts.Filesystem == nil {
 		opts.Filesystem = afero.NewOsFs()
 	}
-	if opts.Tracer == nil {
-		opts.Tracer = trace.NewNoopTracerProvider()
+	if opts.TracerProvider == nil {
+		opts.TracerProvider = trace.NewNoopTracerProvider()
+	}
+	if opts.Metrics == nil {
+		reg := prometheus.NewRegistry()
+		mets := NewMetrics(reg)
+		opts.Metrics = &mets
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
 		opts:   opts,
-		tracer: opts.Tracer.Tracer(tracing.TracerName),
+		tracer: opts.TracerProvider.Tracer(tracing.TracerName),
 
 		clientDialer: clientDialer,
 
@@ -101,6 +109,42 @@ type Server struct {
 	closeError   error
 	shutdown     chan struct{}
 	activeJob    *runner.Runner
+}
+
+type Metrics struct {
+	Runner runner.Metrics
+}
+
+func NewMetrics(reg prometheus.Registerer) Metrics {
+	auto := promauto.With(reg)
+	durationToFloatMs := func(d time.Duration) float64 {
+		return float64(d.Milliseconds())
+	}
+
+	return Metrics{
+		Runner: runner.Metrics{
+			ConcurrentJobs: auto.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "jobs_current",
+			}, []string{"provisioner"}),
+			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "job_timings_ms",
+				Buckets: []float64{
+					durationToFloatMs(1 * time.Second),
+					durationToFloatMs(10 * time.Second),
+					durationToFloatMs(30 * time.Second),
+					durationToFloatMs(1 * time.Minute),
+					durationToFloatMs(5 * time.Minute),
+					durationToFloatMs(10 * time.Minute),
+					durationToFloatMs(30 * time.Minute),
+					durationToFloatMs(1 * time.Hour),
+				},
+			}, []string{"provisioner", "status"}),
+		},
+	}
 }
 
 // Connect establishes a connection to coderd.
@@ -282,6 +326,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		p.opts.UpdateInterval,
 		p.opts.ForceCancelInterval,
 		p.tracer,
+		p.opts.Metrics.Runner,
 	)
 
 	go p.activeJob.Run()

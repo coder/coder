@@ -78,7 +78,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
 	OIDCConfig           *OIDCConfig
-	PrometheusRegisterer prometheus.Registerer
+	PrometheusRegistry   *prometheus.Registry
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
@@ -132,8 +132,8 @@ func New(options *Options) *API {
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewAuthorizer()
 	}
-	if options.PrometheusRegisterer == nil {
-		options.PrometheusRegisterer = prometheus.NewRegistry()
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
@@ -204,7 +204,7 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
-		httpmw.Prometheus(options.PrometheusRegisterer),
+		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
 		api.handleSubdomainApplications(
