@@ -390,7 +390,8 @@ CREATE TABLE workspace_agents (
     instance_metadata jsonb,
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    version text DEFAULT ''::text NOT NULL
+    version text DEFAULT ''::text NOT NULL,
+    last_connected_replica_id uuid
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
