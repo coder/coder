@@ -522,6 +522,10 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			LastConnectedAt:  lastConnectedAt,
 			DisconnectedAt:   disconnectedAt,
 			UpdatedAt:        database.Now(),
+			LastConnectedReplicaID: uuid.NullUUID{
+				UUID:  api.ID,
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return err

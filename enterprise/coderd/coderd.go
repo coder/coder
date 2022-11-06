@@ -158,6 +158,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
 		TLSConfig:    meshTLSConfig,

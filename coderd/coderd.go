@@ -16,6 +16,7 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
@@ -165,6 +166,7 @@ func New(options *Options) *API {
 
 	r := chi.NewRouter()
 	api := &API{
+		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
 		siteHandler: site.Handler(site.FS(), binFS),
@@ -579,6 +581,11 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+	// ID is a uniquely generated ID on initialization.
+	// This is used to associate objects with a specific
+	// Coder API instance, like workspace agents to a
+	// specific replica.
+	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]

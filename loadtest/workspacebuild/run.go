@@ -47,7 +47,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	}
 	r.workspaceID = workspace.ID
 
-	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID, 0)
+	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 	if err != nil {
 		return xerrors.Errorf("wait for build: %w", err)
 	}
@@ -76,7 +76,7 @@ func (r *Runner) Cleanup(ctx context.Context, _ string) error {
 
 	// TODO: capture these logs
 	logs := io.Discard
-	err = waitForBuild(ctx, logs, r.client, build.ID, 0)
+	err = waitForBuild(ctx, logs, r.client, build.ID)
 	if err != nil {
 		return xerrors.Errorf("wait for build: %w", err)
 	}
@@ -84,7 +84,7 @@ func (r *Runner) Cleanup(ctx context.Context, _ string) error {
 	return nil
 }
 
-func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID, after int64) error {
+func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID) error {
 	_, _ = fmt.Fprint(w, "Build is currently queued...")
 
 	// Wait for build to start.

@@ -4466,7 +4466,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id
 FROM
 	workspace_agents
 WHERE
@@ -4497,13 +4497,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ResourceMetadata,
 		&i.Directory,
 		&i.Version,
+		&i.LastConnectedReplicaID,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id
 FROM
 	workspace_agents
 WHERE
@@ -4532,13 +4533,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ResourceMetadata,
 		&i.Directory,
 		&i.Version,
+		&i.LastConnectedReplicaID,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id
 FROM
 	workspace_agents
 WHERE
@@ -4569,13 +4571,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ResourceMetadata,
 		&i.Directory,
 		&i.Version,
+		&i.LastConnectedReplicaID,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id
 FROM
 	workspace_agents
 WHERE
@@ -4610,6 +4613,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.ResourceMetadata,
 			&i.Directory,
 			&i.Version,
+			&i.LastConnectedReplicaID,
 		); err != nil {
 			return nil, err
 		}
@@ -4625,7 +4629,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -4656,6 +4660,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.ResourceMetadata,
 			&i.Directory,
 			&i.Version,
+			&i.LastConnectedReplicaID,
 		); err != nil {
 			return nil, err
 		}
@@ -4689,7 +4694,7 @@ INSERT INTO
 		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -4746,6 +4751,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ResourceMetadata,
 		&i.Directory,
 		&i.Version,
+		&i.LastConnectedReplicaID,
 	)
 	return i, err
 }
@@ -4756,18 +4762,20 @@ UPDATE
 SET
 	first_connected_at = $2,
 	last_connected_at = $3,
-	disconnected_at = $4,
-	updated_at = $5
+	last_connected_replica_id = $4,
+	disconnected_at = $5,
+	updated_at = $6
 WHERE
 	id = $1
 `
 
 type UpdateWorkspaceAgentConnectionByIDParams struct {
-	ID               uuid.UUID    `db:"id" json:"id"`
-	FirstConnectedAt sql.NullTime `db:"first_connected_at" json:"first_connected_at"`
-	LastConnectedAt  sql.NullTime `db:"last_connected_at" json:"last_connected_at"`
-	DisconnectedAt   sql.NullTime `db:"disconnected_at" json:"disconnected_at"`
-	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
+	ID                     uuid.UUID     `db:"id" json:"id"`
+	FirstConnectedAt       sql.NullTime  `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt        sql.NullTime  `db:"last_connected_at" json:"last_connected_at"`
+	LastConnectedReplicaID uuid.NullUUID `db:"last_connected_replica_id" json:"last_connected_replica_id"`
+	DisconnectedAt         sql.NullTime  `db:"disconnected_at" json:"disconnected_at"`
+	UpdatedAt              time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -4775,6 +4783,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 		arg.ID,
 		arg.FirstConnectedAt,
 		arg.LastConnectedAt,
+		arg.LastConnectedReplicaID,
 		arg.DisconnectedAt,
 		arg.UpdatedAt,
 	)
