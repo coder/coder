@@ -76,7 +76,7 @@ type ProvisionerJob struct {
 }
 
 type ProvisionerJobLog struct {
-	ID        uuid.UUID `json:"id"`
+	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Source    LogSource `json:"log_source"`
 	Level     LogLevel  `json:"log_level"`

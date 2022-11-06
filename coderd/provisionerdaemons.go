@@ -368,7 +368,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			if err != nil {
 				return nil, xerrors.Errorf("convert log source: %w", err)
 			}
-			insertParams.ID = append(insertParams.ID, uuid.New())
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
 			insertParams.Level = append(insertParams.Level, logLevel)
 			insertParams.Stage = append(insertParams.Stage, log.Stage)
@@ -379,17 +378,13 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
-		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
+		_, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(provisionerJobLogsMessage{Logs: logs})
-		if err != nil {
-			return nil, xerrors.Errorf("marshal job log: %w", err)
-		}
-		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
+		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), []byte("{}"))
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)

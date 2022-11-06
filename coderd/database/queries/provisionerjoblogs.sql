@@ -8,15 +8,12 @@ WHERE
 	AND (
 		created_at >= @created_after
 		OR created_at <= @created_before
-	)
-ORDER BY
-	created_at DESC;
+	) ORDER BY id;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO
 	provisioner_job_logs
 SELECT
-	unnest(@id :: uuid [ ]) AS id,
 	@job_id :: uuid AS job_id,
 	unnest(@created_at :: timestamptz [ ]) AS created_at,
 	unnest(@source :: log_source [ ]) AS source,

@@ -156,7 +156,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close() // Also closes conn.
 
-	logIdsDone := make(map[uuid.UUID]bool)
+	logIdsDone := make(map[int64]bool)
 
 	// The Go stdlib JSON encoder appends a newline character after message write.
 	encoder := json.NewEncoder(wsNetConn)
@@ -370,8 +370,7 @@ func provisionerJobLogsChannel(jobID uuid.UUID) string {
 
 // provisionerJobLogsMessage is the message type published on the provisionerJobLogsChannel() channel
 type provisionerJobLogsMessage struct {
-	EndOfLogs bool                         `json:"end_of_logs,omitempty"`
-	Logs      []database.ProvisionerJobLog `json:"logs,omitempty"`
+	EndOfLogs bool `json:"end_of_logs,omitempty"`
 }
 
 func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
@@ -380,6 +379,7 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 	var (
 		closed       = make(chan struct{})
 		bufferedLogs = make(chan database.ProvisionerJobLog, 128)
+		since        = database.Now()
 	)
 	closeSubscribe, err := api.Pubsub.Subscribe(
 		provisionerJobLogsChannel(jobID),
@@ -389,15 +389,23 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 				return
 			default:
 			}
-
 			jlMsg := provisionerJobLogsMessage{}
 			err := json.Unmarshal(message, &jlMsg)
 			if err != nil {
 				logger.Warn(ctx, "invalid provisioner job log on channel", slog.Error(err))
 				return
 			}
+			logs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
+				JobID:        jobID,
+				CreatedAfter: since,
+			})
+			if err != nil {
+				logger.Warn(ctx, "get provisioner logs", slog.Error(err))
+				return
+			}
+			since = database.Now()
 
-			for _, log := range jlMsg.Logs {
+			for _, log := range logs {
 				select {
 				case bufferedLogs <- log:
 					logger.Debug(ctx, "subscribe buffered log", slog.F("stage", log.Stage))

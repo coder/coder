@@ -2212,10 +2212,15 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	defer q.mutex.Unlock()
 
 	logs := make([]database.ProvisionerJobLog, 0)
+	id := int64(1)
+	if len(q.provisionerJobLogs) > 0 {
+		id = q.provisionerJobLogs[len(q.provisionerJobLogs)-1].ID
+	}
 	for index, output := range arg.Output {
+		id++
 		logs = append(logs, database.ProvisionerJobLog{
+			ID:        id,
 			JobID:     arg.JobID,
-			ID:        arg.ID[index],
 			CreatedAt: arg.CreatedAt[index],
 			Source:    arg.Source[index],
 			Level:     arg.Level[index],

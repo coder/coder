@@ -558,11 +558,17 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
-						// Close on a log so we know when the job is in progress!
-						updated.Do(func() {
-							close(updateChan)
-						})
+					if len(update.Logs) > 0 {
+						for _, log := range update.Logs {
+							if log.Source != proto.LogSource_PROVISIONER {
+								continue
+							}
+							// Close on a log so we know when the job is in progress!
+							updated.Do(func() {
+								close(updateChan)
+							})
+							break
+						}
 					}
 					return &proto.UpdateJobResponse{}, nil
 				},
@@ -634,11 +640,17 @@ func TestProvisionerd(t *testing.T) {
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					resp := &proto.UpdateJobResponse{}
-					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
-						// Close on a log so we know when the job is in progress!
-						updated.Do(func() {
-							close(updateChan)
-						})
+					if len(update.Logs) > 0 {
+						for _, log := range update.Logs {
+							if log.Source != proto.LogSource_PROVISIONER {
+								continue
+							}
+							// Close on a log so we know when the job is in progress!
+							updated.Do(func() {
+								close(updateChan)
+							})
+							break
+						}
 					}
 					// start returning Canceled once we've gotten at least one log.
 					select {
