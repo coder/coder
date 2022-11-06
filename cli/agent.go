@@ -165,7 +165,7 @@ func workspaceAgent() *cobra.Command {
 						return "", err
 					}
 					client.SessionToken = resp.SessionToken
-					return "", nil
+					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
