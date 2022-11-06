@@ -2351,8 +2351,8 @@ FROM
 WHERE
 	job_id = $1
 	AND (
-		id >= $2
-		OR id <= $3
+		id > $2
+		OR id < $3
 	) ORDER BY id
 `
 
