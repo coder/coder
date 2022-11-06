@@ -539,11 +539,15 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			Valid: true,
 		}
 		_ = updateConnectionTimes()
+		_ = api.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
 	}()
 
 	err = updateConnectionTimes()
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, err.Error())
+		return
+	}
+	if !api.publishWorkspaceUpdate(ctx, rw, build.WorkspaceID) {
 		return
 	}
 
@@ -970,6 +974,34 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+	}
+
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resource.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), job.WorkspaceID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !api.publishWorkspaceUpdate(r.Context(), rw, workspace.ID) {
+		return
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, nil)

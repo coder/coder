@@ -228,14 +228,20 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		buf := &bytes.Buffer{}
 		enc := json.NewEncoder(buf)
 
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\ndata: ", sse.Type))
+		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", sse.Type))
 		if err != nil {
 			return err
 		}
 
-		err = enc.Encode(sse.Data)
-		if err != nil {
-			return err
+		if sse.Data != nil {
+			_, err = buf.WriteString("data: ")
+			if err != nil {
+				return err
+			}
+			err = enc.Encode(sse.Data)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = buf.WriteByte('\n')

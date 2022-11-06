@@ -124,7 +124,7 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
--- name: UpdateWorkspaceBuildByID :exec
+-- name: UpdateWorkspaceBuildByID :one
 UPDATE
 	workspace_builds
 SET
@@ -132,4 +132,4 @@ SET
 	provisioner_state = $3,
 	deadline = $4
 WHERE
-	id = $1;
+	id = $1 RETURNING *;
