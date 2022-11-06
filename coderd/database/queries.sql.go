@@ -377,7 +377,7 @@ WHERE
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			resource_id = $2
 		ELSE true
 	END
@@ -468,7 +468,7 @@ WHERE
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN $4 :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			resource_id = $4
 		ELSE true
 	END
@@ -3152,7 +3152,7 @@ WHERE
 	templates.deleted = $1
 	-- Filter by organization_id
 	AND CASE
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			organization_id = $2
 		ELSE true
 	END
@@ -3534,7 +3534,7 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
 			-- rows after the cursor.
@@ -4074,7 +4074,7 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
 			-- rows after the cursor.
@@ -5312,7 +5312,7 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the build_number field, so select all
 			-- rows after the cursor.
@@ -6013,7 +6013,7 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			owner_id = $3
 		ELSE true
 	END
@@ -6227,7 +6227,7 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			owner_id = $3
 		ELSE true
 	END
