@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -57,7 +56,6 @@ func update() *cobra.Command {
 				return nil
 			}
 
-			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: template.ActiveVersionID,
 				Transition:        workspace.LatestBuild.Transition,
@@ -66,7 +64,7 @@ func update() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logs, closer, err := client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, before)
+			logs, closer, err := client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, 0)
 			if err != nil {
 				return err
 			}

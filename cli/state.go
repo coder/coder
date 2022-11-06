@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -100,7 +99,6 @@ func statePush() *cobra.Command {
 				return err
 			}
 
-			before := time.Now()
 			build, err = client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: build.TemplateVersionID,
 				Transition:        build.Transition,
@@ -109,7 +107,7 @@ func statePush() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStderr(), client, build.ID, before)
+			return cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStderr(), client, build.ID)
 		},
 	}
 	cmd.Flags().IntVarP(&buildNumber, "build", "b", 0, "Specify a workspace build to target by name.")

@@ -6,8 +6,8 @@ FROM
 WHERE
 	job_id = @job_id
 	AND (
-		created_at >= @created_after
-		OR created_at <= @created_before
+		id >= @created_after
+		OR id <= @created_before
 	) ORDER BY id;
 
 -- name: InsertProvisionerJobLogs :many

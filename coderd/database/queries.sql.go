@@ -2351,15 +2351,15 @@ FROM
 WHERE
 	job_id = $1
 	AND (
-		created_at >= $2
-		OR created_at <= $3
+		id >= $2
+		OR id <= $3
 	) ORDER BY id
 `
 
 type GetProvisionerLogsByIDBetweenParams struct {
 	JobID         uuid.UUID `db:"job_id" json:"job_id"`
-	CreatedAfter  time.Time `db:"created_after" json:"created_after"`
-	CreatedBefore time.Time `db:"created_before" json:"created_before"`
+	CreatedAfter  int64     `db:"created_after" json:"created_after"`
+	CreatedBefore int64     `db:"created_before" json:"created_before"`
 }
 
 func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {

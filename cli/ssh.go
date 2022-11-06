@@ -250,7 +250,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
-		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

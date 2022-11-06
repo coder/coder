@@ -2052,16 +2052,13 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if !arg.CreatedBefore.IsZero() && jobLog.CreatedAt.After(arg.CreatedBefore) {
+		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
-		if !arg.CreatedAfter.IsZero() && jobLog.CreatedAt.Before(arg.CreatedAfter) {
+		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
-	}
-	if len(logs) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return logs, nil
 }

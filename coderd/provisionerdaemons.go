@@ -378,13 +378,22 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
-		_, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
+		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
+		// Publish by the lowest log ID inserted so the
+		// log stream will fetch everything from that point.
+		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), []byte("{}"))
+		data, err := json.Marshal(provisionerJobLogsMessage{
+			CreatedAfter: lowestID,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal: %w", err)
+		}
+		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("publish job log: %w", err)

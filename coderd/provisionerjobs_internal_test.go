@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"database/sql"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -115,40 +114,4 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}
-}
-
-type fakePubSub struct {
-	t        *testing.T
-	cond     *sync.Cond
-	listener database.Listener
-	canceled bool
-	closed   bool
-}
-
-func (f *fakePubSub) Subscribe(_ string, listener database.Listener) (cancel func(), err error) {
-	f.cond.L.Lock()
-	defer f.cond.L.Unlock()
-	f.listener = listener
-	f.cond.Signal()
-	return f.cancel, nil
-}
-
-func (f *fakePubSub) Publish(_ string, _ []byte) error {
-	f.t.Fail()
-	return nil
-}
-
-func (f *fakePubSub) Close() error {
-	f.cond.L.Lock()
-	defer f.cond.L.Unlock()
-	f.closed = true
-	f.cond.Signal()
-	return nil
-}
-
-func (f *fakePubSub) cancel() {
-	f.cond.L.Lock()
-	defer f.cond.L.Unlock()
-	f.canceled = true
-	f.cond.Signal()
 }
