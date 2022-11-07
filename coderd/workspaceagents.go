@@ -547,9 +547,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		_ = conn.Close(websocket.StatusGoingAway, err.Error())
 		return
 	}
-	if !api.publishWorkspaceUpdate(ctx, rw, build.WorkspaceID) {
-		return
-	}
+	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
 	// End span so we don't get long lived trace data.
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
@@ -1000,9 +998,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	if !api.publishWorkspaceUpdate(r.Context(), rw, workspace.ID) {
-		return
-	}
+	api.publishWorkspaceUpdate(r.Context(), workspace.ID)
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, nil)
 }

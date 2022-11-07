@@ -574,9 +574,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.publishWorkspaceUpdate(ctx, rw, workspace.ID) {
-		return
-	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
@@ -637,9 +635,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !api.publishWorkspaceUpdate(ctx, rw, workspace.ID) {
-		return
-	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",

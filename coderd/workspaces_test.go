@@ -1383,14 +1383,21 @@ func TestWorkspaceWatcher(t *testing.T) {
 
 	wc, err := client.WatchWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
+	wait := func() {
+		select {
+		case <-ctx.Done():
+			t.Fail()
+		case <-wc:
+		}
+	}
 
 	coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 	// the workspace build being created
-	<-wc
+	wait()
 	// the workspace build being acquired
-	<-wc
+	wait()
 	// the workspace build completing
-	<-wc
+	wait()
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
@@ -1403,25 +1410,25 @@ func TestWorkspaceWatcher(t *testing.T) {
 	}()
 
 	// the agent connected
-	<-wc
+	wait()
 	agentCloser.Close()
 	// the agent disconnected
-	<-wc
+	wait()
 
 	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 	// First is for the workspace build itself
-	<-wc
+	wait()
 	err = client.CancelWorkspaceBuild(ctx, build.ID)
 	require.NoError(t, err)
 	// Second is for the build cancel
-	<-wc
+	wait()
 
 	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
 		Name: "another",
 	})
 	require.NoError(t, err)
-	<-wc
+	wait()
 
 	cancel()
 }

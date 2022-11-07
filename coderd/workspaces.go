@@ -634,9 +634,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.publishWorkspaceUpdate(ctx, rw, workspace.ID) {
-		return
-	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	aReq.New = newWorkspace
 	rw.WriteHeader(http.StatusNoContent)
@@ -923,14 +921,19 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error subscribing to workspace events.",
-			Detail:  err.Error(),
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Internal error subscribing to workspace events.",
+				Detail:  err.Error(),
+			},
 		})
 		return
 	}
 	defer cancelSubscribe()
 
+	// An initial ping signals to the request that the server is now ready
+	// and the client can begin servicing a channel with data.
 	_ = sendEvent(ctx, codersdk.ServerSentEvent{
 		Type: codersdk.ServerSentEventTypePing,
 	})
@@ -1234,14 +1237,10 @@ func watchWorkspaceChannel(id uuid.UUID) string {
 	return fmt.Sprintf("workspace:%s", id)
 }
 
-func (api *API) publishWorkspaceUpdate(ctx context.Context, rw http.ResponseWriter, workspaceID uuid.UUID) bool {
+func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUID) {
 	err := api.Pubsub.Publish(watchWorkspaceChannel(workspaceID), []byte{})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error publishing workspace update.",
-			Detail:  err.Error(),
-		})
-		return false
+		api.Logger.Warn(ctx, "failed to publish workspace update",
+			slog.F("workspace_id", workspaceID), slog.Error(err))
 	}
-	return true
 }
