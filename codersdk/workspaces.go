@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -137,6 +139,8 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 }
 
 func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	//nolint:bodyclose
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/watch", id), nil)
 	if err != nil {
@@ -145,7 +149,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	nextEvent := ServerSentEventReader(res.Body)
+	nextEvent := ServerSentEventReader(ctx, res.Body)
 
 	wc := make(chan Workspace, 256)
 	go func() {

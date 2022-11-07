@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func sshConfigFileName(t *testing.T) (sshConfig string) {
@@ -131,7 +132,9 @@ func TestConfigSSH(t *testing.T) {
 			if err != nil {
 				break
 			}
-			ssh, err := agentConn.SSH()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			ssh, err := agentConn.SSH(ctx)
 			assert.NoError(t, err)
 			wg.Add(2)
 			go func() {

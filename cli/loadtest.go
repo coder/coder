@@ -11,17 +11,26 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/loadtest/harness"
 )
+
+const loadtestTracerName = "coder_loadtest"
 
 func loadtest() *cobra.Command {
 	var (
 		configPath  string
 		outputSpecs []string
+
+		traceEnable          bool
+		traceCoder           bool
+		traceHoneycombAPIKey string
+		tracePropagate       bool
 	)
 	cmd := &cobra.Command{
 		Use:   "loadtest --config <path> [--output json[:path]] [--output text[:path]]]",
@@ -53,6 +62,8 @@ func loadtest() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := tracing.SetTracerName(cmd.Context(), loadtestTracerName)
+
 			config, err := loadLoadTestConfigFile(configPath, cmd.InOrStdin())
 			if err != nil {
 				return err
@@ -67,7 +78,7 @@ func loadtest() *cobra.Command {
 				return err
 			}
 
-			me, err := client.User(cmd.Context(), codersdk.Me)
+			me, err := client.User(ctx, codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("fetch current user: %w", err)
 			}
@@ -84,11 +95,39 @@ func loadtest() *cobra.Command {
 				}
 			}
 			if !ok {
-				return xerrors.Errorf("Not logged in as site owner. Load testing is only available to site owners.")
+				return xerrors.Errorf("Not logged in as a site owner. Load testing is only available to site owners.")
 			}
 
-			// Disable ratelimits for future requests.
+			// Setup tracing and start a span.
+			var tracerProvider trace.TracerProvider = trace.NewNoopTracerProvider()
+			if traceEnable {
+				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, loadtestTracerName, tracing.TracerOpts{
+					Default:   true,
+					Coder:     traceCoder,
+					Honeycomb: traceHoneycombAPIKey,
+				})
+				if err != nil {
+					return xerrors.Errorf("initialize tracing: %w", err)
+				}
+				defer func() {
+					// Allow time for traces to flush even if command
+					// context is canceled.
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_ = closeTracing(ctx)
+				}()
+
+				tracerProvider = sdkTracerProvider
+			}
+
+			// Start the root span.
+			ctx, span := tracerProvider.Tracer(loadtestTracerName).Start(ctx, "loadtest root")
+			defer span.End()
+
+			// Disable ratelimits and propagate tracing spans for future
+			// requests. Individual tests will setup their own loggers.
 			client.BypassRatelimits = true
+			client.PropagateTracing = tracePropagate
 
 			// Prepare the test.
 			strategy := config.Strategy.ExecutionStrategy()
@@ -99,7 +138,7 @@ func loadtest() *cobra.Command {
 
 				for j := 0; j < t.Count; j++ {
 					id := strconv.Itoa(j)
-					runner, err := t.NewRunner(client)
+					runner, err := t.NewRunner(client.Clone())
 					if err != nil {
 						return xerrors.Errorf("create %q runner for %s/%s: %w", t.Type, name, id, err)
 					}
@@ -110,7 +149,7 @@ func loadtest() *cobra.Command {
 
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Running load test...")
 
-			testCtx := cmd.Context()
+			testCtx := ctx
 			if config.Timeout > 0 {
 				var cancel func()
 				testCtx, cancel = context.WithTimeout(testCtx, time.Duration(config.Timeout))
@@ -158,7 +197,7 @@ func loadtest() *cobra.Command {
 
 			// Cleanup.
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nCleaning up...")
-			err = th.Cleanup(cmd.Context())
+			err = th.Cleanup(ctx)
 			if err != nil {
 				return xerrors.Errorf("cleanup tests: %w", err)
 			}
@@ -173,6 +212,12 @@ func loadtest() *cobra.Command {
 
 	cliflag.StringVarP(cmd.Flags(), &configPath, "config", "", "CODER_LOADTEST_CONFIG_PATH", "", "Path to the load test configuration file, or - to read from stdin.")
 	cliflag.StringArrayVarP(cmd.Flags(), &outputSpecs, "output", "", "CODER_LOADTEST_OUTPUTS", []string{"text"}, "Output formats, see usage for more information.")
+
+	cliflag.BoolVarP(cmd.Flags(), &traceEnable, "trace", "", "CODER_LOADTEST_TRACE", false, "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md")
+	cliflag.BoolVarP(cmd.Flags(), &traceCoder, "trace-coder", "", "CODER_LOADTEST_TRACE_CODER", false, "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it. Disabling telemetry also disables this option.")
+	cliflag.StringVarP(cmd.Flags(), &traceHoneycombAPIKey, "trace-honeycomb-api-key", "", "CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY", "", "Enables trace exporting to Honeycomb.io using the provided API key.")
+	cliflag.BoolVarP(cmd.Flags(), &tracePropagate, "trace-propagate", "", "CODER_LOADTEST_TRACE_PROPAGATE", false, "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.")
+
 	return cmd
 }
 

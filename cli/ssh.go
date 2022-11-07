@@ -94,7 +94,7 @@ func ssh() *cobra.Command {
 			defer stopPolling()
 
 			if stdio {
-				rawSSH, err := conn.SSH()
+				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return err
 				}
@@ -107,7 +107,7 @@ func ssh() *cobra.Command {
 				return nil
 			}
 
-			sshClient, err := conn.SSHClient()
+			sshClient, err := conn.SSHClient(ctx)
 			if err != nil {
 				return err
 			}

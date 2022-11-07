@@ -276,6 +276,8 @@ func TestLoadTest(t *testing.T) {
 						require.NoError(t, err, msg)
 					}
 
+					t.Logf("output %d:\n\n%s", i, string(b))
+
 					switch output.format {
 					case "text":
 						require.Contains(t, string(b), "Test results:", msg)
