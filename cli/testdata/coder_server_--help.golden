@@ -1,0 +1,200 @@
+Start a Coder server
+
+Usage:
+  coder server [flags]
+
+  coder server [command]
+
+Commands:
+  postgres-builtin-serve Run the built-in PostgreSQL deployment.
+  postgres-builtin-url   Output the connection URL for the built-in PostgreSQL deployment.
+
+Flags:
+      --access-url string                          External URL to access your deployment.
+                                                   This must be accessible by all provisioned
+                                                   workspaces.
+                                                   Consumes $CODER_ACCESS_URL
+  -a, --address string                             Bind address of the server.
+                                                   Consumes $CODER_ADDRESS (default
+                                                   "127.0.0.1:3000")
+      --cache-dir string                           The directory to cache temporary files. If
+                                                   unspecified and $CACHE_DIRECTORY is set, it
+                                                   will be used for compatibility with
+                                                   systemd.
+                                                   Consumes $CODER_CACHE_DIRECTORY (default
+                                                   "/tmp/coder-cli-test-cache")
+      --derp-config-path string                    Path to read a DERP mapping from. See:
+                                                   https://tailscale.com/kb/1118/custom-derp-servers/
+                                                   Consumes $CODER_DERP_CONFIG_PATH
+      --derp-config-url string                     URL to fetch a DERP mapping on startup.
+                                                   See:
+                                                   https://tailscale.com/kb/1118/custom-derp-servers/
+                                                   Consumes $CODER_DERP_CONFIG_URL
+      --derp-server-enable                         Whether to enable or disable the embedded
+                                                   DERP relay server.
+                                                   Consumes $CODER_DERP_SERVER_ENABLE (default
+                                                   true)
+      --derp-server-region-code string             Region code to use for the embedded DERP
+                                                   server.
+                                                   Consumes $CODER_DERP_SERVER_REGION_CODE
+                                                   (default "coder")
+      --derp-server-region-id int                  Region ID to use for the embedded DERP
+                                                   server.
+                                                   Consumes $CODER_DERP_SERVER_REGION_ID
+                                                   (default 999)
+      --derp-server-region-name string             Region name that for the embedded DERP
+                                                   server.
+                                                   Consumes $CODER_DERP_SERVER_REGION_NAME
+                                                   (default "Coder Embedded Relay")
+      --derp-server-stun-addresses strings         Addresses for STUN servers to establish P2P
+                                                   connections. Set empty to disable P2P
+                                                   connections.
+                                                   Consumes $CODER_DERP_SERVER_STUN_ADDRESSES
+                                                   (default [stun.l.google.com:19302])
+  -h, --help                                       help for server
+      --oauth2-github-allow-signups                Whether new users can sign up with GitHub.
+                                                   Consumes $CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+      --oauth2-github-allowed-orgs strings         Organizations the user must be a member of
+                                                   to Login with GitHub.
+                                                   Consumes $CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+      --oauth2-github-allowed-teams strings        Teams inside organizations the user must be
+                                                   a member of to Login with GitHub.
+                                                   Structured as:
+                                                   <organization-name>/<team-slug>.
+                                                   Consumes $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS
+      --oauth2-github-client-id string             Client ID for Login with GitHub.
+                                                   Consumes $CODER_OAUTH2_GITHUB_CLIENT_ID
+      --oauth2-github-client-secret string         Client secret for Login with GitHub.
+                                                   Consumes $CODER_OAUTH2_GITHUB_CLIENT_SECRET
+      --oauth2-github-enterprise-base-url string   Base URL of a GitHub Enterprise deployment
+                                                   to use for Login with GitHub.
+                                                   Consumes
+                                                   $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
+      --oidc-allow-signups                         Whether new users can sign up with OIDC.
+                                                   Consumes $CODER_OIDC_ALLOW_SIGNUPS (default
+                                                   true)
+      --oidc-client-id string                      Client ID to use for Login with OIDC.
+                                                   Consumes $CODER_OIDC_CLIENT_ID
+      --oidc-client-secret string                  Client secret to use for Login with OIDC.
+                                                   Consumes $CODER_OIDC_CLIENT_SECRET
+      --oidc-email-domain string                   Email domain that clients logging in with
+                                                   OIDC must match.
+                                                   Consumes $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-issuer-url string                     Issuer URL to use for Login with OIDC.
+                                                   Consumes $CODER_OIDC_ISSUER_URL
+      --oidc-scopes strings                        Scopes to grant when authenticating with
+                                                   OIDC.
+                                                   Consumes $CODER_OIDC_SCOPES (default
+                                                   [openid,profile,email])
+      --postgres-url string                        URL of a PostgreSQL database. If empty,
+                                                   PostgreSQL binaries will be downloaded from
+                                                   Maven (https://repo1.maven.org/maven2) and
+                                                   store all data in the config root. Access
+                                                   the built-in database with "coder server
+                                                   postgres-builtin-url".
+                                                   Consumes $CODER_PG_CONNECTION_URL
+      --pprof-address string                       The bind address to serve pprof.
+                                                   Consumes $CODER_PPROF_ADDRESS (default
+                                                   "127.0.0.1:6060")
+      --pprof-enable                               Serve pprof metrics on the address defined
+                                                   by pprof address.
+                                                   Consumes $CODER_PPROF_ENABLE
+      --prometheus-address string                  The bind address to serve prometheus
+                                                   metrics.
+                                                   Consumes $CODER_PROMETHEUS_ADDRESS (default
+                                                   "127.0.0.1:2112")
+      --prometheus-enable                          Serve prometheus metrics on the address
+                                                   defined by prometheus address.
+                                                   Consumes $CODER_PROMETHEUS_ENABLE
+      --provisioner-daemons int                    Number of provisioner daemons to create on
+                                                   start. If builds are stuck in queued state
+                                                   for a long time, consider increasing this.
+                                                   Consumes $CODER_PROVISIONER_DAEMONS (default 3)
+      --proxy-trusted-headers strings              Headers to trust for forwarding IP
+                                                   addresses. e.g. Cf-Connecting-Ip,
+                                                   True-Client-Ip, X-Forwarded-For
+                                                   Consumes $CODER_PROXY_TRUSTED_HEADERS
+      --proxy-trusted-origins strings              Origin addresses to respect
+                                                   "proxy-trusted-headers". e.g.
+                                                   192.168.1.0/24
+                                                   Consumes $CODER_PROXY_TRUSTED_ORIGINS
+      --secure-auth-cookie                         Controls if the 'Secure' property is set on
+                                                   browser session cookies.
+                                                   Consumes $CODER_SECURE_AUTH_COOKIE
+      --ssh-keygen-algorithm string                The algorithm to use for generating ssh
+                                                   keys. Accepted values are "ed25519",
+                                                   "ecdsa", or "rsa4096".
+                                                   Consumes $CODER_SSH_KEYGEN_ALGORITHM
+                                                   (default "ed25519")
+      --telemetry                                  Whether telemetry is enabled or not. Coder
+                                                   collects anonymized usage data to help
+                                                   improve our product.
+                                                   Consumes $CODER_TELEMETRY_ENABLE
+      --telemetry-trace                            Whether Opentelemetry traces are sent to
+                                                   Coder. Coder collects anonymized
+                                                   application tracing to help improve our
+                                                   product. Disabling telemetry also disables
+                                                   this option.
+                                                   Consumes $CODER_TELEMETRY_TRACE
+      --tls-cert-file strings                      Path to each certificate for TLS. It
+                                                   requires a PEM-encoded file. To configure
+                                                   the listener to use a CA certificate,
+                                                   concatenate the primary certificate and the
+                                                   CA certificate together. The primary
+                                                   certificate should appear first in the
+                                                   combined file.
+                                                   Consumes $CODER_TLS_CERT_FILE
+      --tls-client-auth string                     Policy the server will follow for TLS
+                                                   Client Authentication. Accepted values are
+                                                   "none", "request", "require-any",
+                                                   "verify-if-given", or "require-and-verify".
+                                                   Consumes $CODER_TLS_CLIENT_AUTH (default
+                                                   "request")
+      --tls-client-ca-file string                  PEM-encoded Certificate Authority file used
+                                                   for checking the authenticity of client
+                                                   Consumes $CODER_TLS_CLIENT_CA_FILE
+      --tls-enable                                 Whether TLS will be enabled.
+                                                   Consumes $CODER_TLS_ENABLE
+      --tls-key-file strings                       Paths to the private keys for each of the
+                                                   certificates. It requires a PEM-encoded
+                                                   file.
+                                                   Consumes $CODER_TLS_KEY_FILE
+      --tls-min-version string                     Minimum supported version of TLS. Accepted
+                                                   values are "tls10", "tls11", "tls12" or
+                                                   "tls13"
+                                                   Consumes $CODER_TLS_MIN_VERSION (default
+                                                   "tls12")
+      --trace                                      Whether application tracing data is
+                                                   collected. It exports to a backend
+                                                   configured by environment variables. See:
+                                                   https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+                                                   Consumes $CODER_TRACE_ENABLE
+      --trace-honeycomb-api-key string             Enables trace exporting to Honeycomb.io
+                                                   using the provided API Key.
+                                                   Consumes $CODER_TRACE_HONEYCOMB_API_KEY
+      --wildcard-access-url string                 Specifies the wildcard hostname to use for
+                                                   workspace applications in the form
+                                                   "*.example.com".
+                                                   Consumes $CODER_WILDCARD_ACCESS_URL
+
+Global Flags:
+      --experimental          Enable experimental features. Experimental features are not
+                              ready for production.
+                              Consumes $CODER_EXPERIMENTAL
+      --global-config coder   Path to the global coder config directory.
+                              Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
+      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
+                              Consumes $CODER_HEADER
+      --no-feature-warning    Suppress warnings about unlicensed features.
+                              Consumes $CODER_NO_FEATURE_WARNING
+      --no-version-warning    Suppress warning when client and server versions do not match.
+                              Consumes $CODER_NO_VERSION_WARNING
+      --token string          Specify an authentication token. For security reasons setting
+                              CODER_SESSION_TOKEN is preferred.
+                              Consumes $CODER_SESSION_TOKEN
+      --url string            URL to a deployment.
+                              Consumes $CODER_URL
+  -v, --verbose               Enable verbose output.
+                              Consumes $CODER_VERBOSE
+
+Use "coder server [command] --help" for more information about a command.

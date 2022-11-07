@@ -127,6 +127,7 @@ type CreateTestAuditLogRequest struct {
 	Action       AuditAction  `json:"action,omitempty"`
 	ResourceType ResourceType `json:"resource_type,omitempty"`
 	ResourceID   uuid.UUID    `json:"resource_id,omitempty"`
+	Time         time.Time    `json:"time,omitempty"`
 }
 
 // AuditLogs retrieves audit logs from the given page.

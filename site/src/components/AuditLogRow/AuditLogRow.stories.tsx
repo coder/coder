@@ -34,12 +34,31 @@ const Template: Story<AuditLogRowProps> = (args) => (
 
 export const NoDiff = Template.bind({})
 NoDiff.args = {
-  auditLog: MockAuditLog,
+  auditLog: {
+    ...MockAuditLog,
+    diff: {},
+  },
 }
 
 export const WithDiff = Template.bind({})
 WithDiff.args = {
   auditLog: MockAuditLog2,
+  defaultIsDiffOpen: true,
+}
+
+export const WithLongDiffRow = Template.bind({})
+WithLongDiffRow.args = {
+  auditLog: {
+    ...MockAuditLog2,
+    diff: {
+      ...MockAuditLog2.diff,
+      icon: {
+        old: "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.docker.com%2Fcompany%2Fnewsroom%2Fmedia-resources%2F&psig=AOvVaw3hLg_lm0tzXPBt74XZD2GC&ust=1666892413988000&source=images&cd=vfe&ved=0CAwQjRxqFwoTCPDsiKa4_voCFQAAAAAdAAAAABAD",
+        new: "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.kindpng.com%2Fimgv%2FhRowRxi_docker-icon-png-transparent-png%2F&psig=AOvVaw3hLg_lm0tzXPBt74XZD2GC&ust=1666892413988000&source=images&cd=vfe&ved=0CAwQjRxqFwoTCPDsiKa4_voCFQAAAAAdAAAAABAI",
+        secret: false,
+      },
+    },
+  },
   defaultIsDiffOpen: true,
 }
 

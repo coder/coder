@@ -86,7 +86,10 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
     paddingTop: theme.spacing(2),
     paddingBottom: theme.spacing(2.5),
+    paddingRight: theme.spacing(2),
     lineHeight: "160%",
+    alignSelf: "stretch",
+    overflowWrap: "anywhere",
   },
 
   diffOld: {
@@ -101,7 +104,7 @@ const useStyles = makeStyles((theme) => ({
 
   diffLine: {
     opacity: 0.5,
-    width: theme.spacing(8),
+    width: theme.spacing(6),
     textAlign: "right",
     flexShrink: 0,
   },
@@ -110,6 +113,7 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(4),
     textAlign: "center",
     fontSize: theme.typography.body1.fontSize,
+    flexShrink: 0,
   },
 
   diffNew: {

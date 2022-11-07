@@ -47,6 +47,11 @@ const useStyles = makeStyles((theme) => ({
     "&:hover": {
       opacity: 1,
     },
+
+    [theme.breakpoints.down("sm")]: {
+      top: theme.spacing(1),
+      right: theme.spacing(1),
+    },
   },
   label: {
     position: "absolute",

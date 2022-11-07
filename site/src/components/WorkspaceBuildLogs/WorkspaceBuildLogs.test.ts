@@ -5,7 +5,7 @@ describe("groupLogsByStage", () => {
   it("should group them by stage", () => {
     const input: ProvisionerJobLog[] = [
       {
-        id: "1",
+        id: 1,
         created_at: "oct 13",
         log_source: "provisioner",
         log_level: "debug",
@@ -13,7 +13,7 @@ describe("groupLogsByStage", () => {
         output: "test",
       },
       {
-        id: "2",
+        id: 2,
         created_at: "oct 13",
         log_source: "provisioner",
         log_level: "debug",
@@ -21,7 +21,7 @@ describe("groupLogsByStage", () => {
         output: "test",
       },
       {
-        id: "3",
+        id: 3,
         created_at: "oct 13",
         log_source: "provisioner",
         log_level: "debug",

@@ -70,6 +70,7 @@ func init() {
 }
 
 func Core() []*cobra.Command {
+	// Please re-sort this list alphabetically if you change it!
 	return []*cobra.Command{
 		configSSH(),
 		create(),
@@ -77,26 +78,27 @@ func Core() []*cobra.Command {
 		dotfiles(),
 		gitssh(),
 		list(),
+		loadtest(),
 		login(),
 		logout(),
 		parameters(),
 		portForward(),
 		publickey(),
+		rename(),
 		resetPassword(),
 		schedules(),
 		show(),
-		ssh(),
 		speedtest(),
+		ssh(),
 		start(),
 		state(),
 		stop(),
-		rename(),
 		templates(),
+		tokens(),
 		update(),
 		users(),
 		versionCmd(),
 		workspaceAgent(),
-		tokens(),
 	}
 }
 
@@ -415,6 +417,17 @@ func isTTY(cmd *cobra.Command) bool {
 // This accepts a reader to work with Cobra's "OutOrStdout"
 // function for simple testing.
 func isTTYOut(cmd *cobra.Command) bool {
+	return isTTYWriter(cmd, cmd.OutOrStdout)
+}
+
+// isTTYErr returns whether the passed reader is a TTY or not.
+// This accepts a reader to work with Cobra's "ErrOrStderr"
+// function for simple testing.
+func isTTYErr(cmd *cobra.Command) bool {
+	return isTTYWriter(cmd, cmd.ErrOrStderr)
+}
+
+func isTTYWriter(cmd *cobra.Command, writer func() io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -422,7 +435,7 @@ func isTTYOut(cmd *cobra.Command) bool {
 	if forceTty && err == nil {
 		return true
 	}
-	file, ok := cmd.OutOrStdout().(*os.File)
+	file, ok := writer().(*os.File)
 	if !ok {
 		return false
 	}

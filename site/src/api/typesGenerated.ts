@@ -204,6 +204,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly time?: string
 }
 
 // From codersdk/apikey.go
@@ -537,7 +538,7 @@ export interface ProvisionerJob {
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerJobLog {
-  readonly id: string
+  readonly id: number
   readonly created_at: string
   readonly log_source: LogSource
   readonly log_level: LogLevel

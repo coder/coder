@@ -161,18 +161,19 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				if sse.Type == ServerSentEventTypeData {
-					var ws Workspace
-					b, ok := sse.Data.([]byte)
-					if !ok {
-						return
-					}
-					err = json.Unmarshal(b, &ws)
-					if err != nil {
-						return
-					}
-					wc <- ws
+				if sse.Type != ServerSentEventTypeData {
+					continue
 				}
+				var ws Workspace
+				b, ok := sse.Data.([]byte)
+				if !ok {
+					return
+				}
+				err = json.Unmarshal(b, &ws)
+				if err != nil {
+					return
+				}
+				wc <- ws
 			}
 		}
 	}()
