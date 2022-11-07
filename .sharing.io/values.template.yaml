@@ -9,7 +9,7 @@ coder:
   # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
   # they are already set by the Helm chart and will cause conflicts.
   image:
-    tag: "v0.9.8"
+    tag: "v0.12.4"
   env:
     - name: CODER_ACCESS_URL
       value: "https://coder.${SHARINGIO_PAIR_BASE_DNS_NAME}"

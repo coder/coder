@@ -32,7 +32,15 @@ ls -la /usr/local/bin/coder
 
 cd ~/sharingio/coder
 rm -rf ~/.config/coderv2/ # delete database
-coder server --address=0.0.0.0:7080 --access-url=http://localhost:7080 --tunnel \
+# CODER_EXPERIMENTAL=true \
+# CODER_TEMPLATE_AUTOIMPORT=coder-emacs \
+CODER_ACCESS_URL=https://coder.talos.pair.sharing.io \
+CODER_VERBOSE=true \
+CODER_AUDIT_LOGGING=false \
+CODER_TELEMETRY=false \
+CODER_TELEMETRY_TRACE=false \
+CODER_WILDCARD_ACCESS_URL="*.coder.talos.pair.sharing.io" \
+    coder server \
     2>&1 | tee coder-server.log
 #+end_src
 #+begin_src shell

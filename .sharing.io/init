@@ -9,7 +9,7 @@ go install github.com/jrhouston/tfk8s@latest
 
 # install coder binary until we can build from src
 which coder || (
-	curl -L -o /tmp/coder.deb https://github.com/coder/coder/releases/download/v0.9.8/coder_0.9.8_linux_amd64.deb
+	curl -L -o /tmp/coder.deb https://github.com/coder/coder/releases/download/v0.12.4/coder_0.12.4_linux_amd64.deb
 	sudo apt install -y /tmp/coder.deb
 	# Add completion
 	echo '. <(coder completion bash)' >>~/.bashrc
