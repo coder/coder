@@ -74,8 +74,8 @@ func ssh() *cobra.Command {
 			}
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
-			if outdated {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), updateWorkspaceBanner)
+			if outdated && isTTYOut(cmd) {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
