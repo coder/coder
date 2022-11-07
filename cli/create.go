@@ -139,7 +139,6 @@ func create() *cobra.Command {
 				return err
 			}
 
-			after := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 				TemplateID:        template.ID,
 				Name:              workspaceName,
@@ -151,7 +150,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, after)
+			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
@@ -238,7 +237,6 @@ PromptParamLoop:
 	_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
 	// Run a dry-run with the given parameters to check correctness
-	after := time.Now()
 	dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		WorkspaceName:   args.NewWorkspaceName,
 		ParameterValues: parameters,
@@ -255,7 +253,7 @@ PromptParamLoop:
 			return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, after)
+			return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, 0)
 		},
 		// Don't show log output for the dry-run unless there's an error.
 		Silent: true,

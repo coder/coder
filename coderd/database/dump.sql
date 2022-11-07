@@ -272,14 +272,23 @@ CREATE TABLE provisioner_daemons (
 );
 
 CREATE TABLE provisioner_job_logs (
-    id uuid NOT NULL,
     job_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
     stage character varying(128) NOT NULL,
-    output character varying(1024) NOT NULL
+    output character varying(1024) NOT NULL,
+    id bigint NOT NULL
 );
+
+CREATE SEQUENCE provisioner_job_logs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE provisioner_job_logs_id_seq OWNED BY provisioner_job_logs.id;
 
 CREATE TABLE provisioner_jobs (
     id uuid NOT NULL,
@@ -462,6 +471,8 @@ CREATE TABLE workspaces (
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
+
+ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
 
 ALTER TABLE ONLY agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);

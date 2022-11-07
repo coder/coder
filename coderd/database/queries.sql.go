@@ -2345,23 +2345,21 @@ func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg Update
 
 const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many
 SELECT
-	id, job_id, created_at, source, level, stage, output
+	job_id, created_at, source, level, stage, output, id
 FROM
 	provisioner_job_logs
 WHERE
 	job_id = $1
 	AND (
-		created_at >= $2
-		OR created_at <= $3
-	)
-ORDER BY
-	created_at DESC
+		id > $2
+		OR id < $3
+	) ORDER BY id
 `
 
 type GetProvisionerLogsByIDBetweenParams struct {
 	JobID         uuid.UUID `db:"job_id" json:"job_id"`
-	CreatedAfter  time.Time `db:"created_after" json:"created_after"`
-	CreatedBefore time.Time `db:"created_before" json:"created_before"`
+	CreatedAfter  int64     `db:"created_after" json:"created_after"`
+	CreatedBefore int64     `db:"created_before" json:"created_before"`
 }
 
 func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {
@@ -2374,13 +2372,13 @@ func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetP
 	for rows.Next() {
 		var i ProvisionerJobLog
 		if err := rows.Scan(
-			&i.ID,
 			&i.JobID,
 			&i.CreatedAt,
 			&i.Source,
 			&i.Level,
 			&i.Stage,
 			&i.Output,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -2399,17 +2397,15 @@ const insertProvisionerJobLogs = `-- name: InsertProvisionerJobLogs :many
 INSERT INTO
 	provisioner_job_logs
 SELECT
-	unnest($1 :: uuid [ ]) AS id,
-	$2 :: uuid AS job_id,
-	unnest($3 :: timestamptz [ ]) AS created_at,
-	unnest($4 :: log_source [ ]) AS source,
-	unnest($5 :: log_level [ ]) AS LEVEL,
-	unnest($6 :: VARCHAR(128) [ ]) AS stage,
-	unnest($7 :: VARCHAR(1024) [ ]) AS output RETURNING id, job_id, created_at, source, level, stage, output
+	$1 :: uuid AS job_id,
+	unnest($2 :: timestamptz [ ]) AS created_at,
+	unnest($3 :: log_source [ ]) AS source,
+	unnest($4 :: log_level [ ]) AS LEVEL,
+	unnest($5 :: VARCHAR(128) [ ]) AS stage,
+	unnest($6 :: VARCHAR(1024) [ ]) AS output RETURNING job_id, created_at, source, level, stage, output, id
 `
 
 type InsertProvisionerJobLogsParams struct {
-	ID        []uuid.UUID `db:"id" json:"id"`
 	JobID     uuid.UUID   `db:"job_id" json:"job_id"`
 	CreatedAt []time.Time `db:"created_at" json:"created_at"`
 	Source    []LogSource `db:"source" json:"source"`
@@ -2420,7 +2416,6 @@ type InsertProvisionerJobLogsParams struct {
 
 func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
 	rows, err := q.db.QueryContext(ctx, insertProvisionerJobLogs,
-		pq.Array(arg.ID),
 		arg.JobID,
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Source),
@@ -2436,13 +2431,13 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 	for rows.Next() {
 		var i ProvisionerJobLog
 		if err := rows.Scan(
-			&i.ID,
 			&i.JobID,
 			&i.CreatedAt,
 			&i.Source,
 			&i.Level,
 			&i.Stage,
 			&i.Output,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}

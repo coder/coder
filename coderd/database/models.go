@@ -545,13 +545,13 @@ type ProvisionerJob struct {
 }
 
 type ProvisionerJobLog struct {
-	ID        uuid.UUID `db:"id" json:"id"`
 	JobID     uuid.UUID `db:"job_id" json:"job_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Source    LogSource `db:"source" json:"source"`
 	Level     LogLevel  `db:"level" json:"level"`
 	Stage     string    `db:"stage" json:"stage"`
 	Output    string    `db:"output" json:"output"`
+	ID        int64     `db:"id" json:"id"`
 }
 
 type Replica struct {
