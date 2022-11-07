@@ -36,9 +36,14 @@ export const PaginationWidget = ({
 
   const numPages = numRecords
     ? Math.ceil(numRecords / numRecordsPerPage)
-    : undefined
+    : 0
   const firstPageActive = currentPage === 1 && numPages !== 0
   const lastPageActive = currentPage === numPages && numPages !== 0
+
+  // if beyond page 1, show pagination widget on an empty page so the user can navigate
+  if (currentPage === 1 && numPages <= 1) {
+    return null
+  }
 
   return (
     <div style={containerStyle} className={styles.defaultContainerStyles}>
