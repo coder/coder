@@ -898,6 +898,9 @@ func (r *Runner) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
+// queueLog adds a log to the buffer and debounces a timer
+// if one exists to flush the logs. It stores a maximum of
+// 100 log lines before flushing as a safe-guard mechanism.
 func (r *Runner) queueLog(ctx context.Context, log *proto.Log) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -906,6 +909,7 @@ func (r *Runner) queueLog(ctx context.Context, log *proto.Log) {
 		r.flushLogsTimer.Reset(r.logBufferInterval)
 		return
 	}
+	// This can be configurable if there are a ton of logs.
 	if len(r.queuedLogs) > 100 {
 		// Flushing logs requires a lock, so this can happen async.
 		go r.flushQueuedLogs(ctx)
@@ -921,7 +925,7 @@ func (r *Runner) flushQueuedLogs(ctx context.Context) {
 	if r.flushLogsTimer != nil {
 		r.flushLogsTimer.Stop()
 	}
-	logs := r.queuedLogs[:]
+	logs := r.queuedLogs
 	r.queuedLogs = make([]*proto.Log, 0)
 	r.mutex.Unlock()
 	_, err := r.update(ctx, &proto.UpdateJobRequest{

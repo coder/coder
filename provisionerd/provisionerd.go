@@ -50,7 +50,7 @@ type Options struct {
 
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
-	LogDebounceInterval time.Duration
+	LogBufferInterval   time.Duration
 	PollInterval        time.Duration
 	Provisioners        Provisioners
 	WorkDirectory       string
@@ -67,8 +67,8 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	if opts.ForceCancelInterval == 0 {
 		opts.ForceCancelInterval = time.Minute
 	}
-	if opts.LogDebounceInterval == 0 {
-		opts.LogDebounceInterval = 50 * time.Millisecond
+	if opts.LogBufferInterval == 0 {
+		opts.LogBufferInterval = 50 * time.Millisecond
 	}
 	if opts.Filesystem == nil {
 		opts.Filesystem = afero.NewOsFs()
@@ -329,7 +329,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		provisioner,
 		p.opts.UpdateInterval,
 		p.opts.ForceCancelInterval,
-		p.opts.LogDebounceInterval,
+		p.opts.LogBufferInterval,
 		p.tracer,
 		p.opts.Metrics.Runner,
 	)
