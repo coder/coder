@@ -57,10 +57,6 @@ const updateWorkspaceStatus = (
   }
 }
 
-const isUpdated = (newDateStr: string, oldDateStr: string): boolean => {
-  return new Date(oldDateStr).getTime() - new Date(newDateStr).getTime() > 0
-}
-
 const Language = {
   getTemplateWarning:
     "Error updating workspace: latest template could not be fetched.",
@@ -273,7 +269,6 @@ export const workspaceMachine = createMachine(
                 on: {
                   REFRESH_WORKSPACE: {
                     actions: ["refreshWorkspace"],
-                    cond: "hasUpdates",
                   },
                   EVENT_SOURCE_ERROR: {
                     target: "error",
@@ -645,24 +640,6 @@ export const workspaceMachine = createMachine(
     },
     guards: {
       moreBuildsAvailable,
-      // We only want to update the workspace when there are changes to it to
-      // avoid re-renderings and allow optimistically updates to improve the UI.
-      // When updating the workspace every second, the optimistic updates that
-      // were applied before get lost since it will be rewrite.
-      hasUpdates: ({ workspace }, event: { data: TypesGen.Workspace }) => {
-        if (!workspace) {
-          throw new Error("Workspace not defined")
-        }
-        const isWorkspaceUpdated = isUpdated(
-          event.data.updated_at,
-          workspace.updated_at,
-        )
-        const isBuildUpdated = isUpdated(
-          event.data.latest_build.updated_at,
-          workspace.latest_build.updated_at,
-        )
-        return isWorkspaceUpdated || isBuildUpdated
-      },
     },
     services: {
       getWorkspace: async (_, event) => {
