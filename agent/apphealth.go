@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
