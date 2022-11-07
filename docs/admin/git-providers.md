@@ -20,7 +20,7 @@ To add a git provider, you'll need to create an OAuth application. The following
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 
-Example callback URL: `https://coder.example.com/api/v2/gitauth/primary-github/callback`. Use an arbitrary ID for your provider (e.g. `primary-github`).
+Example callback URL: `https://coder.example.com/gitauth/primary-github/callback`. Use an arbitrary ID for your provider (e.g. `primary-github`).
 
 Set the following environment variables to [configure the Coder server](./configure.md):
 
