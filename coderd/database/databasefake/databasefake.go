@@ -2052,16 +2052,13 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if !arg.CreatedBefore.IsZero() && jobLog.CreatedAt.After(arg.CreatedBefore) {
+		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
-		if !arg.CreatedAfter.IsZero() && jobLog.CreatedAt.Before(arg.CreatedAfter) {
+		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
-	}
-	if len(logs) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return logs, nil
 }
@@ -2212,10 +2209,15 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	defer q.mutex.Unlock()
 
 	logs := make([]database.ProvisionerJobLog, 0)
+	id := int64(1)
+	if len(q.provisionerJobLogs) > 0 {
+		id = q.provisionerJobLogs[len(q.provisionerJobLogs)-1].ID
+	}
 	for index, output := range arg.Output {
+		id++
 		logs = append(logs, database.ProvisionerJobLog{
+			ID:        id,
 			JobID:     arg.JobID,
-			ID:        arg.ID[index],
 			CreatedAt: arg.CreatedAt[index],
 			Source:    arg.Source[index],
 			Level:     arg.Level[index],
@@ -2823,7 +2825,7 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -2835,9 +2837,9 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
-		return nil
+		return workspaceBuild, nil
 	}
-	return sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {

@@ -223,6 +223,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		err = server.Pubsub.Publish(watchWorkspaceChannel(workspace.ID), []byte{})
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
+		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
@@ -368,7 +372,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			if err != nil {
 				return nil, xerrors.Errorf("convert log source: %w", err)
 			}
-			insertParams.ID = append(insertParams.ID, uuid.New())
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
 			insertParams.Level = append(insertParams.Level, logLevel)
 			insertParams.Stage = append(insertParams.Stage, log.Stage)
@@ -384,10 +387,15 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
+		// Publish by the lowest log ID inserted so the
+		// log stream will fetch everything from that point.
+		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(provisionerJobLogsMessage{Logs: logs})
+		data, err := json.Marshal(provisionerJobLogsMessage{
+			CreatedAfter: lowestID,
+		})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal job log: %w", err)
+			return nil, xerrors.Errorf("marshal: %w", err)
 		}
 		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
@@ -543,7 +551,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               input.WorkspaceBuildID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: jobType.WorkspaceBuild.State,
@@ -551,6 +559,10 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace build state: %w", err)
+		}
+		err = server.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.FailedJob_TemplateImport_:
 	}
@@ -657,7 +669,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
 				Deadline:         workspaceDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -691,6 +703,11 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
+		err = server.Pubsub.Publish(watchWorkspaceChannel(workspaceBuild.WorkspaceID), []byte{})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {

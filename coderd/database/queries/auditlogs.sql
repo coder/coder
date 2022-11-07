@@ -22,7 +22,7 @@ WHERE
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN @resource_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN @resource_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			resource_id = @resource_id
 		ELSE true
 	END
@@ -83,7 +83,7 @@ WHERE
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN @resource_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN @resource_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			resource_id = @resource_id
 		ELSE true
 	END

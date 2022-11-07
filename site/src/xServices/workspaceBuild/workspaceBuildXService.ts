@@ -125,11 +125,14 @@ export const workspaceBuildMachine = createMachine(
         API.getWorkspaceBuildLogs(ctx.buildId, ctx.timeCursor),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
         return new Promise<void>((resolve, reject) => {
+          if (!ctx.logs) {
+            return reject("logs must be set")
+          }
           const proto = location.protocol === "https:" ? "wss:" : "ws:"
           const socket = new WebSocket(
             `${proto}//${location.host}/api/v2/workspacebuilds/${
               ctx.buildId
-            }/logs?follow=true&after=${ctx.timeCursor.getTime()}`,
+            }/logs?follow=true&after=${ctx.logs[ctx.logs.length - 1].id}`,
           )
           socket.binaryType = "blob"
           socket.addEventListener("message", (event) => {

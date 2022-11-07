@@ -93,13 +93,13 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
-// TemplateVersionLogsBefore returns logs that occurred before a specific time.
-func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+// TemplateVersionLogsBefore returns logs that occurred before a specific log ID.
+func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
 	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), before)
 }
 
-// TemplateVersionLogsAfter streams logs for a template version that occurred after a specific time.
-func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
+// TemplateVersionLogsAfter streams logs for a template version that occurred after a specific log ID.
+func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), after)
 }
 
@@ -159,14 +159,14 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 }
 
 // TemplateVersionDryRunLogsBefore returns logs for a template version dry-run
-// that occurred before a specific time.
-func (c *Client) TemplateVersionDryRunLogsBefore(ctx context.Context, version, job uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+// that occurred before a specific log ID.
+func (c *Client) TemplateVersionDryRunLogsBefore(ctx context.Context, version, job uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
 	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs", version, job), before)
 }
 
 // TemplateVersionDryRunLogsAfter streams logs for a template version dry-run
-// that occurred after a specific time.
-func (c *Client) TemplateVersionDryRunLogsAfter(ctx context.Context, version, job uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
+// that occurred after a specific log ID.
+func (c *Client) TemplateVersionDryRunLogsAfter(ctx context.Context, version, job uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs", version, job), after)
 }
 

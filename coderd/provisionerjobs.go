@@ -24,8 +24,8 @@ import (
 // Returns provisioner logs based on query parameters.
 // The intended usage for a client to stream all logs (with JS API):
 // const timestamp = new Date().getTime();
-// 1. GET /logs?before=<timestamp>
-// 2. GET /logs?after=<timestamp>&follow
+// 1. GET /logs?before=<id>
+// 2. GET /logs?after=<id>&follow
 // The combination of these responses should provide all current logs
 // to the consumer, and future logs are streamed in the follow request.
 func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
@@ -74,10 +74,11 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 	}
 
-	var after time.Time
+	var after int64
 	// Only fetch logs created after the time provided.
 	if afterRaw != "" {
-		afterMS, err := strconv.ParseInt(afterRaw, 10, 64)
+		var err error
+		after, err = strconv.ParseInt(afterRaw, 10, 64)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query param \"after\" must be an integer.",
@@ -87,16 +88,12 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			})
 			return
 		}
-		after = time.UnixMilli(afterMS)
-	} else {
-		if follow {
-			after = database.Now()
-		}
 	}
-	var before time.Time
+	var before int64
 	// Only fetch logs created before the time provided.
 	if beforeRaw != "" {
-		beforeMS, err := strconv.ParseInt(beforeRaw, 10, 64)
+		var err error
+		before, err = strconv.ParseInt(beforeRaw, 10, 64)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query param \"before\" must be an integer.",
@@ -105,12 +102,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 				},
 			})
 			return
-		}
-		before = time.UnixMilli(beforeMS)
-	} else {
-		// If we're following, we don't want logs before a timestamp!
-		if !follow {
-			before = database.Now()
 		}
 	}
 
@@ -156,7 +147,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close() // Also closes conn.
 
-	logIdsDone := make(map[uuid.UUID]bool)
+	logIdsDone := make(map[int64]bool)
 
 	// The Go stdlib JSON encoder appends a newline character after message write.
 	encoder := json.NewEncoder(wsNetConn)
@@ -370,8 +361,8 @@ func provisionerJobLogsChannel(jobID uuid.UUID) string {
 
 // provisionerJobLogsMessage is the message type published on the provisionerJobLogsChannel() channel
 type provisionerJobLogsMessage struct {
-	EndOfLogs bool                         `json:"end_of_logs,omitempty"`
-	Logs      []database.ProvisionerJobLog `json:"logs,omitempty"`
+	CreatedAfter int64 `json:"created_after"`
+	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
 }
 
 func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
@@ -389,23 +380,32 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 				return
 			default:
 			}
-
 			jlMsg := provisionerJobLogsMessage{}
 			err := json.Unmarshal(message, &jlMsg)
 			if err != nil {
 				logger.Warn(ctx, "invalid provisioner job log on channel", slog.Error(err))
 				return
 			}
+			if jlMsg.CreatedAfter != 0 {
+				logs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
+					JobID:        jobID,
+					CreatedAfter: jlMsg.CreatedAfter,
+				})
+				if err != nil {
+					logger.Warn(ctx, "get provisioner logs", slog.Error(err))
+					return
+				}
 
-			for _, log := range jlMsg.Logs {
-				select {
-				case bufferedLogs <- log:
-					logger.Debug(ctx, "subscribe buffered log", slog.F("stage", log.Stage))
-				default:
-					// If this overflows users could miss logs streaming. This can happen
-					// we get a lot of logs and consumer isn't keeping up.  We don't want to block the pubsub,
-					// so just drop them.
-					logger.Warn(ctx, "provisioner job log overflowing channel")
+				for _, log := range logs {
+					select {
+					case bufferedLogs <- log:
+						logger.Debug(ctx, "subscribe buffered log", slog.F("stage", log.Stage))
+					default:
+						// If this overflows users could miss logs streaming. This can happen
+						// we get a lot of logs and consumer isn't keeping up.  We don't want to block the pubsub,
+						// so just drop them.
+						logger.Warn(ctx, "provisioner job log overflowing channel")
+					}
 				}
 			}
 			if jlMsg.EndOfLogs {

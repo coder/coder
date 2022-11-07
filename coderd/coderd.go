@@ -16,6 +16,7 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
@@ -78,7 +79,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
 	OIDCConfig           *OIDCConfig
-	PrometheusRegisterer prometheus.Registerer
+	PrometheusRegistry   *prometheus.Registry
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	Telemetry            telemetry.Reporter
@@ -132,8 +133,8 @@ func New(options *Options) *API {
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewAuthorizer()
 	}
-	if options.PrometheusRegisterer == nil {
-		options.PrometheusRegisterer = prometheus.NewRegistry()
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
@@ -165,6 +166,7 @@ func New(options *Options) *API {
 
 	r := chi.NewRouter()
 	api := &API{
+		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
 		siteHandler: site.Handler(site.FS(), binFS),
@@ -204,7 +206,7 @@ func New(options *Options) *API {
 		httpmw.Recover(api.Logger),
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
-		httpmw.Prometheus(options.PrometheusRegisterer),
+		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
 		api.handleSubdomainApplications(
@@ -579,6 +581,11 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+	// ID is a uniquely generated ID on initialization.
+	// This is used to associate objects with a specific
+	// Coder API instance, like workspace agents to a
+	// specific replica.
+	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]

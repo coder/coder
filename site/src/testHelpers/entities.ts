@@ -543,7 +543,7 @@ export const MockGitSSHKey: TypesGen.GitSSHKey = {
 
 export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
   {
-    id: "836f8ab6-5202-4711-afa5-293394ced011",
+    id: 1,
     created_at: "2022-05-19T16:45:31.005Z",
     log_source: "provisioner_daemon",
     log_level: "info",
@@ -551,7 +551,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "2db0ae92-b310-4a6e-8b1f-23380b70ac7f",
+    id: 2,
     created_at: "2022-05-19T16:45:31.006Z",
     log_source: "provisioner_daemon",
     log_level: "info",
@@ -559,7 +559,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "37a5b7b1-b3eb-47cf-b80b-bd16e2e08a3d",
+    id: 3,
     created_at: "2022-05-19T16:45:31.072Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -567,7 +567,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "5e4e37a1-c217-48bc-84f5-7f1c3efbd042",
+    id: 4,
     created_at: "2022-05-19T16:45:31.073Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -575,7 +575,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Initializing the backend...",
   },
   {
-    id: "060ed132-5d12-4584-9005-5c9557febe2f",
+    id: 5,
     created_at: "2022-05-19T16:45:31.077Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -583,7 +583,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "b2e70a1c-1943-4616-8ac9-25326c9f7e7b",
+    id: 6,
     created_at: "2022-05-19T16:45:31.078Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -591,7 +591,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Initializing provider plugins...",
   },
   {
-    id: "993107fe-6dfb-42ec-912a-b32f50e60d62",
+    id: 7,
     created_at: "2022-05-19T16:45:31.078Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -599,7 +599,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: '- Finding hashicorp/google versions matching "~\u003e 4.15"...',
   },
   {
-    id: "2ad2e2a1-7a75-4827-8cb9-928acfc6fc07",
+    id: 8,
     created_at: "2022-05-19T16:45:31.123Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -607,7 +607,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: '- Finding coder/coder versions matching "0.3.4"...',
   },
   {
-    id: "7c723a90-0190-4c2f-9d97-ede39ef3d55f",
+    id: 9,
     created_at: "2022-05-19T16:45:31.137Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -615,7 +615,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "- Using hashicorp/google v4.21.0 from the shared cache directory",
   },
   {
-    id: "3910144b-411b-4a53-9900-88d406ed9bf4",
+    id: 10,
     created_at: "2022-05-19T16:45:31.344Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -623,7 +623,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "- Using coder/coder v0.3.4 from the shared cache directory",
   },
   {
-    id: "e3a02ad4-edc0-442f-8b9a-39d01d56b43b",
+    id: 11,
     created_at: "2022-05-19T16:45:31.388Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -631,7 +631,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "440cceb3-aabf-4838-979b-1fd37fe2d8d8",
+    id: 12,
     created_at: "2022-05-19T16:45:31.388Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -640,7 +640,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "Terraform has created a lock file .terraform.lock.hcl to record the provider",
   },
   {
-    id: "90e1f244-78ff-4d95-871e-b2bebcabc39a",
+    id: 13,
     created_at: "2022-05-19T16:45:31.389Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -649,7 +649,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "selections it made above. Include this file in your version control repository",
   },
   {
-    id: "e4527d6c-2412-452b-a946-5870787caf6b",
+    id: 14,
     created_at: "2022-05-19T16:45:31.389Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -658,7 +658,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "so that Terraform can guarantee to make the same selections by default when",
   },
   {
-    id: "02f96d19-d94b-4d0e-a1c4-313a0d2ff9e3",
+    id: 15,
     created_at: "2022-05-19T16:45:31.39Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -666,7 +666,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: 'you run "terraform init" in the future.',
   },
   {
-    id: "667c03ca-1b24-4f36-a598-f0322cf3e2a1",
+    id: 16,
     created_at: "2022-05-19T16:45:31.39Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -674,7 +674,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "48039d6a-9b21-460f-9ca3-4b0e2becfd18",
+    id: 17,
     created_at: "2022-05-19T16:45:31.391Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -682,7 +682,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Terraform has been successfully initialized!",
   },
   {
-    id: "6fe4b64f-3aa6-4850-96e9-6db8478a53be",
+    id: 18,
     created_at: "2022-05-19T16:45:31.42Z",
     log_source: "provisioner",
     log_level: "info",
@@ -690,7 +690,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Terraform 1.1.9",
   },
   {
-    id: "fa7b6321-7ecd-492d-a671-6366186fad08",
+    id: 19,
     created_at: "2022-05-19T16:45:33.537Z",
     log_source: "provisioner",
     log_level: "info",
@@ -698,7 +698,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "coder_agent.dev: Plan to create",
   },
   {
-    id: "e677e49f-c5ba-417c-8c9d-78bdad744ce1",
+    id: 20,
     created_at: "2022-05-19T16:45:33.537Z",
     log_source: "provisioner",
     log_level: "info",
@@ -706,7 +706,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_disk.root: Plan to create",
   },
   {
-    id: "4b0e6168-29e4-4419-bf81-b57e31087666",
+    id: 21,
     created_at: "2022-05-19T16:45:33.538Z",
     log_source: "provisioner",
     log_level: "info",
@@ -714,7 +714,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_instance.dev[0]: Plan to create",
   },
   {
-    id: "5902f89c-8acd-45e2-9bd6-de4d6fd8fc9c",
+    id: 22,
     created_at: "2022-05-19T16:45:33.539Z",
     log_source: "provisioner",
     log_level: "info",
@@ -722,7 +722,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Plan: 3 to add, 0 to change, 0 to destroy.",
   },
   {
-    id: "a8107907-7c53-4aae-bb48-9a5f9759c7d5",
+    id: 23,
     created_at: "2022-05-19T16:45:33.712Z",
     log_source: "provisioner",
     log_level: "info",
@@ -730,7 +730,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "coder_agent.dev: Creating...",
   },
   {
-    id: "aaf13503-2f1a-4f6c-aced-b8fc48304dc1",
+    id: 24,
     created_at: "2022-05-19T16:45:33.719Z",
     log_source: "provisioner",
     log_level: "info",
@@ -739,7 +739,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "coder_agent.dev: Creation complete after 0s [id=d07f5bdc-4a8d-4919-9cdb-0ac6ba9e64d6]",
   },
   {
-    id: "4ada8886-f5b3-4fee-a1a3-72064b50d5ae",
+    id: 25,
     created_at: "2022-05-19T16:45:34.139Z",
     log_source: "provisioner",
     log_level: "info",
@@ -747,7 +747,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_disk.root: Creating...",
   },
   {
-    id: "8ffc59e8-a4d0-4ffe-9bcc-cb84ca51cc22",
+    id: 26,
     created_at: "2022-05-19T16:45:44.14Z",
     log_source: "provisioner",
     log_level: "info",
@@ -755,7 +755,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_disk.root: Still creating... [10s elapsed]",
   },
   {
-    id: "063189fd-75ad-415a-ac77-8c34b9e202b2",
+    id: 27,
     created_at: "2022-05-19T16:45:47.106Z",
     log_source: "provisioner",
     log_level: "info",
@@ -764,7 +764,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "google_compute_disk.root: Creation complete after 13s [id=projects/bruno-coder-v2/zones/europe-west4-b/disks/coder-developer-bruno-dev-123-root]",
   },
   {
-    id: "6fd554a1-a7a2-439f-b8d8-369d6c1ead21",
+    id: 28,
     created_at: "2022-05-19T16:45:47.118Z",
     log_source: "provisioner",
     log_level: "info",
@@ -772,7 +772,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_instance.dev[0]: Creating...",
   },
   {
-    id: "87388f7e-ab01-44b1-b35e-8e06636164d3",
+    id: 29,
     created_at: "2022-05-19T16:45:57.122Z",
     log_source: "provisioner",
     log_level: "info",
@@ -780,7 +780,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_instance.dev[0]: Still creating... [10s elapsed]",
   },
   {
-    id: "baa40120-3f18-40d2-a35c-b11f421a1ce1",
+    id: 30,
     created_at: "2022-05-19T16:46:00.837Z",
     log_source: "provisioner",
     log_level: "info",
@@ -789,7 +789,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "google_compute_instance.dev[0]: Creation complete after 14s [id=projects/bruno-coder-v2/zones/europe-west4-b/instances/coder-developer-bruno-dev-123]",
   },
   {
-    id: "00e18953-fba6-4b43-97a3-ecf376553c08",
+    id: 31,
     created_at: "2022-05-19T16:46:00.846Z",
     log_source: "provisioner",
     log_level: "info",
@@ -797,7 +797,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.",
   },
   {
-    id: "431811da-b534-4d92-b6e5-44814548c812",
+    id: 32,
     created_at: "2022-05-19T16:46:00.847Z",
     log_source: "provisioner",
     log_level: "info",
@@ -805,7 +805,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Outputs: 0",
   },
   {
-    id: "70459334-4878-4bda-a546-98eee166c4c6",
+    id: 33,
     created_at: "2022-05-19T16:46:02.283Z",
     log_source: "provisioner_daemon",
     log_level: "info",
