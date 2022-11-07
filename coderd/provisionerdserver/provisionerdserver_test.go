@@ -442,6 +442,60 @@ func TestFailJob(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "job already completed")
 	})
+	t.Run("WorkspaceBuild", func(t *testing.T) {
+		t.Parallel()
+		srv := setup(t)
+		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+			ID: uuid.New(),
+		})
+		require.NoError(t, err)
+		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+			WorkspaceBuildID: build.ID,
+		})
+		require.NoError(t, err)
+		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:          uuid.New(),
+			Provisioner: database.ProvisionerTypeEcho,
+			Input:       input,
+		})
+		require.NoError(t, err)
+		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			WorkerID: uuid.NullUUID{
+				UUID:  srv.ID,
+				Valid: true,
+			},
+			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		require.NoError(t, err)
+
+		publishedWorkspace := make(chan struct{})
+		closeWorkspaceSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
+			close(publishedWorkspace)
+		})
+		require.NoError(t, err)
+		defer closeWorkspaceSubscribe()
+		publishedLogs := make(chan struct{})
+		closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionerdserver.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
+			close(publishedLogs)
+		})
+		require.NoError(t, err)
+		defer closeLogsSubscribe()
+
+		_, err = srv.FailJob(ctx, &proto.FailedJob{
+			JobId: job.ID.String(),
+			Type: &proto.FailedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+					State: []byte("some state"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		<-publishedWorkspace
+		<-publishedLogs
+		build, err = srv.Database.GetWorkspaceBuildByID(ctx, build.ID)
+		require.NoError(t, err)
+		require.Equal(t, "some state", string(build.ProvisionerState))
+	})
 }
 
 func setup(t *testing.T) *provisionerdserver.Server {
