@@ -223,6 +223,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		err = server.Pubsub.Publish(watchWorkspaceChannel(workspace.ID), []byte{})
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
+		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
@@ -547,7 +551,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               input.WorkspaceBuildID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: jobType.WorkspaceBuild.State,
@@ -555,6 +559,10 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace build state: %w", err)
+		}
+		err = server.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.FailedJob_TemplateImport_:
 	}
@@ -661,7 +669,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
 				Deadline:         workspaceDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -695,6 +703,11 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
+		err = server.Pubsub.Publish(watchWorkspaceChannel(workspaceBuild.WorkspaceID), []byte{})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {

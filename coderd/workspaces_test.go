@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -1347,27 +1351,86 @@ func TestWorkspaceExtend(t *testing.T) {
 
 func TestWorkspaceWatcher(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	w, err := client.Workspace(ctx, workspace.ID)
+	wc, err := client.WatchWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
-
-	wc, err := client.WatchWorkspace(ctx, w.ID)
-	require.NoError(t, err)
-	for i := 0; i < 3; i++ {
-		_, more := <-wc
-		require.True(t, more)
+	wait := func() {
+		select {
+		case <-ctx.Done():
+			t.Fail()
+		case <-wc:
+		}
 	}
+
+	coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	// the workspace build being created
+	wait()
+	// the workspace build being acquired
+	wait()
+	// the workspace build completing
+	wait()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+
+	// the agent connected
+	wait()
+	agentCloser.Close()
+	// the agent disconnected
+	wait()
+
+	closeFunc.Close()
+	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	// First is for the workspace build itself
+	wait()
+	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	// Second is for the build cancel
+	wait()
+
+	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
+		Name: "another",
+	})
+	require.NoError(t, err)
+	wait()
+
 	cancel()
-	require.EqualValues(t, codersdk.Workspace{}, <-wc)
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {

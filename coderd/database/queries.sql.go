@@ -5487,7 +5487,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 	return i, err
 }
 
-const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :exec
+const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :one
 UPDATE
 	workspace_builds
 SET
@@ -5495,7 +5495,7 @@ SET
 	provisioner_state = $3,
 	deadline = $4
 WHERE
-	id = $1
+	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason
 `
 
 type UpdateWorkspaceBuildByIDParams struct {
@@ -5505,14 +5505,29 @@ type UpdateWorkspaceBuildByIDParams struct {
 	Deadline         time.Time `db:"deadline" json:"deadline"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
+func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.ProvisionerState,
 		arg.Deadline,
 	)
-	return err
+	var i WorkspaceBuild
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.BuildNumber,
+		&i.Transition,
+		&i.InitiatorID,
+		&i.ProvisionerState,
+		&i.JobID,
+		&i.Deadline,
+		&i.Reason,
+	)
+	return i, err
 }
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
