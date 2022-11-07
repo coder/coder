@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/netip"
 	"strconv"
@@ -113,4 +114,17 @@ func TestDERPLatencyCheck(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+func TestHealthz(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+
+	res, err := client.Request(context.Background(), "GET", "/healthz", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, "OK", string(body))
 }
