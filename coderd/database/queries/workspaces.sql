@@ -102,7 +102,7 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			owner_id = @owner_id
 		ELSE true
 	END
@@ -240,7 +240,7 @@ WHERE
 	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			owner_id = @owner_id
 		ELSE true
 	END

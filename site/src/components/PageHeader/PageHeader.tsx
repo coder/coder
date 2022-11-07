@@ -52,7 +52,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     paddingTop: theme.spacing(6),
-    paddingBottom: theme.spacing(5),
+    paddingBottom: theme.spacing(6),
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
@@ -62,6 +62,7 @@ const useStyles = makeStyles((theme) => ({
 
   title: {
     fontSize: theme.spacing(3),
+    fontWeight: 400,
     margin: 0,
     display: "flex",
     alignItems: "center",

@@ -88,7 +88,6 @@ export const getStatus = (
         icon: <LoadingIcon />,
       }
   }
-  throw new Error("unknown text " + status)
 }
 
 export type WorkspaceStatusBadgeProps = {

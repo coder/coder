@@ -18,7 +18,7 @@ WHERE
 	templates.deleted = @deleted
 	-- Filter by organization_id
 	AND CASE
-		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			organization_id = @organization_id
 		ELSE true
 	END

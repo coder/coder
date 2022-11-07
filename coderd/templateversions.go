@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -43,16 +42,16 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdByName, err := getUsernameByUserID(ctx, api.Database, templateVersion.CreatedBy)
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
+			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), createdByName))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -523,15 +522,15 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				})
 				return err
 			}
-			createdByName, err := getUsernameByUserID(ctx, store, version.CreatedBy)
+			user, err := store.GetUserByID(ctx, version.CreatedBy)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching creator name.",
+					Message: "Internal error on fetching user.",
 					Detail:  err.Error(),
 				})
 				return err
 			}
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), createdByName))
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), user))
 		}
 
 		return nil
@@ -581,16 +580,16 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createdByName, err := getUsernameByUserID(ctx, api.Database, templateVersion.CreatedBy)
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
+			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), createdByName))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -841,10 +840,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Name:           req.Name,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
-			CreatedBy: uuid.NullUUID{
-				UUID:  apiKey.UserID,
-				Valid: true,
-			},
+			CreatedBy:      apiKey.UserID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %w", err)
@@ -859,16 +855,16 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	}
 	aReq.New = templateVersion
 
-	createdByName, err := getUsernameByUserID(ctx, api.Database, templateVersion.CreatedBy)
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
+			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), createdByName))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -926,18 +922,17 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func getUsernameByUserID(ctx context.Context, db database.Store, userID uuid.NullUUID) (string, error) {
-	if !userID.Valid {
-		return "", nil
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User) codersdk.TemplateVersion {
+	createdBy := codersdk.User{
+		ID:        user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		Status:    codersdk.UserStatus(user.Status),
+		Roles:     []codersdk.Role{},
+		AvatarURL: user.AvatarURL.String,
 	}
-	user, err := db.GetUserByID(ctx, userID.UUID)
-	if err != nil {
-		return "", err
-	}
-	return user.Username, nil
-}
 
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, createdByName string) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
 		ID:             version.ID,
 		TemplateID:     &version.TemplateID.UUID,
@@ -947,7 +942,6 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Name:           version.Name,
 		Job:            job,
 		Readme:         version.Readme,
-		CreatedByID:    version.CreatedBy.UUID,
-		CreatedByName:  createdByName,
+		CreatedBy:      createdBy,
 	}
 }

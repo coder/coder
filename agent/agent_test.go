@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -22,11 +23,13 @@ import (
 
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -230,7 +233,13 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err, "get working directory")
 		require.Equal(t, home, wd, "working directory should be home user home")
 		tempFile := filepath.Join(t.TempDir(), "sftp")
-		file, err := client.Create(tempFile)
+		// SFTP only accepts unix-y paths.
+		remoteFile := filepath.ToSlash(tempFile)
+		if !path.IsAbs(remoteFile) {
+			// On Windows, e.g. "/C:/Users/...".
+			remoteFile = path.Join("/", remoteFile)
+		}
+		file, err := client.Create(remoteFile)
 		require.NoError(t, err)
 		err = file.Close()
 		require.NoError(t, err)
@@ -524,9 +533,9 @@ func TestAgent(t *testing.T) {
 		}
 		initialized := atomic.Int32{}
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
+			ExchangeToken: func(ctx context.Context) (string, error) {
 				initialized.Add(1)
-				return nil
+				return "", nil
 			},
 			Client: client,
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
@@ -541,6 +550,39 @@ func TestAgent(t *testing.T) {
 		client.lastWorkspaceAgent()
 		require.Eventually(t, func() bool {
 			return initialized.Load() == 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("WriteVSCodeConfigs", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: codersdk.WorkspaceAgentMetadata{
+				GitAuthConfigs: 1,
+				DERPMap:        &tailcfg.DERPMap{},
+			},
+			statsChan:   make(chan *codersdk.AgentStats),
+			coordinator: tailnet.NewCoordinator(),
+		}
+		filesystem := afero.NewMemMapFs()
+		closer := agent.New(agent.Options{
+			ExchangeToken: func(ctx context.Context) (string, error) {
+				return "", nil
+			},
+			Client:     client,
+			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Filesystem: filesystem,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		home, err := os.UserHomeDir()
+		require.NoError(t, err)
+		path := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
+		require.Eventually(t, func() bool {
+			_, err := filesystem.Stat(path)
+			return err == nil
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }

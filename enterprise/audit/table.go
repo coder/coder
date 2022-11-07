@@ -109,6 +109,22 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 	},
+	// We don't show any diff for the WorkspaceBuild resource,
+	// save for the template_version_id
+	&database.WorkspaceBuild{}: {
+		"id":                  ActionIgnore,
+		"created_at":          ActionIgnore,
+		"updated_at":          ActionIgnore,
+		"workspace_id":        ActionIgnore,
+		"template_version_id": ActionTrack,
+		"build_number":        ActionIgnore,
+		"transition":          ActionIgnore,
+		"initiator_id":        ActionIgnore,
+		"provisioner_state":   ActionIgnore,
+		"job_id":              ActionIgnore,
+		"deadline":            ActionIgnore,
+		"reason":              ActionIgnore,
+	},
 })
 
 // auditMap converts a map of struct pointers to a map of struct names as

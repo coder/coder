@@ -3,6 +3,7 @@ package coderd
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
@@ -30,6 +32,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -82,6 +85,7 @@ type Options struct {
 	Telemetry            telemetry.Reporter
 	TracerProvider       trace.TracerProvider
 	AutoImportTemplates  []AutoImportTemplate
+	GitAuthConfigs       []*gitauth.Config
 	RealIPConfig         *httpmw.RealIPConfig
 
 	// TLSCertificates is used to mesh DERP servers securely.
@@ -162,6 +166,7 @@ func New(options *Options) *API {
 
 	r := chi.NewRouter()
 	api := &API{
+		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
 		siteHandler: site.Handler(site.FS(), binFS),
@@ -228,6 +233,8 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+
 	apps := func(r chi.Router) {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),
@@ -262,6 +269,17 @@ func New(options *Options) *API {
 		})
 	})
 
+	r.Route("/gitauth", func(r chi.Router) {
+		for _, gitAuthConfig := range options.GitAuthConfigs {
+			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOAuth2(gitAuthConfig),
+					apiKeyMiddleware,
+				)
+				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+			})
+		}
+	})
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -474,6 +492,7 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/version", api.postWorkspaceAgentVersion)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
+				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Get("/report-stats", api.workspaceAgentReportStats)
@@ -564,6 +583,11 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
+	// ID is a uniquely generated ID on initialization.
+	// This is used to associate objects with a specific
+	// Coder API instance, like workspace agents to a
+	// specific replica.
+	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]

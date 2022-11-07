@@ -37,6 +37,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 
 	assertRoute := map[string]RouteCheck{
 		// These endpoints do not require auth
+		"GET:/healthz":                  {NoAuthorize: true},
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
@@ -57,6 +58,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/aws-instance-identity":    {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/azure-instance-identity":  {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/google-instance-identity": {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/gitauth":                {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
@@ -330,8 +332,9 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
 							Apps: []*proto.App{{
-								Name: "testapp",
-								Url:  "http://localhost:3000",
+								Slug:        "testapp",
+								DisplayName: "testapp",
+								Url:         "http://localhost:3000",
 							}},
 						}},
 					}},
@@ -371,7 +374,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{template}":            template.ID.String(),
 		"{fileID}":              file.ID.String(),
 		"{workspaceresource}":   workspace.LatestBuild.Resources[0].ID.String(),
-		"{workspaceapp}":        workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Name,
+		"{workspaceapp}":        workspace.LatestBuild.Resources[0].Agents[0].Apps[0].Slug,
 		"{templateversion}":     version.ID.String(),
 		"{jobID}":               templateVersionDryRun.ID.String(),
 		"{templatename}":        template.Name,

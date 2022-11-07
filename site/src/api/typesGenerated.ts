@@ -41,9 +41,9 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly old?: any
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly new?: any
   readonly secret: boolean
 }
@@ -55,7 +55,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -65,8 +65,7 @@ export interface AuditLog {
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: string
+  readonly additional_fields: Record<string, string>
   readonly description: string
   readonly user?: User
 }
@@ -205,6 +204,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly time?: string
 }
 
 // From codersdk/apikey.go
@@ -245,10 +245,32 @@ export interface DAUEntry {
   readonly amount: number
 }
 
+// From codersdk/deploymentconfig.go
+export interface DERP {
+  readonly server: DERPServerConfig
+  readonly config: DERPConfig
+}
+
+// From codersdk/deploymentconfig.go
+export interface DERPConfig {
+  readonly url: DeploymentConfigField<string>
+  readonly path: DeploymentConfigField<string>
+}
+
 // From codersdk/workspaceagents.go
 export interface DERPRegion {
   readonly preferred: boolean
   readonly latency_ms: number
+}
+
+// From codersdk/deploymentconfig.go
+export interface DERPServerConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly region_id: DeploymentConfigField<number>
+  readonly region_code: DeploymentConfigField<string>
+  readonly region_name: DeploymentConfigField<string>
+  readonly stun_addresses: DeploymentConfigField<string[]>
+  readonly relay_url: DeploymentConfigField<string>
 }
 
 // From codersdk/deploymentconfig.go
@@ -257,43 +279,21 @@ export interface DeploymentConfig {
   readonly wildcard_access_url: DeploymentConfigField<string>
   readonly address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
-  readonly derp_server_enabled: DeploymentConfigField<boolean>
-  readonly derp_server_region_id: DeploymentConfigField<number>
-  readonly derp_server_region_code: DeploymentConfigField<string>
-  readonly derp_server_region_name: DeploymentConfigField<string>
-  readonly derp_server_stun_address: DeploymentConfigField<string[]>
-  readonly derp_server_relay_address: DeploymentConfigField<string>
-  readonly derp_config_url: DeploymentConfigField<string>
-  readonly derp_config_path: DeploymentConfigField<string>
-  readonly prometheus_enabled: DeploymentConfigField<boolean>
-  readonly prometheus_address: DeploymentConfigField<string>
-  readonly pprof_enabled: DeploymentConfigField<boolean>
-  readonly pprof_address: DeploymentConfigField<string>
+  readonly derp: DERP
+  readonly gitauth: DeploymentConfigField<GitAuthConfig[]>
+  readonly prometheus: PrometheusConfig
+  readonly pprof: PprofConfig
   readonly proxy_trusted_headers: DeploymentConfigField<string[]>
   readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly provisioner_daemon_count: DeploymentConfigField<number>
-  readonly oauth2_github_client_id: DeploymentConfigField<string>
-  readonly oauth2_github_allowed_orgs: DeploymentConfigField<string[]>
-  readonly oauth2_github_allowed_teams: DeploymentConfigField<string[]>
-  readonly oauth2_github_allow_signups: DeploymentConfigField<boolean>
-  readonly oauth2_github_enterprise_base_url: DeploymentConfigField<string>
-  readonly oidc_allow_signups: DeploymentConfigField<boolean>
-  readonly oidc_client_id: DeploymentConfigField<string>
-  readonly oidc_email_domain: DeploymentConfigField<string>
-  readonly oidc_issuer_url: DeploymentConfigField<string>
-  readonly oidc_scopes: DeploymentConfigField<string[]>
-  readonly telemetry_enable: DeploymentConfigField<boolean>
-  readonly telemetry_trace_enable: DeploymentConfigField<boolean>
-  readonly telemetry_url: DeploymentConfigField<string>
-  readonly tls_enable: DeploymentConfigField<boolean>
-  readonly tls_cert_files: DeploymentConfigField<string[]>
-  readonly tls_client_ca_file: DeploymentConfigField<string>
-  readonly tls_client_auth: DeploymentConfigField<string>
-  readonly tls_key_files: DeploymentConfigField<string[]>
-  readonly tls_min_version: DeploymentConfigField<string>
-  readonly trace_enable: DeploymentConfigField<boolean>
+  readonly provisioner_daemons: DeploymentConfigField<number>
+  readonly pg_connection_url: DeploymentConfigField<string>
+  readonly oauth2: OAuth2Config
+  readonly oidc: OIDCConfig
+  readonly telemetry: TelemetryConfig
+  readonly tls: TLSConfig
+  readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
   readonly auto_import_templates: DeploymentConfigField<string[]>
@@ -301,18 +301,20 @@ export interface DeploymentConfig {
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
+  readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
 }
 
 // From codersdk/deploymentconfig.go
 export interface DeploymentConfigField<T extends Flaggable> {
-  readonly key: string
   readonly name: string
   readonly usage: string
   readonly flag: string
   readonly shorthand: string
   readonly enterprise: boolean
   readonly hidden: boolean
+  readonly secret: boolean
+  readonly default: T
   readonly value: T
 }
 
@@ -344,6 +346,17 @@ export interface GetAppHostResponse {
   readonly host: string
 }
 
+// From codersdk/deploymentconfig.go
+export interface GitAuthConfig {
+  readonly id: string
+  readonly type: string
+  readonly client_id: string
+  readonly auth_url: string
+  readonly token_url: string
+  readonly regex: string
+  readonly scopes: string[]
+}
+
 // From codersdk/gitsshkey.go
 export interface GitSSHKey {
   readonly user_id: string
@@ -372,7 +385,7 @@ export interface Healthcheck {
 export interface License {
   readonly id: number
   readonly uploaded_at: string
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
 }
 
@@ -397,6 +410,31 @@ export interface LoginWithPasswordRequest {
 // From codersdk/users.go
 export interface LoginWithPasswordResponse {
   readonly session_token: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface OAuth2Config {
+  readonly github: OAuth2GithubConfig
+}
+
+// From codersdk/deploymentconfig.go
+export interface OAuth2GithubConfig {
+  readonly client_id: DeploymentConfigField<string>
+  readonly client_secret: DeploymentConfigField<string>
+  readonly allowed_orgs: DeploymentConfigField<string[]>
+  readonly allowed_teams: DeploymentConfigField<string[]>
+  readonly allow_signups: DeploymentConfigField<boolean>
+  readonly enterprise_base_url: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface OIDCConfig {
+  readonly allow_signups: DeploymentConfigField<boolean>
+  readonly client_id: DeploymentConfigField<string>
+  readonly client_secret: DeploymentConfigField<string>
+  readonly email_domain: DeploymentConfigField<string>
+  readonly issuer_url: DeploymentConfigField<string>
+  readonly scopes: DeploymentConfigField<string[]>
 }
 
 // From codersdk/organizations.go
@@ -464,6 +502,18 @@ export interface PatchGroupRequest {
   readonly avatar_url?: string
 }
 
+// From codersdk/deploymentconfig.go
+export interface PprofConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface PrometheusConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -488,7 +538,7 @@ export interface ProvisionerJob {
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerJobLog {
-  readonly id: string
+  readonly id: number
   readonly created_at: string
   readonly log_source: LogSource
   readonly log_level: LogLevel
@@ -528,8 +578,25 @@ export interface Role {
 // From codersdk/sse.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly data: any
+}
+
+// From codersdk/deploymentconfig.go
+export interface TLSConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly cert_file: DeploymentConfigField<string[]>
+  readonly client_auth: DeploymentConfigField<string>
+  readonly client_ca_file: DeploymentConfigField<string>
+  readonly key_file: DeploymentConfigField<string[]>
+  readonly min_version: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface TelemetryConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly trace: DeploymentConfigField<boolean>
+  readonly url: DeploymentConfigField<string>
 }
 
 // From codersdk/templates.go
@@ -589,13 +656,18 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by_id: string
-  readonly created_by_name: string
+  readonly created_by: User
 }
 
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface TraceConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly honeycomb_api_key: DeploymentConfigField<string>
 }
 
 // From codersdk/templates.go
@@ -731,6 +803,13 @@ export interface WorkspaceAgent {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentGitAuthResponse {
+  readonly username: string
+  readonly password: string
+  readonly url: string
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -755,7 +834,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
-  readonly name: string
+  readonly slug: string
+  readonly display_name: string
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
@@ -847,7 +927,7 @@ export interface WorkspacesRequest extends Pagination {
 export type APIKeyScope = "all" | "application_connect"
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "write"
+export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
@@ -907,6 +987,7 @@ export type ResourceType =
   | "template_version"
   | "user"
   | "workspace"
+  | "workspace_build"
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"
@@ -947,4 +1028,4 @@ export type WorkspaceStatus =
 export type WorkspaceTransition = "delete" | "start" | "stop"
 
 // From codersdk/deploymentconfig.go
-export type Flaggable = string | boolean | number | string[]
+export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]

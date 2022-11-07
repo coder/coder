@@ -42,12 +42,11 @@ export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ resource }) => {
 
 const useStyles = makeStyles((theme) => ({
   resourceAvatar: {
-    color: theme.palette.info.contrastText,
-    backgroundColor: theme.palette.info.main,
+    backgroundColor: theme.palette.divider,
 
     "& img": {
-      width: 20,
-      height: 20,
+      width: 18,
+      height: 18,
     },
   },
 }))

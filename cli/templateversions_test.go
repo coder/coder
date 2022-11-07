@@ -35,7 +35,7 @@ func TestTemplateVersions(t *testing.T) {
 		require.NoError(t, <-errC)
 
 		pty.ExpectMatch(version.Name)
-		pty.ExpectMatch(version.CreatedByName)
+		pty.ExpectMatch(version.CreatedBy.Username)
 		pty.ExpectMatch("Active")
 	})
 }

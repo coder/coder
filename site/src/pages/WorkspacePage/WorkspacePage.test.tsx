@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
+/* eslint-disable @typescript-eslint/no-floating-promises -- TODO look into this */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
@@ -92,16 +92,6 @@ afterAll(() => {
 })
 
 describe("WorkspacePage", () => {
-  it("shows a workspace", async () => {
-    await renderWorkspacePage()
-    const workspaceName = await screen.findByText(MockWorkspace.name)
-    expect(workspaceName).toBeDefined()
-    const header = screen.getByTestId("header")
-    const status = await within(header).findByRole("status")
-    expect(status).toHaveTextContent("Running")
-    // wait for workspace page to finish loading
-    await screen.findByText("stop")
-  })
   it("requests a stop job when the user presses Stop", async () => {
     const stopWorkspaceMock = jest
       .spyOn(api, "stopWorkspace")
@@ -288,7 +278,8 @@ describe("WorkspacePage", () => {
       // Wait for the results to be loaded
       await waitFor(async () => {
         const rows = table.querySelectorAll("tbody > tr")
-        expect(rows).toHaveLength(MockBuilds.length)
+        // Added +1 because of the date row
+        expect(rows).toHaveLength(MockBuilds.length + 1)
       })
     })
   })
@@ -358,3 +349,4 @@ describe("WorkspacePage", () => {
     })
   })
 })
+/* eslint-enable @typescript-eslint/no-floating-promises -- TODO look into this */

@@ -252,6 +252,13 @@ $(CODER_ALL_PACKAGES): $(CODER_PACKAGE_DEPS)
 		--output "$@" \
 		"build/coder_$(VERSION)_$${os}_$${arch}"
 
+# This task builds a Windows amd64 installer. Depends on makensis.
+build/coder_$(VERSION)_windows_amd64_installer.exe: build/coder_$(VERSION)_windows_amd64.exe
+	./scripts/build_windows_installer.sh \
+		--version "$(VERSION)" \
+		--output "$@" \
+		"$<"
+
 # Redirect from version-less Docker image targets to the versioned ones.
 #
 # Called like this:
@@ -435,6 +442,15 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site
 	yarn run format:types
+
+update-golden-files: cli/testdata/.gen-golden
+.PHONY: update-golden-files
+
+cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) \
+	$(shell find . -not -path './vendor/*' -type f -name '*.go')
+
+	go test ./cli -run=TestCommandHelp -update
+	touch "$@"
 
 test: test-clean
 	gotestsum -- -v -short ./...

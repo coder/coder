@@ -30,7 +30,6 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
 const CliAuthenticationPage = lazy(
   () => import("./pages/CliAuthPage/CliAuthPage"),
 )
-const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
 )
@@ -74,12 +73,16 @@ const GeneralSettingsPage = lazy(
 const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
 )
-const AuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/AuthSettingsPage"),
+const UserAuthSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
+)
+const GitAuthSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/GitAuthSettingsPage"),
 )
 const NetworkSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
 )
+const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -103,12 +106,19 @@ export const AppRouter: FC = () => {
 
         <Route path="login" element={<LoginPage />} />
         <Route path="setup" element={<SetupPage />} />
-        <Route path="healthz" element={<HealthzPage />} />
         <Route
           path="cli-auth"
           element={
             <RequireAuth>
               <CliAuthenticationPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="gitauth"
+          element={
+            <RequireAuth>
+              <GitAuthPage />
             </RequireAuth>
           }
         />
@@ -294,14 +304,28 @@ export const AppRouter: FC = () => {
             }
           />
           <Route
-            path="auth"
+            path="userauth"
             element={
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
-                    <AuthSettingsPage />
+                    <UserAuthSettingsPage />
+                  </DeploySettingsLayout>
+                </RequirePermission>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="gitauth"
+            element={
+              <AuthAndFrame>
+                <RequirePermission
+                  isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
+                >
+                  <DeploySettingsLayout>
+                    <GitAuthSettingsPage />
                   </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>

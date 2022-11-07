@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -222,6 +223,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		err = server.Pubsub.Publish(watchWorkspaceChannel(workspace.ID), []byte{})
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
+		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
@@ -367,7 +372,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			if err != nil {
 				return nil, xerrors.Errorf("convert log source: %w", err)
 			}
-			insertParams.ID = append(insertParams.ID, uuid.New())
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
 			insertParams.Level = append(insertParams.Level, logLevel)
 			insertParams.Stage = append(insertParams.Stage, log.Stage)
@@ -383,10 +387,15 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
+		// Publish by the lowest log ID inserted so the
+		// log stream will fetch everything from that point.
+		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
-		data, err := json.Marshal(provisionerJobLogsMessage{Logs: logs})
+		data, err := json.Marshal(provisionerJobLogsMessage{
+			CreatedAfter: lowestID,
+		})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal job log: %w", err)
+			return nil, xerrors.Errorf("marshal: %w", err)
 		}
 		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
@@ -542,7 +551,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               input.WorkspaceBuildID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: jobType.WorkspaceBuild.State,
@@ -550,6 +559,10 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace build state: %w", err)
+		}
+		err = server.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.FailedJob_TemplateImport_:
 	}
@@ -656,7 +669,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
 				Deadline:         workspaceDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -690,6 +703,11 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
+		err = server.Pubsub.Publish(watchWorkspaceChannel(workspaceBuild.WorkspaceID), []byte{})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {
@@ -749,12 +767,17 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Name:       protoResource.Name,
 		Hide:       protoResource.Hide,
 		Icon:       protoResource.Icon,
+		InstanceType: sql.NullString{
+			String: protoResource.InstanceType,
+			Valid:  protoResource.InstanceType != "",
+		},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
+	var appSlugs = make(map[string]struct{})
 	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
@@ -806,6 +829,18 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
+			slug := app.Slug
+			if slug == "" {
+				return xerrors.Errorf("app must have a slug or name set")
+			}
+			if !provisioner.AppSlugRegex.MatchString(slug) {
+				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
+			}
+			if _, exists := appSlugs[slug]; exists {
+				return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
+			}
+			appSlugs[slug] = struct{}{}
+
 			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
 				app.Healthcheck = &sdkproto.Healthcheck{}
@@ -823,11 +858,12 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-				ID:        uuid.New(),
-				CreatedAt: database.Now(),
-				AgentID:   dbAgent.ID,
-				Name:      app.Name,
-				Icon:      app.Icon,
+				ID:          uuid.New(),
+				CreatedAt:   database.Now(),
+				AgentID:     dbAgent.ID,
+				Slug:        slug,
+				DisplayName: app.DisplayName,
+				Icon:        app.Icon,
 				Command: sql.NullString{
 					String: app.Command,
 					Valid:  app.Command != "",

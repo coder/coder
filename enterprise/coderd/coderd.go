@@ -77,10 +77,18 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groups)
+			r.Route("/{groupName}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractGroupByNameParam(api.Database),
+				)
+
+				r.Get("/", api.group)
+			})
 		})
 
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
@@ -150,6 +158,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
 		TLSConfig:    meshTLSConfig,
@@ -211,12 +220,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), api.Keys, map[string]bool{
+	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[string]bool{
 		codersdk.FeatureAuditLog:         api.AuditLogging,
 		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
 		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
 		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
 		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
+		codersdk.FeatureMultipleGitAuth:  len(api.GitAuthConfigs) > 1,
 		codersdk.FeatureTemplateRBAC:     api.RBAC,
 	})
 	if err != nil {
@@ -262,7 +272,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
 		coordinator := agpltailnet.NewCoordinator()
-		if api.Experimental && enabled {
+		if enabled {
 			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))

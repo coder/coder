@@ -132,10 +132,10 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 }
 
 export const getUsers = async (
-  filter?: TypesGen.UsersRequest,
+  options: TypesGen.UsersRequest,
 ): Promise<TypesGen.User[]> => {
-  const url = getURLWithSearchParams("/api/v2/users", filter)
-  const response = await axios.get<TypesGen.User[]>(url)
+  const url = getURLWithSearchParams("/api/v2/users", options)
+  const response = await axios.get<TypesGen.User[]>(url.toString())
   return response.data
 }
 
@@ -264,51 +264,43 @@ export const watchWorkspace = (workspaceId: string): EventSource => {
   )
 }
 
+interface SearchParamOptions extends TypesGen.Pagination {
+  q?: string
+}
+
 export const getURLWithSearchParams = (
   basePath: string,
-  filter?: TypesGen.WorkspaceFilter | TypesGen.UsersRequest,
+  options?: SearchParamOptions,
 ): string => {
-  const searchParams = new URLSearchParams()
-
-  if (filter?.q && filter.q !== "") {
-    searchParams.append("q", filter.q)
+  if (options) {
+    const searchParams = new URLSearchParams()
+    const keys = Object.keys(options) as (keyof SearchParamOptions)[]
+    keys.forEach((key) => {
+      const value = options[key]
+      if (value !== undefined && value !== "") {
+        searchParams.append(key, value.toString())
+      }
+    })
+    const searchString = searchParams.toString()
+    return searchString ? `${basePath}?${searchString}` : basePath
+  } else {
+    return basePath
   }
-
-  const searchString = searchParams.toString()
-
-  return searchString ? `${basePath}?${searchString}` : basePath
 }
 
 export const getWorkspaces = async (
   options: TypesGen.WorkspacesRequest,
 ): Promise<TypesGen.Workspace[]> => {
-  const searchParams = new URLSearchParams()
-  if (options.limit) {
-    searchParams.set("limit", options.limit.toString())
-  }
-  if (options.offset) {
-    searchParams.set("offset", options.offset.toString())
-  }
-  if (options.q) {
-    searchParams.set("q", options.q)
-  }
-
-  const response = await axios.get<TypesGen.Workspace[]>(
-    `/api/v2/workspaces?${searchParams.toString()}`,
-  )
+  const url = getURLWithSearchParams("/api/v2/workspaces", options)
+  const response = await axios.get<TypesGen.Workspace[]>(url)
   return response.data
 }
 
 export const getWorkspacesCount = async (
   options: TypesGen.WorkspaceCountRequest,
 ): Promise<TypesGen.WorkspaceCountResponse> => {
-  const searchParams = new URLSearchParams()
-  if (options.q) {
-    searchParams.set("q", options.q)
-  }
-  const response = await axios.get(
-    `/api/v2/workspaces/count?${searchParams.toString()}`,
-  )
+  const url = getURLWithSearchParams("/api/v2/workspaces/count", options)
+  const response = await axios.get(url)
   return response.data
 }
 
@@ -555,31 +547,16 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
-  const searchParams = new URLSearchParams()
-  if (options.limit) {
-    searchParams.set("limit", options.limit.toString())
-  }
-  if (options.offset) {
-    searchParams.set("offset", options.offset.toString())
-  }
-  if (options.q) {
-    searchParams.set("q", options.q)
-  }
-
-  const response = await axios.get(`/api/v2/audit?${searchParams.toString()}`)
+  const url = getURLWithSearchParams("/api/v2/audit", options)
+  const response = await axios.get(url)
   return response.data
 }
 
 export const getAuditLogsCount = async (
   options: TypesGen.AuditLogCountRequest = {},
 ): Promise<TypesGen.AuditLogCountResponse> => {
-  const searchParams = new URLSearchParams()
-  if (options.q) {
-    searchParams.set("q", options.q)
-  }
-  const response = await axios.get(
-    `/api/v2/audit/count?${searchParams.toString()}`,
-  )
+  const url = getURLWithSearchParams("/api/v2/audit/count", options)
+  const response = await axios.get(url)
   return response.data
 }
 
