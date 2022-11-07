@@ -93,7 +93,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		}
 	}
 
-	// Wait for a DERP connection.
+	// Wait for a direct connection if requested.
 	if r.cfg.ConnectionMode == ConnectionModeDirect {
 		const directConnectionAttempts = 30
 		const directConnectionDelay = 1 * time.Second
@@ -289,6 +289,9 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 			case <-egCtx.Done():
 				return egCtx.Err()
 			case <-t.C:
+				// Returning an error here will cause the errgroup context to
+				// be canceled, which is what we want. This fake error is
+				// ignored below.
 				return holdDurationEndedError{}
 			}
 		})

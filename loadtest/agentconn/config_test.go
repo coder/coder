@@ -14,8 +14,7 @@ import (
 func Test_Config(t *testing.T) {
 	t.Parallel()
 
-	id := uuid.Must(uuid.NewRandom())
-
+	id := uuid.New()
 	cases := []struct {
 		name        string
 		config      agentconn.Config
