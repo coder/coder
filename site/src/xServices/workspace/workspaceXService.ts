@@ -40,23 +40,6 @@ const moreBuildsAvailable = (
   return event.data.latest_build.updated_at !== latestBuildInTimeline.updated_at
 }
 
-const updateWorkspaceStatus = (
-  status: TypesGen.WorkspaceStatus,
-  workspace?: TypesGen.Workspace,
-) => {
-  if (!workspace) {
-    throw new Error("Workspace not defined")
-  }
-
-  return {
-    ...workspace,
-    latest_build: {
-      ...workspace.latest_build,
-      status,
-    },
-  }
-}
-
 const Language = {
   getTemplateWarning:
     "Error updating workspace: latest template could not be fetched.",
@@ -342,7 +325,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingStart: {
-                entry: ["clearBuildError", "updateStatusToStarting"],
+                entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
                   src: "startWorkspace",
                   id: "startWorkspace",
@@ -361,7 +344,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingStop: {
-                entry: ["clearBuildError", "updateStatusToStopping"],
+                entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
                   src: "stopWorkspace",
                   id: "stopWorkspace",
@@ -380,7 +363,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingDelete: {
-                entry: ["clearBuildError", "updateStatusToDeleting"],
+                entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
                   src: "deleteWorkspace",
                   id: "deleteWorkspace",
@@ -402,7 +385,7 @@ export const workspaceMachine = createMachine(
                 entry: [
                   "clearCancellationMessage",
                   "clearCancellationError",
-                  "updateStatusToCanceling",
+                  "updateStatusToPending",
                 ],
                 invoke: {
                   src: "cancelWorkspace",
@@ -618,24 +601,23 @@ export const workspaceMachine = createMachine(
         }),
         { to: "scheduleBannerMachine" },
       ),
-      // Optimistically updates. So when the user clicks on stop, we can show
-      // the "stopping" state right away without having to wait 0.5s ~ 2s to
+      // Optimistically update. So when the user clicks on stop, we can show
+      // the "pending" state right away without having to wait 0.5s ~ 2s to
       // display the visual feedback to the user.
-      updateStatusToStarting: assign({
-        workspace: ({ workspace }) =>
-          updateWorkspaceStatus("starting", workspace),
-      }),
-      updateStatusToStopping: assign({
-        workspace: ({ workspace }) =>
-          updateWorkspaceStatus("stopping", workspace),
-      }),
-      updateStatusToDeleting: assign({
-        workspace: ({ workspace }) =>
-          updateWorkspaceStatus("deleting", workspace),
-      }),
-      updateStatusToCanceling: assign({
-        workspace: ({ workspace }) =>
-          updateWorkspaceStatus("canceling", workspace),
+      updateStatusToPending: assign({
+        workspace: ({ workspace }) => {
+          if (!workspace) {
+            throw new Error("Workspace not defined")
+          }
+
+          return {
+            ...workspace,
+            latest_build: {
+              ...workspace.latest_build,
+              status: "pending" as TypesGen.WorkspaceStatus,
+            },
+          }
+        },
       }),
     },
     guards: {
