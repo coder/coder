@@ -16,14 +16,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID, before time.Time) error {
+func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID) error {
 	return ProvisionerJob(ctx, writer, ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			build, err := client.WorkspaceBuild(ctx, build)
 			return build.Job, err
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.WorkspaceBuildLogsAfter(ctx, build, before)
+			return client.WorkspaceBuildLogsAfter(ctx, build, 0)
 		},
 	})
 }
@@ -103,7 +103,6 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 		}
 		updateStage("Running", *job.StartedAt)
 	}
-	updateJob()
 
 	if opts.Cancel != nil {
 		// Handles ctrl+c to cancel a job.
@@ -131,6 +130,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 
 	// The initial stage needs to print after the signal handler has been registered.
 	printStage()
+	updateJob()
 
 	logs, closer, err := opts.Logs()
 	if err != nil {

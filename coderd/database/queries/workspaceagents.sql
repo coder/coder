@@ -64,8 +64,9 @@ UPDATE
 SET
 	first_connected_at = $2,
 	last_connected_at = $3,
-	disconnected_at = $4,
-	updated_at = $5
+	last_connected_replica_id = $4,
+	disconnected_at = $5,
+	updated_at = $6
 WHERE
 	id = $1;
 

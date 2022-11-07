@@ -29,7 +29,7 @@ type DeploymentConfig struct {
 	OIDC                        *OIDCConfig                             `json:"oidc" typescript:",notnull"`
 	Telemetry                   *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
 	TLS                         *TLSConfig                              `json:"tls" typescript:",notnull"`
-	TraceEnable                 *DeploymentConfigField[bool]            `json:"trace_enable" typescript:",notnull"`
+	Trace                       *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie            *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
 	SSHKeygenAlgorithm          *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
 	AutoImportTemplates         *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
@@ -107,14 +107,20 @@ type TLSConfig struct {
 	MinVersion   *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
 }
 
+type TraceConfig struct {
+	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
+}
+
 type GitAuthConfig struct {
-	ID           string `json:"id"`
-	Type         string `json:"type"`
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"-" yaml:"client_secret"`
-	AuthURL      string `json:"auth_url"`
-	TokenURL     string `json:"token_url"`
-	Regex        string `json:"regex"`
+	ID           string   `json:"id"`
+	Type         string   `json:"type"`
+	ClientID     string   `json:"client_id"`
+	ClientSecret string   `json:"-" yaml:"client_secret"`
+	AuthURL      string   `json:"auth_url"`
+	TokenURL     string   `json:"token_url"`
+	Regex        string   `json:"regex"`
+	Scopes       []string `json:"scopes"`
 }
 
 type Flaggable interface {

@@ -1,5 +1,6 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
+import { ClassNameMap } from "@material-ui/core/styles/withStyles"
 import { FC } from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 
@@ -8,36 +9,22 @@ export const Language = {
   defaultSubmitLabel: "Submit",
 }
 
+type FormFooterStyles = ClassNameMap<"footer" | "button">
 export interface FormFooterProps {
   onCancel: () => void
   isLoading: boolean
+  styles?: FormFooterStyles
   submitLabel?: string
   submitDisabled?: boolean
 }
 
-const useStyles = makeStyles((theme) => ({
-  footer: {
-    display: "flex",
-    flex: "0",
-    // The first button is the submit so it is the first element to be focused
-    // on tab so we use row-reverse to display it on the right
-    flexDirection: "row-reverse",
-    gap: theme.spacing(1.5),
-    alignItems: "center",
-    marginTop: theme.spacing(3),
-  },
-  button: {
-    width: "100%",
-  },
-}))
-
-export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
+export const FormFooter: FC<FormFooterProps> = ({
   onCancel,
   isLoading,
-  submitLabel = Language.defaultSubmitLabel,
   submitDisabled,
+  submitLabel = Language.defaultSubmitLabel,
+  styles = defaultStyles(),
 }) => {
-  const styles = useStyles()
   return (
     <div className={styles.footer}>
       <LoadingButton
@@ -63,3 +50,19 @@ export const FormFooter: FC<React.PropsWithChildren<FormFooterProps>> = ({
     </div>
   )
 }
+
+const defaultStyles = makeStyles((theme) => ({
+  footer: {
+    display: "flex",
+    flex: "0",
+    // The first button is the submit so it is the first element to be focused
+    // on tab so we use row-reverse to display it on the right
+    flexDirection: "row-reverse",
+    gap: theme.spacing(1.5),
+    alignItems: "center",
+    marginTop: theme.spacing(3),
+  },
+  button: {
+    width: "100%",
+  },
+}))

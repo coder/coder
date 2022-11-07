@@ -24,7 +24,7 @@ const config: PlaywrightTestConfig = {
     command: `go run -tags embed ${path.join(
       __dirname,
       "../../enterprise/cmd/coder/main.go",
-    )} server --in-memory --access-url 127.0.0.1:${basePort}`,
+    )} server --in-memory --access-url http://127.0.0.1:${basePort}`,
     port: basePort,
     timeout: 120 * 10000,
     reuseExistingServer: false,

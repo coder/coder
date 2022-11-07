@@ -50,6 +50,8 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Action:       filter.Action,
 		Username:     filter.Username,
 		Email:        filter.Email,
+		DateFrom:     filter.DateFrom,
+		DateTo:       filter.DateTo,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -84,6 +86,8 @@ func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
 		Action:       filter.Action,
 		Username:     filter.Username,
 		Email:        filter.Email,
+		DateFrom:     filter.DateFrom,
+		DateTo:       filter.DateTo,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -142,10 +146,13 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if params.ResourceID == uuid.Nil {
 		params.ResourceID = uuid.New()
 	}
+	if params.Time.IsZero() {
+		params.Time = time.Now()
+	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
-		Time:             time.Now(),
+		Time:             params.Time,
 		UserID:           user.ID,
 		Ip:               ipNet,
 		UserAgent:        r.UserAgent(),
@@ -225,6 +232,14 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
 
+	// Strings for workspace_builds follow the below format:
+	// "{user} started workspace build for {target}"
+	// where target is a workspace instead of the workspace build,
+	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
+	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
+		str += " for"
+	}
+
 	// We don't display the name for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
 	if alog.ResourceType != database.ResourceTypeGitSshKey {
@@ -265,12 +280,33 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 	// Using the query param parser here just returns consistent errors with
 	// other parsing.
 	parser := httpapi.NewQueryParamParser()
+	const layout = "2006-01-02"
+
+	var (
+		dateFromString    = parser.String(searchParams, "", "date_from")
+		dateToString      = parser.String(searchParams, "", "date_to")
+		parsedDateFrom, _ = time.Parse(layout, dateFromString)
+		parsedDateTo, _   = time.Parse(layout, dateToString)
+	)
+
+	if dateToString != "" {
+		parsedDateTo = parsedDateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second) // parsedDateTo goes to 23:59
+	}
+
+	if dateToString != "" && parsedDateTo.Before(parsedDateFrom) {
+		return database.GetAuditLogsOffsetParams{}, []codersdk.ValidationError{
+			{Field: "q", Detail: fmt.Sprintf("DateTo value %q cannot be before than DateFrom", parsedDateTo)},
+		}
+	}
+
 	filter := database.GetAuditLogsOffsetParams{
 		ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
 		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
 		Action:       actionFromString(parser.String(searchParams, "", "action")),
 		Username:     parser.String(searchParams, "", "username"),
 		Email:        parser.String(searchParams, "", "email"),
+		DateFrom:     parsedDateFrom,
+		DateTo:       parsedDateTo,
 	}
 
 	return filter, parser.Errors
@@ -287,6 +323,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 	case codersdk.ResourceTypeUser:
 		return resourceTypeString
 	case codersdk.ResourceTypeWorkspace:
+		return resourceTypeString
+	case codersdk.ResourceTypeWorkspaceBuild:
 		return resourceTypeString
 	case codersdk.ResourceTypeGitSSHKey:
 		return resourceTypeString

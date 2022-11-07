@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -231,7 +233,13 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err, "get working directory")
 		require.Equal(t, home, wd, "working directory should be home user home")
 		tempFile := filepath.Join(t.TempDir(), "sftp")
-		file, err := client.Create(tempFile)
+		// SFTP only accepts unix-y paths.
+		remoteFile := filepath.ToSlash(tempFile)
+		if !path.IsAbs(remoteFile) {
+			// On Windows, e.g. "/C:/Users/...".
+			remoteFile = path.Join("/", remoteFile)
+		}
+		file, err := client.Create(remoteFile)
 		require.NoError(t, err)
 		err = file.Close()
 		require.NoError(t, err)
@@ -525,9 +533,9 @@ func TestAgent(t *testing.T) {
 		}
 		initialized := atomic.Int32{}
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
+			ExchangeToken: func(ctx context.Context) (string, error) {
 				initialized.Add(1)
-				return nil
+				return "", nil
 			},
 			Client: client,
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
@@ -552,14 +560,15 @@ func TestAgent(t *testing.T) {
 			agentID: uuid.New(),
 			metadata: codersdk.WorkspaceAgentMetadata{
 				GitAuthConfigs: 1,
+				DERPMap:        &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *codersdk.AgentStats),
 			coordinator: tailnet.NewCoordinator(),
 		}
 		filesystem := afero.NewMemMapFs()
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
-				return nil
+			ExchangeToken: func(ctx context.Context) (string, error) {
+				return "", nil
 			},
 			Client:     client,
 			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),

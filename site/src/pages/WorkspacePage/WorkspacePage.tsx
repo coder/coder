@@ -4,7 +4,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { Loader } from "components/Loader/Loader"
 import { firstOrItem } from "util/array"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
@@ -55,7 +55,7 @@ export const WorkspacePage: FC = () => {
         />
       </Cond>
       <Cond>
-        <FullScreenLoader />
+        <Loader />
       </Cond>
     </ChooseOne>
   )

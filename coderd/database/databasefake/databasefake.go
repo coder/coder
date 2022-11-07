@@ -1861,7 +1861,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 	return workspaceAgents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
+func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1869,7 +1869,7 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg dat
 		if app.AgentID != arg.AgentID {
 			continue
 		}
-		if app.Name != arg.Name {
+		if app.Slug != arg.Slug {
 			continue
 		}
 		return app, nil
@@ -2072,16 +2072,13 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if !arg.CreatedBefore.IsZero() && jobLog.CreatedAt.After(arg.CreatedBefore) {
+		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
-		if !arg.CreatedAfter.IsZero() && jobLog.CreatedAt.Before(arg.CreatedAfter) {
+		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
-	}
-	if len(logs) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return logs, nil
 }
@@ -2232,10 +2229,15 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	defer q.mutex.Unlock()
 
 	logs := make([]database.ProvisionerJobLog, 0)
+	id := int64(1)
+	if len(q.provisionerJobLogs) > 0 {
+		id = q.provisionerJobLogs[len(q.provisionerJobLogs)-1].ID
+	}
 	for index, output := range arg.Output {
+		id++
 		logs = append(logs, database.ProvisionerJobLog{
+			ID:        id,
 			JobID:     arg.JobID,
-			ID:        arg.ID[index],
 			CreatedAt: arg.CreatedAt[index],
 			Source:    arg.Source[index],
 			Level:     arg.Level[index],
@@ -2543,7 +2545,8 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		ID:                   arg.ID,
 		AgentID:              arg.AgentID,
 		CreatedAt:            arg.CreatedAt,
-		Name:                 arg.Name,
+		Slug:                 arg.Slug,
+		DisplayName:          arg.DisplayName,
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
@@ -2843,7 +2846,7 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -2855,9 +2858,9 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
-		return nil
+		return workspaceBuild, nil
 	}
-	return sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
@@ -3015,6 +3018,16 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
@@ -3074,6 +3087,16 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 		if arg.Email != "" {
 			user, err := q.GetUserByID(context.Background(), alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
 				continue
 			}
 		}

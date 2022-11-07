@@ -25,7 +25,7 @@ func userCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
+			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
 				return err
 			}

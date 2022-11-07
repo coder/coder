@@ -1,34 +1,29 @@
 import { useMachine } from "@xstate/react"
+import { getPaginationContext } from "components/PaginationWidget/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useNavigate, useSearchParams } from "react-router-dom"
-import { useFilter } from "util/filters"
+import { useSearchParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { auditMachine } from "xServices/audit/auditXService"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { AuditPageView } from "./AuditPageView"
 
 const AuditPage: FC = () => {
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const currentPage = searchParams.get("page")
-    ? Number(searchParams.get("page"))
-    : 1
-  const { filter, setFilter } = useFilter("")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filter = searchParams.get("filter") ?? ""
   const [auditState, auditSend] = useMachine(auditMachine, {
     context: {
-      page: currentPage,
-      limit: 25,
       filter,
+      paginationContext: getPaginationContext(searchParams),
     },
     actions: {
-      onPageChange: ({ page }) => {
-        navigate({
-          search: `?page=${page}`,
-        })
-      },
+      updateURL: (context, event) =>
+        setSearchParams({ page: event.page, filter: context.filter }),
     },
   })
-  const { auditLogs, count, page, limit } = auditState.context
+
+  const { auditLogs, count } = auditState.context
+  const paginationRef = auditState.context.paginationRef as PaginationMachineRef
 
   return (
     <>
@@ -39,21 +34,10 @@ const AuditPage: FC = () => {
         filter={filter}
         auditLogs={auditLogs}
         count={count}
-        page={page}
-        limit={limit}
-        onNext={() => {
-          auditSend("NEXT")
-        }}
-        onPrevious={() => {
-          auditSend("PREVIOUS")
-        }}
-        onGoToPage={(page) => {
-          auditSend("GO_TO_PAGE", { page })
-        }}
         onFilter={(filter) => {
-          setFilter(filter)
           auditSend("FILTER", { filter })
         }}
+        paginationRef={paginationRef}
       />
     </>
   )
