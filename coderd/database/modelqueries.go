@@ -192,13 +192,13 @@ type userQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
-	filter := strings.Replace(getUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	filter := strings.Replace(getFilteredUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
 	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filter)
 	row := q.db.QueryRowContext(ctx, query,
 		arg.Deleted,
-		arg.Status,
 		arg.Search,
-		arg.RbacRole,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
 	)
 	var count int64
 	err := row.Scan(&count)
