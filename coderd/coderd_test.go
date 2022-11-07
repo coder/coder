@@ -119,7 +119,7 @@ func TestHealthz(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 
-	res, err := client.Request(context.Background(), "GET", "/healthz", nil)
+	res, err := client.Request(context.Background(), http.MethodGet, "/healthz", nil)
 	require.NoError(t, err)
 	defer res.Body.Close()
 
