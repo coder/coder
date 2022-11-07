@@ -8,6 +8,8 @@ import (
 )
 
 func TestInsertAuthorized(t *testing.T) {
+	t.Parallel()
+
 	query := `SELECT true;`
 	_, err := insertAuthorizedFilter(query, nil, rbac.NoACLConfig())
 	require.ErrorContains(t, err, "does not contain authorized replace string", "ensure replace string")
