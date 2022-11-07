@@ -35,10 +35,10 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
-	if agent.Status == codersdk.WorkspaceAgentConnected {
+	switch agent.Status {
+	case codersdk.WorkspaceAgentConnected:
 		return nil
-	}
-	if agent.Status == codersdk.WorkspaceAgentDisconnected {
+	case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
 		opts.WarnInterval = 0
 	}
 	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
@@ -77,10 +77,8 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		}
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
-		message := "Don't panic, your workspace is booting up!"
-		if agent.Status == codersdk.WorkspaceAgentDisconnected {
-			message = "The workspace agent lost connection! Wait for it to reconnect or restart your workspace."
-		}
+
+		message := waitingMessage(agent)
 		// This saves the cursor position, then defers clearing from the cursor
 		// position to the end of the screen.
 		_, _ = fmt.Fprintf(writer, "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
@@ -104,4 +102,21 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		resourceMutex.Unlock()
 		return nil
 	}
+}
+
+func waitingMessage(agent codersdk.WorkspaceAgent) string {
+	var m string
+	switch agent.Status {
+	case codersdk.WorkspaceAgentTimeout:
+		m = "The workspace agent is having trouble connecting."
+	case codersdk.WorkspaceAgentDisconnected:
+		m = "The workspace agent lost connection!"
+	default:
+		// Not a failure state, no troubleshooting necessary.
+		return "Don't panic, your workspace is booting up!"
+	}
+	if agent.TroubleshootingURL != "" {
+		return fmt.Sprintf("%s See troubleshooting instructions at: %s", m, agent.TroubleshootingURL)
+	}
+	return fmt.Sprintf("%s Wait for it to (re)connect or restart your workspace.", m)
 }

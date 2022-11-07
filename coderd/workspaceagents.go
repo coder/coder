@@ -682,6 +682,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
 		Apps:                 apps,
+		ConnectionTimeout:    dbAgent.ConnectionTimeout,
+		TroubleshootingURL:   dbAgent.TroubleshootingUrl,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -718,11 +720,21 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	if dbAgent.DisconnectedAt.Valid {
 		workspaceAgent.DisconnectedAt = &dbAgent.DisconnectedAt.Time
 	}
+
+	connectionTimeout := time.Duration(dbAgent.ConnectionTimeout) * time.Second
+
 	switch {
 	case !dbAgent.FirstConnectedAt.Valid:
-		// If the agent never connected, it's waiting for the compute
-		// to start up.
-		workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
+		switch {
+		case database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
+			// If the agent took too long to connect the first time,
+			// mark it as timed out.
+			workspaceAgent.Status = codersdk.WorkspaceAgentTimeout
+		default:
+			// If the agent never connected, it's waiting for the compute
+			// to start up.
+			workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
+		}
 	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.

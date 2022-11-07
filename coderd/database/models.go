@@ -662,6 +662,8 @@ type WorkspaceAgent struct {
 	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
 	Version                string        `db:"version" json:"version"`
 	LastConnectedReplicaID uuid.NullUUID `db:"last_connected_replica_id" json:"last_connected_replica_id"`
+	ConnectionTimeout      int32         `db:"connection_timeout" json:"connection_timeout"`
+	TroubleshootingUrl     string        `db:"troubleshooting_url" json:"troubleshooting_url"`
 }
 
 type WorkspaceApp struct {

@@ -154,6 +154,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
+
 func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
 	// no-op
 	return nil
@@ -2376,6 +2377,8 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		StartupScript:        arg.StartupScript,
 		InstanceMetadata:     arg.InstanceMetadata,
 		ResourceMetadata:     arg.ResourceMetadata,
+		ConnectionTimeout:    arg.ConnectionTimeout,
+		TroubleshootingUrl:   arg.TroubleshootingUrl,
 	}
 
 	q.provisionerJobAgents = append(q.provisionerJobAgents, agent)
