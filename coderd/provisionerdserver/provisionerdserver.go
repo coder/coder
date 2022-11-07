@@ -411,6 +411,9 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
 	}
+	if job.WorkerID.UUID.String() != server.ID.String() {
+		return nil, xerrors.New("you don't own this job")
+	}
 	if job.CompletedAt.Valid {
 		return nil, xerrors.Errorf("job already completed")
 	}
