@@ -74,7 +74,7 @@ func ssh() *cobra.Command {
 			}
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
-			if outdated && isTTYOut(cmd) {
+			if outdated && isTTYErr(cmd) {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
 			}
 
