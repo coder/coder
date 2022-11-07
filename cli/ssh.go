@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,6 +71,11 @@ func ssh() *cobra.Command {
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
+			}
+
+			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
+			if outdated && isTTYErr(cmd) {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
@@ -342,4 +348,19 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 		}
 		return deadline.Truncate(time.Minute), callback
 	}
+}
+
+// Verify if the user workspace is outdated and prepare an actionable message for user.
+func verifyWorkspaceOutdated(client *codersdk.Client, workspace codersdk.Workspace) (string, bool) {
+	if !workspace.Outdated {
+		return "", false // workspace is up-to-date
+	}
+
+	workspaceLink := buildWorkspaceLink(client.URL, workspace)
+	return fmt.Sprintf("👋 Your workspace is outdated! Update it here: %s\n", workspaceLink), true
+}
+
+// Build the user workspace link which navigates to the Coder web UI.
+func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
+	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerName, workspace.Name)})
 }
