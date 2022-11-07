@@ -30,7 +30,6 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
 const CliAuthenticationPage = lazy(
   () => import("./pages/CliAuthPage/CliAuthPage"),
 )
-const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
 )
@@ -107,7 +106,6 @@ export const AppRouter: FC = () => {
 
         <Route path="login" element={<LoginPage />} />
         <Route path="setup" element={<SetupPage />} />
-        <Route path="healthz" element={<HealthzPage />} />
         <Route
           path="cli-auth"
           element={
