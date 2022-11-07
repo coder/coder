@@ -123,6 +123,7 @@ func TestHealthz(t *testing.T) {
 	require.NoError(t, err)
 	defer res.Body.Close()
 
+	require.Equal(t, http.StatusOK, res.StatusCode)
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 
