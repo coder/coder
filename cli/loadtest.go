@@ -1,14 +1,13 @@
 package cli
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,44 +20,46 @@ import (
 
 func loadtest() *cobra.Command {
 	var (
-		configPath string
+		configPath  string
+		outputSpecs []string
 	)
 	cmd := &cobra.Command{
-		Use:   "loadtest --config <path>",
+		Use:   "loadtest --config <path> [--output json[:path]] [--output text[:path]]]",
 		Short: "Load test the Coder API",
-		// TODO: documentation and a JSON scheme file
-		Long: "Perform load tests against the Coder server. The load tests " +
-			"configurable via a JSON file.",
+		// TODO: documentation and a JSON schema file
+		Long: "Perform load tests against the Coder server. The load tests are configurable via a JSON file.",
+		Example: formatExamples(
+			example{
+				Description: "Run a loadtest with the given configuration file",
+				Command:     "coder loadtest --config path/to/config.json",
+			},
+			example{
+				Description: "Run a loadtest, reading the configuration from stdin",
+				Command:     "cat path/to/config.json | coder loadtest --config -",
+			},
+			example{
+				Description: "Run a loadtest outputting JSON results instead",
+				Command:     "coder loadtest --config path/to/config.json --output json",
+			},
+			example{
+				Description: "Run a loadtest outputting JSON results to a file",
+				Command:     "coder loadtest --config path/to/config.json --output json:path/to/results.json",
+			},
+			example{
+				Description: "Run a loadtest outputting text results to stdout and JSON results to a file",
+				Command:     "coder loadtest --config path/to/config.json --output text --output json:path/to/results.json",
+			},
+		),
 		Hidden: true,
 		Args:   cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if configPath == "" {
-				return xerrors.New("config is required")
-			}
-
-			var (
-				configReader io.ReadCloser
-			)
-			if configPath == "-" {
-				configReader = io.NopCloser(cmd.InOrStdin())
-			} else {
-				f, err := os.Open(configPath)
-				if err != nil {
-					return xerrors.Errorf("open config file %q: %w", configPath, err)
-				}
-				configReader = f
-			}
-
-			var config LoadTestConfig
-			err := json.NewDecoder(configReader).Decode(&config)
-			_ = configReader.Close()
+			config, err := loadLoadTestConfigFile(configPath, cmd.InOrStdin())
 			if err != nil {
-				return xerrors.Errorf("read config file %q: %w", configPath, err)
+				return err
 			}
-
-			err = config.Validate()
+			outputs, err := parseLoadTestOutputs(outputSpecs)
 			if err != nil {
-				return xerrors.Errorf("validate config: %w", err)
+				return err
 			}
 
 			client, err := CreateClient(cmd)
@@ -117,51 +118,43 @@ func loadtest() *cobra.Command {
 			}
 
 			// TODO: live progress output
-			start := time.Now()
 			err = th.Run(testCtx)
 			if err != nil {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
 			}
-			elapsed := time.Since(start)
 
 			// Print the results.
-			// TODO: better result printing
-			// TODO: move result printing to the loadtest package, add multiple
-			//       output formats (like HTML, JSON)
 			res := th.Results()
-			var totalDuration time.Duration
-			for _, run := range res.Runs {
-				totalDuration += run.Duration
-				if run.Error == nil {
-					continue
+			for _, output := range outputs {
+				var (
+					w = cmd.OutOrStdout()
+					c io.Closer
+				)
+				if output.path != "-" {
+					f, err := os.Create(output.path)
+					if err != nil {
+						return xerrors.Errorf("create output file: %w", err)
+					}
+					w, c = f, f
 				}
 
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n== FAIL: %s\n\n", run.FullID)
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tError: %s\n\n", run.Error)
-
-				// Print log lines indented.
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tLog:\n")
-				rd := bufio.NewReader(bytes.NewBuffer(run.Logs))
-				for {
-					line, err := rd.ReadBytes('\n')
-					if err == io.EOF {
-						break
-					}
+				switch output.format {
+				case loadTestOutputFormatText:
+					res.PrintText(w)
+				case loadTestOutputFormatJSON:
+					err = json.NewEncoder(w).Encode(res)
 					if err != nil {
-						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n\tLOG PRINT ERROR: %+v\n", err)
+						return xerrors.Errorf("encode JSON: %w", err)
 					}
+				}
 
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\t\t%s", line)
+				if c != nil {
+					err = c.Close()
+					if err != nil {
+						return xerrors.Errorf("close output file: %w", err)
+					}
 				}
 			}
-
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\n\nTest results:")
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tPass:  %d\n", res.TotalPass)
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tFail:  %d\n", res.TotalFail)
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tTotal: %d\n", res.TotalRuns)
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "")
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tTotal duration: %s\n", elapsed)
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\tAvg. duration:  %s\n", totalDuration/time.Duration(res.TotalRuns))
 
 			// Cleanup.
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nCleaning up...")
@@ -170,10 +163,111 @@ func loadtest() *cobra.Command {
 				return xerrors.Errorf("cleanup tests: %w", err)
 			}
 
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
 			return nil
 		},
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &configPath, "config", "", "CODER_LOADTEST_CONFIG_PATH", "", "Path to the load test configuration file, or - to read from stdin.")
+	cliflag.StringArrayVarP(cmd.Flags(), &outputSpecs, "output", "", "CODER_LOADTEST_OUTPUTS", []string{"text"}, "Output formats, see usage for more information.")
 	return cmd
+}
+
+func loadLoadTestConfigFile(configPath string, stdin io.Reader) (LoadTestConfig, error) {
+	if configPath == "" {
+		return LoadTestConfig{}, xerrors.New("config is required")
+	}
+
+	var (
+		configReader io.ReadCloser
+	)
+	if configPath == "-" {
+		configReader = io.NopCloser(stdin)
+	} else {
+		f, err := os.Open(configPath)
+		if err != nil {
+			return LoadTestConfig{}, xerrors.Errorf("open config file %q: %w", configPath, err)
+		}
+		configReader = f
+	}
+
+	var config LoadTestConfig
+	err := json.NewDecoder(configReader).Decode(&config)
+	_ = configReader.Close()
+	if err != nil {
+		return LoadTestConfig{}, xerrors.Errorf("read config file %q: %w", configPath, err)
+	}
+
+	err = config.Validate()
+	if err != nil {
+		return LoadTestConfig{}, xerrors.Errorf("validate config: %w", err)
+	}
+
+	return config, nil
+}
+
+type loadTestOutputFormat string
+
+const (
+	loadTestOutputFormatText loadTestOutputFormat = "text"
+	loadTestOutputFormatJSON loadTestOutputFormat = "json"
+	// TODO: html format
+)
+
+type loadTestOutput struct {
+	format loadTestOutputFormat
+	// Up to one path (the first path) will have the value "-" which signifies
+	// stdout.
+	path string
+}
+
+func parseLoadTestOutputs(outputs []string) ([]loadTestOutput, error) {
+	var stdoutFormat loadTestOutputFormat
+
+	validFormats := map[loadTestOutputFormat]struct{}{
+		loadTestOutputFormatText: {},
+		loadTestOutputFormatJSON: {},
+	}
+
+	var out []loadTestOutput
+	for i, o := range outputs {
+		parts := strings.SplitN(o, ":", 2)
+		format := loadTestOutputFormat(parts[0])
+		if _, ok := validFormats[format]; !ok {
+			return nil, xerrors.Errorf("invalid output format %q in output flag %d", parts[0], i)
+		}
+
+		if len(parts) == 1 {
+			if stdoutFormat != "" {
+				return nil, xerrors.Errorf("multiple output flags specified for stdout")
+			}
+			stdoutFormat = format
+			continue
+		}
+		if len(parts) != 2 {
+			return nil, xerrors.Errorf("invalid output flag %d: %q", i, o)
+		}
+
+		out = append(out, loadTestOutput{
+			format: format,
+			path:   parts[1],
+		})
+	}
+
+	// Default to --output text
+	if stdoutFormat == "" && len(out) == 0 {
+		stdoutFormat = loadTestOutputFormatText
+	}
+
+	if stdoutFormat != "" {
+		out = append([]loadTestOutput{{
+			format: stdoutFormat,
+			path:   "-",
+		}}, out...)
+	}
+
+	return out, nil
 }
