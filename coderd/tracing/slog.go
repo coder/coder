@@ -33,7 +33,7 @@ func (SlogSink) LogEntry(ctx context.Context, e slog.SinkEntry) {
 		attribute.String("slog.message", e.Message),
 		attribute.String("slog.func", e.Func),
 		attribute.String("slog.file", e.File),
-		attribute.Int("slog.line", e.Line),
+		attribute.Int64("slog.line", int64(e.Line)),
 	}
 	attributes = append(attributes, slogFieldsToAttributes(e.Fields)...)
 
