@@ -119,7 +119,7 @@ Flags:
       --provisionerd-force-cancel-interval duration   Time to force cancel provisioning tasks
                                                       that are stuck.
                                                       Consumes
-                                                      $CODER_PROVISIONERD_FORCE_CANCEL_INTERVAL
+                                                      $CODER_PROVISIONERD_FORCE_CANCEL_INTERVAL (default 10m0s)
       --proxy-trusted-headers strings                 Headers to trust for forwarding IP
                                                       addresses. e.g. Cf-Connecting-Ip,
                                                       True-Client-Ip, X-Forwarded-For
