@@ -47,7 +47,7 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Pprof.Enable.Value, true)
 			require.Equal(t, config.Prometheus.Address.Value, "hello-world")
 			require.Equal(t, config.Prometheus.Enable.Value, true)
-			require.Equal(t, config.ProvisionerDaemons.Value, 5)
+			require.Equal(t, config.Provisioner.Daemons.Value, 5)
 			require.Equal(t, config.SecureAuthCookie.Value, true)
 			require.Equal(t, config.SSHKeygenAlgorithm.Value, "potato")
 			require.Equal(t, config.Telemetry.Enable.Value, false)

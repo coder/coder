@@ -287,7 +287,6 @@ export interface DeploymentConfig {
   readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly provisioner_daemons: DeploymentConfigField<number>
   readonly pg_connection_url: DeploymentConfigField<string>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
@@ -303,6 +302,7 @@ export interface DeploymentConfig {
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
+  readonly provisioner: ProvisionerConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -512,6 +512,12 @@ export interface PprofConfig {
 export interface PrometheusConfig {
   readonly enable: DeploymentConfigField<boolean>
   readonly address: DeploymentConfigField<string>
+}
+
+// From codersdk/deploymentconfig.go
+export interface ProvisionerConfig {
+  readonly daemons: DeploymentConfigField<number>
+  readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
 // From codersdk/provisionerdaemons.go
