@@ -41,6 +41,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			}
 
 			// Inject the trace context into the response headers.
+			hc = propagation.HeaderCarrier(rw.Header())
 			tmp.Inject(ctx, hc)
 
 			// pass the span through the request context and serve the request to the next middleware
