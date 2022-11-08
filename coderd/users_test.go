@@ -1255,6 +1255,58 @@ func TestGetUsers(t *testing.T) {
 	})
 }
 
+func TestGetFilteredUserCount(t *testing.T) {
+	t.Parallel()
+	t.Run("AllUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		// No params is all users
+		response, err := client.UserCount(ctx, codersdk.UserCountRequest{})
+		require.NoError(t, err)
+		require.Equal(t, 2, int(response.Count))
+	})
+	t.Run("ActiveUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.User(ctx, first.UserID.String())
+		require.NoError(t, err, "")
+
+		// Alice will be suspended
+		alice, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		response, err := client.UserCount(ctx, codersdk.UserCountRequest{
+			Status: codersdk.UserStatusActive,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, int(response.Count))
+	})
+}
+
 func TestPostTokens(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

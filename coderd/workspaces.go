@@ -166,7 +166,7 @@ func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
 	filter, errs := workspaceSearchQuery(queryStr, codersdk.Pagination{})
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid audit search query.",
+			Message:     "Invalid workspace search query.",
 			Validations: errs,
 		})
 		return
