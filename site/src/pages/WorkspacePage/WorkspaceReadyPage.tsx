@@ -78,15 +78,6 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
-        bannerProps={{
-          isLoading: bannerState.hasTag("loading"),
-          onExtend: () => {
-            bannerSend({
-              type: "INCREASE_DEADLINE",
-              hours: 4,
-            })
-          },
-        }}
         scheduleProps={{
           onDeadlineMinus: (hours: number) => {
             bannerSend({
