@@ -437,6 +437,7 @@ func New(options *Options) *API {
 				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
+				r.Get("/count", api.userCount)
 				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {

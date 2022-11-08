@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
@@ -261,7 +262,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 
 	// Marshal template version dry-run job with the parameters from the
 	// request.
-	input, err := json.Marshal(templateVersionDryRunJob{
+	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
 		TemplateVersionID: templateVersion.ID,
 		WorkspaceName:     req.WorkspaceName,
 		ParameterValues:   parameterValues,
@@ -428,7 +429,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 
 	// Verify that the template version is the one used in the request.
-	var input templateVersionDryRunJob
+	var input provisionerdserver.TemplateVersionDryRunJob
 	err = json.Unmarshal(job.Input, &input)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -95,7 +95,7 @@ const useStyles = makeStyles((theme) => ({
     borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
     minWidth: "unset",
-    width: "63px", // matching cancel button so button grouping doesn't grow in size
+    width: "64px", // matching cancel button so button grouping doesn't grow in size
     "& .MuiButton-label": {
       marginRight: "8px",
     },

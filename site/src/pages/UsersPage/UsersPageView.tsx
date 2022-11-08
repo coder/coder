@@ -12,6 +12,7 @@ export const Language = {
 }
 export interface UsersPageViewProps {
   users?: TypesGen.User[]
+  count?: number
   roles?: TypesGen.AssignableRoles[]
   filter?: string
   error?: unknown
@@ -33,6 +34,7 @@ export interface UsersPageViewProps {
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   users,
+  count,
   roles,
   onSuspendUser,
   onDeleteUser,
@@ -76,7 +78,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         isLoading={isLoading}
       />
 
-      <PaginationWidget paginationRef={paginationRef} />
+      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
     </>
   )
 }

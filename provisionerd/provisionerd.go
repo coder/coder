@@ -65,7 +65,7 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		opts.UpdateInterval = 5 * time.Second
 	}
 	if opts.ForceCancelInterval == 0 {
-		opts.ForceCancelInterval = time.Minute
+		opts.ForceCancelInterval = 10 * time.Minute
 	}
 	if opts.LogBufferInterval == 0 {
 		opts.LogBufferInterval = 50 * time.Millisecond

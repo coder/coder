@@ -138,6 +138,7 @@ func TestLoadTest(t *testing.T) {
 
 	t.Run("OutputFormats", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("This test is flakey. See: https://github.com/coder/coder/actions/runs/3415360091/jobs/5684401383")
 
 		type outputFlag struct {
 			format string
