@@ -1,0 +1,9 @@
+{
+  "emptyMessage": "No users found",
+  "emptyPageMessage": "No users found on this page",
+  "suspendMenuItem": "Suspend",
+  "deleteMenuItem": "Delete",
+  "listWorkspacesMenuItem": "View workspaces",
+  "activateMenuItem": "Activate",
+  "resetPasswordMenuItem": "Reset password"
+}

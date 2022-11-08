@@ -2,7 +2,10 @@ import { useActor, useMachine } from "@xstate/react"
 import { getErrorDetail } from "api/errors"
 import { User } from "api/typesGenerated"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
-import { getPaginationContext } from "components/PaginationWidget/utils"
+import {
+  getPaginationContext,
+  nonInitialPage,
+} from "components/PaginationWidget/utils"
 import { usePermissions } from "hooks/usePermissions"
 import { FC, ReactNode, useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
@@ -135,6 +138,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           usersSend({ type: "UPDATE_FILTER", query })
         }}
         paginationRef={paginationRef}
+        isNonInitialPage={nonInitialPage(searchParams)}
       />
 
       <DeleteDialog

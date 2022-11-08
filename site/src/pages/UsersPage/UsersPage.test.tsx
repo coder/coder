@@ -8,7 +8,6 @@ import { Role } from "../../api/typesGenerated"
 import { Language as ResetPasswordDialogLanguage } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
-import { Language as UsersTableBodyLanguage } from "../../components/UsersTable/UsersTableBody"
 import {
   MockAuditorRole,
   MockUser,
@@ -39,9 +38,8 @@ const suspendUser = async (setupActionSpies: () => void) => {
   await user.click(firstMoreButton)
 
   const menu = await screen.findByRole("menu")
-  const suspendButton = within(menu).getByText(
-    UsersTableBodyLanguage.suspendMenuItem,
-  )
+  const text = t("suspendMenuItem", { ns: "usersPage" })
+  const suspendButton = within(menu).getByText(text)
 
   await user.click(suspendButton)
 
@@ -72,9 +70,8 @@ const deleteUser = async (setupActionSpies: () => void) => {
   await user.click(selectedMoreButton)
 
   const menu = await screen.findByRole("menu")
-  const deleteButton = within(menu).getByText(
-    UsersTableBodyLanguage.deleteMenuItem,
-  )
+  const text = t("deleteMenuItem", { ns: "usersPage" })
+  const deleteButton = within(menu).getByText(text)
 
   await user.click(deleteButton)
 
@@ -107,9 +104,8 @@ const activateUser = async (setupActionSpies: () => void) => {
   fireEvent.click(suspendedMoreButton)
 
   const menu = screen.getByRole("menu")
-  const activateButton = within(menu).getByText(
-    UsersTableBodyLanguage.activateMenuItem,
-  )
+  const text = t("activateMenuItem", { ns: "usersPage" })
+  const activateButton = within(menu).getByText(text)
   fireEvent.click(activateButton)
 
   // Check if the confirm message is displayed
@@ -135,9 +131,8 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   fireEvent.click(firstMoreButton)
 
   const menu = screen.getByRole("menu")
-  const resetPasswordButton = within(menu).getByText(
-    UsersTableBodyLanguage.resetPasswordMenuItem,
-  )
+  const text = t("resetPasswordMenuItem", { ns: "usersPage" })
+  const resetPasswordButton = within(menu).getByText(text)
 
   fireEvent.click(resetPasswordButton)
 
