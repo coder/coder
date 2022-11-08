@@ -31,8 +31,13 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func setupWorkspaceForAgent(t *testing.T) (*codersdk.Client, codersdk.Workspace, string) {
+func setupWorkspaceForAgent(t *testing.T, mutate func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, codersdk.Workspace, string) {
 	t.Helper()
+	if mutate == nil {
+		mutate = func(a []*proto.Agent) []*proto.Agent {
+			return a
+		}
+	}
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 	agentToken := uuid.NewString()
@@ -45,12 +50,12 @@ func setupWorkspaceForAgent(t *testing.T) (*codersdk.Client, codersdk.Workspace,
 					Resources: []*proto.Resource{{
 						Name: "dev",
 						Type: "google_compute_instance",
-						Agents: []*proto.Agent{{
+						Agents: mutate([]*proto.Agent{{
 							Id: uuid.NewString(),
 							Auth: &proto.Agent_Token{
 								Token: agentToken,
 							},
-						}},
+						}}),
 					}},
 				},
 			},
@@ -69,7 +74,7 @@ func TestSSH(t *testing.T) {
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
@@ -100,9 +105,37 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 	})
+	t.Run("ShowTroubleshootingURLAfterTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		wantURL := "https://example.com/troubleshoot"
+		client, workspace, _ := setupWorkspaceForAgent(t, func(a []*proto.Agent) []*proto.Agent {
+			// One second is the lowest we can go.
+			a[0].ConnectionTimeout = 1
+			a[0].TroubleshootingUrl = wantURL
+			return a
+		})
+		cmd, root := clitest.New(t, "ssh", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetErr(pty.Output())
+		cmd.SetOut(pty.Output())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := cmd.ExecuteContext(ctx)
+			assert.ErrorIs(t, err, context.Canceled)
+		})
+		pty.ExpectMatch(wantURL)
+		cancel()
+		<-cmdDone
+	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
@@ -171,7 +204,7 @@ func TestSSH(t *testing.T) {
 
 		t.Parallel()
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken

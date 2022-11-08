@@ -35,12 +35,11 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
-	switch agent.Status {
-	case codersdk.WorkspaceAgentConnected:
+
+	if agent.Status == codersdk.WorkspaceAgentConnected {
 		return nil
-	case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
-		opts.WarnInterval = 0
 	}
+
 	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
 	spin.Writer = writer
 	spin.ForceOutput = true
@@ -65,42 +64,54 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		os.Exit(1)
 	}()
 
-	ticker := time.NewTicker(opts.FetchInterval)
-	defer ticker.Stop()
-	timer := time.NewTimer(opts.WarnInterval)
-	defer timer.Stop()
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-timer.C:
-		}
+	warningShown := false
+	warnAfter := time.NewTimer(opts.WarnInterval)
+	defer warnAfter.Stop()
+	showWarning := func() {
+		warnAfter.Stop()
+
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
+		if warningShown {
+			return
+		}
+		warningShown = true
 
 		message := waitingMessage(agent)
 		// This saves the cursor position, then defers clearing from the cursor
 		// position to the end of the screen.
 		_, _ = fmt.Fprintf(writer, "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
 		defer fmt.Fprintf(writer, "\033[u\033[J")
+	}
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-warnAfter.C:
+			showWarning()
+		}
 	}()
+
+	fetchInterval := time.NewTicker(opts.FetchInterval)
+	defer fetchInterval.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
+		case <-fetchInterval.C:
 		}
 		resourceMutex.Lock()
 		agent, err = opts.Fetch(ctx)
 		if err != nil {
+			resourceMutex.Unlock()
 			return xerrors.Errorf("fetch: %w", err)
 		}
-		if agent.Status != codersdk.WorkspaceAgentConnected {
-			resourceMutex.Unlock()
-			continue
-		}
 		resourceMutex.Unlock()
-		return nil
+		switch agent.Status {
+		case codersdk.WorkspaceAgentConnected:
+			return nil
+		case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
+			showWarning()
+		}
 	}
 }
 
