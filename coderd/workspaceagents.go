@@ -722,11 +722,10 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	}
 
 	connectionTimeout := time.Duration(dbAgent.ConnectionTimeout) * time.Second
-
 	switch {
 	case !dbAgent.FirstConnectedAt.Valid:
 		switch {
-		case database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
+		case connectionTimeout > 0 && database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
 			// If the agent took too long to connect the first time,
 			// mark it as timed out.
 			workspaceAgent.Status = codersdk.WorkspaceAgentTimeout

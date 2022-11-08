@@ -110,7 +110,8 @@ func TestSSH(t *testing.T) {
 
 		wantURL := "https://example.com/troubleshoot"
 		client, workspace, _ := setupWorkspaceForAgent(t, func(a []*proto.Agent) []*proto.Agent {
-			// One second is the lowest we can go.
+			// Unfortunately, one second is the lowest
+			// we can go because 0 disables the feature.
 			a[0].ConnectionTimeout = 1
 			a[0].TroubleshootingUrl = wantURL
 			return a

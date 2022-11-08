@@ -401,7 +401,7 @@ CREATE TABLE workspace_agents (
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
     version text DEFAULT ''::text NOT NULL,
     last_connected_replica_id uuid,
-    connection_timeout integer DEFAULT 120 NOT NULL,
+    connection_timeout integer DEFAULT 0 NOT NULL,
     troubleshooting_url text DEFAULT ''::text NOT NULL
 );
 
