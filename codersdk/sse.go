@@ -26,7 +26,7 @@ const (
 )
 
 func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*ServerSentEvent, error) {
-	ctx, span := tracing.StartSpan(ctx)
+	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	reader := bufio.NewReader(rc)
