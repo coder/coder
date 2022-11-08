@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 
-	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
@@ -13,9 +12,12 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -55,10 +57,10 @@ func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 	daemon := httpmw.ProvisionerDaemon(r)
 	api.Logger.Warn(r.Context(), "daemon connected", slog.F("daemon", daemon.Name))
 
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+	api.AGPL.WebsocketWaitMutex.Lock()
+	api.AGPL.WebsocketWaitGroup.Add(1)
+	api.AGPL.WebsocketWaitMutex.Unlock()
+	defer api.AGPL.WebsocketWaitGroup.Done()
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
@@ -85,7 +87,7 @@ func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	mux := drpcmux.New()
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
+	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:    api.AccessURL,
 		ID:           daemon.ID,
 		Database:     api.Database,

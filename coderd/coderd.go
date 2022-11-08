@@ -599,18 +599,20 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	metricsCache        *metricscache.Cache
-	siteHandler         http.Handler
-	websocketWaitMutex  sync.Mutex
-	websocketWaitGroup  sync.WaitGroup
+	metricsCache *metricscache.Cache
+	siteHandler  http.Handler
+
+	WebsocketWaitMutex sync.Mutex
+	WebsocketWaitGroup sync.WaitGroup
+
 	workspaceAgentCache *wsconncache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Wait()
-	api.websocketWaitMutex.Unlock()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Wait()
+	api.WebsocketWaitMutex.Unlock()
 
 	api.metricsCache.Close()
 	coordinator := api.TailnetCoordinator.Load()
