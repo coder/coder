@@ -50,15 +50,14 @@ const estimateFinish = (
   const lowGuess = secondsLeft(median)
   const highGuess = secondsLeft(median + stddev)
 
-  // If variation is too high (and greater than second), don't show
-  // progress bar and give range.
-  const highVariation = stddev / median > 0.1 && highGuess - lowGuess > 1
-
   const anyMomentNow: [number | undefined, string] = [
     undefined,
     "Any moment now...",
   ]
 
+  // If variation is too high (and greater than second), don't show
+  // progress bar and give range.
+  const highVariation = stddev / median > 0.1 && highGuess - lowGuess > 1
   if (highVariation) {
     if (highGuess <= 0) {
       return anyMomentNow
