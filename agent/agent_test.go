@@ -617,8 +617,8 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
 			ssh, err := agentConn.SSH(ctx)
+			cancel()
 			if err != nil {
 				_ = conn.Close()
 				return

@@ -133,8 +133,8 @@ func TestConfigSSH(t *testing.T) {
 				break
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
 			ssh, err := agentConn.SSH(ctx)
+			cancel()
 			assert.NoError(t, err)
 			wg.Add(2)
 			go func() {
