@@ -562,7 +562,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
-			for i := 0; i < cfg.ProvisionerDaemons.Value; i++ {
+			for i := 0; i < cfg.Provisioner.Daemons.Value; i++ {
 				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -905,7 +905,7 @@ func newProvisionerDaemon(
 		Logger:              logger,
 		PollInterval:        500 * time.Millisecond,
 		UpdateInterval:      500 * time.Millisecond,
-		ForceCancelInterval: cfg.Provisionerd.ForceCancelInterval.Value,
+		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value,
 		Provisioners:        provisioners,
 		WorkDirectory:       tempDir,
 		TracerProvider:      coderAPI.TracerProvider,

@@ -23,7 +23,6 @@ type DeploymentConfig struct {
 	ProxyTrustedOrigins         *DeploymentConfigField[[]string]        `json:"proxy_trusted_origins" typescript:",notnull"`
 	CacheDirectory              *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
 	InMemoryDatabase            *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
-	ProvisionerDaemons          *DeploymentConfigField[int]             `json:"provisioner_daemons" typescript:",notnull"`
 	PostgresURL                 *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
 	OAuth2                      *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
 	OIDC                        *OIDCConfig                             `json:"oidc" typescript:",notnull"`
@@ -39,7 +38,7 @@ type DeploymentConfig struct {
 	BrowserOnly                 *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	UserWorkspaceQuota          *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
-	Provisionerd                *ProvisionerdConfig                     `json:"provisionerd" typescript:",notnull"`
+	Provisioner                 *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -124,7 +123,8 @@ type GitAuthConfig struct {
 	Scopes       []string `json:"scopes"`
 }
 
-type ProvisionerdConfig struct {
+type ProvisionerConfig struct {
+	Daemons             *DeploymentConfigField[int]           `json:"daemons" typescript:",notnull"`
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 

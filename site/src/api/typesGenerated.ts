@@ -287,7 +287,6 @@ export interface DeploymentConfig {
   readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly provisioner_daemons: DeploymentConfigField<number>
   readonly pg_connection_url: DeploymentConfigField<string>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
@@ -303,7 +302,7 @@ export interface DeploymentConfig {
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
-  readonly provisionerd: ProvisionerdConfig
+  readonly provisioner: ProvisionerConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -515,6 +514,12 @@ export interface PrometheusConfig {
   readonly address: DeploymentConfigField<string>
 }
 
+// From codersdk/deploymentconfig.go
+export interface ProvisionerConfig {
+  readonly daemons: DeploymentConfigField<number>
+  readonly force_cancel_interval: DeploymentConfigField<number>
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -545,11 +550,6 @@ export interface ProvisionerJobLog {
   readonly log_level: LogLevel
   readonly stage: string
   readonly output: string
-}
-
-// From codersdk/deploymentconfig.go
-export interface ProvisionerdConfig {
-  readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
 // From codersdk/workspaces.go
