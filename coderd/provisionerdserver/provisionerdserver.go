@@ -489,7 +489,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		return nil, xerrors.Errorf("get job by id: %w", err)
 	}
 	if job.WorkerID.UUID.String() != server.ID.String() {
-		return nil, xerrors.Errorf("you don't have permission to update this job")
+		return nil, xerrors.Errorf("you don't own this job")
 	}
 
 	telemetrySnapshot := &telemetry.Snapshot{}
@@ -509,7 +509,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource, telemetrySnapshot)
+				err = InsertWorkspaceResource(ctx, server.Database, jobID, transition, resource, telemetrySnapshot)
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -578,7 +578,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 			// This could be a bulk insert to improve performance.
 			for _, protoResource := range jobType.WorkspaceBuild.Resources {
-				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
+				err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
@@ -614,7 +614,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				slog.F("resource_name", resource.Name),
 				slog.F("resource_type", resource.Type))
 
-			err = insertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
+			err = InsertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
 			if err != nil {
 				return nil, xerrors.Errorf("insert resource: %w", err)
 			}
@@ -637,6 +637,9 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		}
 
 	default:
+		if completed.Type == nil {
+			return nil, xerrors.Errorf("type payload must be provided")
+		}
 		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
 			reflect.TypeOf(completed.Type).String())
 	}
@@ -655,7 +658,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 	return &proto.Empty{}, nil
 }
 
-func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
+func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
 		CreatedAt:  database.Now(),
