@@ -15,17 +15,17 @@ export default {
       defaultValue: createPaginationRef({ page: 1, limit: 25 }),
     },
     isNonInitialPage: {
-      defaultValue: false
+      defaultValue: false,
     },
     users: {
-      defaultValue: [MockUser, MockUser2]
+      defaultValue: [MockUser, MockUser2],
     },
     roles: {
-      defaultValue: MockAssignableSiteRoles
+      defaultValue: MockAssignableSiteRoles,
     },
     canEditUsers: {
-      defaultValue: true
-    }
+      defaultValue: true,
+    },
   },
 } as ComponentMeta<typeof UsersPageView>
 

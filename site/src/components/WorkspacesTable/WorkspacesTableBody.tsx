@@ -24,7 +24,6 @@ export const WorkspacesTableBody: FC<
   React.PropsWithChildren<TableBodyProps>
 > = ({ isLoading, workspaceRefs, filter, isNonInitialPage }) => {
   const { t } = useTranslation("workspacesPage")
-  console.log(isNonInitialPage)
 
   return (
     <ChooseOne>
