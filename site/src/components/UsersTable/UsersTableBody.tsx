@@ -50,7 +50,6 @@ export const UsersTableBody: FC<
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
-  console.log(isNonInitialPage)
 
   return (
     <ChooseOne>
