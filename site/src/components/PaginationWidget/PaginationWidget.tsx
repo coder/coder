@@ -34,9 +34,7 @@ export const PaginationWidget = ({
   const currentPage = paginationState.context.page
   const numRecordsPerPage = paginationState.context.limit
 
-  const numPages = numRecords
-    ? Math.ceil(numRecords / numRecordsPerPage)
-    : 0
+  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
   const firstPageActive = currentPage === 1 && numPages !== 0
   const lastPageActive = currentPage === numPages && numPages !== 0
 
