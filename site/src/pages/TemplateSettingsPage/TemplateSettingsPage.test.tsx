@@ -34,7 +34,7 @@ const fillAndSubmitForm = async ({
   description,
   default_ttl_ms,
   icon,
-}: Omit<Required<UpdateTemplateMeta>, "min_autostart_interval_ms">) => {
+}: Required<UpdateTemplateMeta>) => {
   const nameField = await screen.findByLabelText(FormLanguage.nameLabel)
   await userEvent.clear(nameField)
   await userEvent.type(nameField, name)

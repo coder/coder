@@ -199,7 +199,6 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
-  min_autostart_interval_ms: 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
