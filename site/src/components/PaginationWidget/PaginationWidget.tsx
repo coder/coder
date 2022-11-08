@@ -62,23 +62,23 @@ export const PaginationWidget = ({
           </Cond>
           <Cond>
             {buildPagedList(numPages, currentPage).map((page) =>
-                typeof page !== "number" ? (
-                  <PageButton
-                    key={`Page${page}`}
-                    activePage={currentPage}
-                    placeholder="..."
-                    disabled
-                  />
-                ) : (
-                  <PageButton
-                    key={`Page${page}`}
-                    activePage={currentPage}
-                    page={page}
-                    numPages={numPages}
-                    onPageClick={() => send({ type: "GO_TO_PAGE", page })}
-                  />
-                ),
-              )}
+              typeof page !== "number" ? (
+                <PageButton
+                  key={`Page${page}`}
+                  activePage={currentPage}
+                  placeholder="..."
+                  disabled
+                />
+              ) : (
+                <PageButton
+                  key={`Page${page}`}
+                  activePage={currentPage}
+                  page={page}
+                  numPages={numPages}
+                  onPageClick={() => send({ type: "GO_TO_PAGE", page })}
+                />
+              ),
+            )}
           </Cond>
         </ChooseOne>
         <Button
