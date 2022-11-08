@@ -119,6 +119,15 @@ const useStyles = makeStyles((theme) => ({
       display: "flex",
       flexDirection: "column",
       gap: theme.spacing(1),
+      marginBottom: theme.spacing(2),
+    },
+
+    "& li > ul, & li > ol": {
+      marginTop: theme.spacing(2),
+    },
+
+    "& li > p": {
+      marginBottom: 0,
     },
 
     "& .prismjs": {

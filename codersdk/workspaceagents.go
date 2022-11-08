@@ -123,6 +123,7 @@ type WorkspaceAgentMetadata struct {
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
 	GitAuthConfigs       int               `json:"git_auth_configs"`
+	VSCodePortProxyURI   string            `json:"vscode_port_proxy_uri"`
 	Apps                 []WorkspaceApp    `json:"apps"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`

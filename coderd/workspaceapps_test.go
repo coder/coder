@@ -121,7 +121,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, uint16(tcpAddr.Port))
+	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
@@ -139,7 +139,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 	return client, user, workspace, uint16(tcpAddr.Port)
 }
 
-func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, appHost string, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	authToken := uuid.NewString()
 
 	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
@@ -198,6 +198,17 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
+	if appHost != "" {
+		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf(
+			"http://{{port}}--%s--%s--%s%s",
+			proxyTestAgentName,
+			workspace.Name,
+			"testuser",
+			strings.ReplaceAll(appHost, "*", ""),
+		), metadata.VSCodePortProxyURI)
+	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),

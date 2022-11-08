@@ -3,5 +3,9 @@
     "create": "created a new",
     "write": "updated",
     "delete": "deleted"
+  },
+  "table": {
+    "emptyPage": "No audit logs available on this page",
+    "noLogs": "No audit logs available"
   }
 }

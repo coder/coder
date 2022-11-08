@@ -76,7 +76,7 @@ type ProvisionerJob struct {
 }
 
 type ProvisionerJobLog struct {
-	ID        uuid.UUID `json:"id"`
+	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Source    LogSource `json:"log_source"`
 	Level     LogLevel  `json:"log_level"`
@@ -87,10 +87,10 @@ type ProvisionerJobLog struct {
 // provisionerJobLogsBefore provides log output that occurred before a time.
 // This is abstracted from a specific job type to provide consistency between
 // APIs. Logs is the only shared route between jobs.
-func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before time.Time) ([]ProvisionerJobLog, error) {
+func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before int64) ([]ProvisionerJobLog, error) {
 	values := url.Values{}
-	if !before.IsZero() {
-		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
+	if before != 0 {
+		values["before"] = []string{strconv.FormatInt(before, 10)}
 	}
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s?%s", path, values.Encode()), nil)
 	if err != nil {
@@ -106,10 +106,10 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, befo
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
-func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
+func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	afterQuery := ""
-	if !after.IsZero() {
-		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
+	if after != 0 {
+		afterQuery = fmt.Sprintf("&after=%d", after)
 	}
 	followURL, err := c.URL.Parse(fmt.Sprintf("%s?follow%s", path, afterQuery))
 	if err != nil {

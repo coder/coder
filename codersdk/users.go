@@ -47,6 +47,20 @@ type User struct {
 	AvatarURL       string      `json:"avatar_url"`
 }
 
+type UserCountRequest struct {
+	Search string `json:"search,omitempty" typescript:"-"`
+	// Filter users by status.
+	Status UserStatus `json:"status,omitempty" typescript:"-"`
+	// Filter users that have the given role.
+	Role string `json:"role,omitempty" typescript:"-"`
+
+	SearchQuery string `json:"q,omitempty"`
+}
+
+type UserCountResponse struct {
+	Count int64 `json:"count"`
+}
+
 type CreateFirstUserRequest struct {
 	Email            string `json:"email" validate:"required,email"`
 	Username         string `json:"username" validate:"required,username"`
@@ -343,6 +357,40 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 
 	var users []User
 	return users, json.NewDecoder(res.Body).Decode(&users)
+}
+
+func (c *Client) UserCount(ctx context.Context, req UserCountRequest) (UserCountResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/count", nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			var params []string
+			if req.Search != "" {
+				params = append(params, req.Search)
+			}
+			if req.Status != "" {
+				params = append(params, "status:"+string(req.Status))
+			}
+			if req.Role != "" {
+				params = append(params, "role:"+req.Role)
+			}
+			if req.SearchQuery != "" {
+				params = append(params, req.SearchQuery)
+			}
+			q.Set("q", strings.Join(params, " "))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return UserCountResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserCountResponse{}, readBodyAsError(res)
+	}
+
+	var count UserCountResponse
+	return count, json.NewDecoder(res.Body).Decode(&count)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.

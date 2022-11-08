@@ -56,7 +56,7 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t,
 			"server",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--postgres-url", connectionURL,
 			"--cache-dir", t.TempDir(),
 		)
@@ -91,7 +91,7 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t,
 			"server",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
@@ -120,10 +120,9 @@ func TestServer(t *testing.T) {
 		pty.ExpectMatch("psql")
 	})
 
-	// Validate that an http scheme is prepended to a loopback
-	// access URL and that a warning is printed that it may not be externally
+	// Validate that a warning is printed that it may not be externally
 	// reachable.
-	t.Run("NoSchemeLocalAccessURL", func(t *testing.T) {
+	t.Run("LocalAccessURL", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
@@ -132,7 +131,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "localhost:3000/",
+			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
@@ -155,7 +154,7 @@ func TestServer(t *testing.T) {
 
 	// Validate that an https scheme is prepended to a remote access URL
 	// and that a warning is printed for a host that cannot be resolved.
-	t.Run("NoSchemeRemoteAccessURL", func(t *testing.T) {
+	t.Run("RemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
@@ -164,8 +163,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
-			"--access-url", "foobarbaz.mydomain",
+			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
@@ -195,7 +193,6 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
 		)
@@ -216,6 +213,22 @@ func TestServer(t *testing.T) {
 		require.NoError(t, <-errC)
 	})
 
+	t.Run("NoSchemeAccessURL", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--address", ":0",
+			"--access-url", "google.com",
+			"--cache-dir", t.TempDir(),
+		)
+		err := root.ExecuteContext(ctx)
+		require.Error(t, err)
+	})
+
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -225,7 +238,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--tls-enable",
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
@@ -242,7 +255,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--tls-enable",
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
@@ -299,7 +312,7 @@ func TestServer(t *testing.T) {
 					"server",
 					"--in-memory",
 					"--address", ":0",
-					"--access-url", "example.com",
+					"--access-url", "http://example.com",
 					"--cache-dir", t.TempDir(),
 				}
 				args = append(args, c.args...)
@@ -320,7 +333,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--tls-enable",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
@@ -360,7 +373,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--tls-enable",
 			"--tls-cert-file", cert1Path,
 			"--tls-key-file", key1Path,
@@ -444,7 +457,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--provisioner-daemons", "1",
 			"--cache-dir", t.TempDir(),
 		)
@@ -471,7 +484,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--trace=true",
 			"--cache-dir", t.TempDir(),
 		)
@@ -509,7 +522,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--telemetry",
 			"--telemetry-url", server.URL,
 			"--cache-dir", t.TempDir(),
@@ -540,7 +553,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--provisioner-daemons", "1",
 			"--prometheus-enable",
 			"--prometheus-address", ":"+strconv.Itoa(randomPort),
@@ -593,7 +606,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--address", ":0",
-			"--access-url", "example.com",
+			"--access-url", "http://example.com",
 			"--oauth2-github-client-id", "fake",
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,

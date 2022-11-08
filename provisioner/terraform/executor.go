@@ -342,7 +342,7 @@ func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resourc
 }
 
 func (e executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
-	args := []string{"show", "-json"}
+	args := []string{"show", "-json", "-no-color"}
 	state := &tfjson.State{}
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), state)
 	if err != nil {

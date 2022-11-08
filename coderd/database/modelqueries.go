@@ -19,6 +19,7 @@ import (
 type customQuerier interface {
 	templateQuerier
 	workspaceQuerier
+	userQuerier
 }
 
 type templateQuerier interface {
@@ -165,4 +166,22 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, err
 	}
 	return items, nil
+}
+
+type userQuerier interface {
+	GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	filter := strings.Replace(getFilteredUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filter)
+	row := q.db.QueryRowContext(ctx, query,
+		arg.Deleted,
+		arg.Search,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }

@@ -27,12 +27,12 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				DisplayName: "app1",
+				Slug:        "app1",
 				Healthcheck: codersdk.Healthcheck{},
 				Health:      codersdk.WorkspaceAppHealthDisabled,
 			},
 			{
-				DisplayName: "app2",
+				Slug: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -69,7 +69,7 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				DisplayName: "app2",
+				Slug: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -102,7 +102,7 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				DisplayName: "app2",
+				Slug: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -137,7 +137,7 @@ func TestAppHealth(t *testing.T) {
 		defer cancel()
 		apps := []codersdk.WorkspaceApp{
 			{
-				DisplayName: "app2",
+				Slug: "app2",
 				Healthcheck: codersdk.Healthcheck{
 					// URL: We don't set the URL for this test because the setup will
 					// create a httptest server for us and set it for us.
@@ -185,9 +185,9 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 	}
 	postWorkspaceAgentAppHealth := func(_ context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error {
 		mu.Lock()
-		for name, health := range req.Healths {
+		for id, health := range req.Healths {
 			for i, app := range apps {
-				if app.DisplayName != name {
+				if app.ID != id {
 					continue
 				}
 				app.Health = health

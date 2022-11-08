@@ -139,6 +139,14 @@ export const getUsers = async (
   return response.data
 }
 
+export const getUserCount = async (
+  options: TypesGen.UserCountRequest,
+): Promise<TypesGen.UserCountResponse> => {
+  const url = getURLWithSearchParams("/api/v2/users/count", options)
+  const response = await axios.get(url.toString())
+  return response.data
+}
+
 export const getOrganization = async (
   organizationId: string,
 ): Promise<TypesGen.Organization> => {

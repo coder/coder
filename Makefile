@@ -443,6 +443,15 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	cd site
 	yarn run format:types
 
+update-golden-files: cli/testdata/.gen-golden
+.PHONY: update-golden-files
+
+cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) \
+	$(shell find . -not -path './vendor/*' -type f -name '*.go')
+
+	go test ./cli -run=TestCommandHelp -update
+	touch "$@"
+
 test: test-clean
 	gotestsum -- -v -short ./...
 .PHONY: test

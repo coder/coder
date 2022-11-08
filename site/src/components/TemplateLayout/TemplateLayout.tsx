@@ -15,7 +15,13 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { useOrganizationId } from "hooks/useOrganizationId"
-import { createContext, FC, PropsWithChildren, useContext } from "react"
+import {
+  createContext,
+  FC,
+  PropsWithChildren,
+  Suspense,
+  useContext,
+} from "react"
 import {
   Link as RouterLink,
   Navigate,
@@ -33,6 +39,7 @@ import {
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Permissions } from "xServices/auth/authXService"
+import { Loader } from "components/Loader/Loader"
 
 const Language = {
   settingsButton: "Settings",
@@ -224,7 +231,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
         <TemplateLayoutContext.Provider
           value={{ permissions, context: templateState.context }}
         >
-          {children}
+          <Suspense fallback={<Loader />}>{children}</Suspense>
         </TemplateLayoutContext.Provider>
       </Margins>
 

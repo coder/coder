@@ -84,18 +84,18 @@ const useStyles = makeStyles((theme) => ({
 
   "@keyframes pulse": {
     "0%": {
-      opacity: 0.25,
-    },
-    "50%": {
       opacity: 1,
     },
+    "50%": {
+      opacity: 0.4,
+    },
     "100%": {
-      opacity: 0.25,
+      opacity: 1,
     },
   },
 
   connecting: {
     backgroundColor: theme.palette.info.light,
-    animation: "$pulse 1s ease-in-out forwards infinite",
+    animation: "$pulse 1.5s 0.5s ease-in-out forwards infinite",
   },
 }))

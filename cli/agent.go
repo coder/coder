@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" //nolint: gosec
+	"net/http/pprof"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -28,7 +28,6 @@ import (
 func workspaceAgent() *cobra.Command {
 	var (
 		auth         string
-		pprofEnabled bool
 		pprofAddress string
 		noReap       bool
 	)
@@ -82,15 +81,11 @@ func workspaceAgent() *cobra.Command {
 			// Set a reasonable timeout so requests can't hang forever!
 			client.HTTPClient.Timeout = 10 * time.Second
 
-			if pprofEnabled {
-				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
-				defer srvClose()
-			} else {
-				// If pprof wasn't enabled at startup, allow a
-				// `kill -USR1 $agent_pid` to start it (on Unix).
-				srvClose := agentStartPPROFOnUSR1(cmd.Context(), logger, pprofAddress)
-				defer srvClose()
-			}
+			// Enable pprof handler
+			// This prevents the pprof import from being accidentally deleted.
+			_ = pprof.Handler
+			pprofSrvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
+			defer pprofSrvClose()
 
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
@@ -156,22 +151,19 @@ func workspaceAgent() *cobra.Command {
 			closer := agent.New(agent.Options{
 				Client: client,
 				Logger: logger,
-				ExchangeToken: func(ctx context.Context) error {
+				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
-						return nil
+						return client.SessionToken, nil
 					}
 					resp, err := exchangeToken(ctx)
 					if err != nil {
-						return err
+						return "", err
 					}
 					client.SessionToken = resp.SessionToken
-					return nil
+					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
-					// Override the "CODER_AGENT_TOKEN" variable in all
-					// shells so "gitssh" and "gitaskpass" works!
-					"CODER_AGENT_TOKEN": client.SessionToken,
-					"GIT_ASKPASS":       executablePath,
+					"GIT_ASKPASS": executablePath,
 				},
 			})
 			<-cmd.Context().Done()
@@ -180,7 +172,6 @@ func workspaceAgent() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd
