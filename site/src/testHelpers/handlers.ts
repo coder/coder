@@ -138,7 +138,7 @@ export const handlers = [
 
   // workspaces
   rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockWorkspace]))
+    return res(ctx.status(200), ctx.json(M.MockWorkspacesResponse))
   }),
   rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))

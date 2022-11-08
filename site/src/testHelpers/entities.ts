@@ -2,6 +2,7 @@ import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
+import { range } from "lodash"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -508,6 +509,16 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
     transition: "start",
     status: "pending",
   },
+}
+
+// just over one page of workspaces
+export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
+  workspaces: range(1, 27).map((id: number) => ({
+    ...MockWorkspace,
+    id: id.toString(),
+    name: `${MockWorkspace.name}${id}`,
+  })),
+  count: 26,
 }
 
 // requests the MockWorkspace
