@@ -1,12 +1,6 @@
 import LinearProgress from "@material-ui/core/LinearProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import {
-  TransitionStats,
-  Template,
-  Workspace,
-  WorkspaceTransition,
-  WorkspaceStatus,
-} from "api/typesGenerated"
+import { TransitionStats, Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
