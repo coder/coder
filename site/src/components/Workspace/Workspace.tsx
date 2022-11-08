@@ -20,7 +20,7 @@ import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import {
-  EstimateTransitionTime,
+  ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { AgentRow } from "components/Resources/AgentRow"
@@ -120,12 +120,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   )
 
   let transitionStats: TypesGen.TransitionStats | undefined = undefined
-  let isTransitioning: boolean | undefined = undefined
   if (template !== undefined) {
-    ;[transitionStats, isTransitioning] = EstimateTransitionTime(
-      template,
-      workspace,
-    )
+    transitionStats = ActiveTransition(template, workspace)
   }
 
   return (
@@ -201,7 +197,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
 
-        {isTransitioning !== undefined && isTransitioning && (
+        {transitionStats !== undefined && (
           <WorkspaceBuildProgress
             workspace={workspace}
             transitionStats={transitionStats}

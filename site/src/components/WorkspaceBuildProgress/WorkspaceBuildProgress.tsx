@@ -1,6 +1,12 @@
 import LinearProgress from "@material-ui/core/LinearProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import { TransitionStats, Template, Workspace, WorkspaceTransition } from "api/typesGenerated"
+import {
+  TransitionStats,
+  Template,
+  Workspace,
+  WorkspaceTransition,
+  WorkspaceStatus,
+} from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
@@ -9,43 +15,67 @@ import duration from "dayjs/plugin/duration"
 
 dayjs.extend(duration)
 
+// ActiveTransition gets the build estimate for the workspace,
+// if it is in a transition state.
+export const ActiveTransition = (
+  template: Template,
+  workspace: Workspace,
+): TransitionStats | undefined => {
+  const status = workspace.latest_build.status
+
+  switch (status) {
+    case "starting":
+      return template.build_time_stats.start
+    case "stopping":
+      return template.build_time_stats.stop
+    case "deleting":
+      return template.build_time_stats.delete
+    default:
+      return undefined
+  }
+}
+
 const estimateFinish = (
   startedAt: Dayjs,
-  buildEstimate: number,
-): [number, string] => {
-  const realPercentage = dayjs().diff(startedAt) / buildEstimate
+  median: number,
+  stddev: number,
+): [number | undefined, string] => {
+  const sinceStart = dayjs().diff(startedAt)
+  const secondsLeft = (est: number) =>
+    Math.max(
+      Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
+      0,
+    )
 
-  const maxPercentage = 1
-  if (realPercentage > maxPercentage) {
-    return [maxPercentage * 100, "Any moment now..."]
-  }
+  const lowGuess = secondsLeft(median)
+  const highGuess = secondsLeft(median + stddev)
 
-  return [
-    realPercentage * 100,
-    `~${Math.ceil(
-      dayjs.duration((1 - realPercentage) * buildEstimate).asSeconds(),
-    )} seconds remaining...`,
+  // If variation is too high (and greater than second), don't show
+  // progress bar and give range.
+  const highVariation = stddev / median > 0.1 && highGuess - lowGuess > 1
+
+  const anyMomentNow: [number | undefined, string] = [
+    undefined,
+    "Any moment now...",
   ]
+
+  if (highVariation) {
+    if (highGuess <= 0) {
+      return anyMomentNow
+    }
+    return [undefined, `${lowGuess} to ${highGuess} seconds remaining...`]
+  } else {
+    const realPercentage = sinceStart / median
+    if (realPercentage > 1) {
+      return anyMomentNow
+    }
+    return [realPercentage * 100, `${highGuess} seconds remaining...`]
+  }
 }
 
 export interface WorkspaceBuildProgressProps {
   workspace: Workspace
-  transitionStats?: TransitionStats
-}
-
-// EstimateTransitionTime gets the build estimate for the workspace,
-// if it is in a transition state.
-export const EstimateTransitionTime = (
-  template: Template,
-  workspace: Workspace,
-): [TransitionStats | undefined, boolean] => {
-  const transition = workspace.latest_build.status
-
-  if (!["starting", "stopping", "deleting"].includes(transition)) {
-    return [undefined, false]
-  }
-
-  return [template.build_time_stats[transition as WorkspaceTransition], true]
+  transitionStats: TransitionStats
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
@@ -55,18 +85,32 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   const styles = useStyles()
   const job = workspace.latest_build.job
   const [progressValue, setProgressValue] = useState<number | undefined>(0)
+  const [progressText, setProgressText] = useState<string | undefined>(
+    "Finding ETA...",
+  )
 
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
   // stutter in all cases.
   useEffect(() => {
     const updateProgress = () => {
-      if (job.status !== "running" || transitionStats === undefined) {
+      if (
+        job.status !== "running" ||
+        transitionStats.Median === undefined ||
+        transitionStats.Stddev === undefined
+      ) {
         setProgressValue(undefined)
+        setProgressText(undefined)
         return
       }
-      const est = estimateFinish(dayjs(job.started_at), transitionStats)[0]
+
+      const [est, text] = estimateFinish(
+        dayjs(job.started_at),
+        transitionStats.Median,
+        transitionStats.Stddev,
+      )
       setProgressValue(est)
+      setProgressText(text)
     }
     setTimeout(updateProgress, 5)
   }, [progressValue, job, transitionStats])
@@ -93,17 +137,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
-        <div className={styles.label}>
-          {(() => {
-            if (job.status !== "running") {
-              return ""
-            } else if (transitionStats !== undefined) {
-              return estimateFinish(dayjs(job.started_at), transitionStats)[1]
-            } else {
-              return "Unknown ETA"
-            }
-          })()}
-        </div>
+        <div className={styles.label}>{progressText}</div>
       </div>
     </div>
   )
