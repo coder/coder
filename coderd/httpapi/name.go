@@ -15,17 +15,7 @@ var (
 
 // UsernameValid returns whether the input string is a valid username.
 func UsernameValid(str string) error {
-	if len(str) > 32 {
-		return xerrors.New("must be <= 32 characters")
-	}
-	if len(str) < 1 {
-		return xerrors.New("must be >= 1 character")
-	}
-	matched := UsernameValidRegex.MatchString(str)
-	if !matched {
-		return xerrors.New("must be alphanumeric with hyphens")
-	}
-	return nil
+	return nameValid(str)
 }
 
 // UsernameFrom returns a best-effort username from the provided string.
@@ -47,4 +37,20 @@ func UsernameFrom(str string) string {
 		return str
 	}
 	return strings.ReplaceAll(namesgenerator.GetRandomName(1), "_", "-")
+}
+
+// nameValid returns whether the input string is a valid name.
+// It is a generic validator for any name (user, workspace, etc.).
+func nameValid(str string) error {
+	if len(str) > 32 {
+		return xerrors.New("must be <= 32 characters")
+	}
+	if len(str) < 1 {
+		return xerrors.New("must be >= 1 character")
+	}
+	matched := UsernameValidRegex.MatchString(str)
+	if !matched {
+		return xerrors.New("must be alphanumeric with hyphens")
+	}
+	return nil
 }
