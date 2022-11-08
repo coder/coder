@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
@@ -495,7 +496,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		workspaceBuildID := uuid.New()
-		input, err := json.Marshal(workspaceProvisionJob{
+		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
 		})
 		if err != nil {

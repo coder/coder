@@ -53,8 +53,8 @@ WithLongDiffRow.args = {
     diff: {
       ...MockAuditLog2.diff,
       icon: {
-        old: "https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png",
-        new: "https://www.docker.com/wp-content/uploads/2022/03/vertical-logo-monochromatic.png",
+        old: "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.docker.com%2Fcompany%2Fnewsroom%2Fmedia-resources%2F&psig=AOvVaw3hLg_lm0tzXPBt74XZD2GC&ust=1666892413988000&source=images&cd=vfe&ved=0CAwQjRxqFwoTCPDsiKa4_voCFQAAAAAdAAAAABAD",
+        new: "https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.kindpng.com%2Fimgv%2FhRowRxi_docker-icon-png-transparent-png%2F&psig=AOvVaw3hLg_lm0tzXPBt74XZD2GC&ust=1666892413988000&source=images&cd=vfe&ved=0CAwQjRxqFwoTCPDsiKa4_voCFQAAAAAdAAAAABAI",
         secret: false,
       },
     },

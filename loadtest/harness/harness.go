@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
@@ -27,6 +28,7 @@ type TestHarness struct {
 	runs    []*TestRun
 	started bool
 	done    chan struct{}
+	elapsed time.Duration
 }
 
 // NewTestHarness creates a new TestHarness with the given ExecutionStrategy.
@@ -61,6 +63,13 @@ func (h *TestHarness) Run(ctx context.Context) (err error) {
 		if e != nil {
 			err = xerrors.Errorf("execution strategy panicked: %w", e)
 		}
+	}()
+
+	start := time.Now()
+	defer func() {
+		h.mut.Lock()
+		defer h.mut.Unlock()
+		h.elapsed = time.Since(start)
 	}()
 
 	err = h.strategy.Execute(ctx, h.runs)

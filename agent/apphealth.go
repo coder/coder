@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
@@ -31,9 +32,9 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 		}
 
 		hasHealthchecksEnabled := false
-		health := make(map[string]codersdk.WorkspaceAppHealth, 0)
+		health := make(map[uuid.UUID]codersdk.WorkspaceAppHealth, 0)
 		for _, app := range apps {
-			health[app.DisplayName] = app.Health
+			health[app.ID] = app.Health
 			if !hasHealthchecksEnabled && app.Health != codersdk.WorkspaceAppHealthDisabled {
 				hasHealthchecksEnabled = true
 			}
@@ -46,7 +47,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 
 		// run a ticker for each app health check.
 		var mu sync.RWMutex
-		failures := make(map[string]int, 0)
+		failures := make(map[uuid.UUID]int, 0)
 		for _, nextApp := range apps {
 			if !shouldStartTicker(nextApp) {
 				continue
@@ -85,21 +86,21 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 					}()
 					if err != nil {
 						mu.Lock()
-						if failures[app.DisplayName] < int(app.Healthcheck.Threshold) {
+						if failures[app.ID] < int(app.Healthcheck.Threshold) {
 							// increment the failure count and keep status the same.
 							// we will change it when we hit the threshold.
-							failures[app.DisplayName]++
+							failures[app.ID]++
 						} else {
 							// set to unhealthy if we hit the failure threshold.
 							// we stop incrementing at the threshold to prevent the failure value from increasing forever.
-							health[app.DisplayName] = codersdk.WorkspaceAppHealthUnhealthy
+							health[app.ID] = codersdk.WorkspaceAppHealthUnhealthy
 						}
 						mu.Unlock()
 					} else {
 						mu.Lock()
 						// we only need one successful health check to be considered healthy.
-						health[app.DisplayName] = codersdk.WorkspaceAppHealthHealthy
-						failures[app.DisplayName] = 0
+						health[app.ID] = codersdk.WorkspaceAppHealthHealthy
+						failures[app.ID] = 0
 						mu.Unlock()
 					}
 
@@ -155,7 +156,7 @@ func shouldStartTicker(app codersdk.WorkspaceApp) bool {
 	return app.Healthcheck.URL != "" && app.Healthcheck.Interval > 0 && app.Healthcheck.Threshold > 0
 }
 
-func healthChanged(old map[string]codersdk.WorkspaceAppHealth, new map[string]codersdk.WorkspaceAppHealth) bool {
+func healthChanged(old map[uuid.UUID]codersdk.WorkspaceAppHealth, new map[uuid.UUID]codersdk.WorkspaceAppHealth) bool {
 	for name, newValue := range new {
 		oldValue, found := old[name]
 		if !found {
@@ -169,8 +170,8 @@ func healthChanged(old map[string]codersdk.WorkspaceAppHealth, new map[string]co
 	return false
 }
 
-func copyHealth(h1 map[string]codersdk.WorkspaceAppHealth) map[string]codersdk.WorkspaceAppHealth {
-	h2 := make(map[string]codersdk.WorkspaceAppHealth, 0)
+func copyHealth(h1 map[uuid.UUID]codersdk.WorkspaceAppHealth) map[uuid.UUID]codersdk.WorkspaceAppHealth {
+	h2 := make(map[uuid.UUID]codersdk.WorkspaceAppHealth, 0)
 	for k, v := range h1 {
 		h2[k] = v
 	}

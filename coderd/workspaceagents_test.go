@@ -555,9 +555,8 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			// should not exist in the response.
 			_, appLPort := generateUnfilteredPort(t)
 			app := &proto.App{
-				Slug:        "test-app",
-				DisplayName: "test-app",
-				Url:         fmt.Sprintf("http://localhost:%d", appLPort),
+				Slug: "test-app",
+				Url:  fmt.Sprintf("http://localhost:%d", appLPort),
 			}
 
 			// Generate a filtered port that should not exist in the response.
@@ -624,11 +623,10 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	authToken := uuid.NewString()
 	apps := []*proto.App{
 		{
-			Slug:        "code-server",
-			DisplayName: "code-server",
-			Command:     "some-command",
-			Url:         "http://localhost:3000",
-			Icon:        "/code.svg",
+			Slug:    "code-server",
+			Command: "some-command",
+			Url:     "http://localhost:3000",
+			Icon:    "/code.svg",
 		},
 		{
 			Slug:        "code-server-2",
@@ -683,31 +681,24 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	// empty
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{})
 	require.Error(t, err)
-	// invalid name
+	// healthcheck disabled
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
-		Healths: map[string]codersdk.WorkspaceAppHealth{
-			"bad-name": codersdk.WorkspaceAppHealthDisabled,
-		},
-	})
-	require.Error(t, err)
-	// healcheck disabled
-	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
-		Healths: map[string]codersdk.WorkspaceAppHealth{
-			"code-server": codersdk.WorkspaceAppHealthInitializing,
+		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
+			metadata.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
 		},
 	})
 	require.Error(t, err)
 	// invalid value
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
-		Healths: map[string]codersdk.WorkspaceAppHealth{
-			"code-server-2": codersdk.WorkspaceAppHealth("bad-value"),
+		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
+			metadata.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
 		},
 	})
 	require.Error(t, err)
 	// update to healthy
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
-		Healths: map[string]codersdk.WorkspaceAppHealth{
-			"code-server-2": codersdk.WorkspaceAppHealthHealthy,
+		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
+			metadata.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
 		},
 	})
 	require.NoError(t, err)
@@ -716,8 +707,8 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, metadata.Apps[1].Health)
 	// update to unhealthy
 	err = agentClient.PostWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
-		Healths: map[string]codersdk.WorkspaceAppHealth{
-			"code-server-2": codersdk.WorkspaceAppHealthUnhealthy,
+		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
+			metadata.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
 		},
 	})
 	require.NoError(t, err)

@@ -139,7 +139,7 @@ projector:
 
 - PyCharm
   ([Docker](https://github.com/sharkymark/v2-templates/tree/main/docker-with-pycharm),
-  [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm)
+  [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm))
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace
 > on a Kubernetes cluster to use the Kubernetes pod template examples.
@@ -153,20 +153,13 @@ Configure your agent and `coder_app` like so to use Jupyter:
 ```hcl
 data "coder_workspace" "me" {}
 
-## The name of the app must always be equal to the "/apps/<name>"
-## string in the base_url. This caveat is unique to Jupyter.
-
-locals {
-  jupyter_base_path = "/@${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}/apps/JupyterLab/"
-}
-
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
   startup_script = <<-EOF
 pip3 install jupyterlab
-$HOME/.local/bin/jupyter lab --ServerApp.base_url=${local.jupyter_base_path} --ServerApp.token='' --ip='*'
+$HOME/.local/bin/jupyter lab --ServerApp.token='' --ip='*'
 EOF
 }
 
@@ -174,18 +167,20 @@ resource "coder_app" "jupyter" {
   agent_id     = coder_agent.coder.id
   slug         = "jupyter"
   display_name = "JupyterLab"
-  url          = "http://localhost:8888${local.jupyter_base_path}"
+  url          = "http://localhost:8888"
   icon         = "/icon/jupyter.svg"
+  share        = "owner"
+  subdomain    = true
 
   healthcheck {
-    url       = "http://localhost:8888${local.jupyter_base_path}"
+    url       = "http://localhost:8888/healthz"
     interval  = 5
     threshold = 10
   }
 }
 ```
 
-![JupyterLab in Coder](../images/jupyterlab-port-forward.png)
+![JupyterLab in Coder](../images/jupyter-on-docker.png)
 
 
 ### RStudio
@@ -218,7 +213,7 @@ resource "coder_app" "rstudio" {
     url       = "http://localhost:8787/healthz"
     interval  = 3
     threshold = 10
-  } 
+  }
 }
 ```
 
@@ -254,7 +249,7 @@ resource "coder_app" "airflow" {
     url       = "http://localhost:8080/healthz"
     interval  = 10
     threshold = 60
-  } 
+  }
 }
 ```
 
