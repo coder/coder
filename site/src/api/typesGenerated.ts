@@ -812,7 +812,7 @@ export interface WorkspaceAgent {
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
-  readonly connection_timeout: number
+  readonly connection_timeout_seconds: number
   readonly troubleshooting_url?: string
 }
 

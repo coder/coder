@@ -97,8 +97,8 @@ func TestWorkspaceAgent(t *testing.T) {
 								Auth: &proto.Agent_Token{
 									Token: authToken,
 								},
-								ConnectionTimeout:  1,
-								TroubleshootingUrl: "https://example.com/troubleshoot",
+								ConnectionTimeoutSeconds: 1,
+								TroubleshootingUrl:       "https://example.com/troubleshoot",
 							}},
 						}},
 					},

@@ -54,7 +54,7 @@ INSERT INTO
 		directory,
 		instance_metadata,
 		resource_metadata,
-		connection_timeout,
+		connection_timeout_seconds,
 		troubleshooting_url
 	)
 VALUES

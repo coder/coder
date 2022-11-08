@@ -54,9 +54,9 @@ type WorkspaceAgent struct {
 	Version              string               `json:"version"`
 	Apps                 []WorkspaceApp       `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency        map[string]DERPRegion `json:"latency,omitempty"`
-	ConnectionTimeout  int32                 `json:"connection_timeout"`
-	TroubleshootingURL string                `json:"troubleshooting_url,omitempty"`
+	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
+	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
+	TroubleshootingURL       string                `json:"troubleshooting_url,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {
