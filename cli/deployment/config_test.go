@@ -47,7 +47,7 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Pprof.Enable.Value, true)
 			require.Equal(t, config.Prometheus.Address.Value, "hello-world")
 			require.Equal(t, config.Prometheus.Enable.Value, true)
-			require.Equal(t, config.ProvisionerDaemons.Value, 5)
+			require.Equal(t, config.Provisioner.Daemons.Value, 5)
 			require.Equal(t, config.SecureAuthCookie.Value, true)
 			require.Equal(t, config.SSHKeygenAlgorithm.Value, "potato")
 			require.Equal(t, config.Telemetry.Enable.Value, false)
@@ -198,6 +198,16 @@ func TestConfig(t *testing.T) {
 				TokenURL:     "https://token-2.com",
 				Regex:        "gitlab.com",
 			}}, config.GitAuth.Value)
+		},
+	}, {
+		Name: "Wrong env must not break default values",
+		Env: map[string]string{
+			"CODER_PROMETHEUS_ENABLE": "true",
+			"CODER_PROMETHEUS":        "true", // Wrong env name, must not break prom addr.
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Prometheus.Enable.Value, true)
+			require.Equal(t, config.Prometheus.Address.Value, config.Prometheus.Address.Default)
 		},
 	}} {
 		tc := tc

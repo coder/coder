@@ -90,19 +90,11 @@ resource "docker_image" "dogfood" {
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.dogfood.name
-  # Uses lower() to avoid Docker restriction on container names.
-  name = local.container_name
+  name  = local.container_name
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
-  hostname = lower(data.coder_workspace.me.name)
-  dns      = ["1.1.1.1"]
+  hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
-  command = [
-    "sh", "-c",
-    <<EOT
-    trap '[ $? -ne 0 ] && echo === Agent script exited with non-zero code. Sleeping infinitely to preserve logs... && sleep infinity' EXIT
-    ${replace(coder_agent.dev.init_script, "localhost", "host.docker.internal")}
-    EOT
-  ]
+  entrypoint = ["sh", "-c", replace(coder_agent.dev.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"

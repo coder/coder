@@ -204,6 +204,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly time?: string
 }
 
 // From codersdk/apikey.go
@@ -286,7 +287,6 @@ export interface DeploymentConfig {
   readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly provisioner_daemons: DeploymentConfigField<number>
   readonly pg_connection_url: DeploymentConfigField<string>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
@@ -302,6 +302,8 @@ export interface DeploymentConfig {
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
+  readonly provisioner: ProvisionerConfig
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -513,6 +515,12 @@ export interface PrometheusConfig {
   readonly address: DeploymentConfigField<string>
 }
 
+// From codersdk/deploymentconfig.go
+export interface ProvisionerConfig {
+  readonly daemons: DeploymentConfigField<number>
+  readonly force_cancel_interval: DeploymentConfigField<number>
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -537,7 +545,7 @@ export interface ProvisionerJob {
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerJobLog {
-  readonly id: string
+  readonly id: number
   readonly created_at: string
   readonly log_source: LogSource
   readonly log_level: LogLevel
@@ -737,6 +745,16 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+}
+
+// From codersdk/users.go
+export interface UserCountRequest {
+  readonly q?: string
+}
+
+// From codersdk/users.go
+export interface UserCountResponse {
+  readonly count: number
 }
 
 // From codersdk/users.go

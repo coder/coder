@@ -161,18 +161,19 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				if sse.Type == ServerSentEventTypeData {
-					var ws Workspace
-					b, ok := sse.Data.([]byte)
-					if !ok {
-						return
-					}
-					err = json.Unmarshal(b, &ws)
-					if err != nil {
-						return
-					}
-					wc <- ws
+				if sse.Type != ServerSentEventTypeData {
+					continue
 				}
+				var ws Workspace
+				b, ok := sse.Data.([]byte)
+				if !ok {
+					return
+				}
+				err = json.Unmarshal(b, &ws)
+				if err != nil {
+					return
+				}
+				wc <- ws
 			}
 		}
 	}()
@@ -395,4 +396,11 @@ func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
 
 	var host GetAppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
+}
+
+// WorkspaceNotifyChannel is the PostgreSQL NOTIFY
+// channel to listen for updates on. The payload is empty,
+// because the size of a workspace payload can be very large.
+func WorkspaceNotifyChannel(id uuid.UUID) string {
+	return fmt.Sprintf("workspace:%s", id)
 }

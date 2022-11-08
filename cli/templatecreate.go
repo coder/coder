@@ -160,7 +160,6 @@ type createValidTemplateVersionArgs struct {
 }
 
 func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
-	before := time.Now()
 	client := args.Client
 
 	req := codersdk.CreateTemplateVersionRequest{
@@ -187,7 +186,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			return client.CancelTemplateVersion(cmd.Context(), version.ID)
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, before)
+			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, 0)
 		},
 	})
 	if err != nil {

@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -356,8 +357,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
-				Experimental:                ExperimentalEnabled(cmd),
 				DeploymentConfig:            cfg,
+				PrometheusRegistry:          prometheus.NewRegistry(),
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -468,16 +469,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			// Parse the raw telemetry URL!
-			telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
-			if err != nil {
-				return xerrors.Errorf("parse telemetry url: %w", err)
-			}
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
 			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.Telemetry.Enable.Flag) {
 				cfg.Telemetry.Enable.Value = false
 			}
 			if cfg.Telemetry.Enable.Value {
+				// Parse the raw telemetry URL!
+				telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
+				if err != nil {
+					return xerrors.Errorf("parse telemetry url: %w", err)
+				}
+
 				options.Telemetry, err = telemetry.New(telemetry.Options{
 					BuiltinPostgres: builtinPostgres,
 					DeploymentID:    deploymentID,
@@ -504,7 +506,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.Value, "pprof")()
 			}
 			if cfg.Prometheus.Enable.Value {
-				options.PrometheusRegistry = prometheus.NewRegistry()
+				options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
+				options.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
 				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
 					return xerrors.Errorf("register active users prometheus metric: %w", err)
@@ -556,8 +560,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					_ = daemon.Close()
 				}
 			}()
-			for i := 0; i < cfg.ProvisionerDaemons.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, logger, cfg.CacheDirectory.Value, errCh, false)
+			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
+			for i := 0; i < cfg.Provisioner.Daemons.Value; i++ {
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -824,8 +829,9 @@ func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Dura
 func newProvisionerDaemon(
 	ctx context.Context,
 	coderAPI *coderd.API,
+	metrics provisionerd.Metrics,
 	logger slog.Logger,
-	cacheDir string,
+	cfg *codersdk.DeploymentConfig,
 	errCh chan error,
 	dev bool,
 ) (srv *provisionerd.Server, err error) {
@@ -836,9 +842,9 @@ func newProvisionerDaemon(
 		}
 	}()
 
-	err = os.MkdirAll(cacheDir, 0o700)
+	err = os.MkdirAll(cfg.CacheDirectory.Value, 0o700)
 	if err != nil {
-		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+		return nil, xerrors.Errorf("mkdir %q: %w", cfg.CacheDirectory.Value, err)
 	}
 
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
@@ -854,7 +860,7 @@ func newProvisionerDaemon(
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			CachePath: cacheDir,
+			CachePath: cfg.CacheDirectory.Value,
 			Logger:    logger,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -895,12 +901,14 @@ func newProvisionerDaemon(
 		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
 	}
 	return provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
-		Logger:         logger,
-		PollInterval:   500 * time.Millisecond,
-		UpdateInterval: 500 * time.Millisecond,
-		Provisioners:   provisioners,
-		WorkDirectory:  tempDir,
-		Tracer:         coderAPI.TracerProvider,
+		Logger:              logger,
+		PollInterval:        500 * time.Millisecond,
+		UpdateInterval:      500 * time.Millisecond,
+		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value,
+		Provisioners:        provisioners,
+		WorkDirectory:       tempDir,
+		TracerProvider:      coderAPI.TracerProvider,
+		Metrics:             &metrics,
 	}), nil
 }
 

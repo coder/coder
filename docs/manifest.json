@@ -56,6 +56,11 @@
           "path": "./install/offline.md"
         },
         {
+          "title": "External database",
+          "description": "Use external PostgreSQL database",
+          "path": "./install/database.md"
+        },
+        {
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
@@ -76,19 +81,19 @@
         },
         {
           "title": "Google Cloud Platform",
-          "description": "Setup Coder with Google Cloud Platform",
+          "description": "Setup Coder on a GCP Compute Engine VM",
           "icon_path": "./images/google-cloud.svg",
           "path": "./quickstart/google-cloud-platform.md"
         },
         {
           "title": "AWS",
-          "description": "Setup Coder with AWS",
+          "description": "Setup Coder on an AWS EC2 VM",
           "icon_path": "./images/aws.svg",
           "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
-          "description": "Setup Coder with Azure",
+          "description": "Setup Coder on an Azure VM",
           "icon_path": "./images/azure.svg",
           "path": "./quickstart/azure.md"
         }
@@ -229,6 +234,12 @@
           "description": "Learn how to configure Coder",
           "path": "./admin/configure.md",
           "icon_path": "./images/icons/toggle_on.svg"
+        },
+        {
+          "title": "Git Providers",
+          "description": "Learn how connect Coder with external git providers",
+          "icon_path": "./images/icons/git.svg",
+          "path": "./admin/git-providers.md"
         },
         {
           "title": "Upgrading",

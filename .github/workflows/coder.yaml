@@ -315,7 +315,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
-          tag: v1.7.0
+          tag: v1.8.2
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -393,7 +393,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
-          tag: v1.7.0
+          tag: v1.8.2
 
       - uses: hashicorp/setup-terraform@v2
         with:

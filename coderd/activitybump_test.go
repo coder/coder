@@ -31,7 +31,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
+		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, "", 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
 

@@ -92,16 +92,6 @@ afterAll(() => {
 })
 
 describe("WorkspacePage", () => {
-  it("requests a stop job when the user presses Stop", async () => {
-    const stopWorkspaceMock = jest
-      .spyOn(api, "stopWorkspace")
-      .mockResolvedValueOnce(MockWorkspaceBuild)
-    testButton(
-      t("actionButton.stop", { ns: "workspacePage" }),
-      stopWorkspaceMock,
-    )
-  })
-
   it("requests a delete job when the user presses Delete and confirms", async () => {
     const user = userEvent.setup()
     const deleteWorkspaceMock = jest
@@ -140,11 +130,23 @@ describe("WorkspacePage", () => {
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    testButton(
+    await testButton(
       t("actionButton.start", { ns: "workspacePage" }),
       startWorkspaceMock,
     )
   })
+
+  it("requests a stop job when the user presses Stop", async () => {
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+
+    await testButton(
+      t("actionButton.stop", { ns: "workspacePage" }),
+      stopWorkspaceMock,
+    )
+  })
+
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
       rest.get(

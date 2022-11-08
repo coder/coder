@@ -117,13 +117,13 @@ func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// WorkspaceBuildLogsBefore returns logs that occurred before a specific time.
-func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+// WorkspaceBuildLogsBefore returns logs that occurred before a specific log ID.
+func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
 	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), before)
 }
 
-// WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific time.
-func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
+// WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific log ID.
+func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), after)
 }
 

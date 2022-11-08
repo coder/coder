@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -165,7 +166,7 @@ func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
 	filter, errs := workspaceSearchQuery(queryStr, codersdk.Pagination{})
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid audit search query.",
+			Message:     "Invalid workspace search query.",
 			Validations: errs,
 		})
 		return
@@ -472,7 +473,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			}
 		}
 
-		input, err := json.Marshal(workspaceProvisionJob{
+		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
 		})
 		if err != nil {
@@ -633,6 +634,8 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	aReq.New = newWorkspace
 	rw.WriteHeader(http.StatusNoContent)
@@ -839,7 +842,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		if err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        build.UpdatedAt,
 			ProvisionerState: build.ProvisionerState,
@@ -883,48 +886,65 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// Ignore all trace spans after this, they're not too useful.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	t := time.NewTicker(time.Second * 1)
-	defer t.Stop()
+	cancelSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), func(_ context.Context, _ []byte) {
+		workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
+		if err != nil {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Internal error fetching workspace.",
+					Detail:  err.Error(),
+				},
+			})
+			return
+		}
+
+		data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+		if err != nil {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Internal error fetching workspace data.",
+					Detail:  err.Error(),
+				},
+			})
+			return
+		}
+
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: convertWorkspace(
+				workspace,
+				data.builds[0],
+				data.templates[0],
+				findUser(workspace.OwnerID, data.users),
+			),
+		})
+	})
+	if err != nil {
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Internal error subscribing to workspace events.",
+				Detail:  err.Error(),
+			},
+		})
+		return
+	}
+	defer cancelSubscribe()
+
+	// An initial ping signals to the request that the server is now ready
+	// and the client can begin servicing a channel with data.
+	_ = sendEvent(ctx, codersdk.ServerSentEvent{
+		Type: codersdk.ServerSentEventTypePing,
+	})
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-senderClosed:
 			return
-		case <-t.C:
-			workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
-			if err != nil {
-				_ = sendEvent(ctx, codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeError,
-					Data: codersdk.Response{
-						Message: "Internal error fetching workspace.",
-						Detail:  err.Error(),
-					},
-				})
-				return
-			}
-
-			data, err := api.workspaceData(ctx, []database.Workspace{workspace})
-			if err != nil {
-				_ = sendEvent(ctx, codersdk.ServerSentEvent{
-					Type: codersdk.ServerSentEventTypeError,
-					Data: codersdk.Response{
-						Message: "Internal error fetching workspace data.",
-						Detail:  err.Error(),
-					},
-				})
-				return
-			}
-
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeData,
-				Data: convertWorkspace(
-					workspace,
-					data.builds[0],
-					data.templates[0],
-					findUser(workspace.OwnerID, data.users),
-				),
-			})
 		}
 	}
 }
@@ -1212,4 +1232,16 @@ func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes
 	}
 
 	return parts
+}
+
+func watchWorkspaceChannel(id uuid.UUID) string {
+	return fmt.Sprintf("workspace:%s", id)
+}
+
+func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUID) {
+	err := api.Pubsub.Publish(watchWorkspaceChannel(workspaceID), []byte{})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish workspace update",
+			slog.F("workspace_id", workspaceID), slog.Error(err))
+	}
 }
