@@ -80,6 +80,11 @@ func Test_SlogSink(t *testing.T) {
 		"test_duration":  time.Second,
 		"test_time":      time.Now(),
 		"test_stringer":  stringer("test"),
+		"test_struct": struct {
+			Field string `json:"field"`
+		}{
+			Field: "test",
+		},
 	}
 
 	entry := slog.SinkEntry{
@@ -127,6 +132,7 @@ func Test_SlogSink(t *testing.T) {
 		require.Equal(t, "log: INFO: hello", e.name)
 
 		expectedAttributes := mapToBasicMap(fieldsMap)
+		delete(expectedAttributes, "test_struct")
 		expectedAttributes["slog.time"] = entry.Time.Format(time.RFC3339Nano)
 		expectedAttributes["slog.logger"] = strings.Join(entry.LoggerNames, ".")
 		expectedAttributes["slog.level"] = entry.Level.String()
