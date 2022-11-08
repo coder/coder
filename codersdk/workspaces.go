@@ -397,3 +397,10 @@ func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
 	var host GetAppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
 }
+
+// WorkspaceNotifyChannel is the PostgreSQL NOTIFY
+// channel to listen for updates on. The payload is empty,
+// because the size of a workspace payload can be very large.
+func WorkspaceNotifyChannel(id uuid.UUID) string {
+	return fmt.Sprintf("workspace:%s", id)
+}

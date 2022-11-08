@@ -233,6 +233,8 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
+
 	apps := func(r chi.Router) {
 		r.Use(
 			tracing.Middleware(api.TracerProvider),

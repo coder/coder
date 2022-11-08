@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -472,7 +473,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			}
 		}
 
-		input, err := json.Marshal(workspaceProvisionJob{
+		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
 		})
 		if err != nil {

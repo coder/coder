@@ -37,6 +37,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 
 	assertRoute := map[string]RouteCheck{
 		// These endpoints do not require auth
+		"GET:/healthz":                  {NoAuthorize: true},
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},

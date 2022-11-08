@@ -236,6 +236,12 @@
           "icon_path": "./images/icons/toggle_on.svg"
         },
         {
+          "title": "Git Providers",
+          "description": "Learn how connect Coder with external git providers",
+          "icon_path": "./images/icons/git.svg",
+          "path": "./admin/git-providers.md"
+        },
+        {
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder",
           "icon_path": "./images/icons/upgrade.svg",

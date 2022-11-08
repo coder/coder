@@ -54,5 +54,5 @@ type Healthcheck struct {
 // @typescript-ignore PostWorkspaceAppHealthsRequest
 type PostWorkspaceAppHealthsRequest struct {
 	// Healths is a map of the workspace app name and the health of the app.
-	Healths map[string]WorkspaceAppHealth
+	Healths map[uuid.UUID]WorkspaceAppHealth
 }

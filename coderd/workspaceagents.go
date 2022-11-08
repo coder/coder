@@ -913,10 +913,10 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	var newApps []database.WorkspaceApp
-	for name, newHealth := range req.Healths {
+	for id, newHealth := range req.Healths {
 		old := func() *database.WorkspaceApp {
 			for _, app := range apps {
-				if app.DisplayName == name {
+				if app.ID == id {
 					return &app
 				}
 			}
@@ -926,7 +926,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		if old == nil {
 			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("workspace app name %s not found", name).Error(),
+				Detail:  xerrors.Errorf("workspace app name %s not found", id).Error(),
 			})
 			return
 		}
@@ -934,7 +934,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		if old.HealthcheckUrl == "" {
 			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", name).Error(),
+				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", id).Error(),
 			})
 			return
 		}
