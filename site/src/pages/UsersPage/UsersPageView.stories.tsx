@@ -44,7 +44,7 @@ export const Member = Template.bind({})
 Member.args = { canEditUsers: false }
 
 export const Empty = Template.bind({})
-Empty.args = { users: [], isNonInitialPage: false }
+Empty.args = { users: [] }
 
 export const EmptyPage = Template.bind({})
 EmptyPage.args = { users: [], isNonInitialPage: true }
