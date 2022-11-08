@@ -102,3 +102,9 @@ export const createPaginationRef = (
 ): PaginationMachineRef => {
   return spawn(paginationMachine.withContext(context))
 }
+
+export const nonInitialPage = (searchParams: URLSearchParams): boolean => {
+  const page = searchParams.get("page")
+  const numberPage = page ? Number(page) : 1
+  return numberPage > 1
+}

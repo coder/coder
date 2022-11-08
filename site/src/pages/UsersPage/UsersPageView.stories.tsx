@@ -14,6 +14,18 @@ export default {
     paginationRef: {
       defaultValue: createPaginationRef({ page: 1, limit: 25 }),
     },
+    isNonInitialPage: {
+      defaultValue: false,
+    },
+    users: {
+      defaultValue: [MockUser, MockUser2],
+    },
+    roles: {
+      defaultValue: MockAssignableSiteRoles,
+    },
+    canEditUsers: {
+      defaultValue: true,
+    },
   },
 } as ComponentMeta<typeof UsersPageView>
 
@@ -22,29 +34,23 @@ const Template: Story<UsersPageViewProps> = (args) => (
 )
 
 export const Admin = Template.bind({})
-Admin.args = {
-  users: [MockUser, MockUser2],
-  roles: MockAssignableSiteRoles,
-  canEditUsers: true,
-}
 
 export const SmallViewport = Template.bind({})
-SmallViewport.args = {
-  ...Admin.args,
-}
 SmallViewport.parameters = {
   chromatic: { viewports: [600] },
 }
 
 export const Member = Template.bind({})
-Member.args = { ...Admin.args, canEditUsers: false }
+Member.args = { canEditUsers: false }
 
 export const Empty = Template.bind({})
-Empty.args = { ...Admin.args, users: [] }
+Empty.args = { users: [] }
+
+export const EmptyPage = Template.bind({})
+EmptyPage.args = { users: [], isNonInitialPage: true }
 
 export const Error = Template.bind({})
 Error.args = {
-  ...Admin.args,
   users: undefined,
   error: {
     response: {
