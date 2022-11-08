@@ -287,7 +287,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
 		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
-			CreatedAfter: lowestID,
+			CreatedAfter: lowestID - 1,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal: %w", err)
