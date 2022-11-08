@@ -325,7 +325,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingStart: {
-                entry: "clearBuildError",
+                entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
                   src: "startWorkspace",
                   id: "startWorkspace",
@@ -344,7 +344,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingStop: {
-                entry: "clearBuildError",
+                entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
                   src: "stopWorkspace",
                   id: "stopWorkspace",
@@ -363,7 +363,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingDelete: {
-                entry: "clearBuildError",
+                entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
                   src: "deleteWorkspace",
                   id: "deleteWorkspace",
@@ -382,7 +382,11 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingCancel: {
-                entry: ["clearCancellationMessage", "clearCancellationError"],
+                entry: [
+                  "clearCancellationMessage",
+                  "clearCancellationError",
+                  "updateStatusToPending",
+                ],
                 invoke: {
                   src: "cancelWorkspace",
                   id: "cancelWorkspace",
@@ -430,9 +434,7 @@ export const workspaceMachine = createMachine(
                 on: {
                   REFRESH_TIMELINE: {
                     target: "#workspaceState.ready.timeline.gettingBuilds",
-                    cond: {
-                      type: "moreBuildsAvailable",
-                    },
+                    cond: "moreBuildsAvailable",
                   },
                 },
               },
@@ -599,6 +601,24 @@ export const workspaceMachine = createMachine(
         }),
         { to: "scheduleBannerMachine" },
       ),
+      // Optimistically update. So when the user clicks on stop, we can show
+      // the "pending" state right away without having to wait 0.5s ~ 2s to
+      // display the visual feedback to the user.
+      updateStatusToPending: assign({
+        workspace: ({ workspace }) => {
+          if (!workspace) {
+            throw new Error("Workspace not defined")
+          }
+
+          return {
+            ...workspace,
+            latest_build: {
+              ...workspace.latest_build,
+              status: "pending" as TypesGen.WorkspaceStatus,
+            },
+          }
+        },
+      }),
     },
     guards: {
       moreBuildsAvailable,
