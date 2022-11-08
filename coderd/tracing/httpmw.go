@@ -35,14 +35,21 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			defer span.End()
 			r = r.WithContext(ctx)
 
+			if span.SpanContext().HasTraceID() && span.SpanContext().HasSpanID() {
+				// Technically these values are included in the Traceparent
+				// header, but they are easier to read for humans this way.
+				rw.Header().Set("X-Trace-ID", span.SpanContext().TraceID().String())
+				rw.Header().Set("X-Span-ID", span.SpanContext().SpanID().String())
+
+				// Inject the trace context into the response headers.
+				hc := propagation.HeaderCarrier(rw.Header())
+				tmp.Inject(ctx, hc)
+			}
+
 			sw, ok := rw.(*StatusWriter)
 			if !ok {
 				panic(fmt.Sprintf("ResponseWriter not a *tracing.StatusWriter; got %T", rw))
 			}
-
-			// Inject the trace context into the response headers.
-			hc = propagation.HeaderCarrier(rw.Header())
-			tmp.Inject(ctx, hc)
 
 			// pass the span through the request context and serve the request to the next middleware
 			next.ServeHTTP(sw, r)

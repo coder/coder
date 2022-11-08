@@ -203,6 +203,8 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	c.Logger.Debug(ctx, "sdk response",
 		slog.F("status", resp.StatusCode),
 		slog.F("body", string(respBody)),
+		slog.F("trace_id", resp.Header.Get("X-Trace-Id")),
+		slog.F("span_id", resp.Header.Get("X-Span-Id")),
 	)
 
 	return resp, err
