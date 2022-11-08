@@ -104,6 +104,10 @@ resource "digitalocean_volume" "home_volume" {
   size                     = var.home_volume_size
   initial_filesystem_type  = "ext4"
   initial_filesystem_label = "coder-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 resource "digitalocean_droplet" "workspace" {

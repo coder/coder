@@ -41,7 +41,7 @@ resource "google_compute_disk" "root" {
   zone  = var.zone
   image = "debian-cloud/debian-11"
   lifecycle {
-    ignore_changes = [image]
+    ignore_changes = [name, image]
   }
 }
 
