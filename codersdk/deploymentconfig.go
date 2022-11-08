@@ -39,6 +39,7 @@ type DeploymentConfig struct {
 	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	UserWorkspaceQuota          *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
 	Provisioner                 *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
+	Experimental                *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 }
 
 type DERP struct {

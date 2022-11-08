@@ -236,7 +236,6 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
-			Experimental:                   options.Experimental,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
 			Auditor:              options.Auditor,
