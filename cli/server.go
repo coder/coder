@@ -563,7 +563,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := 0; i < cfg.ProvisionerDaemons.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg.CacheDirectory.Value, errCh, false)
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -832,7 +832,7 @@ func newProvisionerDaemon(
 	coderAPI *coderd.API,
 	metrics provisionerd.Metrics,
 	logger slog.Logger,
-	cacheDir string,
+	cfg *codersdk.DeploymentConfig,
 	errCh chan error,
 	dev bool,
 ) (srv *provisionerd.Server, err error) {
@@ -843,9 +843,9 @@ func newProvisionerDaemon(
 		}
 	}()
 
-	err = os.MkdirAll(cacheDir, 0o700)
+	err = os.MkdirAll(cfg.CacheDirectory.Value, 0o700)
 	if err != nil {
-		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+		return nil, xerrors.Errorf("mkdir %q: %w", cfg.CacheDirectory.Value, err)
 	}
 
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
@@ -861,7 +861,7 @@ func newProvisionerDaemon(
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			CachePath: cacheDir,
+			CachePath: cfg.CacheDirectory.Value,
 			Logger:    logger,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -902,13 +902,14 @@ func newProvisionerDaemon(
 		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
 	}
 	return provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
-		Logger:         logger,
-		PollInterval:   500 * time.Millisecond,
-		UpdateInterval: 500 * time.Millisecond,
-		Provisioners:   provisioners,
-		WorkDirectory:  tempDir,
-		TracerProvider: coderAPI.TracerProvider,
-		Metrics:        &metrics,
+		Logger:              logger,
+		PollInterval:        500 * time.Millisecond,
+		UpdateInterval:      500 * time.Millisecond,
+		ForceCancelInterval: cfg.Provisionerd.ForceCancelInterval.Value,
+		Provisioners:        provisioners,
+		WorkDirectory:       tempDir,
+		TracerProvider:      coderAPI.TracerProvider,
+		Metrics:             &metrics,
 	}), nil
 }
 

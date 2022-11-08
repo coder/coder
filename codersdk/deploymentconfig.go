@@ -39,6 +39,7 @@ type DeploymentConfig struct {
 	BrowserOnly                 *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	UserWorkspaceQuota          *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
+	Provisionerd                *ProvisionerdConfig                     `json:"provisionerd" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -121,6 +122,10 @@ type GitAuthConfig struct {
 	TokenURL     string   `json:"token_url"`
 	Regex        string   `json:"regex"`
 	Scopes       []string `json:"scopes"`
+}
+
+type ProvisionerdConfig struct {
+	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 
 type Flaggable interface {

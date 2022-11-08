@@ -359,6 +359,14 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:       "user-workspace-quota",
 			Enterprise: true,
 		},
+		Provisionerd: &codersdk.ProvisionerdConfig{
+			ForceCancelInterval: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Force Cancel Interval",
+				Usage:   "Time to force cancel provisioning tasks that are stuck.",
+				Flag:    "provisionerd-force-cancel-interval",
+				Default: 10 * time.Minute,
+			},
+		},
 	}
 }
 
