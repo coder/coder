@@ -303,6 +303,7 @@ export interface DeploymentConfig {
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
+  readonly provisionerd: ProvisionerdConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -544,6 +545,11 @@ export interface ProvisionerJobLog {
   readonly log_level: LogLevel
   readonly stage: string
   readonly output: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface ProvisionerdConfig {
+  readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
 // From codersdk/workspaces.go
