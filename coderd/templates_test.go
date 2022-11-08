@@ -633,7 +633,7 @@ func TestTemplateMetrics(t *testing.T) {
 		_ = conn.Close()
 	}()
 
-	sshConn, err := conn.SSHClient()
+	sshConn, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
