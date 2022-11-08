@@ -117,9 +117,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
           // (e.g. the build isn't yet running). If we flicker from the
           // indeterminate bar to the determinate bar, the vigilant user
           // perceives the bar jumping from 100% to 0%.
-          progressValue !== undefined &&
-          progressValue < 100 &&
-          transitionStats !== undefined
+          progressValue !== undefined && progressValue < 100
             ? "determinate"
             : "indeterminate"
         }
