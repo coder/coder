@@ -367,6 +367,11 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: 10 * time.Minute,
 			},
 		},
+		Experimental: &codersdk.DeploymentConfigField[bool]{
+			Name:  "Experimental",
+			Usage: "Enable experimental features. Experimental features are not ready for production.",
+			Flag:  "experimental",
+		},
 	}
 }
 

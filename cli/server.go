@@ -357,7 +357,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
-				Experimental:                ExperimentalEnabled(cmd),
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
 			}

@@ -303,6 +303,7 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
   readonly provisioner: ProvisionerConfig
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
