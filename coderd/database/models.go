@@ -574,21 +574,21 @@ type SiteConfig struct {
 }
 
 type Template struct {
-	ID                   uuid.UUID       `db:"id" json:"id"`
-	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted              bool            `db:"deleted" json:"deleted"`
-	Name                 string          `db:"name" json:"name"`
-	Provisioner          ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID      uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description          string          `db:"description" json:"description"`
-	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
-	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
-	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
-	Icon                 string          `db:"icon" json:"icon"`
-	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
-	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted         bool            `db:"deleted" json:"deleted"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description     string          `db:"description" json:"description"`
+	// The default duration for auto-stop for workspaces created from this template.
+	DefaultTtl int64       `db:"default_ttl" json:"default_ttl"`
+	CreatedBy  uuid.UUID   `db:"created_by" json:"created_by"`
+	Icon       string      `db:"icon" json:"icon"`
+	UserACL    TemplateACL `db:"user_acl" json:"user_acl"`
+	GroupACL   TemplateACL `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {

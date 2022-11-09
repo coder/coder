@@ -24,11 +24,10 @@ import (
 
 func templateCreate() *cobra.Command {
 	var (
-		directory            string
-		provisioner          string
-		parameterFile        string
-		maxTTL               time.Duration
-		minAutostartInterval time.Duration
+		directory     string
+		provisioner   string
+		parameterFile string
+		defaultTTL    time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "create [name]",
@@ -108,10 +107,9 @@ func templateCreate() *cobra.Command {
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
-				Name:                       templateName,
-				VersionID:                  job.ID,
-				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
-				MinAutostartIntervalMillis: ptr.Ref(minAutostartInterval.Milliseconds()),
+				Name:             templateName,
+				VersionID:        job.ID,
+				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
 			}
 
 			_, err = client.CreateTemplate(cmd.Context(), organization.ID, createReq)
@@ -133,8 +131,7 @@ func templateCreate() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 24*time.Hour, "Specify a maximum TTL for workspaces created from this template.")
-	cmd.Flags().DurationVarP(&minAutostartInterval, "min-autostart-interval", "", time.Hour, "Specify a minimum autostart interval for workspaces created from this template.")
+	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
 	if err != nil {

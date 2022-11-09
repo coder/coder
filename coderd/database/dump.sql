@@ -349,13 +349,14 @@ CREATE TABLE templates (
     provisioner provisioner_type NOT NULL,
     active_version_id uuid NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
-    max_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
-    min_autostart_interval bigint DEFAULT '3600000000000'::bigint NOT NULL,
+    default_ttl bigint DEFAULT '604800000000000'::bigint NOT NULL,
     created_by uuid NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
+
+COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
