@@ -676,6 +676,7 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 export interface TraceConfig {
   readonly enable: DeploymentConfigField<boolean>
   readonly honeycomb_api_key: DeploymentConfigField<string>
+  readonly capture_logs: DeploymentConfigField<boolean>
 }
 
 // From codersdk/templates.go
