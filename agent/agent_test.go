@@ -467,6 +467,7 @@ func TestAgent(t *testing.T) {
 			{
 				name: "UDP",
 				setup: func(t *testing.T) net.Listener {
+					testutil.SkipIfWindows(t, "UDP flakes on Windows")
 					addr := net.UDPAddr{
 						IP:   net.ParseIP("127.0.0.1"),
 						Port: 0,
