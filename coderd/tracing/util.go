@@ -18,16 +18,7 @@ func init() {
 const TracerName = "coderd"
 
 func FuncName() string {
-	fnpc, _, _, ok := runtime.Caller(1)
-	if !ok {
-		return ""
-	}
-	fn := runtime.FuncForPC(fnpc)
-	name := fn.Name()
-	if i := strings.LastIndex(name, "/"); i > 0 {
-		name = name[i+1:]
-	}
-	return name
+	return FuncNameSkip(1)
 }
 
 func FuncNameSkip(skip int) string {
@@ -41,4 +32,13 @@ func FuncNameSkip(skip int) string {
 		name = name[i+1:]
 	}
 	return name
+}
+
+// RunWithoutSpan runs the given function with the span stripped from the
+// context and replaced with a no-op span. This is useful for avoiding logs
+// being added to span (to save money).
+func RunWithoutSpan(ctx context.Context, fn func(ctx context.Context)) {
+	ctx, span := trace.NewNoopTracerProvider().Tracer("").Start(ctx, "")
+	defer span.End()
+	fn(ctx)
 }

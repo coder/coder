@@ -47,8 +47,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"POST:/api/v2/authcheck":        {NoAuthorize: true},
 		"GET:/api/v2/applications/host": {NoAuthorize: true},
-		// This is a dummy endpoint for compatibility with older CLI versions.
-		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},

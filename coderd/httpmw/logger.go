@@ -1,6 +1,7 @@
 package httpmw
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -51,7 +52,11 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				logLevelFn = httplog.Warn
 			}
 
-			logLevelFn(r.Context(), r.Method)
+			// We already capture most of this information in the span (minus
+			// the response body which we don't want to capture anyways).
+			tracing.RunWithoutSpan(r.Context(), func(ctx context.Context) {
+				logLevelFn(ctx, r.Method)
+			})
 		})
 	}
 }
