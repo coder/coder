@@ -10,6 +10,8 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestTemplateEdit(t *testing.T) {
@@ -44,7 +46,8 @@ func TestTemplateEdit(t *testing.T) {
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		ctx, _ := testutil.Context(t)
+		err := cmd.ExecuteContext(ctx)
 
 		require.NoError(t, err)
 
@@ -80,7 +83,8 @@ func TestTemplateEdit(t *testing.T) {
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		ctx, _ := testutil.Context(t)
+		err := cmd.ExecuteContext(ctx)
 
 		require.ErrorContains(t, err, "not modified")
 
@@ -112,9 +116,14 @@ func TestTemplateEdit(t *testing.T) {
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		ctx, _ := testutil.Context(t)
+		err := cmd.ExecuteContext(ctx)
 
-		require.ErrorContains(t, err, `Validation failed for tag "template_display_name"`)
+		require.Error(t, err, "client call must fail")
+		sdkError, isSdkError := codersdk.AsError(err)
+		require.True(t, isSdkError, "sdk error is expected")
+		require.Len(t, sdkError.Response.Validations, 1, "field validation error is expected")
+		require.Equal(t, sdkError.Response.Validations[0].Detail, `Validation failed for tag "template_display_name" with value: "a-b-c"`)
 
 		// Assert that the template metadata did not change.
 		updated, err := client.Template(context.Background(), template.ID)
