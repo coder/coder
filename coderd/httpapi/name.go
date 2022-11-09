@@ -54,11 +54,11 @@ func NameValid(str string) error {
 
 // TemplateDisplayNameValid returns whether the input string is a valid template display name.
 func TemplateDisplayNameValid(str string) error {
+	if len(str) == 0 {
+		return nil // empty display_name is correct
+	}
 	if len(str) > 32 {
 		return xerrors.New("must be <= 32 characters")
-	}
-	if len(str) < 1 {
-		return xerrors.New("must be >= 1 character")
 	}
 	matched := templateDisplayName.MatchString(str)
 	if !matched {
