@@ -51,7 +51,7 @@ type CreateTemplateRequest struct {
 	// Name is the name of the template.
 	Name string `json:"name" validate:"template_name,required"`
 	// DisplayName is the displayed name of the template.
-	DisplayName string `json:"display_name" validate:"template_display_name"`
+	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
 	// Description is a description of what the template contains. It must be
 	// less than 128 bytes.
 	Description string `json:"description,omitempty" validate:"lt=128"`
