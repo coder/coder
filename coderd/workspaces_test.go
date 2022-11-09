@@ -1430,6 +1430,12 @@ func TestWorkspaceWatcher(t *testing.T) {
 	require.NoError(t, err)
 	wait()
 
+	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: template.ActiveVersionID,
+	})
+	require.NoError(t, err)
+	wait()
+
 	cancel()
 }
 

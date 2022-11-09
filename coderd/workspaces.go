@@ -886,7 +886,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// Ignore all trace spans after this, they're not too useful.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	cancelSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), func(_ context.Context, _ []byte) {
+	sendUpdate := func(_ context.Context, _ []byte) {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
 		if err != nil {
 			_ = sendEvent(ctx, codersdk.ServerSentEvent{
@@ -920,7 +920,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				findUser(workspace.OwnerID, data.users),
 			),
 		})
-	})
+	}
+
+	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), sendUpdate)
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
@@ -931,7 +933,21 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer cancelSubscribe()
+	defer cancelWorkspaceSubscribe()
+
+	// This is required to show whether the workspace is up-to-date.
+	cancelTemplateSubscribe, err := api.Pubsub.Subscribe(watchTemplateChannel(workspace.TemplateID), sendUpdate)
+	if err != nil {
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Internal error subscribing to template events.",
+				Detail:  err.Error(),
+			},
+		})
+		return
+	}
+	defer cancelTemplateSubscribe()
 
 	// An initial ping signals to the request that the server is now ready
 	// and the client can begin servicing a channel with data.
