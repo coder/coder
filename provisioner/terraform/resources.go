@@ -14,14 +14,16 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth            string            `mapstructure:"auth"`
-	OperatingSystem string            `mapstructure:"os"`
-	Architecture    string            `mapstructure:"arch"`
-	Directory       string            `mapstructure:"dir"`
-	ID              string            `mapstructure:"id"`
-	Token           string            `mapstructure:"token"`
-	Env             map[string]string `mapstructure:"env"`
-	StartupScript   string            `mapstructure:"startup_script"`
+	Auth                     string            `mapstructure:"auth"`
+	OperatingSystem          string            `mapstructure:"os"`
+	Architecture             string            `mapstructure:"arch"`
+	Directory                string            `mapstructure:"dir"`
+	ID                       string            `mapstructure:"id"`
+	Token                    string            `mapstructure:"token"`
+	Env                      map[string]string `mapstructure:"env"`
+	StartupScript            string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -118,13 +120,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
 		agent := &proto.Agent{
-			Name:            tfResource.Name,
-			Id:              attrs.ID,
-			Env:             attrs.Env,
-			StartupScript:   attrs.StartupScript,
-			OperatingSystem: attrs.OperatingSystem,
-			Architecture:    attrs.Architecture,
-			Directory:       attrs.Directory,
+			Name:                     tfResource.Name,
+			Id:                       attrs.ID,
+			Env:                      attrs.Env,
+			StartupScript:            attrs.StartupScript,
+			OperatingSystem:          attrs.OperatingSystem,
+			Architecture:             attrs.Architecture,
+			Directory:                attrs.Directory,
+			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+			TroubleshootingUrl:       attrs.TroubleshootingURL,
 		}
 		switch attrs.Auth {
 		case "token":
