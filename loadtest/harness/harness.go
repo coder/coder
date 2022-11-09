@@ -7,6 +7,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 // ExecutionStrategy defines how a TestHarness should execute a set of runs. It
@@ -49,6 +51,9 @@ func NewTestHarness(strategy ExecutionStrategy) *TestHarness {
 //
 // Panics if called more than once.
 func (h *TestHarness) Run(ctx context.Context) (err error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	h.mut.Lock()
 	if h.started {
 		h.mut.Unlock()

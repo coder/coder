@@ -3,17 +3,27 @@
 package migrations_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/golang-migrate/migrate/v4"
+	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/golang-migrate/migrate/v4/source/stub"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -126,6 +136,199 @@ func TestCheckLatestVersion(t *testing.T) {
 				errMessage = err.Error()
 			}
 			require.Equal(t, tc.expectedResult, errMessage)
+		})
+	}
+}
+
+func setupMigrate(t *testing.T, db *sql.DB, name, path string) (source.Driver, *migrate.Migrate) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	conn, err := db.Conn(ctx)
+	require.NoError(t, err)
+
+	dbDriver, err := migratepostgres.WithConnection(ctx, conn, &migratepostgres.Config{
+		MigrationsTable: "test_migrate_" + name,
+	})
+	require.NoError(t, err)
+
+	dirFS := os.DirFS(path)
+	d, err := iofs.New(dirFS, ".")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		d.Close()
+	})
+
+	m, err := migrate.NewWithInstance(name, d, "", dbDriver)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		m.Close()
+	})
+
+	return d, m
+}
+
+type tableStats struct {
+	mu sync.Mutex
+	s  map[string]int
+}
+
+func (s *tableStats) Add(table string, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.s[table] = s.s[table] + n
+}
+
+func (s *tableStats) Empty() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var m []string
+	for table, n := range s.s {
+		if n == 0 {
+			m = append(m, table)
+		}
+	}
+	return m
+}
+
+func TestMigrateUpWithFixtures(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip()
+		return
+	}
+
+	type testCase struct {
+		name string
+		path string
+
+		// For determining if test case table stats
+		// are used to determine test coverage.
+		useStats bool
+	}
+	tests := []testCase{
+		{
+			name:     "fixtures",
+			path:     filepath.Join("testdata", "fixtures"),
+			useStats: true,
+		},
+		// More test cases added via glob below.
+	}
+
+	// Folders in testdata/full_dumps represent fixtures for a full
+	// deployment of Coder.
+	matches, err := filepath.Glob(filepath.Join("testdata", "full_dumps", "*"))
+	require.NoError(t, err)
+	for _, match := range matches {
+		tests = append(tests, testCase{
+			name:     filepath.Base(match),
+			path:     match,
+			useStats: true,
+		})
+	}
+
+	// These tables are allowed to have zero rows for now,
+	// but we should eventually add fixtures for them.
+	ignoredTablesForStats := []string{
+		"audit_logs",
+		"git_auth_links",
+		"group_members",
+		"licenses",
+		"replicas",
+	}
+	s := &tableStats{s: make(map[string]int)}
+
+	// This will run after all subtests have run and fail the test if
+	// new tables have been added without covering them with fixtures.
+	t.Cleanup(func() {
+		emptyTables := s.Empty()
+		slices.Sort(emptyTables)
+		for _, table := range ignoredTablesForStats {
+			i := slices.Index(emptyTables, table)
+			if i >= 0 {
+				emptyTables = slices.Delete(emptyTables, i, i+1)
+			}
+		}
+		if len(emptyTables) > 0 {
+			t.Logf("The following tables have zero rows, consider adding fixtures for them or create a full database dump:")
+			t.Errorf("tables have zero rows: %v", emptyTables)
+			t.Logf("See https://github.com/coder/coder/blob/main/docs/CONTRIBUTING.md#database-fixtures-for-testing-migrations for more information")
+		}
+	})
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := testSQLDB(t)
+
+			ctx, _ := testutil.Context(t)
+
+			// Prepare database for stepping up.
+			err := migrations.Down(db)
+			require.NoError(t, err)
+
+			// Initialize migrations for fixtures.
+			fDriver, fMigrate := setupMigrate(t, db, tt.name, tt.path)
+
+			nextStep, err := migrations.Stepper(db)
+			require.NoError(t, err)
+
+			var fixtureVer uint
+			nextFixtureVer, err := fDriver.First()
+			require.NoError(t, err)
+
+			for {
+				version, more, err := nextStep()
+				require.NoError(t, err)
+
+				if !more {
+					// We reached the end of the migrations.
+					break
+				}
+
+				if nextFixtureVer == version {
+					err = fMigrate.Steps(1)
+					require.NoError(t, err)
+					fixtureVer = version
+
+					nv, _ := fDriver.Next(nextFixtureVer)
+					if nv > 0 {
+						nextFixtureVer = nv
+					}
+				}
+
+				t.Logf("migrated to version %d, fixture version %d", version, fixtureVer)
+			}
+
+			// Gather number of rows for all existing tables
+			// at the end of the migrations and fixtures.
+			var tables pq.StringArray
+			err = db.QueryRowContext(ctx, `
+				SELECT array_agg(tablename)
+				FROM pg_catalog.pg_tables
+				WHERE
+					schemaname != 'information_schema'
+					AND schemaname != 'pg_catalog'
+					AND tablename NOT LIKE 'test_migrate_%'
+			`).Scan(&tables)
+			require.NoError(t, err)
+
+			for _, table := range tables {
+				var count int
+				err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count)
+				require.NoError(t, err)
+
+				if tt.useStats {
+					s.Add(table, count)
+				}
+			}
 		})
 	}
 }

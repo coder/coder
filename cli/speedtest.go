@@ -95,7 +95,7 @@ func speedtest() *cobra.Command {
 				dir = tsspeedtest.Upload
 			}
 			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), dir)
-			results, err := conn.Speedtest(dir, duration)
+			results, err := conn.Speedtest(ctx, dir, duration)
 			if err != nil {
 				return err
 			}

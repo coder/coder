@@ -303,6 +303,7 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
   readonly provisioner: ProvisionerConfig
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -744,6 +745,16 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+}
+
+// From codersdk/users.go
+export interface UserCountRequest {
+  readonly q?: string
+}
+
+// From codersdk/users.go
+export interface UserCountResponse {
+  readonly count: number
 }
 
 // From codersdk/users.go

@@ -260,7 +260,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer conn.Close()
-	sshClient, err := conn.SSHClient()
+	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
