@@ -7,7 +7,8 @@ RUN apt-get update \
 	golang \
 	sudo \
 	vim \
-	wget
+	wget \
+	&& rm -rf /var/lib/apt/lists/*
 
 ARG USER=coder
 RUN useradd --groups sudo --no-create-home ${USER} \
