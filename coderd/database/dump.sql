@@ -354,7 +354,8 @@ CREATE TABLE templates (
     created_by uuid NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    display_name character varying(64) DEFAULT ''::character varying NOT NULL
 );
 
 CREATE TABLE user_links (

@@ -589,6 +589,7 @@ type Template struct {
 	Icon                 string          `db:"icon" json:"icon"`
 	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
 	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
 }
 
 type TemplateVersion struct {

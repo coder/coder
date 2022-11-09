@@ -1,0 +1,1 @@
+ALTER TABLE templates ADD COLUMN display_name VARCHAR(64) NOT NULL DEFAULT '';
