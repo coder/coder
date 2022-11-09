@@ -45,9 +45,9 @@ ZSTDFLAGS := -6
 endif
 
 # Source files used for make targets, evaluated on use.
-GO_SRC_FILES = $(shell find . -not \( -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' \) -type f -name '*.go')
+GO_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path './site/node_modules/*' -o -path './site/out/*' \) -type f -name '*.go')
 # All the shell files in the repo, excluding ignored files.
-SHELL_SRC_FILES = $(shell find . -not \( -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' \) -type f -name '*.sh')
+SHELL_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path './site/node_modules/*' -o -path './site/out/*' \) -type f -name '*.sh')
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
