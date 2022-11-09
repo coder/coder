@@ -5,7 +5,6 @@ import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { useMachine, useSelector } from "@xstate/react"
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import {
   PageHeader,
   PageHeaderSubtitle,
@@ -19,12 +18,7 @@ import {
   Suspense,
   useContext,
 } from "react"
-import {
-  Link as RouterLink,
-  Navigate,
-  NavLink,
-  useParams,
-} from "react-router-dom"
+import { Link as RouterLink, NavLink, useParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "util/firstLetter"
 import { selectPermissions } from "xServices/auth/authSelectors"
@@ -106,7 +100,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
-  const [templateState, templateSend] = useMachine(templateMachine, {
+  const [templateState, _] = useMachine(templateMachine, {
     context: {
       templateName,
       organizationId,
@@ -128,10 +122,6 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
     !permissions ||
     !templateDAUs ||
     !templatePermissions
-
-  if (templateState.matches("deleted")) {
-    return <Navigate to="/templates" />
-  }
 
   const hasIcon = template && template.icon && template.icon !== ""
 
@@ -229,21 +219,6 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </TemplateLayoutContext.Provider>
       </Margins>
-
-      {!isLoading && (
-        <DeleteDialog
-          isOpen={templateState.matches("confirmingDelete")}
-          confirmLoading={templateState.matches("deleting")}
-          onConfirm={() => {
-            templateSend("CONFIRM_DELETE")
-          }}
-          onCancel={() => {
-            templateSend("CANCEL_DELETE")
-          }}
-          entity="template"
-          name={template.name}
-        />
-      )}
     </>
   )
 }

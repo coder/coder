@@ -48,6 +48,13 @@ export const TemplateSettingsPage: FC = () => {
         onSubmit={(templateSettings) => {
           send({ type: "SAVE", templateSettings })
         }}
+        onDelete={() => {
+          send("DELETE")
+        }}
+        onConfirmDelete={() => send("CONFIRM_DELETE")}
+        onCancelDelete={() => send("CANCEL_DELETE")}
+        isConfirmingDelete={state.matches("confirmingDelete")}
+        isDeleting={state.matches("deleting")}
       />
     </>
   )
