@@ -38,7 +38,6 @@ func FuncNameSkip(skip int) string {
 // context and replaced with a no-op span. This is useful for avoiding logs
 // being added to span (to save money).
 func RunWithoutSpan(ctx context.Context, fn func(ctx context.Context)) {
-	ctx, span := trace.NewNoopTracerProvider().Tracer("").Start(ctx, "")
-	defer span.End()
+	ctx = trace.ContextWithSpan(ctx, NoopSpan)
 	fn(ctx)
 }
