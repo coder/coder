@@ -10,15 +10,15 @@
 		<authors>coder</authors>
 		<projectUrl>https://coder.com</projectUrl>
 		<iconUrl>https://github.com/coder/presskit/raw/main/logos/coder%20logo%20black%20square.png</iconUrl>
-		<copyright>Coder</copyright>
+		<copyright>Coder Technologies Inc</copyright>
 		<licenseUrl>https://raw.githubusercontent.com/coder/coder/main/LICENSE</licenseUrl>
-		<requireLicenseAcceptance>true</requireLicenseAcceptance>
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 		<projectSourceUrl>https://github.com/coder/coder</projectSourceUrl>
 		<docsUrl>https://coder.com/docs/coder-oss/latest</docsUrl>
 		<bugTrackerUrl>https://github.com/coder/coder/issues</bugTrackerUrl>
 		<tags>golang</tags>
-		<summary>Remote development environments on your infrastructure provisioned with Terraform</summary>
-		<description>Remote development environments on your infrastructure provisioned with Terraform</description>
+		<summary>Software development on your infrastructure. Offload your team's development from local workstations to cloud servers. Onboard developers in minutes. Build, test and compile at the speed of the cloud. Keep your source code and data behind your firewall.</summary>
+		<description>Software development on your infrastructure. Offload your team's development from local workstations to cloud servers. Onboard developers in minutes. Build, test and compile at the speed of the cloud. Keep your source code and data behind your firewall.</description>
 	</metadata>
 	<files>
 		<file src="tools/**" target="tools" />
