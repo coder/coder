@@ -270,7 +270,7 @@ export const templateMachine =
         }),
         assignPermissions: assign({
           permissions: (_, event) => event.data,
-        })
+        }),
       },
     },
   )

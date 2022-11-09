@@ -5,12 +5,11 @@ import { Loader } from "components/Loader/Loader"
 import { ComponentProps, FC } from "react"
 import { TemplateSettingsForm } from "./TemplateSettingsForm"
 import { Stack } from "components/Stack/Stack"
-import { DeleteButton } from "components/DropdownButton/ActionCtas"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
-
-export const Language = {
-  title: "Template settings",
-}
+import { makeStyles } from "@material-ui/core/styles"
+import { colors } from "theme/colors"
+import Button from "@material-ui/core/Button"
+import { useTranslation } from "react-i18next"
 
 export interface TemplateSettingsPageViewProps {
   template?: Template
@@ -42,10 +41,12 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   errors = {},
   initialTouched,
 }) => {
+  const classes = useStyles()
   const isLoading = !template && !errors.getTemplateError
+  const { t } = useTranslation("templatePage")
 
   return (
-    <FullPageForm title={Language.title} onCancel={onCancel}>
+    <FullPageForm title={t("templateSettings.title")} onCancel={onCancel}>
       {Boolean(errors.getTemplateError) && (
         <AlertBanner severity="error" error={errors.getTemplateError} />
       )}
@@ -60,10 +61,30 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
             onCancel={onCancel}
             error={errors.saveTemplateSettingsError}
           />
-          <Stack>
-            Danger Zone
-            <DeleteButton handleAction={onDelete} />
+          <Stack className={classes.dangerContainer}>
+            <div className={classes.dangerHeader}>
+              {t("templateSettings.dangerZone.dangerZoneHeader")}
+            </div>
+
+            <Stack className={classes.dangerBorder}>
+              <Stack spacing={0}>
+                <p className={classes.deleteTemplateHeader}>
+                  {t("templateSettings.dangerZone.deleteTemplateHeader")}
+                </p>
+                <span>
+                  {t("templateSettings.dangerZone.deleteTemplateCaption")}
+                </span>
+              </Stack>
+              <Button
+                className={classes.deleteButton}
+                onClick={onDelete}
+                aria-label={t("templateSettings.dangerZone.deleteCta")}
+              >
+                {t("templateSettings.dangerZone.deleteCta")}
+              </Button>
+            </Stack>
           </Stack>
+
           <DeleteDialog
             isOpen={isConfirmingDelete}
             confirmLoading={isDeleting}
@@ -77,3 +98,29 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
     </FullPageForm>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  dangerContainer: {
+    marginTop: theme.spacing(4),
+  },
+  dangerHeader: {
+    fontSize: theme.typography.h5.fontSize,
+    color: theme.palette.text.secondary,
+  },
+  dangerBorder: {
+    border: `1px solid ${colors.red[13]}`,
+    borderRadius: theme.shape.borderRadius,
+    padding: theme.spacing(2),
+
+    "& p": {
+      marginTop: "0px",
+    },
+  },
+  deleteTemplateHeader: {
+    fontSize: theme.typography.h6.fontSize,
+    fontWeight: "bold",
+  },
+  deleteButton: {
+    color: colors.red[8],
+  },
+}))

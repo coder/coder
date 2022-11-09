@@ -5,7 +5,6 @@ import InputAdornment from "@material-ui/core/InputAdornment"
 import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import Typography from "@material-ui/core/Typography"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -188,9 +187,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         there are no validation errors for that field, display helper text.
         We do not use the MUI helper-text prop because it overrides the validation error */}
         {form.values.max_ttl_ms && !form.errors.max_ttl_ms && (
-          <Typography variant="subtitle2">
-            {Language.ttlHelperText(form.values.max_ttl_ms)}
-          </Typography>
+          <span>{Language.ttlHelperText(form.values.max_ttl_ms)}</span>
         )}
       </Stack>
 

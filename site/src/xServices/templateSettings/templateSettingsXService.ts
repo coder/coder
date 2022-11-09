@@ -29,10 +29,11 @@ export const templateSettingsMachine =
             data: Template
           }
         }
-        events: { type: "SAVE"; templateSettings: UpdateTemplateMeta }
-        | { type: "DELETE" }
-        | { type: "CONFIRM_DELETE" }
-        | { type: "CANCEL_DELETE" }
+        events:
+          | { type: "SAVE"; templateSettings: UpdateTemplateMeta }
+          | { type: "DELETE" }
+          | { type: "CONFIRM_DELETE" }
+          | { type: "CANCEL_DELETE" }
       },
       initial: "loading",
       states: {
@@ -67,7 +68,7 @@ export const templateSettingsMachine =
               target: "deleting",
             },
             CANCEL_DELETE: {
-              target: "editing"
+              target: "editing",
             },
           },
         },
