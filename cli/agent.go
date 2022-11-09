@@ -97,7 +97,7 @@ func workspaceAgent() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
 				}
-				client.SessionToken = token
+				client.SetSessionToken(token)
 			case "google-instance-identity":
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
@@ -153,13 +153,13 @@ func workspaceAgent() *cobra.Command {
 				Logger: logger,
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
-						return client.SessionToken, nil
+						return client.SessionToken(), nil
 					}
 					resp, err := exchangeToken(ctx)
 					if err != nil {
 						return "", err
 					}
-					client.SessionToken = resp.SessionToken
+					client.SetSessionToken(resp.SessionToken)
 					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{

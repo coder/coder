@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -56,9 +57,11 @@ func New(serverURL *url.URL) *Client {
 // Client is an HTTP caller for methods to the Coder API.
 // @typescript-ignore Client
 type Client struct {
-	HTTPClient   *http.Client
-	SessionToken string
-	URL          *url.URL
+	mu           sync.RWMutex // Protects following.
+	sessionToken string
+
+	HTTPClient *http.Client
+	URL        *url.URL
 
 	// Logger can be provided to log requests. Request method, URL and response
 	// status code will be logged by default.
@@ -77,12 +80,27 @@ type Client struct {
 	PropagateTracing bool
 }
 
+func (c *Client) SessionToken() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.sessionToken
+}
+
+func (c *Client) SetSessionToken(token string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessionToken = token
+}
+
 func (c *Client) Clone() *Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	hc := *c.HTTPClient
 	u := *c.URL
 	return &Client{
 		HTTPClient:       &hc,
-		SessionToken:     c.SessionToken,
+		sessionToken:     c.sessionToken,
 		URL:              &u,
 		Logger:           c.Logger,
 		LogBodies:        c.LogBodies,
@@ -147,7 +165,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-	req.Header.Set(SessionCustomHeader, c.SessionToken)
+	req.Header.Set(SessionCustomHeader, c.SessionToken())
 	if c.BypassRatelimits {
 		req.Header.Set(BypassRatelimitHeader, "true")
 	}
