@@ -35,7 +35,7 @@ spec:
       terminationGracePeriodSeconds: 60
       {{- with .Values.coder.affinity }}
       affinity:
-      {{- toYaml .Values.coder.affinity | nindent 8 }}
+      {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.coder.tolerations }}
       tolerations:
@@ -43,7 +43,7 @@ spec:
       {{- end }}
       {{- with .Values.coder.nodeSelector }}
       nodeSelector:
-      {{ toYaml .Values.coder.nodeSelector | nindent 8 }}
+      {{ toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: coder
