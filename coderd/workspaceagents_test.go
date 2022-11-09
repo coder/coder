@@ -113,7 +113,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
+		agentClient.SetSessionToken(authToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
@@ -205,7 +205,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, stopBuild.ID)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
+		agentClient.SetSessionToken(authToken)
 
 		_, err = agentClient.ListenWorkspaceAgent(ctx)
 		require.Error(t, err)
@@ -245,7 +245,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	daemonCloser.Close()
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
@@ -311,7 +311,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
@@ -408,7 +408,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
+		agentClient.SetSessionToken(authToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
@@ -670,7 +670,7 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	defer cancel()
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 
 	metadata, err := agentClient.WorkspaceAgentMetadata(ctx)
 	require.NoError(t, err)
@@ -754,7 +754,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
+		agentClient.SetSessionToken(authToken)
 		_, err := agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com", false)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
@@ -799,7 +799,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
+		agentClient.SetSessionToken(authToken)
 		token, err := agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)
 		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/gitauth/%s", "github")))
@@ -879,7 +879,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
+		agentClient.SetSessionToken(authToken)
 
 		token, err := agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)
@@ -920,7 +920,7 @@ func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Res
 	})
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.SessionTokenKey,
-		Value: client.SessionToken,
+		Value: client.SessionToken(),
 	})
 	res, err := client.HTTPClient.Do(req)
 	require.NoError(t, err)

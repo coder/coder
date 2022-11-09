@@ -197,7 +197,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	if appHost != "" {
 		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
 		require.NoError(t, err)
@@ -350,7 +350,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		// Get the current user and API key.
 		user, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken, "-")[0])
+		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
 		require.NoError(t, err)
 
 		// Try to load the application without authentication.
@@ -418,7 +418,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 
 		// Verify the API key permissions
 		appClient := codersdk.New(client.URL)
-		appClient.SessionToken = apiKey
+		appClient.SetSessionToken(apiKey)
 		appClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		appClient.HTTPClient.Transport = client.HTTPClient.Transport
 
@@ -893,7 +893,7 @@ func TestAppSharing(t *testing.T) {
 			Password: password,
 		})
 		require.NoError(t, err)
-		clientInOtherOrg.SessionToken = loginRes.SessionToken
+		clientInOtherOrg.SetSessionToken(loginRes.SessionToken)
 		clientInOtherOrg.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
@@ -916,14 +916,14 @@ func TestAppSharing(t *testing.T) {
 		// If the client has a session token, we also want to check that a
 		// scoped key works.
 		clients := []*codersdk.Client{client}
-		if client.SessionToken != "" {
+		if client.SessionToken() != "" {
 			token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 				Scope: codersdk.APIKeyScopeApplicationConnect,
 			})
 			require.NoError(t, err)
 
 			scopedClient := codersdk.New(client.URL)
-			scopedClient.SessionToken = token.Key
+			scopedClient.SetSessionToken(token.Key)
 			scopedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 
 			clients = append(clients, scopedClient)

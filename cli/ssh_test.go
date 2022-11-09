@@ -87,7 +87,7 @@ func TestSSH(t *testing.T) {
 		pty.ExpectMatch("Waiting")
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = agentToken
+		agentClient.SetSessionToken(agentToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, nil).Named("agent"),
@@ -107,7 +107,7 @@ func TestSSH(t *testing.T) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			agentClient := codersdk.New(client.URL)
-			agentClient.SessionToken = agentToken
+			agentClient.SetSessionToken(agentToken)
 			agentCloser := agent.New(agent.Options{
 				Client: agentClient,
 				Logger: slogtest.Make(t, nil).Named("agent"),
@@ -174,7 +174,7 @@ func TestSSH(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 
 		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = agentToken
+		agentClient.SetSessionToken(agentToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, nil).Named("agent"),

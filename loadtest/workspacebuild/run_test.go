@@ -129,7 +129,7 @@ func Test_Runner(t *testing.T) {
 				i := i + 1
 
 				agentClient := codersdk.New(client.URL)
-				agentClient.SessionToken = authToken
+				agentClient.SetSessionToken(authToken)
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,
 					Logger: slogtest.Make(t, nil).
