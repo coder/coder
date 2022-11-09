@@ -36,7 +36,6 @@ func main() {
 
 	hasPGDump := false
 	if _, err = exec.LookPath("pg_dump"); err == nil {
-		fmt.Fprintln(os.Stderr, "yahhoo")
 		out, err := exec.Command("pg_dump", "--version").Output()
 		if err == nil {
 			// Parse output:

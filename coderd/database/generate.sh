@@ -13,8 +13,10 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 (
 	cd "$SCRIPT_DIR"
 
-	# Dump the updated schema.
-	go run gen/dump/main.go
+	echo generate 1>&2
+
+	# Dump the updated schema (use make to utilize caching).
+	make -C ../.. --no-print-directory coderd/database/dump.sql
 	# The logic below depends on the exact version being correct :(
 	go run github.com/kyleconroy/sqlc/cmd/sqlc@v1.13.0 generate
 
