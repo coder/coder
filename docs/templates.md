@@ -184,7 +184,10 @@ data "coder_workspace" "me" {
 resource "docker_volume" "home_volume" {
   # persistent resource (remains a workspace is stopped)
   count = 1
-  name  = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name  = "coder-${data.coder_workspace.me.id}-home"
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 resource "docker_container" "workspace" {
