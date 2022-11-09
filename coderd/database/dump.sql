@@ -269,7 +269,8 @@ CREATE TABLE provisioner_daemons (
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
-    auth_token uuid
+    auth_token uuid,
+    tags jsonb
 );
 
 CREATE TABLE provisioner_job_logs (

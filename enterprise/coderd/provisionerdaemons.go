@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -52,35 +51,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, daemons)
-}
-
-func (api *API) postProvisionerDaemon(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var req codersdk.CreateProvisionerDaemonRequest
-	if !httpapi.Read(r.Context(), rw, r, &req) {
-		return
-	}
-
-	provisioner, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
-		ID:           uuid.New(),
-		CreatedAt:    database.Now(),
-		Name:         req.Name,
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeTerraform},
-		AuthToken:    uuid.NullUUID{Valid: true, UUID: uuid.New()},
-	})
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error inserting provisioner daemon.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(r.Context(), rw, http.StatusCreated, convertProvisionerDaemon(provisioner))
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.

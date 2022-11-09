@@ -2226,7 +2226,7 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 
 const getProvisionerDaemonByAuthToken = `-- name: GetProvisionerDaemonByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, auth_token
+	id, created_at, updated_at, name, provisioners, replica_id, auth_token, tags
 FROM
 	provisioner_daemons
 WHERE
@@ -2244,13 +2244,14 @@ func (q *sqlQuerier) GetProvisionerDaemonByAuthToken(ctx context.Context, authTo
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
 		&i.AuthToken,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, auth_token
+	id, created_at, updated_at, name, provisioners, replica_id, auth_token, tags
 FROM
 	provisioner_daemons
 WHERE
@@ -2268,13 +2269,14 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
 		&i.AuthToken,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, auth_token
+	id, created_at, updated_at, name, provisioners, replica_id, auth_token, tags
 FROM
 	provisioner_daemons
 `
@@ -2296,6 +2298,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
 			&i.AuthToken,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}
@@ -2320,7 +2323,7 @@ INSERT INTO
 		auth_token
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, auth_token
+	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, auth_token, tags
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -2348,6 +2351,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
 		&i.AuthToken,
+		&i.Tags,
 	)
 	return i, err
 }

@@ -90,7 +90,18 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				r.Get("/", api.group)
 			})
 		})
-
+		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Post("/", api.postProvisionerDaemonsByOrganization)
+		})
+		r.Route("/provisionerdaemons", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.provisionerDaemons)
+			r.Get("/listen", api.provisionerDaemonsListen)
+			r.Post("/", api.postProvisionerDaemonsByOrganization)
+		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
@@ -100,7 +111,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
-
 		r.Route("/groups/{group}", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
@@ -111,7 +121,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Patch("/", api.patchGroup)
 			r.Delete("/", api.deleteGroup)
 		})
-
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{user}", func(r chi.Router) {
