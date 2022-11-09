@@ -13,11 +13,6 @@ var (
 	usernameReplace    = regexp.MustCompile("[^a-zA-Z0-9-]*")
 )
 
-// UsernameValid returns whether the input string is a valid username.
-func UsernameValid(str string) error {
-	return nameValid(str)
-}
-
 // UsernameFrom returns a best-effort username from the provided string.
 //
 // It first attempts to validate the incoming string, which will
@@ -25,7 +20,7 @@ func UsernameValid(str string) error {
 // the username from an email address. If no success happens during
 // these steps, a random username will be returned.
 func UsernameFrom(str string) string {
-	if valid := UsernameValid(str); valid == nil {
+	if valid := NameValid(str); valid == nil {
 		return str
 	}
 	emailAt := strings.LastIndex(str, "@")
@@ -33,15 +28,15 @@ func UsernameFrom(str string) string {
 		str = str[:emailAt]
 	}
 	str = usernameReplace.ReplaceAllString(str, "")
-	if valid := UsernameValid(str); valid == nil {
+	if valid := NameValid(str); valid == nil {
 		return str
 	}
 	return strings.ReplaceAll(namesgenerator.GetRandomName(1), "_", "-")
 }
 
-// nameValid returns whether the input string is a valid name.
+// NameValid returns whether the input string is a valid name.
 // It is a generic validator for any name (user, workspace, etc.).
-func nameValid(str string) error {
+func NameValid(str string) error {
 	if len(str) > 32 {
 		return xerrors.New("must be <= 32 characters")
 	}

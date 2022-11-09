@@ -59,7 +59,7 @@ func TestValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.UsernameValid(testCase.Username)
+			valid := httpapi.NameValid(testCase.Username)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
@@ -92,7 +92,7 @@ func TestFrom(t *testing.T) {
 			t.Parallel()
 			converted := httpapi.UsernameFrom(testCase.From)
 			t.Log(converted)
-			valid := httpapi.UsernameValid(converted)
+			valid := httpapi.NameValid(converted)
 			require.True(t, valid == nil)
 			if testCase.Match == "" {
 				require.NotEqual(t, testCase.From, converted)

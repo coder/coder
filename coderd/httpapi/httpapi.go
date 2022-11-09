@@ -39,7 +39,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := UsernameValid(str)
+		valid := NameValid(str)
 		return valid == nil
 	}
 	for _, tag := range []string{"username", "template_name", "workspace_name"} {
