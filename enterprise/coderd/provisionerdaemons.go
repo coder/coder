@@ -1,6 +1,8 @@
 package coderd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -22,6 +25,34 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 )
+
+func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	daemons, err := api.Database.GetProvisionerDaemons(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner daemons.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if daemons == nil {
+		daemons = []database.ProvisionerDaemon{}
+	}
+	daemons, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, daemons)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner daemons.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, daemons)
+}
 
 func (api *API) postProvisionerDaemon(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
