@@ -18,7 +18,7 @@ WHERE
 	templates.deleted = @deleted
 	-- Filter by organization_id
 	AND CASE
-		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			organization_id = @organization_id
 		ELSE true
 	END
@@ -65,15 +65,14 @@ INSERT INTO
 		provisioner,
 		active_version_id,
 		description,
-		max_ttl,
-		min_autostart_interval,
+		default_ttl,
 		created_by,
 		icon,
 		user_acl,
 		group_acl
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -99,10 +98,9 @@ UPDATE
 SET
 	updated_at = $2,
 	description = $3,
-	max_ttl = $4,
-	min_autostart_interval = $5,
-	name = $6,
-	icon = $7
+	default_ttl = $4,
+	name = $5,
+	icon = $6
 WHERE
 	id = $1
 RETURNING

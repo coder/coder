@@ -545,13 +545,13 @@ type ProvisionerJob struct {
 }
 
 type ProvisionerJobLog struct {
-	ID        uuid.UUID `db:"id" json:"id"`
 	JobID     uuid.UUID `db:"job_id" json:"job_id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Source    LogSource `db:"source" json:"source"`
 	Level     LogLevel  `db:"level" json:"level"`
 	Stage     string    `db:"stage" json:"stage"`
 	Output    string    `db:"output" json:"output"`
+	ID        int64     `db:"id" json:"id"`
 }
 
 type Replica struct {
@@ -574,21 +574,21 @@ type SiteConfig struct {
 }
 
 type Template struct {
-	ID                   uuid.UUID       `db:"id" json:"id"`
-	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted              bool            `db:"deleted" json:"deleted"`
-	Name                 string          `db:"name" json:"name"`
-	Provisioner          ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID      uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description          string          `db:"description" json:"description"`
-	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
-	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
-	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
-	Icon                 string          `db:"icon" json:"icon"`
-	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
-	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted         bool            `db:"deleted" json:"deleted"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description     string          `db:"description" json:"description"`
+	// The default duration for auto-stop for workspaces created from this template.
+	DefaultTtl int64       `db:"default_ttl" json:"default_ttl"`
+	CreatedBy  uuid.UUID   `db:"created_by" json:"created_by"`
+	Icon       string      `db:"icon" json:"icon"`
+	UserACL    TemplateACL `db:"user_acl" json:"user_acl"`
+	GroupACL   TemplateACL `db:"group_acl" json:"group_acl"`
 }
 
 type TemplateVersion struct {
@@ -600,7 +600,7 @@ type TemplateVersion struct {
 	Name           string        `db:"name" json:"name"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.NullUUID `db:"created_by" json:"created_by"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
 type User struct {
@@ -660,14 +660,19 @@ type WorkspaceAgent struct {
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 	Directory            string                `db:"directory" json:"directory"`
 	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
-	Version string `db:"version" json:"version"`
+	Version                string        `db:"version" json:"version"`
+	LastConnectedReplicaID uuid.NullUUID `db:"last_connected_replica_id" json:"last_connected_replica_id"`
+	// Connection timeout in seconds, 0 means disabled.
+	ConnectionTimeoutSeconds int32 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
+	// URL for troubleshooting the agent.
+	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 }
 
 type WorkspaceApp struct {
 	ID                   uuid.UUID          `db:"id" json:"id"`
 	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
 	AgentID              uuid.UUID          `db:"agent_id" json:"agent_id"`
-	Name                 string             `db:"name" json:"name"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
@@ -677,6 +682,7 @@ type WorkspaceApp struct {
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
+	Slug                 string             `db:"slug" json:"slug"`
 }
 
 type WorkspaceBuild struct {
@@ -695,14 +701,15 @@ type WorkspaceBuild struct {
 }
 
 type WorkspaceResource struct {
-	ID         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
-	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Type       string              `db:"type" json:"type"`
-	Name       string              `db:"name" json:"name"`
-	Hide       bool                `db:"hide" json:"hide"`
-	Icon       string              `db:"icon" json:"icon"`
+	ID           uuid.UUID           `db:"id" json:"id"`
+	CreatedAt    time.Time           `db:"created_at" json:"created_at"`
+	JobID        uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition   WorkspaceTransition `db:"transition" json:"transition"`
+	Type         string              `db:"type" json:"type"`
+	Name         string              `db:"name" json:"name"`
+	Hide         bool                `db:"hide" json:"hide"`
+	Icon         string              `db:"icon" json:"icon"`
+	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 }
 
 type WorkspaceResourceMetadatum struct {

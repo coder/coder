@@ -2,8 +2,11 @@ package cli_test
 
 import (
 	"context"
+	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -69,6 +72,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.Eventually(t, func() bool {
+			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
+			defer cancelFunc()
 			_, err := dialer.Ping(ctx)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
@@ -130,6 +135,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.Eventually(t, func() bool {
+			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
+			defer cancelFunc()
 			_, err := dialer.Ping(ctx)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
@@ -191,9 +198,28 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.Eventually(t, func() bool {
+			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
+			defer cancelFunc()
 			_, err := dialer.Ping(ctx)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
+
+		sshClient, err := dialer.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+		key := "CODER_AGENT_TOKEN"
+		command := "sh -c 'echo $" + key + "'"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo %" + key + "%"
+		}
+		token, err := session.CombinedOutput(command)
+		require.NoError(t, err)
+		_, err = uuid.Parse(strings.TrimSpace(string(token)))
+		require.NoError(t, err)
+
 		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)

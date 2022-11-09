@@ -27,7 +27,7 @@ func parameterList() *cobra.Command {
 				return err
 			}
 
-			organization, err := currentOrganization(cmd, client)
+			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

@@ -452,7 +452,6 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	before := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
 		Provision: []*proto.Provision_Response{{
@@ -487,7 +486,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before.Add(-time.Hour))
+	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, 0)
 	require.NoError(t, err)
 	defer closer.Close()
 	for {
@@ -536,13 +535,20 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	auditor := audit.NewMock()
+	numLogs := len(auditor.AuditLogs)
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
+	numLogs++ // add an audit log for user
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	numLogs++ // add an audit log for template version
+
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	closeDaemon.Close()
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	numLogs++ // add an audit log for template creation
+
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	numLogs++ // add an audit log for workspace creation
 
 	// initial returned state is "pending"
 	require.EqualValues(t, codersdk.WorkspaceStatusPending, workspace.LatestBuild.Status)
@@ -561,11 +567,22 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusStopped, workspace.LatestBuild.Status)
 
+	// assert an audit log has been created for workspace stopping
+	numLogs++ // add an audit log for workspace_build stop
+	require.Len(t, auditor.AuditLogs, numLogs)
+	require.Equal(t, database.AuditActionStop, auditor.AuditLogs[numLogs-1].Action)
+
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
 	build = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 	err = client.CancelWorkspaceBuild(ctx, build.ID)
 	require.NoError(t, err)
+
+	numLogs++ // add an audit log for workspace build start
+	// assert an audit log has been created workspace starting
+	require.Len(t, auditor.AuditLogs, numLogs)
+	require.Equal(t, database.AuditActionStart, auditor.AuditLogs[numLogs-1].Action)
+
 	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusCanceled, workspace.LatestBuild.Status)
@@ -577,8 +594,9 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
+	numLogs++ // add an audit log for workspace build deletion
 
 	// assert an audit log has been created for deletion
-	require.Len(t, auditor.AuditLogs, 7)
-	assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[6].Action)
+	require.Len(t, auditor.AuditLogs, numLogs)
+	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs[numLogs-1].Action)
 }

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.5.3"
+      version = "0.6.0"
     }
     google = {
       source  = "hashicorp/google"
@@ -36,12 +36,12 @@ data "google_compute_default_service_account" "default" {
 }
 
 resource "google_compute_disk" "root" {
-  name  = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
+  name  = "coder-${data.coder_workspace.me.id}-root"
   type  = "pd-ssd"
   zone  = var.zone
   image = "projects/windows-cloud/global/images/windows-server-2022-dc-core-v20220215"
   lifecycle {
-    ignore_changes = [image]
+    ignore_changes = [name, image]
   }
 }
 

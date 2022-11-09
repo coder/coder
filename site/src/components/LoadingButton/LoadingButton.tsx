@@ -31,7 +31,7 @@ export const LoadingButton: FC<React.PropsWithChildren<LoadingButtonProps>> = ({
       <span style={hidden}>{children}</span>
       {loading && (
         <div className={styles.loader}>
-          <CircularProgress size={18} className={styles.spinner} />
+          <CircularProgress size={16} className={styles.spinner} />
         </div>
       )}
       {Boolean(loadingLabel) && loadingLabel}
@@ -63,7 +63,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     top: "50%",
     left: "50%",
     height: 22, // centering loading icon
-    width: 18,
+    width: 16,
   },
   spinner: {
     color: theme.palette.text.disabled,

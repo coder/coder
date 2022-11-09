@@ -1,6 +1,7 @@
 import { ComponentMeta, Story } from "@storybook/react"
+import { createPaginationRef } from "components/PaginationWidget/utils"
 import {
-  MockSiteRoles,
+  MockAssignableSiteRoles,
   MockUser,
   MockUser2,
 } from "../../testHelpers/renderHelpers"
@@ -9,6 +10,23 @@ import { UsersPageView, UsersPageViewProps } from "./UsersPageView"
 export default {
   title: "pages/UsersPageView",
   component: UsersPageView,
+  argTypes: {
+    paginationRef: {
+      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
+    },
+    isNonInitialPage: {
+      defaultValue: false,
+    },
+    users: {
+      defaultValue: [MockUser, MockUser2],
+    },
+    roles: {
+      defaultValue: MockAssignableSiteRoles,
+    },
+    canEditUsers: {
+      defaultValue: true,
+    },
+  },
 } as ComponentMeta<typeof UsersPageView>
 
 const Template: Story<UsersPageViewProps> = (args) => (
@@ -16,30 +34,23 @@ const Template: Story<UsersPageViewProps> = (args) => (
 )
 
 export const Admin = Template.bind({})
-Admin.args = {
-  users: [MockUser, MockUser2],
-  roles: MockSiteRoles,
-  canCreateUser: true,
-  canEditUsers: true,
-}
 
 export const SmallViewport = Template.bind({})
-SmallViewport.args = {
-  ...Admin.args,
-}
 SmallViewport.parameters = {
   chromatic: { viewports: [600] },
 }
 
 export const Member = Template.bind({})
-Member.args = { ...Admin.args, canCreateUser: false, canEditUsers: false }
+Member.args = { canEditUsers: false }
 
 export const Empty = Template.bind({})
-Empty.args = { ...Admin.args, users: [] }
+Empty.args = { users: [] }
+
+export const EmptyPage = Template.bind({})
+EmptyPage.args = { users: [], isNonInitialPage: true }
 
 export const Error = Template.bind({})
 Error.args = {
-  ...Admin.args,
   users: undefined,
   error: {
     response: {

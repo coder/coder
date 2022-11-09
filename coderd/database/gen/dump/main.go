@@ -63,7 +63,9 @@ func main() {
 		// Remove all comments.
 		"/^--/d",
 		// Public is implicit in the schema.
-		"s/ public\\./ /",
+		"s/ public\\./ /g",
+		"s/::public\\./::/g",
+		"s/'public\\./'/g",
 		// Remove database settings.
 		"s/SET .* = .*;//g",
 		// Remove select statements. These aren't useful

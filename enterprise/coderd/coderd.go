@@ -77,10 +77,18 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groups)
+			r.Route("/{groupName}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractGroupByNameParam(api.Database),
+				)
+
+				r.Get("/", api.group)
+			})
 		})
 
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
@@ -150,6 +158,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
 		TLSConfig:    meshTLSConfig,
@@ -223,7 +232,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	entitlements.Experimental = api.Experimental
+	entitlements.Experimental = api.DeploymentConfig.Experimental.Value
 
 	featureChanged := func(featureName string) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {

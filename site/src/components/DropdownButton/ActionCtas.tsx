@@ -160,7 +160,6 @@ const useStyles = makeStyles((theme) => ({
   // this is all custom to work with our button wrapper
   loadingButton: {
     border: "none",
-    borderLeft: "1px solid #333740", // MUI disabled button
-    borderRadius: "3px 0px 0px 3px",
+    borderRadius: `${theme.shape.borderRadius} 0px 0px ${theme.shape.borderRadius}`,
   },
 }))

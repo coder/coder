@@ -8,24 +8,32 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth            string            `mapstructure:"auth"`
-	OperatingSystem string            `mapstructure:"os"`
-	Architecture    string            `mapstructure:"arch"`
-	Directory       string            `mapstructure:"dir"`
-	ID              string            `mapstructure:"id"`
-	Token           string            `mapstructure:"token"`
-	Env             map[string]string `mapstructure:"env"`
-	StartupScript   string            `mapstructure:"startup_script"`
+	Auth                     string            `mapstructure:"auth"`
+	OperatingSystem          string            `mapstructure:"os"`
+	Architecture             string            `mapstructure:"arch"`
+	Directory                string            `mapstructure:"dir"`
+	ID                       string            `mapstructure:"id"`
+	Token                    string            `mapstructure:"token"`
+	Env                      map[string]string `mapstructure:"env"`
+	StartupScript            string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
 type agentAppAttributes struct {
-	AgentID     string                     `mapstructure:"agent_id"`
+	AgentID string `mapstructure:"agent_id"`
+	// Slug is required in terraform, but to avoid breaking existing users we
+	// will default to the resource name if it is not specified.
+	Slug        string `mapstructure:"slug"`
+	DisplayName string `mapstructure:"display_name"`
+	// Name is deprecated in favor of DisplayName.
 	Name        string                     `mapstructure:"name"`
 	Icon        string                     `mapstructure:"icon"`
 	URL         string                     `mapstructure:"url"`
@@ -112,13 +120,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
 		agent := &proto.Agent{
-			Name:            tfResource.Name,
-			Id:              attrs.ID,
-			Env:             attrs.Env,
-			StartupScript:   attrs.StartupScript,
-			OperatingSystem: attrs.OperatingSystem,
-			Architecture:    attrs.Architecture,
-			Directory:       attrs.Directory,
+			Name:                     tfResource.Name,
+			Id:                       attrs.ID,
+			Env:                      attrs.Env,
+			StartupScript:            attrs.StartupScript,
+			OperatingSystem:          attrs.OperatingSystem,
+			Architecture:             attrs.Architecture,
+			Directory:                attrs.Directory,
+			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+			TroubleshootingUrl:       attrs.TroubleshootingURL,
 		}
 		switch attrs.Auth {
 		case "token":
@@ -214,19 +224,40 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	}
 
 	// Associate Apps with agents.
+	appSlugs := make(map[string]struct{})
 	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_app" {
 			continue
 		}
+
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf("decode app attributes: %w", err)
 		}
-		if attrs.Name == "" {
-			// Default to the resource name if none is set!
-			attrs.Name = resource.Name
+
+		// Default to the resource name if none is set!
+		if attrs.Slug == "" {
+			attrs.Slug = resource.Name
 		}
+		if attrs.DisplayName == "" {
+			if attrs.Name != "" {
+				// Name is deprecated but still accepted.
+				attrs.DisplayName = attrs.Name
+			} else {
+				attrs.DisplayName = attrs.Slug
+			}
+		}
+
+		if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
+			return nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
+		}
+
+		if _, exists := appSlugs[attrs.Slug]; exists {
+			return nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
+		}
+		appSlugs[attrs.Slug] = struct{}{}
+
 		var healthcheck *proto.Healthcheck
 		if len(attrs.Healthcheck) != 0 {
 			healthcheck = &proto.Healthcheck{
@@ -253,7 +284,8 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					continue
 				}
 				agent.Apps = append(agent.Apps, &proto.App{
-					Name:         attrs.Name,
+					Slug:         attrs.Slug,
+					DisplayName:  attrs.DisplayName,
 					Command:      attrs.Command,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
@@ -354,12 +386,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		resources = append(resources, &proto.Resource{
-			Name:     resource.Name,
-			Type:     resource.Type,
-			Agents:   agents,
-			Hide:     resourceHidden[label],
-			Icon:     resourceIcon[label],
-			Metadata: resourceMetadata[label],
+			Name:         resource.Name,
+			Type:         resource.Type,
+			Agents:       agents,
+			Hide:         resourceHidden[label],
+			Icon:         resourceIcon[label],
+			Metadata:     resourceMetadata[label],
+			InstanceType: applyInstanceType(resource),
 		})
 	}
 
@@ -375,6 +408,31 @@ func convertAddressToLabel(address string) string {
 type graphResource struct {
 	Label string
 	Depth uint
+}
+
+// applyInstanceType sets the instance type on an agent if it matches
+// one of the special resource types that we track.
+func applyInstanceType(resource *tfjson.StateResource) string {
+	key, isValid := map[string]string{
+		"google_compute_instance":         "machine_type",
+		"aws_instance":                    "instance_type",
+		"aws_spot_instance_request":       "instance_type",
+		"azurerm_linux_virtual_machine":   "size",
+		"azurerm_windows_virtual_machine": "size",
+	}[resource.Type]
+	if !isValid {
+		return ""
+	}
+
+	instanceTypeRaw, isValid := resource.AttributeValues[key]
+	if !isValid {
+		return ""
+	}
+	instanceType, isValid := instanceTypeRaw.(string)
+	if !isValid {
+		return ""
+	}
+	return instanceType
 }
 
 // applyAutomaticInstanceID checks if the resource is one of a set of *magical* IDs

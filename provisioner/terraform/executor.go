@@ -14,16 +14,28 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/xerrors"
-
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+// initMut is a global mutex that protects the Terraform cache directory from
+// concurrent usage by path. Only `terraform init` commands are guarded by this
+// mutex.
+//
+// When cache path is set, we must protect against multiple calls to
+// `terraform init`.
+//
+// From the Terraform documentation:
+//
+//	Note: The plugin cache directory is not guaranteed to be concurrency
+//	safe. The provider installer's behavior in environments with multiple
+//	terraform init calls is undefined.
+var initMut = &sync.Mutex{}
+
 type executor struct {
-	initMu     sync.Locker
 	binaryPath string
 	cachePath  string
 	workdir    string
@@ -181,8 +193,8 @@ func (e executor) init(ctx, killCtx context.Context, logr logger) error {
 	//     concurrency safe. The provider installer's behavior in
 	//     environments with multiple terraform init calls is undefined.
 	if e.cachePath != "" {
-		e.initMu.Lock()
-		defer e.initMu.Unlock()
+		initMut.Lock()
+		defer initMut.Unlock()
 	}
 
 	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errWriter)
@@ -342,7 +354,7 @@ func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resourc
 }
 
 func (e executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
-	args := []string{"show", "-json"}
+	args := []string{"show", "-json", "-no-color"}
 	state := &tfjson.State{}
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), state)
 	if err != nil {

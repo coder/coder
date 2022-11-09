@@ -154,6 +154,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
+
 func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
 	// no-op
 	return nil
@@ -455,6 +456,72 @@ func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 		}
 	}
 	return active, nil
+}
+
+func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
+	count, err := q.GetAuthorizedUserCount(ctx, arg, nil)
+	return count, err
+}
+
+func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	users := append([]database.User{}, q.users...)
+
+	if params.Deleted {
+		tmp := make([]database.User, 0, len(users))
+		for _, user := range users {
+			if user.Deleted {
+				tmp = append(tmp, user)
+			}
+		}
+		users = tmp
+	}
+
+	if params.Search != "" {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if strings.Contains(strings.ToLower(user.Email), strings.ToLower(params.Search)) {
+				tmp = append(tmp, users[i])
+			} else if strings.Contains(strings.ToLower(user.Username), strings.ToLower(params.Search)) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if len(params.Status) > 0 {
+		usersFilteredByStatus := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.ContainsCompare(params.Status, user.Status, func(a, b database.UserStatus) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
+				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
+			}
+		}
+		users = usersFilteredByStatus
+	}
+
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
+		usersFilteredByRole := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
+				usersFilteredByRole = append(usersFilteredByRole, users[i])
+			}
+		}
+
+		users = usersFilteredByRole
+	}
+
+	for _, user := range q.workspaces {
+		// If the filter exists, ensure the object is authorized.
+		if authorizedFilter != nil && !authorizedFilter.Eval(user.RBACObject()) {
+			continue
+		}
+	}
+
+	return int64(len(users)), nil
 }
 
 func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
@@ -1388,8 +1455,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Name = arg.Name
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
-		tpl.MaxTtl = arg.MaxTtl
-		tpl.MinAutostartInterval = arg.MinAutostartInterval
+		tpl.DefaultTtl = arg.DefaultTtl
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
@@ -1861,7 +1927,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 	return workspaceAgents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndNameParams) (database.WorkspaceApp, error) {
+func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1869,7 +1935,7 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndName(_ context.Context, arg dat
 		if app.AgentID != arg.AgentID {
 			continue
 		}
-		if app.Name != arg.Name {
+		if app.Slug != arg.Slug {
 			continue
 		}
 		return app, nil
@@ -2052,16 +2118,13 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if !arg.CreatedBefore.IsZero() && jobLog.CreatedAt.After(arg.CreatedBefore) {
+		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
-		if !arg.CreatedAfter.IsZero() && jobLog.CreatedAt.Before(arg.CreatedAfter) {
+		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
-	}
-	if len(logs) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return logs, nil
 }
@@ -2163,25 +2226,20 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	if arg.MinAutostartInterval == 0 {
-		arg.MinAutostartInterval = int64(time.Hour)
-	}
-
 	//nolint:gosimple
 	template := database.Template{
-		ID:                   arg.ID,
-		CreatedAt:            arg.CreatedAt,
-		UpdatedAt:            arg.UpdatedAt,
-		OrganizationID:       arg.OrganizationID,
-		Name:                 arg.Name,
-		Provisioner:          arg.Provisioner,
-		ActiveVersionID:      arg.ActiveVersionID,
-		Description:          arg.Description,
-		MaxTtl:               arg.MaxTtl,
-		MinAutostartInterval: arg.MinAutostartInterval,
-		CreatedBy:            arg.CreatedBy,
-		UserACL:              arg.UserACL,
-		GroupACL:             arg.GroupACL,
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		OrganizationID:  arg.OrganizationID,
+		Name:            arg.Name,
+		Provisioner:     arg.Provisioner,
+		ActiveVersionID: arg.ActiveVersionID,
+		Description:     arg.Description,
+		DefaultTtl:      arg.DefaultTtl,
+		CreatedBy:       arg.CreatedBy,
+		UserACL:         arg.UserACL,
+		GroupACL:        arg.GroupACL,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil
@@ -2212,10 +2270,15 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	defer q.mutex.Unlock()
 
 	logs := make([]database.ProvisionerJobLog, 0)
+	id := int64(1)
+	if len(q.provisionerJobLogs) > 0 {
+		id = q.provisionerJobLogs[len(q.provisionerJobLogs)-1].ID
+	}
 	for index, output := range arg.Output {
+		id++
 		logs = append(logs, database.ProvisionerJobLog{
+			ID:        id,
 			JobID:     arg.JobID,
-			ID:        arg.ID[index],
 			CreatedAt: arg.CreatedAt[index],
 			Source:    arg.Source[index],
 			Level:     arg.Level[index],
@@ -2294,20 +2357,22 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	agent := database.WorkspaceAgent{
-		ID:                   arg.ID,
-		CreatedAt:            arg.CreatedAt,
-		UpdatedAt:            arg.UpdatedAt,
-		ResourceID:           arg.ResourceID,
-		AuthToken:            arg.AuthToken,
-		AuthInstanceID:       arg.AuthInstanceID,
-		EnvironmentVariables: arg.EnvironmentVariables,
-		Name:                 arg.Name,
-		Architecture:         arg.Architecture,
-		OperatingSystem:      arg.OperatingSystem,
-		Directory:            arg.Directory,
-		StartupScript:        arg.StartupScript,
-		InstanceMetadata:     arg.InstanceMetadata,
-		ResourceMetadata:     arg.ResourceMetadata,
+		ID:                       arg.ID,
+		CreatedAt:                arg.CreatedAt,
+		UpdatedAt:                arg.UpdatedAt,
+		ResourceID:               arg.ResourceID,
+		AuthToken:                arg.AuthToken,
+		AuthInstanceID:           arg.AuthInstanceID,
+		EnvironmentVariables:     arg.EnvironmentVariables,
+		Name:                     arg.Name,
+		Architecture:             arg.Architecture,
+		OperatingSystem:          arg.OperatingSystem,
+		Directory:                arg.Directory,
+		StartupScript:            arg.StartupScript,
+		InstanceMetadata:         arg.InstanceMetadata,
+		ResourceMetadata:         arg.ResourceMetadata,
+		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       arg.TroubleshootingURL,
 	}
 
 	q.provisionerJobAgents = append(q.provisionerJobAgents, agent)
@@ -2522,7 +2587,8 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		ID:                   arg.ID,
 		AgentID:              arg.AgentID,
 		CreatedAt:            arg.CreatedAt,
-		Name:                 arg.Name,
+		Slug:                 arg.Slug,
+		DisplayName:          arg.DisplayName,
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
@@ -2822,7 +2888,7 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -2834,9 +2900,9 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		workspaceBuild.Deadline = arg.Deadline
 		q.workspaceBuilds[index] = workspaceBuild
-		return nil
+		return workspaceBuild, nil
 	}
-	return sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
@@ -2994,6 +3060,16 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
@@ -3053,6 +3129,16 @@ func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditL
 		if arg.Email != "" {
 			user, err := q.GetUserByID(context.Background(), alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
 				continue
 			}
 		}

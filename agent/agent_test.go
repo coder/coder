@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
@@ -57,9 +58,12 @@ func TestAgent(t *testing.T) {
 
 		t.Run("SSH", func(t *testing.T) {
 			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
 			conn, stats := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 
-			sshClient, err := conn.SSHClient()
+			sshClient, err := conn.SSHClient(ctx)
 			require.NoError(t, err)
 			defer sshClient.Close()
 			session, err := sshClient.NewSession()
@@ -74,9 +78,12 @@ func TestAgent(t *testing.T) {
 		t.Run("ReconnectingPTY", func(t *testing.T) {
 			t.Parallel()
 
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
 			conn, stats := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 
-			ptyConn, err := conn.ReconnectingPTY(uuid.NewString(), 128, 128, "/bin/bash")
+			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.NewString(), 128, 128, "/bin/bash")
 			require.NoError(t, err)
 			defer ptyConn.Close()
 
@@ -216,6 +223,8 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SFTP", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		u, err := user.Current()
 		require.NoError(t, err, "get current user")
 		home := u.HomeDir
@@ -223,7 +232,7 @@ func TestAgent(t *testing.T) {
 			home = "/" + strings.ReplaceAll(home, "\\", "/")
 		}
 		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		sshClient, err := conn.SSHClient()
+		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
 		client, err := sftp.NewClient(sshClient)
@@ -249,8 +258,11 @@ func TestAgent(t *testing.T) {
 	t.Run("SCP", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		sshClient, err := conn.SSHClient()
+		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
 		scpClient, err := scp.NewClientBySSH(sshClient)
@@ -385,9 +397,12 @@ func TestAgent(t *testing.T) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 		id := uuid.NewString()
-		netConn, err := conn.ReconnectingPTY(id, 100, 100, "/bin/bash")
+		netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
 		bufRead := bufio.NewReader(netConn)
 
@@ -425,7 +440,7 @@ func TestAgent(t *testing.T) {
 		expectLine(matchEchoOutput)
 
 		_ = netConn.Close()
-		netConn, err = conn.ReconnectingPTY(id, 100, 100, "/bin/bash")
+		netConn, err = conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
 		bufRead = bufio.NewReader(netConn)
 
@@ -484,7 +499,9 @@ func TestAgent(t *testing.T) {
 
 				conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 				require.Eventually(t, func() bool {
-					_, err := conn.Ping(context.Background())
+					ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalFast)
+					defer cancelFunc()
+					_, err := conn.Ping(ctx)
 					return err == nil
 				}, testutil.WaitMedium, testutil.IntervalFast)
 				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
@@ -503,12 +520,14 @@ func TestAgent(t *testing.T) {
 	t.Run("Speedtest", func(t *testing.T) {
 		t.Parallel()
 		t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		derpMap := tailnettest.RunDERPAndSTUN(t)
 		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
 			DERPMap: derpMap,
 		}, 0)
 		defer conn.Close()
-		res, err := conn.Speedtest(speedtest.Upload, 250*time.Millisecond)
+		res, err := conn.Speedtest(ctx, speedtest.Upload, 250*time.Millisecond)
 		require.NoError(t, err)
 		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
 	})
@@ -532,9 +551,9 @@ func TestAgent(t *testing.T) {
 		}
 		initialized := atomic.Int32{}
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
+			ExchangeToken: func(ctx context.Context) (string, error) {
 				initialized.Add(1)
-				return nil
+				return "", nil
 			},
 			Client: client,
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
@@ -559,14 +578,15 @@ func TestAgent(t *testing.T) {
 			agentID: uuid.New(),
 			metadata: codersdk.WorkspaceAgentMetadata{
 				GitAuthConfigs: 1,
+				DERPMap:        &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *codersdk.AgentStats),
 			coordinator: tailnet.NewCoordinator(),
 		}
 		filesystem := afero.NewMemMapFs()
 		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) error {
-				return nil
+			ExchangeToken: func(ctx context.Context) (string, error) {
+				return "", nil
 			},
 			Client:     client,
 			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
@@ -597,7 +617,10 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 			if err != nil {
 				return
 			}
-			ssh, err := agentConn.SSH()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ssh, err := agentConn.SSH(ctx)
+			cancel()
 			if err != nil {
 				_ = conn.Close()
 				return
@@ -624,8 +647,10 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 }
 
 func setupSSHSession(t *testing.T, options codersdk.WorkspaceAgentMetadata) *ssh.Session {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 	conn, _ := setupAgent(t, options, 0)
-	sshClient, err := conn.SSHClient()
+	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sshClient.Close()

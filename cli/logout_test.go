@@ -209,7 +209,7 @@ func login(t *testing.T, pty *ptytest.PTY) config.Root {
 	}()
 
 	pty.ExpectMatch("Paste your token here:")
-	pty.WriteLine(client.SessionToken)
+	pty.WriteLine(client.SessionToken())
 	pty.ExpectMatch("Welcome to Coder")
 	<-doneChan
 

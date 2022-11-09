@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.2.8",
+  "terraform_version": "1.3.4",
   "values": {
     "root_module": {
       "resources": [
@@ -14,13 +14,15 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "882ce97a-3c12-410f-8916-e3bc03862162",
+            "id": "2777eff3-2f9f-4515-8cea-0dc7dbb53bf0",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "b24ba29b-8cb3-42da-91c5-599c7be310f7"
+            "token": "0fb4dd96-6acd-48d2-a41a-396e957cf5f6",
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -34,13 +36,15 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 1,
             "dir": null,
             "env": null,
-            "id": "8a26cec7-3189-4eaf-99a1-1dce00b756dc",
+            "id": "48c7e389-c6a3-4cff-8331-aec26ee42cc4",
             "init_script": "",
             "os": "darwin",
             "startup_script": null,
-            "token": "6a155e3b-3279-40cb-9c16-4b827b561bc1"
+            "token": "0e9a30ca-59a4-4070-8517-0f7ebc5d1ab8",
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -54,13 +58,15 @@
           "values": {
             "arch": "arm64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "57486477-64a5-4fea-8223-dbf3c259d710",
+            "id": "f4b435ff-47a5-4fd5-8529-5ca0288eec6d",
             "init_script": "",
             "os": "windows",
             "startup_script": null,
-            "token": "0fa9933e-802a-4d6a-b273-43c05993e52a"
+            "token": "763e2baa-36d0-45d6-9511-08034fa752ca",
+            "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {}
         },
@@ -72,7 +78,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8587500025119121667",
+            "id": "5577006791947779410",
             "triggers": null
           },
           "sensitive_values": {},

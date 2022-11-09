@@ -20,7 +20,7 @@ func templateList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
+			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
 				return err
 			}
@@ -30,7 +30,7 @@ func templateList() *cobra.Command {
 			}
 
 			if len(templates) == 0 {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No templates found in %s! Create one:\n\n", caret, color.HiWhiteString(organization.Name))
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), color.HiMagentaString("  $ coder templates create <directory>\n"))
 				return nil
 			}

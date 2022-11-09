@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func sshConfigFileName(t *testing.T) (sshConfig string) {
@@ -104,7 +105,7 @@ func TestConfigSSH(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),
@@ -131,7 +132,9 @@ func TestConfigSSH(t *testing.T) {
 			if err != nil {
 				break
 			}
-			ssh, err := agentConn.SSH()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ssh, err := agentConn.SSH(ctx)
+			cancel()
 			assert.NoError(t, err)
 			wg.Add(2)
 			go func() {

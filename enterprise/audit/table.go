@@ -58,7 +58,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"active_version_id":      ActionTrack,
 		"description":            ActionTrack,
 		"icon":                   ActionTrack,
-		"max_ttl":                ActionTrack,
+		"default_ttl":            ActionTrack,
 		"min_autostart_interval": ActionTrack,
 		"created_by":             ActionTrack,
 		"is_private":             ActionTrack,
@@ -109,13 +109,14 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 	},
-	// We don't show any diff for the WorkspaceBuild resource
+	// We don't show any diff for the WorkspaceBuild resource,
+	// save for the template_version_id
 	&database.WorkspaceBuild{}: {
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
 		"updated_at":          ActionIgnore,
 		"workspace_id":        ActionIgnore,
-		"template_version_id": ActionIgnore,
+		"template_version_id": ActionTrack,
 		"build_number":        ActionIgnore,
 		"transition":          ActionIgnore,
 		"initiator_id":        ActionIgnore,

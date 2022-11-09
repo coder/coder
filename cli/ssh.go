@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,6 +73,11 @@ func ssh() *cobra.Command {
 				return err
 			}
 
+			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
+			if outdated && isTTYErr(cmd) {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
+			}
+
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
@@ -94,7 +100,7 @@ func ssh() *cobra.Command {
 			defer stopPolling()
 
 			if stdio {
-				rawSSH, err := conn.SSH()
+				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return err
 				}
@@ -107,7 +113,7 @@ func ssh() *cobra.Command {
 				return nil
 			}
 
-			sshClient, err := conn.SSHClient()
+			sshClient, err := conn.SSHClient(ctx)
 			if err != nil {
 				return err
 			}
@@ -250,7 +256,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
-		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
@@ -342,4 +348,19 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 		}
 		return deadline.Truncate(time.Minute), callback
 	}
+}
+
+// Verify if the user workspace is outdated and prepare an actionable message for user.
+func verifyWorkspaceOutdated(client *codersdk.Client, workspace codersdk.Workspace) (string, bool) {
+	if !workspace.Outdated {
+		return "", false // workspace is up-to-date
+	}
+
+	workspaceLink := buildWorkspaceLink(client.URL, workspace)
+	return fmt.Sprintf("👋 Your workspace is outdated! Update it here: %s\n", workspaceLink), true
+}
+
+// Build the user workspace link which navigates to the Coder web UI.
+func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
+	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerName, workspace.Name)})
 }

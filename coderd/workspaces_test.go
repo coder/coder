@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -235,10 +239,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(int64(0))
+			ctr.DefaultTTLMillis = ptr.Ref(int64(0))
 		})
 		// Given: the template has no max TTL set
-		require.Zero(t, template.MaxTTLMillis)
+		require.Zero(t, template.DefaultTTLMillis)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		// When: we create a workspace with autostop not enabled
@@ -256,15 +260,15 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateTTL := 24 * time.Hour.Milliseconds()
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(templateTTL)
+			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = nil // ensure that no default TTL is set
 		})
 		// TTL should be set by the template
-		require.Equal(t, template.MaxTTLMillis, templateTTL)
-		require.Equal(t, template.MaxTTLMillis, template.MaxTTLMillis, workspace.TTLMillis)
+		require.Equal(t, template.DefaultTTLMillis, templateTTL)
+		require.Equal(t, template.DefaultTTLMillis, template.DefaultTTLMillis, workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {
@@ -294,58 +298,38 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
 			require.Equal(t, "time until shutdown must be at least one minute", apiErr.Validations[0].Detail)
 		})
-
-		t.Run("AboveMax", func(t *testing.T) {
-			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			req := codersdk.CreateWorkspaceRequest{
-				TemplateID: template.ID,
-				Name:       "testing",
-				TTLMillis:  ptr.Ref(template.MaxTTLMillis + time.Minute.Milliseconds()),
-			}
-			_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-			require.Error(t, err)
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-			require.Len(t, apiErr.Validations, 1)
-			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-			require.Equal(t, "time until shutdown must be less than 7 days", apiErr.Validations[0].Detail)
-		})
 	})
 
-	t.Run("InvalidAutostart", func(t *testing.T) {
+	t.Run("TemplateDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		exp := 24 * time.Hour.Milliseconds()
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DefaultTTLMillis = &exp
+		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// no TTL provided should use template default
 		req := codersdk.CreateWorkspaceRequest{
-			TemplateID:        template.ID,
-			Name:              "testing",
-			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central * * * * *"),
+			TemplateID: template.ID,
+			Name:       "testing",
 		}
-		_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, apiErr.Validations[0].Field, "schedule")
-		require.Equal(t, apiErr.Validations[0].Detail, "Minimum autostart interval 1m0s below template minimum 1h0m0s")
+		ws, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
+		require.NoError(t, err)
+		require.EqualValues(t, exp, *ws.TTLMillis)
+
+		// TTL provided should override template default
+		req.Name = "testing2"
+		exp = 1 * time.Hour.Milliseconds()
+		req.TTLMillis = &exp
+		ws, err = client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
+		require.NoError(t, err)
+		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
 }
 
@@ -1183,23 +1167,6 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "time until shutdown must be less than 7 days",
 		},
-		{
-			name:           "above template maximum ttl",
-			ttlMillis:      ptr.Ref((12 * time.Hour).Milliseconds()),
-			expectedError:  "ttl_ms: time until shutdown must be below template maximum 8h0m0s",
-			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds()) },
-		},
-		{
-			name:           "no template maximum ttl",
-			ttlMillis:      ptr.Ref((7 * 24 * time.Hour).Milliseconds()),
-			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref(int64(0)) },
-		},
-		{
-			name:           "above maximum ttl even with no template max",
-			ttlMillis:      ptr.Ref((365 * 24 * time.Hour).Milliseconds()),
-			expectedError:  "ttl_ms: time until shutdown must be less than 7 days",
-			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) { ctr.MaxTTLMillis = ptr.Ref(int64(0)) },
-		},
 	}
 
 	for _, testCase := range testCases {
@@ -1318,14 +1285,6 @@ func TestWorkspaceExtend(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline must be at least 30 minutes in the future", "setting a deadline less than 30 minutes in the future should fail")
 
-	// And with a deadline greater than the template max_ttl should also fail
-	deadlineExceedsMaxTTL := time.Now().Add(time.Duration(template.MaxTTLMillis) * time.Millisecond).Add(time.Minute)
-	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-		Deadline: deadlineExceedsMaxTTL,
-	})
-
-	require.ErrorContains(t, err, "unexpected status code 400: Cannot extend workspace: new deadline is greater than template allows", "setting a deadline greater than that allowed by the template should fail")
-
 	// Updating with a deadline 30 minutes in the future should succeed
 	deadlineJustSoonEnough := time.Now().Add(30 * time.Minute)
 	err = client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
@@ -1347,27 +1306,92 @@ func TestWorkspaceExtend(t *testing.T) {
 
 func TestWorkspaceWatcher(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	w, err := client.Workspace(ctx, workspace.ID)
+	wc, err := client.WatchWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
-
-	wc, err := client.WatchWorkspace(ctx, w.ID)
-	require.NoError(t, err)
-	for i := 0; i < 3; i++ {
-		_, more := <-wc
-		require.True(t, more)
+	wait := func() {
+		select {
+		case <-ctx.Done():
+			t.Fail()
+		case <-wc:
+		}
 	}
+
+	coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	// the workspace build being created
+	wait()
+	// the workspace build being acquired
+	wait()
+	// the workspace build completing
+	wait()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+
+	// the agent connected
+	wait()
+	agentCloser.Close()
+	// the agent disconnected
+	wait()
+
+	closeFunc.Close()
+	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	// First is for the workspace build itself
+	wait()
+	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	// Second is for the build cancel
+	wait()
+
+	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
+		Name: "another",
+	})
+	require.NoError(t, err)
+	wait()
+
+	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: template.ActiveVersionID,
+	})
+	require.NoError(t, err)
+	wait()
+
 	cancel()
-	require.EqualValues(t, codersdk.Workspace{}, <-wc)
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {
@@ -1435,16 +1459,18 @@ func TestWorkspaceResource(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		apps := []*proto.App{
 			{
-				Name:    "code-server",
-				Command: "some-command",
-				Url:     "http://localhost:3000",
-				Icon:    "/code.svg",
+				Slug:        "code-server",
+				DisplayName: "code-server",
+				Command:     "some-command",
+				Url:         "http://localhost:3000",
+				Icon:        "/code.svg",
 			},
 			{
-				Name:    "code-server-2",
-				Command: "some-command",
-				Url:     "http://localhost:3000",
-				Icon:    "/code.svg",
+				Slug:        "code-server-2",
+				DisplayName: "code-server-2",
+				Command:     "some-command",
+				Url:         "http://localhost:3000",
+				Icon:        "/code.svg",
 				Healthcheck: &proto.Healthcheck{
 					Url:       "http://localhost:3000",
 					Interval:  5,
@@ -1487,7 +1513,7 @@ func TestWorkspaceResource(t *testing.T) {
 		app := apps[0]
 		require.EqualValues(t, app.Command, got.Command)
 		require.EqualValues(t, app.Icon, got.Icon)
-		require.EqualValues(t, app.Name, got.Name)
+		require.EqualValues(t, app.DisplayName, got.DisplayName)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, got.Health)
 		require.EqualValues(t, "", got.Healthcheck.URL)
 		require.EqualValues(t, 0, got.Healthcheck.Interval)
@@ -1496,7 +1522,7 @@ func TestWorkspaceResource(t *testing.T) {
 		app = apps[1]
 		require.EqualValues(t, app.Command, got.Command)
 		require.EqualValues(t, app.Icon, got.Icon)
-		require.EqualValues(t, app.Name, got.Name)
+		require.EqualValues(t, app.DisplayName, got.DisplayName)
 		require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, got.Health)
 		require.EqualValues(t, app.Healthcheck.Url, got.Healthcheck.URL)
 		require.EqualValues(t, app.Healthcheck.Interval, got.Healthcheck.Interval)

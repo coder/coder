@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"errors"
+	"io/fs"
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -159,4 +160,53 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 		return xerrors.Errorf("get previous migration: %w", err)
 	}
 	return nil
+}
+
+// Stepper returns a function that runs SQL migrations one step at a time.
+//
+// Stepper cannot be closed pre-emptively, it must be run to completion
+// (or until an error is encountered).
+func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
+	_, m, err := setup(db)
+	if err != nil {
+		return nil, xerrors.Errorf("migrate setup: %w", err)
+	}
+
+	return func() (version uint, more bool, err error) {
+		defer func() {
+			if !more {
+				srcErr, dbErr := m.Close()
+				if err != nil {
+					return
+				}
+				if dbErr != nil {
+					err = dbErr
+					return
+				}
+				err = srcErr
+			}
+		}()
+
+		err = m.Steps(1)
+		if err != nil {
+			switch {
+			case errors.Is(err, migrate.ErrNoChange):
+				// It's OK if no changes happened!
+				return 0, false, nil
+			case errors.Is(err, fs.ErrNotExist):
+				// This error is encountered at the of Steps when
+				// reading from embed.FS.
+				return 0, false, nil
+			}
+
+			return 0, false, xerrors.Errorf("Step: %w", err)
+		}
+
+		v, _, err := m.Version()
+		if err != nil {
+			return 0, false, err
+		}
+
+		return v, true, nil
+	}, nil
 }

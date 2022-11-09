@@ -41,9 +41,9 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly old?: any
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly new?: any
   readonly secret: boolean
 }
@@ -55,7 +55,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -65,8 +65,7 @@ export interface AuditLog {
   readonly action: AuditAction
   readonly diff: AuditDiff
   readonly status_code: number
-  // This is likely an enum in an external package ("encoding/json.RawMessage")
-  readonly additional_fields: string
+  readonly additional_fields: Record<string, string>
   readonly description: string
   readonly user?: User
 }
@@ -180,8 +179,7 @@ export interface CreateTemplateRequest {
   readonly icon?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
-  readonly max_ttl_ms?: number
-  readonly min_autostart_interval_ms?: number
+  readonly default_ttl_ms?: number
 }
 
 // From codersdk/templateversions.go
@@ -205,6 +203,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly time?: string
 }
 
 // From codersdk/apikey.go
@@ -287,13 +286,12 @@ export interface DeploymentConfig {
   readonly proxy_trusted_origins: DeploymentConfigField<string[]>
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly provisioner_daemons: DeploymentConfigField<number>
   readonly pg_connection_url: DeploymentConfigField<string>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig
   readonly tls: TLSConfig
-  readonly trace_enable: DeploymentConfigField<boolean>
+  readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
   readonly auto_import_templates: DeploymentConfigField<string[]>
@@ -303,6 +301,8 @@ export interface DeploymentConfig {
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
+  readonly provisioner: ProvisionerConfig
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -354,6 +354,7 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly regex: string
+  readonly scopes: string[]
 }
 
 // From codersdk/gitsshkey.go
@@ -384,7 +385,7 @@ export interface Healthcheck {
 export interface License {
   readonly id: number
   readonly uploaded_at: string
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
 }
 
@@ -513,6 +514,12 @@ export interface PrometheusConfig {
   readonly address: DeploymentConfigField<string>
 }
 
+// From codersdk/deploymentconfig.go
+export interface ProvisionerConfig {
+  readonly daemons: DeploymentConfigField<number>
+  readonly force_cancel_interval: DeploymentConfigField<number>
+}
+
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string
@@ -537,7 +544,7 @@ export interface ProvisionerJob {
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerJobLog {
-  readonly id: string
+  readonly id: number
   readonly created_at: string
   readonly log_source: LogSource
   readonly log_level: LogLevel
@@ -577,7 +584,7 @@ export interface Role {
 // From codersdk/sse.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly data: any
 }
 
@@ -612,8 +619,7 @@ export interface Template {
   readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
   readonly icon: string
-  readonly max_ttl_ms: number
-  readonly min_autostart_interval_ms: number
+  readonly default_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
 }
@@ -656,13 +662,19 @@ export interface TemplateVersion {
   readonly name: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by_id: string
-  readonly created_by_name: string
+  readonly created_by: User
 }
 
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface TraceConfig {
+  readonly enable: DeploymentConfigField<boolean>
+  readonly honeycomb_api_key: DeploymentConfigField<string>
+  readonly capture_logs: DeploymentConfigField<boolean>
 }
 
 // From codersdk/templates.go
@@ -686,8 +698,7 @@ export interface UpdateTemplateMeta {
   readonly name?: string
   readonly description?: string
   readonly icon?: string
-  readonly max_ttl_ms?: number
-  readonly min_autostart_interval_ms?: number
+  readonly default_ttl_ms?: number
 }
 
 // From codersdk/users.go
@@ -732,6 +743,16 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+}
+
+// From codersdk/users.go
+export interface UserCountRequest {
+  readonly q?: string
+}
+
+// From codersdk/users.go
+export interface UserCountResponse {
+  readonly count: number
 }
 
 // From codersdk/users.go
@@ -789,6 +810,8 @@ export interface WorkspaceAgent {
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
+  readonly connection_timeout_seconds: number
+  readonly troubleshooting_url?: string
 }
 
 // From codersdk/workspaceagents.go
@@ -823,7 +846,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
-  readonly name: string
+  readonly slug: string
+  readonly display_name: string
   readonly command?: string
   readonly icon?: string
   readonly subdomain: boolean
@@ -987,7 +1011,11 @@ export type TemplateRole = "" | "admin" | "use"
 export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
+export type WorkspaceAgentStatus =
+  | "connected"
+  | "connecting"
+  | "disconnected"
+  | "timeout"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth =

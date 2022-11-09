@@ -32,6 +32,7 @@ const (
 	WorkspaceAgentConnecting   WorkspaceAgentStatus = "connecting"
 	WorkspaceAgentConnected    WorkspaceAgentStatus = "connected"
 	WorkspaceAgentDisconnected WorkspaceAgentStatus = "disconnected"
+	WorkspaceAgentTimeout      WorkspaceAgentStatus = "timeout"
 )
 
 type WorkspaceAgent struct {
@@ -53,7 +54,9 @@ type WorkspaceAgent struct {
 	Version              string               `json:"version"`
 	Apps                 []WorkspaceApp       `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency map[string]DERPRegion `json:"latency,omitempty"`
+	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
+	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
+	TroubleshootingURL       string                `json:"troubleshooting_url,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {
@@ -123,6 +126,7 @@ type WorkspaceAgentMetadata struct {
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
 	GitAuthConfigs       int               `json:"git_auth_configs"`
+	VSCodePortProxyURI   string            `json:"vscode_port_proxy_uri"`
 	Apps                 []WorkspaceApp    `json:"apps"`
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
@@ -318,7 +322,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 	}
 	jar.SetCookies(coordinateURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
-		Value: c.SessionToken,
+		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
 		Jar:       jar,
@@ -384,7 +388,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}
 	jar.SetCookies(coordinateURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
-		Value: c.SessionToken,
+		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
 		Jar:       jar,
@@ -507,7 +511,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
-		Value: c.SessionToken,
+		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
 		Jar: jar,
@@ -568,7 +572,7 @@ func (c *Client) AgentReportStats(
 
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
-		Value: c.SessionToken,
+		Value: c.SessionToken(),
 	}})
 
 	httpClient := &http.Client{

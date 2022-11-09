@@ -251,6 +251,42 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertUsers(users, organizationIDsByUserID))
 }
 
+func (api *API) userCount(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := r.URL.Query().Get("q")
+	params, errs := userSearchQuery(query)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: errs,
+		})
+		return
+	}
+
+	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceUser.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	count, err := api.Database.GetAuthorizedUserCount(ctx, database.GetFilteredUserCountParams{
+		Search:   params.Search,
+		Status:   params.Status,
+		RbacRole: params.RbacRole,
+	}, sqlFilter)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserCountResponse{
+		Count: count,
+	})
+}
+
 // Creates a new user.
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

@@ -1,7 +1,7 @@
 FROM rust:slim AS rust-utils
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-env CARGO_INSTALL_ROOT=/tmp/
+ENV CARGO_INSTALL_ROOT=/tmp/
 RUN cargo install exa bat ripgrep typos-cli watchexec-cli
 
 FROM ubuntu AS go

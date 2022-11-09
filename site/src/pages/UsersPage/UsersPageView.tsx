@@ -1,4 +1,6 @@
+import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import * as TypesGen from "../../api/typesGenerated"
 import { SearchBarWithFilter } from "../../components/SearchBarWithFilter/SearchBarWithFilter"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
@@ -10,6 +12,7 @@ export const Language = {
 }
 export interface UsersPageViewProps {
   users?: TypesGen.User[]
+  count?: number
   roles?: TypesGen.AssignableRoles[]
   filter?: string
   error?: unknown
@@ -26,10 +29,13 @@ export interface UsersPageViewProps {
     roles: TypesGen.Role["name"][],
   ) => void
   onFilter: (query: string) => void
+  paginationRef: PaginationMachineRef
+  isNonInitialPage: boolean
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   users,
+  count,
   roles,
   onSuspendUser,
   onDeleteUser,
@@ -43,6 +49,8 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   isLoading,
   filter,
   onFilter,
+  paginationRef,
+  isNonInitialPage,
 }) => {
   const presetFilters = [
     { query: userFilterQuery.active, name: Language.activeUsersFilterName },
@@ -70,7 +78,10 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         isUpdatingUserRoles={isUpdatingUserRoles}
         canEditUsers={canEditUsers}
         isLoading={isLoading}
+        isNonInitialPage={isNonInitialPage}
       />
+
+      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
     </>
   )
 }
