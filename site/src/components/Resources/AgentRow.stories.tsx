@@ -3,6 +3,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
+  MockWorkspaceAgentTimeout,
   MockWorkspaceApp,
 } from "testHelpers/entities"
 import { AgentRow, AgentRowProps } from "./AgentRow"
@@ -63,6 +64,14 @@ BunchOfApps.args = {
 export const Connecting = Template.bind({})
 Connecting.args = {
   agent: MockWorkspaceAgentConnecting,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const Timeout = Template.bind({})
+Timeout.args = {
+  agent: MockWorkspaceAgentTimeout,
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,
