@@ -113,7 +113,6 @@ type server struct {
 
 func (s *server) executor(workdir string) executor {
 	return executor{
-		initMu:     &s.initMu,
 		binaryPath: s.binaryPath,
 		cachePath:  s.cachePath,
 		workdir:    workdir,
