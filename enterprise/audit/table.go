@@ -54,6 +54,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"organization_id":        ActionIgnore, /// Never changes.
 		"deleted":                ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                   ActionTrack,
+		"display_name":           ActionTrack,
 		"provisioner":            ActionTrack,
 		"active_version_id":      ActionTrack,
 		"description":            ActionTrack,
