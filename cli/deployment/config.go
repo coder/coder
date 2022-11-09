@@ -295,6 +295,11 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:   "trace-honeycomb-api-key",
 				Secret: true,
 			},
+			CaptureLogs: &codersdk.DeploymentConfigField[bool]{
+				Name:  "Capture Logs in Traces",
+				Usage: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+				Flag:  "trace-logs",
+			},
 		},
 		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Secure Auth Cookie",

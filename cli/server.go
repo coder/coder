@@ -88,6 +88,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
+			if cfg.Trace.CaptureLogs.Value {
+				logger = logger.AppendSinks(tracing.SlogSink{})
+			}
 
 			// Main command context for managing cancellation
 			// of running services.
