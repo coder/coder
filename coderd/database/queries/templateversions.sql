@@ -52,6 +52,15 @@ WHERE
 	template_id = $1
 	AND "name" = $2;
 
+-- name: GetTemplateVersionByOrganizationAndName :one
+SELECT
+	*
+FROM
+	template_versions
+WHERE
+	organization_id = $1
+	AND "name" = $2;
+
 -- name: GetTemplateVersionByID :one
 SELECT
 	*

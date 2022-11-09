@@ -227,6 +227,16 @@ export const getTemplateVersions = async (
   return response.data
 }
 
+export const getTemplateVersionByName = async (
+  organizationId: string,
+  versionName: string,
+): Promise<TypesGen.TemplateVersion> => {
+  const response = await axios.get<TypesGen.TemplateVersion>(
+    `/api/v2/organizations/${organizationId}/templateversions/${versionName}`,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
@@ -660,5 +670,12 @@ export const getDeploymentConfig =
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
   const response = await axios.get(`/api/v2/replicas`)
+  return response.data
+}
+
+export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
+  const response = await axios.get<ArrayBuffer>(`/api/v2/files/${fileId}`, {
+    responseType: "arraybuffer",
+  })
   return response.data
 }
