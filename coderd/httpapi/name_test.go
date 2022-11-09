@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
-func TestValid(t *testing.T) {
+func TestUsernameValid(t *testing.T) {
 	t.Parallel()
 	// Tests whether usernames are valid or not.
 	testCases := []struct {
@@ -60,6 +60,63 @@ func TestValid(t *testing.T) {
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
 			valid := httpapi.NameValid(testCase.Username)
+			require.Equal(t, testCase.Valid, valid == nil)
+		})
+	}
+}
+
+func TestTemplateDisplayNameValid(t *testing.T) {
+	t.Parallel()
+	// Tests whether display names are valid.
+	testCases := []struct {
+		Username string
+		Valid    bool
+	}{
+		{"", true},
+		{"1", true},
+		{"12", true},
+		{"1 2", true},
+		{"1234 678901234567890", true},
+		{"1234567890123 5678901", true},
+		{"S", true},
+		{"a1", true},
+		{"a1K2", true},
+		{"a1b2c3 4e5f6g7h8i9j0", true},
+		{"a1b2c3d4e5f6g h8i9j0k", true},
+		{"aa", true},
+		{"aNc", true},
+		{"abcdefghijklmnopqrst", true},
+		{"abcdefghijklmnopqrstu", true},
+		{"Wow Test", true},
+
+		{" ", false},
+		{" a", false},
+		{" a ", false},
+		{" 1", false},
+		{"1 ", false},
+		{" aa", false},
+		{"aa ", false},
+		{" 12", false},
+		{"12 ", false},
+		{" a1", false},
+		{"a1 ", false},
+		{"-abcdefghijKLmnopqrstu", false},
+		{"abcdefghijklmnopqrstu-", false},
+		{"-123456789012345678901", false},
+		{"-a1b2c3d4e5f6g7h8i9j0k", false},
+		{"a1b2c3d4e5f6g7h8i9j0k-", false},
+		{"BANANAS_wow", false},
+		{"test--now", false},
+
+		{"123456789012345678901234567890123", false},
+		{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false},
+		{"123456789012345678901234567890123123456789012345678901234567890123", false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Username, func(t *testing.T) {
+			t.Parallel()
+			valid := httpapi.TemplateDisplayNameValid(testCase.Username)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
