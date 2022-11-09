@@ -24,6 +24,7 @@ const renderTemplateSettingsPage = async () => {
 
 const validFormValues = {
   name: "Name",
+  display_name: "Display Name",
   description: "A description",
   icon: "A string",
   max_ttl_ms: 1,
