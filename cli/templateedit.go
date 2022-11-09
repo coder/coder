@@ -14,6 +14,7 @@ import (
 func templateEdit() *cobra.Command {
 	var (
 		name                 string
+		displayName          string
 		description          string
 		icon                 string
 		maxTTL               time.Duration
@@ -41,6 +42,7 @@ func templateEdit() *cobra.Command {
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
 				Name:                       name,
+				DisplayName:                displayName,
 				Description:                description,
 				Icon:                       icon,
 				MaxTTLMillis:               maxTTL.Milliseconds(),
@@ -57,6 +59,7 @@ func templateEdit() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&name, "name", "", "", "Edit the template name")
+	cmd.Flags().StringVarP(&displayName, "display-name", "", "", "Edit the template display name")
 	cmd.Flags().StringVarP(&description, "description", "", "", "Edit the template description")
 	cmd.Flags().StringVarP(&icon, "icon", "", "", "Edit the template icon path")
 	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown - workspaces created from this template cannot stay running longer than this.")
