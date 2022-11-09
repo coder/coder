@@ -1400,7 +1400,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait()
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
@@ -1426,6 +1426,12 @@ func TestWorkspaceWatcher(t *testing.T) {
 
 	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
 		Name: "another",
+	})
+	require.NoError(t, err)
+	wait()
+
+	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: template.ActiveVersionID,
 	})
 	require.NoError(t, err)
 	wait()

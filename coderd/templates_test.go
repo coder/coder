@@ -601,7 +601,7 @@ func TestTemplateMetrics(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Logger: slogtest.Make(t, nil),
 		Client: agentClient,
@@ -633,7 +633,7 @@ func TestTemplateMetrics(t *testing.T) {
 		_ = conn.Close()
 	}()
 
-	sshConn, err := conn.SSHClient()
+	sshConn, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	_ = sshConn.Close()
 

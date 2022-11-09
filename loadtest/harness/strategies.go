@@ -95,12 +95,22 @@ type timeoutRunnerWrapper struct {
 }
 
 var _ Runnable = timeoutRunnerWrapper{}
+var _ Cleanable = timeoutRunnerWrapper{}
 
 func (t timeoutRunnerWrapper) Run(ctx context.Context, id string, logs io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
 
 	return t.inner.Run(ctx, id, logs)
+}
+
+func (t timeoutRunnerWrapper) Cleanup(ctx context.Context, id string) error {
+	c, ok := t.inner.(Cleanable)
+	if !ok {
+		return nil
+	}
+
+	return c.Cleanup(ctx, id)
 }
 
 // Execute implements ExecutionStrategy.

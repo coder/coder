@@ -360,7 +360,7 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 		Password: FirstUserParams.Password,
 	})
 	require.NoError(t, err)
-	client.SessionToken = login.SessionToken
+	client.SetSessionToken(login.SessionToken)
 	return resp
 }
 
@@ -400,7 +400,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	other := codersdk.New(client.URL)
-	other.SessionToken = login.SessionToken
+	other.SetSessionToken(login.SessionToken)
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles

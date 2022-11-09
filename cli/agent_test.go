@@ -198,7 +198,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
 
-		sshClient, err := dialer.SSHClient()
+		sshClient, err := dialer.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
 		session, err := sshClient.NewSession()

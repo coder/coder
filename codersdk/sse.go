@@ -2,11 +2,14 @@ package codersdk
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 type ServerSentEvent struct {
@@ -22,7 +25,10 @@ const (
 	ServerSentEventTypeError ServerSentEventType = "error"
 )
 
-func ServerSentEventReader(rc io.ReadCloser) func() (*ServerSentEvent, error) {
+func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*ServerSentEvent, error) {
+	_, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	reader := bufio.NewReader(rc)
 	nextLineValue := func(prefix string) ([]byte, error) {
 		var (

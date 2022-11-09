@@ -275,7 +275,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
@@ -485,14 +485,14 @@ func TestUserOIDC(t *testing.T) {
 			ctx, _ := testutil.Context(t)
 
 			if tc.Username != "" {
-				client.SessionToken = authCookieValue(resp.Cookies())
+				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 			}
 
 			if tc.AvatarURL != "" {
-				client.SessionToken = authCookieValue(resp.Cookies())
+				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
@@ -520,7 +520,7 @@ func TestUserOIDC(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "jon", user.Username)
@@ -534,7 +534,7 @@ func TestUserOIDC(t *testing.T) {
 		resp = oidcCallback(t, client, code)
 		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
