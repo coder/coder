@@ -3,7 +3,6 @@ package terraform
 import (
 	"context"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
@@ -100,14 +99,9 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	// initMu protects against executors running `terraform init`
-	// concurrently when cache path is set.
-	initMu sync.Mutex
-
-	binaryPath string
-	cachePath  string
-	logger     slog.Logger
-
+	binaryPath  string
+	cachePath   string
+	logger      slog.Logger
 	exitTimeout time.Duration
 }
 
