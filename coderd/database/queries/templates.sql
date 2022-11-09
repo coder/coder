@@ -62,7 +62,6 @@ INSERT INTO
 		updated_at,
 		organization_id,
 		"name",
-		display_name,
 		provisioner,
 		active_version_id,
 		description,
@@ -71,7 +70,8 @@ INSERT INTO
 		created_by,
 		icon,
 		user_acl,
-		group_acl
+		group_acl,
+		display_name
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
@@ -103,7 +103,8 @@ SET
 	max_ttl = $4,
 	min_autostart_interval = $5,
 	name = $6,
-	icon = $7
+	icon = $7,
+	display_name = $8
 WHERE
 	id = $1
 RETURNING

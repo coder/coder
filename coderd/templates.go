@@ -500,6 +500,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
+			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
 			req.MaxTTLMillis == time.Duration(template.MaxTtl).Milliseconds() &&
 			req.MinAutostartIntervalMillis == time.Duration(template.MinAutostartInterval).Milliseconds() {
@@ -508,6 +509,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		// Update template metadata -- empty fields are not overwritten.
 		name := req.Name
+		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
@@ -515,6 +517,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if name == "" {
 			name = template.Name
+		}
+		if displayName == "" {
+			displayName = template.DisplayName
 		}
 		if desc == "" {
 			desc = template.Description
@@ -527,6 +532,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			ID:                   template.ID,
 			UpdatedAt:            database.Now(),
 			Name:                 name,
+			DisplayName:          displayName,
 			Description:          desc,
 			Icon:                 icon,
 			MaxTtl:               int64(maxTTL),
@@ -773,6 +779,7 @@ func (api *API) convertTemplate(
 		UpdatedAt:                  template.UpdatedAt,
 		OrganizationID:             template.OrganizationID,
 		Name:                       template.Name,
+		DisplayName:                template.DisplayName,
 		Provisioner:                codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:            template.ActiveVersionID,
 		WorkspaceOwnerCount:        workspaceOwnerCount,

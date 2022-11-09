@@ -33,6 +33,7 @@ func init() {
 		}
 		return name
 	})
+
 	nameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
@@ -47,6 +48,20 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	templateDisplayNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := TemplateDisplayNameValid(str)
+		return valid == nil
+	}
+	err := validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
+	if err != nil {
+		panic(err)
 	}
 }
 

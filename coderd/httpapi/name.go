@@ -11,6 +11,8 @@ import (
 var (
 	UsernameValidRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
 	usernameReplace    = regexp.MustCompile("[^a-zA-Z0-9-]*")
+
+	templateDisplayName = regexp.MustCompile("^[a-zA-Z0-9]+(?: [a-zA-Z0-9]+)*$")
 )
 
 // UsernameFrom returns a best-effort username from the provided string.
@@ -46,6 +48,21 @@ func NameValid(str string) error {
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
 		return xerrors.New("must be alphanumeric with hyphens")
+	}
+	return nil
+}
+
+// TemplateDisplayNameValid returns whether the input string is a valid template display name.
+func TemplateDisplayNameValid(str string) error {
+	if len(str) > 32 {
+		return xerrors.New("must be <= 32 characters")
+	}
+	if len(str) < 1 {
+		return xerrors.New("must be >= 1 character")
+	}
+	matched := templateDisplayName.MatchString(str)
+	if !matched {
+		return xerrors.New("must be alphanumeric with spaces")
 	}
 	return nil
 }

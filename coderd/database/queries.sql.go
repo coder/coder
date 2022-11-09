@@ -3237,10 +3237,11 @@ INSERT INTO
 		created_by,
 		icon,
 		user_acl,
-		group_acl
+		group_acl,
+		display_name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl, display_name
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, max_ttl, min_autostart_interval, created_by, icon, user_acl, group_acl, display_name
 `
 
 type InsertTemplateParams struct {
@@ -3258,6 +3259,7 @@ type InsertTemplateParams struct {
 	Icon                 string          `db:"icon" json:"icon"`
 	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
 	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -3276,6 +3278,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Icon,
 		arg.UserACL,
 		arg.GroupACL,
+		arg.DisplayName,
 	)
 	var i Template
 	err := row.Scan(
@@ -3392,7 +3395,8 @@ SET
 	max_ttl = $4,
 	min_autostart_interval = $5,
 	name = $6,
-	icon = $7
+	icon = $7,
+	display_name = $8
 WHERE
 	id = $1
 RETURNING
@@ -3407,6 +3411,7 @@ type UpdateTemplateMetaByIDParams struct {
 	MinAutostartInterval int64     `db:"min_autostart_interval" json:"min_autostart_interval"`
 	Name                 string    `db:"name" json:"name"`
 	Icon                 string    `db:"icon" json:"icon"`
+	DisplayName          string    `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
@@ -3418,6 +3423,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.MinAutostartInterval,
 		arg.Name,
 		arg.Icon,
+		arg.DisplayName,
 	)
 	var i Template
 	err := row.Scan(
