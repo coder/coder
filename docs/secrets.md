@@ -2,7 +2,7 @@
 
 <blockquote class="info">
 This article explains how to use secrets in a workspace. To authenticate the
-workspace provisioner, see [this](./admin/auth).
+workspace provisioner, see [this](./admin/auth.md).
 </blockquote>
 
 Coder is open-minded about how you get your secrets into your workspaces.
@@ -20,7 +20,7 @@ Often, this workflow is simply:
 1. Your users write them to a persistent file after
    they've built their workspace
 
-[Template parameters](./templates#parameters)> are a dangerous way to accept secrets.
+[Template parameters](./templates.md#parameters)> are a dangerous way to accept secrets.
 We show parameters in cleartext around the product. Assume anyone with view
 access to a workspace can also see its parameters.
 
