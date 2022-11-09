@@ -28,6 +28,7 @@ export const TemplateSettingsPage: FC = () => {
     templateSettings: template,
     saveTemplateSettingsError,
     getTemplateError,
+    deleteTemplateError,
   } = state.context
 
   return (
@@ -41,6 +42,7 @@ export const TemplateSettingsPage: FC = () => {
         errors={{
           getTemplateError,
           saveTemplateSettingsError,
+          deleteTemplateError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`)

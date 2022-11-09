@@ -24,6 +24,7 @@ export interface TemplateSettingsPageViewProps {
   errors?: {
     getTemplateError?: unknown
     saveTemplateSettingsError?: unknown
+    deleteTemplateError?: unknown
   }
   initialTouched?: ComponentProps<typeof TemplateSettingsForm>["initialTouched"]
 }
@@ -48,7 +49,14 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   return (
     <FullPageForm title={t("templateSettings.title")} onCancel={onCancel}>
       {Boolean(errors.getTemplateError) && (
-        <AlertBanner severity="error" error={errors.getTemplateError} />
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.getTemplateError} />
+        </Stack>
+      )}
+      {Boolean(errors.deleteTemplateError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.deleteTemplateError} />
+        </Stack>
       )}
       {isLoading && <Loader />}
       {template && (
@@ -100,6 +108,9 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  errorContainer: {
+    marginBottom: theme.spacing(2),
+  },
   dangerContainer: {
     marginTop: theme.spacing(4),
   },
