@@ -22,5 +22,8 @@
 	</metadata>
 	<files>
 		<file src="tools/**" target="tools" />
+		<file src="LICENSE" target="legal" />
+		<file src="LICENSE.enterprise" target="legal" />
+		<file src=".github/actions/chocolatey/VERIFICATION.txt" target="legal" />
 	</files>
 </package>
