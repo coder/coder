@@ -188,6 +188,14 @@ Flags:
       --trace-honeycomb-api-key string               Enables trace exporting to Honeycomb.io
                                                      using the provided API Key.
                                                      Consumes $CODER_TRACE_HONEYCOMB_API_KEY
+      --trace-logs                                   Enables capturing of logs as events in
+                                                     traces. This is useful for debugging, but
+                                                     may result in a very large amount of
+                                                     events being sent to the tracing backend
+                                                     which may incur significant costs. If the
+                                                     verbose flag was supplied, debug-level
+                                                     logs will be included.
+                                                     Consumes $CODER_TRACE_CAPTURE_LOGS
       --wildcard-access-url string                   Specifies the wildcard hostname to use
                                                      for workspace applications in the form
                                                      "*.example.com".

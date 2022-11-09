@@ -198,8 +198,7 @@ export const MockTemplate: TypesGen.Template = {
     delete_ms: 3000,
   },
   description: "This is a test description.",
-  max_ttl_ms: 24 * 60 * 60 * 1000,
-  min_autostart_interval_ms: 60 * 60 * 1000,
+  default_ttl_ms: 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
@@ -238,6 +237,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
       preferred: true,
     },
   },
+  connection_timeout_seconds: 120,
+  troubleshooting_url: "https://coder.com/troubleshoot",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -277,6 +278,15 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-connecting",
   name: "another-workspace-agent",
   status: "connecting",
+  version: "",
+  latency: {},
+}
+
+export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-timeout",
+  name: "a-timed-out-workspace-agent",
+  status: "timeout",
   version: "",
   latency: {},
 }

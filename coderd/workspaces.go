@@ -37,11 +37,10 @@ var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
 	ttlMax = 7 * 24 * time.Hour
 
-	errTTLMin                  = xerrors.New("time until shutdown must be at least one minute")
-	errTTLMax                  = xerrors.New("time until shutdown must be less than 7 days")
-	errDeadlineTooSoon         = xerrors.New("new deadline must be at least 30 minutes in the future")
-	errDeadlineBeforeStart     = xerrors.New("new deadline must be before workspace start time")
-	errDeadlineOverTemplateMax = xerrors.New("new deadline is greater than template allows")
+	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
+	errTTLMax              = xerrors.New("time until shutdown must be less than 7 days")
+	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
+	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
 
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
@@ -333,7 +332,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule, time.Duration(template.MinAutostartInterval))
+	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Autostart Schedule.",
@@ -342,7 +341,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, time.Duration(template.MaxTtl))
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, template.DefaultTtl)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -666,16 +665,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		api.Logger.Error(ctx, "fetch workspace template", slog.F("workspace_id", workspace.ID), slog.F("template_id", workspace.TemplateID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error fetching workspace template.",
-		})
-		return
-	}
-
-	dbSched, err := validWorkspaceSchedule(req.Schedule, time.Duration(template.MinAutostartInterval))
+	dbSched, err := validWorkspaceSchedule(req.Schedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid autostart schedule.",
@@ -739,7 +729,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("fetch workspace template: %w", err)
 		}
 
-		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, time.Duration(template.MaxTtl))
+		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTtl)
 		if err != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
@@ -793,13 +783,6 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	resp := codersdk.Response{}
 
 	err := api.Database.InTx(func(s database.Store) error {
-		template, err := s.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			code = http.StatusInternalServerError
-			resp.Message = "Error fetching workspace template!"
-			return xerrors.Errorf("get workspace template: %w", err)
-		}
-
 		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
 			code = http.StatusInternalServerError
@@ -833,7 +816,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		newDeadline := req.Deadline.UTC()
-		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline, time.Duration(template.MaxTtl)); err != nil {
+		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
 			// Normally, we would put the validation error in Validations, but this endpoint is
 			// not tied to a form or specific named user input on the FE.
@@ -886,7 +869,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// Ignore all trace spans after this, they're not too useful.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	cancelSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), func(_ context.Context, _ []byte) {
+	sendUpdate := func(_ context.Context, _ []byte) {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspace.ID)
 		if err != nil {
 			_ = sendEvent(ctx, codersdk.ServerSentEvent{
@@ -920,7 +903,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				findUser(workspace.OwnerID, data.users),
 			),
 		})
-	})
+	}
+
+	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), sendUpdate)
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
@@ -931,7 +916,21 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer cancelSubscribe()
+	defer cancelWorkspaceSubscribe()
+
+	// This is required to show whether the workspace is up-to-date.
+	cancelTemplateSubscribe, err := api.Pubsub.Subscribe(watchTemplateChannel(workspace.TemplateID), sendUpdate)
+	if err != nil {
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Internal error subscribing to template events.",
+				Detail:  err.Error(),
+			},
+		})
+		return
+	}
+	defer cancelTemplateSubscribe()
 
 	// An initial ping signals to the request that the server is now ready
 	// and the client can begin servicing a channel with data.
@@ -1088,9 +1087,16 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, error) {
+func validWorkspaceTTLMillis(millis *int64, def int64) (sql.NullInt64, error) {
 	if ptr.NilOrZero(millis) {
-		return sql.NullInt64{}, nil
+		if def == 0 {
+			return sql.NullInt64{}, nil
+		}
+
+		return sql.NullInt64{
+			Int64: def,
+			Valid: true,
+		}, nil
 	}
 
 	dur := time.Duration(*millis) * time.Millisecond
@@ -1103,18 +1109,13 @@ func validWorkspaceTTLMillis(millis *int64, max time.Duration) (sql.NullInt64, e
 		return sql.NullInt64{}, errTTLMax
 	}
 
-	// template level
-	if max > 0 && truncated > max {
-		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be below template maximum %s", max.String())
-	}
-
 	return sql.NullInt64{
 		Valid: true,
 		Int64: int64(truncated),
 	}, nil
 }
 
-func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration) error {
+func validWorkspaceDeadline(startedAt, newDeadline time.Time) error {
 	soon := time.Now().Add(29 * time.Minute)
 	if newDeadline.Before(soon) {
 		return errDeadlineTooSoon
@@ -1125,26 +1126,17 @@ func validWorkspaceDeadline(startedAt, newDeadline time.Time, max time.Duration)
 		return errDeadlineBeforeStart
 	}
 
-	delta := newDeadline.Sub(startedAt)
-	if delta > max {
-		return errDeadlineOverTemplateMax
-	}
-
 	return nil
 }
 
-func validWorkspaceSchedule(s *string, min time.Duration) (sql.NullString, error) {
+func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 	if ptr.NilOrEmpty(s) {
 		return sql.NullString{}, nil
 	}
 
-	sched, err := schedule.Weekly(*s)
+	_, err := schedule.Weekly(*s)
 	if err != nil {
 		return sql.NullString{}, err
-	}
-
-	if schedMin := sched.Min(); schedMin < min {
-		return sql.NullString{}, xerrors.Errorf("Minimum autostart interval %s below template minimum %s", schedMin, min)
 	}
 
 	return sql.NullString{

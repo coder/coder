@@ -127,6 +127,13 @@ func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
 		since := database.Now().Sub(*agent.DisconnectedAt)
 		return Styles.Error.Render("⦾ disconnected") + " " +
 			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+	case codersdk.WorkspaceAgentTimeout:
+		since := database.Now().Sub(agent.CreatedAt)
+		return fmt.Sprintf(
+			"%s %s",
+			Styles.Warn.Render("⦾ timeout"),
+			Styles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]"),
+		)
 	case codersdk.WorkspaceAgentConnected:
 		return Styles.Keyword.Render("⦿ connected")
 	default:

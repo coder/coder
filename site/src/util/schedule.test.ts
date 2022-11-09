@@ -52,7 +52,7 @@ describe("maxDeadline", () => {
     it("should be never be greater than global max deadline", () => {
       const template: Template = {
         ...Mocks.MockTemplate,
-        max_ttl_ms: 25 * 60 * 60 * 1000,
+        default_ttl_ms: 25 * 60 * 60 * 1000,
       }
 
       // Then: deadlineMinusDisabled should be falsy
@@ -65,7 +65,7 @@ describe("maxDeadline", () => {
     it("should be never be greater than global max deadline", () => {
       const template: Template = {
         ...Mocks.MockTemplate,
-        max_ttl_ms: 4 * 60 * 60 * 1000,
+        default_ttl_ms: 4 * 60 * 60 * 1000,
       }
 
       // Then: deadlineMinusDisabled should be falsy
@@ -95,7 +95,7 @@ describe("canExtendDeadline", () => {
 
   it("should be falsy if the deadline is more than the template max_ttl", () => {
     const tooFarAhead = dayjs().add(
-      dayjs.duration(Mocks.MockTemplate.max_ttl_ms, "milliseconds"),
+      dayjs.duration(Mocks.MockTemplate.default_ttl_ms, "milliseconds"),
     )
     expect(
       canExtendDeadline(tooFarAhead, Mocks.MockWorkspace, Mocks.MockTemplate),
@@ -104,7 +104,7 @@ describe("canExtendDeadline", () => {
 
   it("should be truth if the deadline is within the template max_ttl", () => {
     const okDeadline = dayjs().add(
-      dayjs.duration(Mocks.MockTemplate.max_ttl_ms / 2, "milliseconds"),
+      dayjs.duration(Mocks.MockTemplate.default_ttl_ms / 2, "milliseconds"),
     )
     expect(
       canExtendDeadline(okDeadline, Mocks.MockWorkspace, Mocks.MockTemplate),

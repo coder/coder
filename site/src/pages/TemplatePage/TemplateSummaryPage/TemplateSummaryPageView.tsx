@@ -51,7 +51,7 @@ export const TemplateSummaryPageView: FC<
         resources={getStartedResources(templateResources)}
       />
 
-      <div className={styles.markdownSection}>
+      <div className={styles.markdownSection} id="readme">
         <div className={styles.readmeLabel}>README.md</div>
         <div className={styles.markdownWrapper}>
           <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
