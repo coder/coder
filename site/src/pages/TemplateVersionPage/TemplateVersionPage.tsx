@@ -9,10 +9,13 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
+import { Stack } from "components/Stack/Stack"
+import { Stats, StatsItem } from "components/Stats/Stats"
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { useOrganizationId } from "hooks/useOrganizationId"
-import { useParams, useSearchParams } from "react-router-dom"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
+import { createDayString } from "util/createDayString"
 import { templateVersionMachine } from "xServices/templateVersion/templateVersionXService"
 
 type Params = {
@@ -39,12 +42,12 @@ const useFileTab = () => {
 }
 
 export const TemplateVersionPage: React.FC = () => {
-  const { version } = useParams() as Params
+  const { version: versionName, template } = useParams() as Params
   const orgId = useOrganizationId()
   const [state] = useMachine(templateVersionMachine, {
-    context: { versionName: version, orgId },
+    context: { versionName, orgId },
   })
-  const { files } = state.context
+  const { files, version } = state.context
   const fileTab = useFileTab()
   const styles = useStyles()
 
@@ -52,17 +55,33 @@ export const TemplateVersionPage: React.FC = () => {
     <>
       <Margins>
         <PageHeader>
-          <PageHeaderTitle>Version 18928cf</PageHeaderTitle>
-          <PageHeaderSubtitle>coder-ts</PageHeaderSubtitle>
+          <PageHeaderTitle>{versionName}</PageHeaderTitle>
         </PageHeader>
       </Margins>
 
       {!files && !state.matches("done.error") && <Loader />}
 
-      {state.matches("done.ok") && files && (
-        <>
-          <div className={styles.tabsWrapper}>
-            <Margins>
+      {state.matches("done.ok") && version && files && (
+        <Stack spacing={4}>
+          <Margins>
+            <Stats>
+              <StatsItem
+                label="Template"
+                value={<Link to={`/templates/${template}`}>{template}</Link>}
+              />
+              <StatsItem
+                label="Created by"
+                value={version.created_by.username}
+              />
+              <StatsItem
+                label="Created at"
+                value={createDayString(version.created_at)}
+              />
+            </Stats>
+          </Margins>
+
+          <Margins>
+            <div className={styles.files}>
               <div className={styles.tabs}>
                 {Object.keys(files).map((filename, index) => {
                   return (
@@ -86,11 +105,7 @@ export const TemplateVersionPage: React.FC = () => {
                   )
                 })}
               </div>
-            </Margins>
-          </div>
 
-          <div className={styles.codeWrapper}>
-            <Margins>
               <SyntaxHighlighter
                 showLineNumbers
                 className={styles.prism}
@@ -102,9 +117,9 @@ export const TemplateVersionPage: React.FC = () => {
               >
                 {Object.values(files)[fileTab.value]}
               </SyntaxHighlighter>
-            </Margins>
-          </div>
-        </>
+            </div>
+          </Margins>
+        </Stack>
       )}
     </>
   )
@@ -118,41 +133,58 @@ const useStyles = makeStyles((theme) => ({
   tabs: {
     display: "flex",
     alignItems: "baseline",
+    borderBottom: `1px solid ${theme.palette.divider}`,
   },
 
   tab: {
     background: "transparent",
     border: 0,
-    padding: theme.spacing(0, 2),
+    padding: theme.spacing(0, 3),
     display: "flex",
     alignItems: "center",
-    height: theme.spacing(5),
+    height: theme.spacing(6),
     opacity: 0.75,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    position: "relative",
-    top: 1,
     cursor: "pointer",
     gap: theme.spacing(0.5),
+    position: "relative",
 
     "& svg": {
       width: 22,
       maxHeight: 16,
     },
+
+    "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+    },
   },
 
   tabActive: {
-    borderColor: theme.palette.secondary.dark,
     opacity: 1,
     fontWeight: 600,
+
+    "&:after": {
+      content: '""',
+      display: "block",
+      height: 1,
+      width: "100%",
+      bottom: 0,
+      left: 0,
+      backgroundColor: theme.palette.secondary.dark,
+      position: "absolute",
+    },
   },
 
   codeWrapper: {
     background: theme.palette.background.paperLight,
   },
 
+  files: {
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
+  },
+
   prism: {
-    paddingLeft: "0 !important",
-    paddingRight: "0 !important",
+    borderRadius: 0,
   },
 }))
 
