@@ -17,5 +17,5 @@ cp ./build/coder_*_windows_amd64.exe tools/
 choco pack coder.nuspec --version "${INPUT_VERSION}"
 
 if [[ "$INPUT_PUBLISH" == "true" ]]; then
-	choco push coder."${INPUT_VERSION}".nupkg --api-key "${INPUT_CHOCOLATEYKEY}" -s https://push.chocolatey.org/ --timeout 180
+	choco push coder."${INPUT_VERSION}".nupkg --api-key="${INPUT_CHOCOLATEYKEY}" --source="https://push.chocolatey.org/" --timeout 180
 fi
