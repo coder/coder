@@ -4,12 +4,12 @@ import { MarkdownIcon } from "components/Icons/MarkdownIcon"
 import { TerraformIcon } from "components/Icons/TerraformIcon"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { useParams, useSearchParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
@@ -41,7 +41,7 @@ const useFileTab = () => {
 export const TemplateVersionPage: React.FC = () => {
   const { version } = useParams() as Params
   const orgId = useOrganizationId()
-  const [state, send] = useMachine(templateVersionMachine, {
+  const [state] = useMachine(templateVersionMachine, {
     context: { versionName: version, orgId },
   })
   const { files } = state.context
@@ -89,11 +89,19 @@ export const TemplateVersionPage: React.FC = () => {
             </Margins>
           </div>
 
-          <div>
+          <div className={styles.codeWrapper}>
             <Margins>
-              <MemoizedMarkdown>
+              <SyntaxHighlighter
+                showLineNumbers
+                className={styles.prism}
+                language={
+                  Object.keys(files)[fileTab.value].endsWith("tf")
+                    ? "hcl"
+                    : "markdown"
+                }
+              >
                 {Object.values(files)[fileTab.value]}
-              </MemoizedMarkdown>
+              </SyntaxHighlighter>
             </Margins>
           </div>
         </>
@@ -136,6 +144,15 @@ const useStyles = makeStyles((theme) => ({
     borderColor: theme.palette.secondary.dark,
     opacity: 1,
     fontWeight: 600,
+  },
+
+  codeWrapper: {
+    background: theme.palette.background.paperLight,
+  },
+
+  prism: {
+    paddingLeft: "0 !important",
+    paddingRight: "0 !important",
   },
 }))
 
