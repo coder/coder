@@ -356,6 +356,8 @@ CREATE TABLE templates (
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
+COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
+
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
     login_type login_type NOT NULL,
