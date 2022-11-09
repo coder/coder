@@ -85,6 +85,8 @@ message Agent {
         string token = 9;
         string instance_id = 10;
     }
+	int32 connection_timeout_seconds = 11;
+	string troubleshooting_url = 12;
 }
 
 enum AppSharingLevel {

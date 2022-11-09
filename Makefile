@@ -44,6 +44,11 @@ else
 ZSTDFLAGS := -6
 endif
 
+# Source files used for make targets, evaluated on use.
+GO_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path './site/node_modules/*' -o -path './site/out/*' \) -type f -name '*.go')
+# All the shell files in the repo, excluding ignored files.
+SHELL_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path './site/node_modules/*' -o -path './site/out/*' \) -type f -name '*.sh')
+
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
 	linux_amd64 linux_arm64 linux_armv7 \
@@ -171,7 +176,7 @@ endef
 # You should probably use the non-version targets above instead if you're
 # calling this manually.
 $(CODER_ALL_BINARIES): go.mod go.sum \
-	$(shell find . -not -path './vendor/*' -type f -name '*.go') \
+	$(GO_SRC_FILES) \
 	$(shell find ./examples/templates)
 
 	$(get-mode-os-arch-ext)
@@ -333,7 +338,7 @@ build/coder_helm_$(VERSION).tgz:
 		--version "$(VERSION)" \
 		--output "$@"
 
-site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
+site/out/index.html: site/package.json $(shell find ./site -not -path './site/node_modules/*' -type f \( -name '*.ts' -o -name '*.tsx' \))
 	./scripts/yarn_install.sh
 	cd site
 	yarn build
@@ -364,13 +369,13 @@ fmt/terraform: $(wildcard *.tf)
 	terraform fmt -recursive
 .PHONY: fmt/terraform
 
-fmt/shfmt: $(shell shfmt -f .)
+fmt/shfmt: $(SHELL_SRC_FILES)
 	echo "--- shfmt"
 # Only do diff check in CI, errors on diff.
 ifdef CI
-	shfmt -d $(shell shfmt -f .)
+	shfmt -d $(SHELL_SRC_FILES)
 else
-	shfmt -w $(shell shfmt -f .)
+	shfmt -w $(SHELL_SRC_FILES)
 endif
 .PHONY: fmt/shfmt
 
@@ -383,9 +388,9 @@ lint/go:
 .PHONY: lint/go
 
 # Use shfmt to determine the shell files, takes editorconfig into consideration.
-lint/shellcheck: $(shell shfmt -f .)
+lint/shellcheck: $(SHELL_SRC_FILES)
 	echo "--- shellcheck"
-	shellcheck --external-sources $(shell shfmt -f .)
+	shellcheck --external-sources $(SHELL_SRC_FILES)
 .PHONY: lint/shellcheck
 
 # all gen targets should be added here and to gen/mark-fresh
@@ -446,8 +451,7 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
 
-cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) \
-	$(shell find . -not -path './vendor/*' -type f -name '*.go')
+cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(GO_SRC_FILES)
 
 	go test ./cli -run=TestCommandHelp -update
 	touch "$@"

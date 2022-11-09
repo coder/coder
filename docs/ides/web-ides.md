@@ -117,29 +117,15 @@ Workspace requirements:
 - RubyMine
 - WebStorm
 
-For advanced users who want to make a custom image, you can install the
-Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder
-template. Using the Projector CLI, you can use `projector config add` and
-`projector run` to configure and start a JetBrains IDE in your workspace.
-
-> Install the JetBrains IDE in your image and `chown` the `/opt` directory to
-> the user that starts the workspace. e.g., `coder`
-
-![IntelliJ in Coder](../images/projector-intellij.png)
-
-
 **Pre-built templates:**
 
-You can also reference/use to these pre-built templates with JetBrains
-projector:
+You can reference/use these pre-built templates with JetBrains projector:
 
 - IntelliJ
-  ([Docker](https://github.com/sharkymark/v2-templates/tree/main/docker-with-intellij),
-  [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
+  ([Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
 
 - PyCharm
-  ([Docker](https://github.com/sharkymark/v2-templates/tree/main/docker-with-pycharm),
-  [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm))
+  ([Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm))
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace
 > on a Kubernetes cluster to use the Kubernetes pod template examples.

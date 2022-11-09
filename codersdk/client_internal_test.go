@@ -58,7 +58,7 @@ func Test_Client(t *testing.T) {
 	u, err := url.Parse(s.URL)
 	require.NoError(t, err)
 	client := New(u)
-	client.SessionToken = token
+	client.SetSessionToken(token)
 	client.BypassRatelimits = true
 
 	logBuf := bytes.NewBuffer(nil)

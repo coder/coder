@@ -678,7 +678,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
-	var appSlugs = make(map[string]struct{})
+	appSlugs := make(map[string]struct{})
 	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
@@ -723,6 +723,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
+			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),
+			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

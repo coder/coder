@@ -401,10 +401,16 @@ CREATE TABLE workspace_agents (
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
     version text DEFAULT ''::text NOT NULL,
-    last_connected_replica_id uuid
+    last_connected_replica_id uuid,
+    connection_timeout_seconds integer DEFAULT 0 NOT NULL,
+    troubleshooting_url text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
+
+COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection timeout in seconds, 0 means disabled.';
+
+COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

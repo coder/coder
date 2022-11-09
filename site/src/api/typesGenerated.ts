@@ -815,6 +815,8 @@ export interface WorkspaceAgent {
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
+  readonly connection_timeout_seconds: number
+  readonly troubleshooting_url?: string
 }
 
 // From codersdk/workspaceagents.go
@@ -1014,7 +1016,11 @@ export type TemplateRole = "" | "admin" | "use"
 export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
+export type WorkspaceAgentStatus =
+  | "connected"
+  | "connecting"
+  | "disconnected"
+  | "timeout"
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth =

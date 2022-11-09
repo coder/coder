@@ -239,6 +239,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
       preferred: true,
     },
   },
+  connection_timeout_seconds: 120,
+  troubleshooting_url: "https://coder.com/troubleshoot",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -278,6 +280,15 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-connecting",
   name: "another-workspace-agent",
   status: "connecting",
+  version: "",
+  latency: {},
+}
+
+export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-timeout",
+  name: "a-timed-out-workspace-agent",
+  status: "timeout",
   version: "",
   latency: {},
 }
