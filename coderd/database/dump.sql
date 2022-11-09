@@ -358,6 +358,8 @@ CREATE TABLE templates (
     display_name character varying(64) DEFAULT ''::character varying NOT NULL
 );
 
+COMMENT ON COLUMN templates.display_name IS 'Display name is a custom, human-friendly template name that user can set.';
+
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
     login_type login_type NOT NULL,
