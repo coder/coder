@@ -154,6 +154,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
+
 func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
 	// no-op
 	return nil
@@ -2362,20 +2363,22 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	agent := database.WorkspaceAgent{
-		ID:                   arg.ID,
-		CreatedAt:            arg.CreatedAt,
-		UpdatedAt:            arg.UpdatedAt,
-		ResourceID:           arg.ResourceID,
-		AuthToken:            arg.AuthToken,
-		AuthInstanceID:       arg.AuthInstanceID,
-		EnvironmentVariables: arg.EnvironmentVariables,
-		Name:                 arg.Name,
-		Architecture:         arg.Architecture,
-		OperatingSystem:      arg.OperatingSystem,
-		Directory:            arg.Directory,
-		StartupScript:        arg.StartupScript,
-		InstanceMetadata:     arg.InstanceMetadata,
-		ResourceMetadata:     arg.ResourceMetadata,
+		ID:                       arg.ID,
+		CreatedAt:                arg.CreatedAt,
+		UpdatedAt:                arg.UpdatedAt,
+		ResourceID:               arg.ResourceID,
+		AuthToken:                arg.AuthToken,
+		AuthInstanceID:           arg.AuthInstanceID,
+		EnvironmentVariables:     arg.EnvironmentVariables,
+		Name:                     arg.Name,
+		Architecture:             arg.Architecture,
+		OperatingSystem:          arg.OperatingSystem,
+		Directory:                arg.Directory,
+		StartupScript:            arg.StartupScript,
+		InstanceMetadata:         arg.InstanceMetadata,
+		ResourceMetadata:         arg.ResourceMetadata,
+		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       arg.TroubleshootingURL,
 	}
 
 	q.provisionerJobAgents = append(q.provisionerJobAgents, agent)
