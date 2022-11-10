@@ -58,6 +58,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			return
 		case <-stopSpin:
 		}
+		cancelFunc()
 		signal.Stop(stopSpin)
 		spin.Stop()
 		// nolint:revive
@@ -87,8 +88,12 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		spin.Stop()
 		// Clear the line and (if necessary) move up a line to write our message.
 		_, _ = fmt.Fprintf(writer, "\033[2K%s%s\n\n", moveUp, Styles.Paragraph.Render(Styles.Prompt.String()+waitMessage))
-		// Safe to resume operation.
-		spin.Start()
+		select {
+		case <-ctx.Done():
+		default:
+			// Safe to resume operation.
+			spin.Start()
+		}
 	}
 	go func() {
 		select {
