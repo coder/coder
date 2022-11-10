@@ -106,7 +106,7 @@ func TestTemplateEdit(t *testing.T) {
 			"edit",
 			template.Name,
 			"--name", template.Name,
-			"--display-name", "a-b-c",
+			"--display-name", " a-b-c",
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -115,10 +115,8 @@ func TestTemplateEdit(t *testing.T) {
 		err := cmd.ExecuteContext(ctx)
 
 		require.Error(t, err, "client call must fail")
-		sdkError, isSdkError := codersdk.AsError(err)
+		_, isSdkError := codersdk.AsError(err)
 		require.True(t, isSdkError, "sdk error is expected")
-		require.Len(t, sdkError.Response.Validations, 1, "field validation error is expected")
-		require.Equal(t, sdkError.Response.Validations[0].Detail, `Validation failed for tag "template_display_name" with value: "a-b-c"`)
 
 		// Assert that the template metadata did not change.
 		updated, err := client.Template(context.Background(), template.ID)
