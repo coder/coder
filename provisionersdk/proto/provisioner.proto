@@ -127,6 +127,7 @@ message Resource {
         string value = 2;
         bool sensitive = 3;
         bool is_null = 4;
+        int32 cost = 5;
     }
     repeated Metadata metadata = 4;
     bool hide = 5;
