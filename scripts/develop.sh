@@ -6,7 +6,7 @@
 # Coder enterprise features).
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
-# shellcheck disable=SC1091,SC1090
+# shellcheck source=scripts/lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
 # Allow toggling verbose output
@@ -62,18 +62,24 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	"${CODER_DEV_SHIM}" server --address 0.0.0.0:3000 || kill -INT -$$ &
 
 	echo '== Waiting for Coder to become ready'
-	timeout 60s bash -c 'until curl -s --fail http://localhost:3000 > /dev/null 2>&1; do sleep 0.5; done'
+	timeout 60s bash -c 'until curl -s --fail http://localhost:3000/healthz > /dev/null 2>&1; do sleep 0.5; done'
+
+	# Check if credentials are already set up to avoid setting up again.
+	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" ||
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}"; then
+			# Only create this file if an admin user was successfully
+			# created, otherwise we won't retry on a later attempt.
+			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
+		else
 			echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
+		fi
 
 		# Try to create a regular user.
 		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --password="${password}" ||
 			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
-
-		touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 	fi
 
 	# If we have docker available and the "docker" template doesn't already
@@ -97,14 +103,31 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev || kill -INT -$$ &
+	CODER_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev --host | {
+		while read -r line; do
+			echo "[SITE] $(date -Iseconds): $line"
+		done
+	} || kill -INT -$$ &
+
+	interfaces=(localhost)
+	if which ip >/dev/null 2>&1; then
+		# shellcheck disable=SC2207
+		interfaces+=($(ip a | awk '/inet / {print $2}' | cut -d/ -f1))
+	elif which ifconfig >/dev/null 2>&1; then
+		# shellcheck disable=SC2207
+		interfaces+=($(ifconfig | awk '/inet / {print $2}'))
+	fi
 
 	log
 	log "===================================================================="
 	log "==                                                                =="
 	log "==            Coder is now running in development mode.           =="
-	log "==                  API:    http://localhost:3000                 =="
-	log "==                  Web UI: http://localhost:8080                 =="
+	for iface in "${interfaces[@]}"; do
+		log "$(printf "==                  API:    http://%s:3000%$((26 - ${#iface}))s==" "$iface" "")"
+	done
+	for iface in "${interfaces[@]}"; do
+		log "$(printf "==                  Web UI: http://%s:8080%$((26 - ${#iface}))s==" "$iface" "")"
+	done
 	log "==                                                                =="
 	log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
 	log "===================================================================="
