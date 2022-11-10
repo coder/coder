@@ -96,6 +96,7 @@ type sqlcQuerier interface {
 	// to look up references to actions. eg. a user could build a workspace
 	// for another user, then be deleted... we still want them to appear!
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
+	GetUsersCount(ctx context.Context, arg GetUsersCountParams) (int64, error)
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
@@ -122,6 +123,7 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error)
+	GetWorkspacesCount(ctx context.Context, arg GetWorkspacesCountParams) (int64, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error)
 	// We use the organization_id as the id

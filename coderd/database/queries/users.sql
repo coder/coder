@@ -128,7 +128,7 @@ WHERE
 
 -- name: GetUsers :many
 SELECT
-	*
+	* -- @gen_copy GetUsersCount :one COUNT(*)
 FROM
 	users
 WHERE

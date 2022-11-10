@@ -424,7 +424,7 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 	go run ./coderd/database/gen/dump/main.go
 
 # Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
+coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go coderd/database/gen/copy/main.go
 	./coderd/database/generate.sh
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
