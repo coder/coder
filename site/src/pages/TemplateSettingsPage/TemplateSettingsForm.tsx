@@ -19,7 +19,7 @@ import * as Yup from "yup"
 export const Language = {
   nameLabel: "Name",
   descriptionLabel: "Description",
-  maxTtlLabel: "Auto-stop limit",
+  defaultTtlLabel: "Auto-stop default",
   iconLabel: "Icon",
   formAriaLabel: "Template settings form",
   selectEmoji: "Select emoji",
@@ -28,7 +28,7 @@ export const Language = {
   descriptionMaxError:
     "Please enter a description that is less than or equal to 128 characters.",
   ttlHelperText: (ttl: number): string =>
-    `Workspaces created from this template may not remain running longer than ${ttl} hours.`,
+    `Workspaces created from this template will default to stopping after ${ttl} hours.`,
 }
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
@@ -41,7 +41,7 @@ export const validationSchema = Yup.object({
     MAX_DESCRIPTION_CHAR_LIMIT,
     Language.descriptionMaxError,
   ),
-  max_ttl_ms: Yup.number()
+  default_ttl_ms: Yup.number()
     .integer()
     .min(0)
     .max(24 * MAX_TTL_DAYS /* 7 days in hours */, Language.ttlMaxError),
@@ -73,7 +73,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         display_name: template.display_name,
         description: template.description,
         // on display, convert from ms => hours
-        max_ttl_ms: template.max_ttl_ms / MS_HOUR_CONVERSION,
+        default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
         icon: template.icon,
       },
       validationSchema,
@@ -81,8 +81,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         // on submit, convert from hours => ms
         onSubmit({
           ...formData,
-          max_ttl_ms: formData.max_ttl_ms
-            ? formData.max_ttl_ms * MS_HOUR_CONVERSION
+          default_ttl_ms: formData.default_ttl_ms
+            ? formData.default_ttl_ms * MS_HOUR_CONVERSION
             : undefined,
         })
       },
@@ -177,20 +177,20 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         </div>
 
         <TextField
-          {...getFieldHelpers("max_ttl_ms")}
+          {...getFieldHelpers("default_ttl_ms")}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
-          label={Language.maxTtlLabel}
+          label={Language.defaultTtlLabel}
           variant="outlined"
           type="number"
         />
-        {/* If a value for max_ttl_ms has been entered and
+        {/* If a value for default_ttl_ms has been entered and
         there are no validation errors for that field, display helper text.
         We do not use the MUI helper-text prop because it overrides the validation error */}
-        {form.values.max_ttl_ms && !form.errors.max_ttl_ms && (
+        {form.values.default_ttl_ms && !form.errors.default_ttl_ms && (
           <Typography variant="subtitle2">
-            {Language.ttlHelperText(form.values.max_ttl_ms)}
+            {Language.ttlHelperText(form.values.default_ttl_ms)}
           </Typography>
         )}
       </Stack>

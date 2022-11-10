@@ -65,8 +65,7 @@ INSERT INTO
 		provisioner,
 		active_version_id,
 		description,
-		max_ttl,
-		min_autostart_interval,
+		default_ttl,
 		created_by,
 		icon,
 		user_acl,
@@ -74,7 +73,7 @@ INSERT INTO
 		display_name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -100,11 +99,10 @@ UPDATE
 SET
 	updated_at = $2,
 	description = $3,
-	max_ttl = $4,
-	min_autostart_interval = $5,
-	name = $6,
-	icon = $7,
-	display_name = $8
+	default_ttl = $4,
+	name = $5,
+	icon = $6,
+	display_name = $7
 WHERE
 	id = $1
 RETURNING

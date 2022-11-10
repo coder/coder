@@ -111,6 +111,7 @@ type TLSConfig struct {
 type TraceConfig struct {
 	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     *DeploymentConfigField[bool]   `json:"capture_logs" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {

@@ -30,8 +30,7 @@ func TestTemplateEdit(t *testing.T) {
 		displayName := "New Display Name 789"
 		desc := "lorem ipsum dolor sit amet et cetera"
 		icon := "/icons/new-icon.png"
-		maxTTL := 12 * time.Hour
-		minAutostartInterval := time.Minute
+		defaultTTL := 12 * time.Hour
 		cmdArgs := []string{
 			"templates",
 			"edit",
@@ -40,8 +39,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--display-name", displayName,
 			"--description", desc,
 			"--icon", icon,
-			"--max-ttl", maxTTL.String(),
-			"--min-autostart-interval", minAutostartInterval.String(),
+			"--default-ttl", defaultTTL.String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -58,8 +56,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, displayName, updated.DisplayName)
 		assert.Equal(t, desc, updated.Description)
 		assert.Equal(t, icon, updated.Icon)
-		assert.Equal(t, maxTTL.Milliseconds(), updated.MaxTTLMillis)
-		assert.Equal(t, minAutostartInterval.Milliseconds(), updated.MinAutostartIntervalMillis)
+		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
 	})
 	t.Run("NotModified", func(t *testing.T) {
 		t.Parallel()
@@ -77,8 +74,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--name", template.Name,
 			"--description", template.Description,
 			"--icon", template.Icon,
-			"--max-ttl", (time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
-			"--min-autostart-interval", (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
+			"--default-ttl", (time.Duration(template.DefaultTTLMillis) * time.Millisecond).String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -94,8 +90,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
-		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 	t.Run("InvalidDisplayName", func(t *testing.T) {
 		t.Parallel()

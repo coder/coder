@@ -180,8 +180,7 @@ export interface CreateTemplateRequest {
   readonly icon?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
-  readonly max_ttl_ms?: number
-  readonly min_autostart_interval_ms?: number
+  readonly default_ttl_ms?: number
 }
 
 // From codersdk/templateversions.go
@@ -622,8 +621,7 @@ export interface Template {
   readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
   readonly icon: string
-  readonly max_ttl_ms: number
-  readonly min_autostart_interval_ms: number
+  readonly default_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
 }
@@ -678,6 +676,7 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 export interface TraceConfig {
   readonly enable: DeploymentConfigField<boolean>
   readonly honeycomb_api_key: DeploymentConfigField<string>
+  readonly capture_logs: DeploymentConfigField<boolean>
 }
 
 // From codersdk/templates.go
@@ -702,8 +701,7 @@ export interface UpdateTemplateMeta {
   readonly display_name?: string
   readonly description?: string
   readonly icon?: string
-  readonly max_ttl_ms?: number
-  readonly min_autostart_interval_ms?: number
+  readonly default_ttl_ms?: number
 }
 
 // From codersdk/users.go

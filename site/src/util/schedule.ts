@@ -139,7 +139,7 @@ export function getMaxDeadline(
   }
   const startedAt = dayjs(ws.latest_build.updated_at)
   const maxTemplateDeadline = startedAt.add(
-    dayjs.duration(tpl.max_ttl_ms, "milliseconds"),
+    dayjs.duration(tpl.default_ttl_ms, "milliseconds"),
   )
   const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
   return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)

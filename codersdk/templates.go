@@ -24,14 +24,13 @@ type Template struct {
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount            int                    `json:"active_user_count"`
-	BuildTimeStats             TemplateBuildTimeStats `json:"build_time_stats"`
-	Description                string                 `json:"description"`
-	Icon                       string                 `json:"icon"`
-	MaxTTLMillis               int64                  `json:"max_ttl_ms"`
-	MinAutostartIntervalMillis int64                  `json:"min_autostart_interval_ms"`
-	CreatedByID                uuid.UUID              `json:"created_by_id"`
-	CreatedByName              string                 `json:"created_by_name"`
+	ActiveUserCount  int                    `json:"active_user_count"`
+	BuildTimeStats   TemplateBuildTimeStats `json:"build_time_stats"`
+	Description      string                 `json:"description"`
+	Icon             string                 `json:"icon"`
+	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
+	CreatedByID      uuid.UUID              `json:"created_by_id"`
+	CreatedByName    string                 `json:"created_by_name"`
 }
 
 type TemplateBuildTimeStats struct {
@@ -73,12 +72,11 @@ type UpdateTemplateACL struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name                       string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName                string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description                string `json:"description,omitempty"`
-	Icon                       string `json:"icon,omitempty"`
-	MaxTTLMillis               int64  `json:"max_ttl_ms,omitempty"`
-	MinAutostartIntervalMillis int64  `json:"min_autostart_interval_ms,omitempty"`
+	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      string `json:"description,omitempty"`
+	Icon             string `json:"icon,omitempty"`
+	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
 }
 
 // Template returns a single template.
