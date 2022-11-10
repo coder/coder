@@ -51,22 +51,53 @@ make -j "build/coder_${GOOS}_${GOARCH}"
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 
+pids=()
+exit_cleanup() {
+	set +e
+	# Set empty interrupt handler so cleanup isn't interrupted.
+	trap '' INT
+	# Send interrupt to the entire process group to start shutdown procedures.
+	kill -INT -$$
+	# Remove exit trap to avoid infinite loop.
+	trap - EXIT
+
+	# Just in case, send interrupts to our children.
+	kill -INT "${pids[@]}" >/dev/null 2>&1
+	# Use the hammer if things take too long.
+	{ sleep 5 && kill -TERM -$$ >/dev/null 2>&1; } &
+
+	# Wait for all children to exit (this can be aborted by hammer).
+	wait_cmds
+	exit 1
+}
+start_cmd() {
+	echo "== CMD: $*" >&2
+	"$@" || fatal "CMD: $*" &
+	pids+=("$!")
+}
+wait_cmds() {
+	wait "${pids[@]}" >/dev/null 2>&1
+}
+fatal() {
+	echo "== FAIL: $*" >&2
+	exit_cleanup
+}
+
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
 (
 	# If something goes wrong, just bail and tear everything down
 	# rather than leaving things in an inconsistent state.
-	trap 'kill -TERM -$$' ERR
+	trap 'exit_cleanup' INT EXIT
+	trap 'fatal "Script encountered an error"' ERR
+
 	cdroot
-	"${CODER_DEV_SHIM}" server --address 0.0.0.0:3000 || kill -INT -$$ &
+	start_cmd "${CODER_DEV_SHIM}" server --address 0.0.0.0:3000
 
 	echo '== Waiting for Coder to become ready'
 	curl --silent --fail --connect-timeout 1 --max-time 1 --retry 60 --retry-delay 1 --retry-max-time 60 --retry-all-errors 'http://localhost:3000/healthz' ||
-		{
-			echo '== ERROR: Coder did not become ready in time'
-			kill -INT -$$
-		}
+		fatal 'Coder did not become ready in time'
 
 	# Check if credentials are already set up to avoid setting up again.
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
@@ -107,11 +138,11 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev --host | {
+	CODER_HOST=http://127.0.0.1:3000 start_cmd yarn --cwd=./site dev --host | {
 		while read -r line; do
 			echo "[SITE] $(date -Iseconds): $line"
 		done
-	} || kill -INT -$$ &
+	}
 
 	interfaces=(localhost)
 	if which ip >/dev/null 2>&1; then
@@ -140,5 +171,5 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	log
 
 	# Wait for both frontend and backend to exit.
-	wait
+	wait_cmds
 )
