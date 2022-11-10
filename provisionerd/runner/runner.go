@@ -86,19 +86,23 @@ type JobUpdater interface {
 	CompleteJob(ctx context.Context, in *proto.CompletedJob) error
 }
 
+type Options struct {
+	Updater             JobUpdater
+	Logger              slog.Logger
+	Filesystem          afero.Fs
+	WorkDirectory       string
+	Provisioner         sdkproto.DRPCProvisionerClient
+	UpdateInterval      time.Duration
+	ForceCancelInterval time.Duration
+	LogDebounceInterval time.Duration
+	Tracer              trace.Tracer
+	Metrics             Metrics
+}
+
 func New(
 	ctx context.Context,
 	job *proto.AcquiredJob,
-	updater JobUpdater,
-	logger slog.Logger,
-	filesystem afero.Fs,
-	workDirectory string,
-	provisioner sdkproto.DRPCProvisionerClient,
-	updateInterval time.Duration,
-	forceCancelInterval time.Duration,
-	logDebounceInterval time.Duration,
-	tracer trace.Tracer,
-	metrics Metrics,
+	opts Options,
 ) *Runner {
 	m := new(sync.Mutex)
 
@@ -107,17 +111,17 @@ func New(
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
 
 	return &Runner{
-		tracer:              tracer,
-		metrics:             metrics,
+		tracer:              opts.Tracer,
+		metrics:             opts.Metrics,
 		job:                 job,
-		sender:              updater,
-		logger:              logger.With(slog.F("job_id", job.JobId)),
-		filesystem:          filesystem,
-		workDirectory:       workDirectory,
-		provisioner:         provisioner,
-		updateInterval:      updateInterval,
-		forceCancelInterval: forceCancelInterval,
-		logBufferInterval:   logDebounceInterval,
+		sender:              opts.Updater,
+		logger:              opts.Logger.With(slog.F("job_id", job.JobId)),
+		filesystem:          opts.Filesystem,
+		workDirectory:       opts.WorkDirectory,
+		provisioner:         opts.Provisioner,
+		updateInterval:      opts.UpdateInterval,
+		forceCancelInterval: opts.ForceCancelInterval,
+		logBufferInterval:   opts.LogDebounceInterval,
 		queuedLogs:          make([]*proto.Log, 0),
 		mutex:               m,
 		cond:                sync.NewCond(m),

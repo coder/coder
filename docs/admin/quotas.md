@@ -1,15 +1,16 @@
 # Quotas
 
-Coder Enterprise admins may define deployment-level quotas to protect against
-Denial-of-Service, control costs, and ensure equitable access to cloud resources.
+Coder Enterprise admins may define deployment-level quotas to control costs
+and ensure equitable access to cloud resources.
 
-The quota is enabled by either the `CODER_USER_WORKSPACE_QUOTA`
-environment variable or the `--user-workspace-quota` flag. For example,
-you may limit each user in a deployment to 5 workspaces like so:
+Quotas are available to any license with support for [Groups](./groups.md).
 
-```bash
-coder server --user-workspace-quota=5
-```
+Templates describe their quota cost through [`resource_metadata`](../templates/resource-metadata.md).
+
+Coder checks for Quota availability on workspace create, start, and stop
+operations.
+
+When a user creates a workspace, the `resource_metadata.cost` fields are summed up,
 
 Then, when users create workspaces they would see:
 
