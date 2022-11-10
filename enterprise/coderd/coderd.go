@@ -91,16 +91,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			})
 		})
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Post("/", api.postProvisionerDaemonsByOrganization)
-		})
-		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.provisionerDaemons)
-			r.Get("/listen", api.provisionerDaemonsListen)
-			r.Post("/", api.postProvisionerDaemonsByOrganization)
+			r.Get("/serve", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(

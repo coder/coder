@@ -23,14 +23,12 @@ import (
 
 type LogSource string
 
-const (
-	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
-	LogSourceProvisioner       LogSource = "provisioner"
-)
-
 type LogLevel string
 
 const (
+	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
+	LogSourceProvisioner       LogSource = "provisioner"
+
 	LogLevelTrace LogLevel = "trace"
 	LogLevelDebug LogLevel = "debug"
 	LogLevelInfo  LogLevel = "info"
@@ -44,7 +42,7 @@ type ProvisionerDaemon struct {
 	UpdatedAt    sql.NullTime      `json:"updated_at"`
 	Name         string            `json:"name"`
 	Provisioners []ProvisionerType `json:"provisioners"`
-	AuthToken    *uuid.UUID        `json:"auth_token"`
+	Tags         map[string]string `json:"tags"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
@@ -173,11 +171,19 @@ type CreateProvisionerDaemonRequest struct {
 }
 
 // ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
-func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.URL.Parse("/api/v2/provisionerdaemons/me/listen")
+func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.UUID, provisioners []ProvisionerType, tags map[string]string) (proto.DRPCProvisionerDaemonClient, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", organization))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	query := serverURL.Query()
+	for _, provisioner := range provisioners {
+		query.Add("provisioner", string(provisioner))
+	}
+	for key, value := range tags {
+		query.Add("tag", fmt.Sprintf("%s=%s", key, value))
+	}
+	serverURL.RawQuery = query.Encode()
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
@@ -210,20 +216,4 @@ func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisi
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
-}
-
-// CreateProvisionerDaemon creates a new standalone provisioner instance and generates an auth token.
-func (c *Client) CreateProvisionerDaemon(ctx context.Context, req CreateProvisionerDaemonRequest) (ProvisionerDaemon, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/provisionerdaemons/", req)
-	if err != nil {
-		return ProvisionerDaemon{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return ProvisionerDaemon{}, readBodyAsError(res)
-	}
-
-	var provisionerDaemon ProvisionerDaemon
-	return provisionerDaemon, json.NewDecoder(res.Body).Decode(&provisionerDaemon)
 }

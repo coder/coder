@@ -22,6 +22,9 @@ WHERE
 			AND nested.canceled_at IS NULL
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
+			-- Ensure tags are equal!
+			AND nested.tags @> @tags :: jsonb
+			AND nested.tags <@ @tags :: jsonb
 		ORDER BY
 			nested.created_at FOR
 		UPDATE

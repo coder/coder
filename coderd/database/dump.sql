@@ -269,8 +269,7 @@ CREATE TABLE provisioner_daemons (
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
     replica_id uuid,
-    auth_token uuid,
-    tags jsonb
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -307,7 +306,8 @@ CREATE TABLE provisioner_jobs (
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid,
-    file_id uuid NOT NULL
+    file_id uuid NOT NULL,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE replicas (

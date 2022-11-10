@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -54,9 +57,65 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
-func (api *API) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
-	daemon := httpmw.ProvisionerDaemon(r)
-	api.Logger.Warn(r.Context(), "daemon connected", slog.F("daemon", daemon.Name))
+func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
+	tags := map[string]string{}
+	if r.URL.Query().Has("tag") {
+		for _, tag := range r.URL.Query()["tag"] {
+			parts := strings.SplitN(tag, "=", 2)
+			if len(parts) < 2 {
+				httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid format for tag %q. Key and value must be separated with =.", tag),
+				})
+				return
+			}
+			tags[parts[0]] = parts[1]
+		}
+	}
+	if !r.URL.Query().Has("provisioner") {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The provisioner query parameter must be specified.",
+		})
+		return
+	}
+
+	provisioners := map[codersdk.ProvisionerType]struct{}{}
+	for _, provisioner := range r.URL.Query()["provisioner"] {
+		switch provisioner {
+		case string(codersdk.ProvisionerTypeEcho):
+			provisioners[codersdk.ProvisionerTypeEcho] = struct{}{}
+		case string(codersdk.ProvisionerTypeTerraform):
+			provisioners[codersdk.ProvisionerTypeTerraform] = struct{}{}
+		default:
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Unknown provisioner type %q", provisioner),
+			})
+			return
+		}
+	}
+
+	// Any authenticated user can create provisioner daemons scoped
+	// for jobs that they own, but only authorized users can create
+	// globally scoped provisioners that attach to all jobs.
+	apiKey := httpmw.APIKey(r)
+	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
+		tags["owner"] = apiKey.UserID.String()
+	}
+
+	name := namesgenerator.GetRandomName(1)
+	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
+		ID:           uuid.New(),
+		CreatedAt:    database.Now(),
+		Name:         name,
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
+		Tags:         tags,
+	})
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error writing provisioner daemon.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)
@@ -124,12 +183,10 @@ func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.Provis
 		CreatedAt: daemon.CreatedAt,
 		UpdatedAt: daemon.UpdatedAt,
 		Name:      daemon.Name,
+		Tags:      daemon.Tags,
 	}
 	for _, provisionerType := range daemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
-	}
-	if daemon.AuthToken.Valid {
-		result.AuthToken = &daemon.AuthToken.UUID
 	}
 	return result
 }

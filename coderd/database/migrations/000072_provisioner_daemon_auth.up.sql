@@ -1,3 +1,2 @@
-ALTER TABLE provisioner_daemons ADD COLUMN tags jsonb;
-
-ALTER TABLE template_versions ADD COLUMN provisioner_tags jsonb;
+ALTER TABLE provisioner_daemons ADD COLUMN tags jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE provisioner_jobs ADD COLUMN tags jsonb NOT NULL DEFAULT '{}';
