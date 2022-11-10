@@ -69,8 +69,8 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 	t.Parallel()
 	// Tests whether display names are valid.
 	testCases := []struct {
-		Username string
-		Valid    bool
+		Name  string
+		Valid bool
 	}{
 		{"", true},
 		{"1", true},
@@ -88,6 +88,10 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		{"abcdefghijklmnopqrst", true},
 		{"abcdefghijklmnopqrstu", true},
 		{"Wow Test", true},
+		{"abcdefghijklmnopqrstu-", true},
+		{"a1b2c3d4e5f6g7h8i9j0k-", true},
+		{"BANANAS_wow", true},
+		{"test--now", true},
 
 		{" ", false},
 		{" a", false},
@@ -100,13 +104,9 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		{"12 ", false},
 		{" a1", false},
 		{"a1 ", false},
-		{"-abcdefghijKLmnopqrstu", false},
-		{"abcdefghijklmnopqrstu-", false},
 		{"-123456789012345678901", false},
 		{"-a1b2c3d4e5f6g7h8i9j0k", false},
-		{"a1b2c3d4e5f6g7h8i9j0k-", false},
-		{"BANANAS_wow", false},
-		{"test--now", false},
+		{"-abcdefghijKLmnopqrstu", false},
 
 		{"123456789012345678901234567890123", false},
 		{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false},
@@ -114,9 +114,9 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
-		t.Run(testCase.Username, func(t *testing.T) {
+		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.TemplateDisplayNameValid(testCase.Username)
+			valid := httpapi.TemplateDisplayNameValid(testCase.Name)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
