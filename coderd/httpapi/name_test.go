@@ -92,6 +92,9 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		{"a1b2c3d4e5f6g7h8i9j0k-", true},
 		{"BANANAS_wow", true},
 		{"test--now", true},
+		{"123456789012345678901234567890123", true},
+		{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", true},
+		{"1234567890123456789012345678901234567890123456789012345678901234", true},
 
 		{" ", false},
 		{" a", false},
@@ -107,10 +110,7 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		{"-123456789012345678901", false},
 		{"-a1b2c3d4e5f6g7h8i9j0k", false},
 		{"-abcdefghijKLmnopqrstu", false},
-
-		{"123456789012345678901234567890123", false},
-		{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false},
-		{"123456789012345678901234567890123123456789012345678901234567890123", false},
+		{"12345678901234567890123456789012345678901234567890123456789012345", false},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
