@@ -1,22 +1,19 @@
-import { displaySuccess } from "components/GlobalSnackbar/utils"
-import { t } from "i18next"
 import { assign, createMachine } from "xstate"
 import {
   checkAuthorization,
-  deleteTemplate,
   getTemplateByName,
   getTemplateDAUs,
   getTemplateVersion,
   getTemplateVersionResources,
   getTemplateVersions,
-} from "../../api/api"
+} from "api/api"
 import {
   AuthorizationResponse,
   Template,
   TemplateDAUsResponse,
   TemplateVersion,
   WorkspaceResource,
-} from "../../api/typesGenerated"
+} from "api/typesGenerated"
 
 export interface TemplateContext {
   organizationId: string
@@ -27,14 +24,8 @@ export interface TemplateContext {
   templateVersions?: TemplateVersion[]
   templateDAUs?: TemplateDAUsResponse
   permissions?: AuthorizationResponse
-  deleteTemplateError?: Error | unknown
   getTemplateError?: Error | unknown
 }
-
-type TemplateEvent =
-  | { type: "DELETE" }
-  | { type: "CONFIRM_DELETE" }
-  | { type: "CANCEL_DELETE" }
 
 const getPermissionsToCheck = (templateId: string) => ({
   canUpdateTemplate: {
@@ -55,7 +46,6 @@ export const templateMachine =
       tsTypes: {} as import("./templateXService.typegen").Typegen0,
       schema: {
         context: {} as TemplateContext,
-        events: {} as TemplateEvent,
         services: {} as {
           getTemplate: {
             data: Template
@@ -68,9 +58,6 @@ export const templateMachine =
           }
           getTemplateVersions: {
             data: TemplateVersion[]
-          }
-          deleteTemplate: {
-            data: Template
           }
           getTemplateDAUs: {
             data: TemplateDAUsResponse
@@ -201,11 +188,6 @@ export const templateMachine =
           },
         },
         loaded: {
-          on: {
-            DELETE: {
-              target: "confirmingDelete",
-            },
-          },
           initial: "waiting",
           states: {
             refreshingTemplate: {
@@ -221,38 +203,6 @@ export const templateMachine =
               },
             },
           },
-        },
-        confirmingDelete: {
-          on: {
-            CONFIRM_DELETE: {
-              target: "deleting",
-            },
-            CANCEL_DELETE: {
-              target: "loaded",
-            },
-          },
-        },
-        deleting: {
-          entry: "clearDeleteTemplateError",
-          invoke: {
-            src: "deleteTemplate",
-            id: "deleteTemplate",
-            onDone: [
-              {
-                target: "deleted",
-                actions: "displayDeleteSuccess",
-              },
-            ],
-            onError: [
-              {
-                actions: "assignDeleteTemplateError",
-                target: "loaded",
-              },
-            ],
-          },
-        },
-        deleted: {
-          type: "final",
         },
         error: {
           type: "final",
@@ -283,12 +233,6 @@ export const templateMachine =
           }
 
           return getTemplateVersions(ctx.template.id)
-        },
-        deleteTemplate: (ctx) => {
-          if (!ctx.template) {
-            throw new Error("Template not loaded")
-          }
-          return deleteTemplate(ctx.template.id)
         },
         getTemplateDAUs: (ctx) => {
           if (!ctx.template) {
@@ -327,14 +271,6 @@ export const templateMachine =
         assignPermissions: assign({
           permissions: (_, event) => event.data,
         }),
-        assignDeleteTemplateError: assign({
-          deleteTemplateError: (_, event) => event.data,
-        }),
-        clearDeleteTemplateError: assign({
-          deleteTemplateError: (_) => undefined,
-        }),
-        displayDeleteSuccess: () =>
-          displaySuccess(t("deleteSuccess", { ns: "templatePage" })),
       },
     },
   )

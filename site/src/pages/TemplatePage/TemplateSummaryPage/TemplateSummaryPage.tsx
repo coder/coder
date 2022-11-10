@@ -12,7 +12,6 @@ export const TemplateSummaryPage: FC = () => {
     activeTemplateVersion,
     templateResources,
     templateVersions,
-    deleteTemplateError,
     templateDAUs,
   } = context
 
@@ -31,7 +30,6 @@ export const TemplateSummaryPage: FC = () => {
         templateResources={templateResources}
         templateVersions={templateVersions}
         templateDAUs={templateDAUs}
-        deleteTemplateError={deleteTemplateError}
       />
     </>
   )

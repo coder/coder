@@ -1,4 +1,13 @@
 {
   "deleteSuccess": "Template successfully deleted.",
-  "createdVersion": "created the version"
+  "createdVersion": "created the version",
+  "templateSettings": {
+    "title": "Template settings",
+    "dangerZone": {
+      "dangerZoneHeader": "Danger Zone",
+      "deleteTemplateHeader": "Delete this template",
+      "deleteTemplateCaption": "Once you delete a template, there is no going back. Please be certain.",
+      "deleteCta": "Delete Template"
+    }
+  }
 }
