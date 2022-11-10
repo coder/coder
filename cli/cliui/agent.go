@@ -16,10 +16,11 @@ import (
 )
 
 type AgentOptions struct {
-	WorkspaceName string
-	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
-	FetchInterval time.Duration
-	WarnInterval  time.Duration
+	WorkspaceName              string
+	Fetch                      func(context.Context) (codersdk.WorkspaceAgent, error)
+	FetchInterval              time.Duration
+	WarnInterval               time.Duration
+	FallbackTroubleshootingURL string
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
@@ -72,7 +73,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
 
-		m := waitingMessage(agent)
+		m := waitingMessage(agent, opts.FallbackTroubleshootingURL)
 		if m == waitMessage {
 			return
 		}
@@ -128,7 +129,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	}
 }
 
-func waitingMessage(agent codersdk.WorkspaceAgent) string {
+func waitingMessage(agent codersdk.WorkspaceAgent, fallbackTroubleshootingURL string) string {
 	var m string
 	switch agent.Status {
 	case codersdk.WorkspaceAgentTimeout:
@@ -139,8 +140,12 @@ func waitingMessage(agent codersdk.WorkspaceAgent) string {
 		// Not a failure state, no troubleshooting necessary.
 		return "Don't panic, your workspace is booting up!"
 	}
+	troubleshootingURL := fallbackTroubleshootingURL
 	if agent.TroubleshootingURL != "" {
-		return fmt.Sprintf("%s See troubleshooting instructions at: %s", m, agent.TroubleshootingURL)
+		troubleshootingURL = agent.TroubleshootingURL
+	}
+	if troubleshootingURL != "" {
+		return fmt.Sprintf("%s See troubleshooting instructions at: %s", m, troubleshootingURL)
 	}
 	return fmt.Sprintf("%s Wait for it to (re)connect or restart your workspace.", m)
 }
