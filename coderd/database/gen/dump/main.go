@@ -8,10 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
 )
+
+const minimumPostgreSQLVersion = 13
 
 func main() {
 	connection, closeFn, err := postgres.Open()
@@ -30,12 +34,23 @@ func main() {
 		panic(err)
 	}
 
-	cmd := exec.Command(
-		"docker",
-		"run",
-		"--rm",
-		"--network=host",
-		"postgres:13",
+	hasPGDump := false
+	if _, err = exec.LookPath("pg_dump"); err == nil {
+		out, err := exec.Command("pg_dump", "--version").Output()
+		if err == nil {
+			// Parse output:
+			// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
+			parts := strings.Split(string(out), " ")
+			if len(parts) > 2 {
+				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
+				if err == nil && version >= minimumPostgreSQLVersion {
+					hasPGDump = true
+				}
+			}
+		}
+	}
+
+	cmdArgs := []string{
 		"pg_dump",
 		"--schema-only",
 		connection,
@@ -45,8 +60,18 @@ func main() {
 		// We never want to manually generate
 		// queries executing against this table.
 		"--exclude-table=schema_migrations",
-	)
+	}
 
+	if !hasPGDump {
+		cmdArgs = append([]string{
+			"docker",
+			"run",
+			"--rm",
+			"--network=host",
+			fmt.Sprintf("postgres:%d", minimumPostgreSQLVersion),
+		}, cmdArgs...)
+	}
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec
 	cmd.Env = append(os.Environ(), []string{
 		"PGTZ=UTC",
 		"PGCLIENTENCODING=UTF8",
