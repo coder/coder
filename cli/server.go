@@ -363,6 +363,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
+				APIRateLimit:                cfg.APIRateLimit.Value,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates

@@ -22,8 +22,12 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 	first=true
 	for fi in queries/*.sql.go; do
-		# Find the last line from the imports section and add 1.
+		# Find the last line from the imports section and add 1. We have to
+		# disable pipefail temporarily to avoid ERRPIPE errors when piping into
+		# `head -n1`.
+		set +o pipefail
 		cut=$(grep -n ')' "$fi" | head -n 1 | cut -d: -f1)
+		set -o pipefail
 		cut=$((cut + 1))
 
 		# Copy the header from the first file only, ignoring the source comment.
