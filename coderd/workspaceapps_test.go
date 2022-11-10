@@ -135,6 +135,9 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 	}
 	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
+	})
 
 	return client, user, workspace, uint16(tcpAddr.Port)
 }
@@ -540,6 +543,9 @@ func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 	}
 	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -579,6 +585,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 		}
 		client.HTTPClient.Transport = transport
+		t.Cleanup(func() {
+			transport.CloseIdleConnections()
+		})
 
 		return client
 	}

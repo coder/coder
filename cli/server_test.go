@@ -425,6 +425,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
+		defer client.HTTPClient.CloseIdleConnections()
 
 		// Use the first certificate and hostname.
 		client.URL.Host = "alpaca.com:443"
