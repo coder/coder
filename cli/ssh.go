@@ -86,7 +86,8 @@ func ssh() *cobra.Command {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
 				FallbackTroubleshootingURL: client.URL.ResolveReference(&url.URL{
-					Path: fmt.Sprintf("/templates/%s#readme", workspace.TemplateName),
+					Path:     fmt.Sprintf("/templates/%s", workspace.TemplateName),
+					Fragment: "readme",
 				}).String(),
 			})
 			if err != nil {
