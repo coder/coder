@@ -64,30 +64,36 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		os.Exit(1)
 	}()
 
-	warningShown := false
-	warnAfter := time.NewTimer(opts.WarnInterval)
-	defer warnAfter.Stop()
-	showWarning := func() {
-		warnAfter.Stop()
-
+	var waitMessage string
+	messageAfter := time.NewTimer(opts.WarnInterval)
+	defer messageAfter.Stop()
+	showMessage := func() {
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
-		if warningShown {
+
+		m := waitingMessage(agent)
+		if m == waitMessage {
 			return
 		}
-		warningShown = true
+		moveUp := ""
+		if waitMessage != "" {
+			// If this is an update, move a line up
+			// to keep it tidy and aligned.
+			moveUp = "\033[1A"
+		}
+		waitMessage = m
 
-		message := waitingMessage(agent)
 		// This saves the cursor position, then defers clearing from the cursor
 		// position to the end of the screen.
-		_, _ = fmt.Fprintf(writer, "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
+		_, _ = fmt.Fprintf(writer, "\033[s\r\033[2K%s%s\n\n", moveUp, Styles.Paragraph.Render(Styles.Prompt.String()+waitMessage))
 		defer fmt.Fprintf(writer, "\033[u\033[J")
 	}
 	go func() {
 		select {
 		case <-ctx.Done():
-		case <-warnAfter.C:
-			showWarning()
+		case <-messageAfter.C:
+			messageAfter.Stop()
+			showMessage()
 		}
 	}()
 
@@ -110,7 +116,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		case codersdk.WorkspaceAgentConnected:
 			return nil
 		case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
-			showWarning()
+			showMessage()
 		}
 	}
 }
