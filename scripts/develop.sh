@@ -6,7 +6,7 @@
 # Coder enterprise features).
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
-# shellcheck disable=SC1091,SC1090
+# shellcheck source=scripts/lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
 # Allow toggling verbose output
@@ -51,29 +51,70 @@ make -j "build/coder_${GOOS}_${GOARCH}"
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 
+pids=()
+exit_cleanup() {
+	set +e
+	# Set empty interrupt handler so cleanup isn't interrupted.
+	trap '' INT
+	# Send interrupt to the entire process group to start shutdown procedures.
+	kill -INT -$$
+	# Remove exit trap to avoid infinite loop.
+	trap - EXIT
+
+	# Just in case, send interrupts to our children.
+	kill -INT "${pids[@]}" >/dev/null 2>&1
+	# Use the hammer if things take too long.
+	{ sleep 5 && kill -TERM -$$ >/dev/null 2>&1; } &
+
+	# Wait for all children to exit (this can be aborted by hammer).
+	wait_cmds
+	exit 1
+}
+start_cmd() {
+	echo "== CMD: $*" >&2
+	"$@" || fatal "CMD: $*" &
+	pids+=("$!")
+}
+wait_cmds() {
+	wait "${pids[@]}" >/dev/null 2>&1
+}
+fatal() {
+	echo "== FAIL: $*" >&2
+	exit_cleanup
+}
+
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
 (
 	# If something goes wrong, just bail and tear everything down
 	# rather than leaving things in an inconsistent state.
-	trap 'kill -TERM -$$' ERR
+	trap 'exit_cleanup' INT EXIT
+	trap 'fatal "Script encountered an error"' ERR
+
 	cdroot
-	"${CODER_DEV_SHIM}" server --address 0.0.0.0:3000 || kill -INT -$$ &
+	start_cmd "${CODER_DEV_SHIM}" server --address 0.0.0.0:3000
 
 	echo '== Waiting for Coder to become ready'
-	timeout 60s bash -c 'until curl -s --fail http://localhost:3000 > /dev/null 2>&1; do sleep 0.5; done'
+	timeout 60s bash -c 'until curl -s --fail http://localhost:3000/healthz > /dev/null 2>&1; do sleep 0.5; done' ||
+		fatal 'Coder did not become ready in time'
+
+	# Check if credentials are already set up to avoid setting up again.
+	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		"${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" ||
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}"; then
+			# Only create this file if an admin user was successfully
+			# created, otherwise we won't retry on a later attempt.
+			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
+		else
 			echo 'Failed to create admin user. To troubleshoot, try running this command manually.'
+		fi
 
 		# Try to create a regular user.
 		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --password="${password}" ||
 			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
-
-		touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 	fi
 
 	# If we have docker available and the "docker" template doesn't already
@@ -97,19 +138,38 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev || kill -INT -$$ &
+	CODER_HOST=http://127.0.0.1:3000 start_cmd yarn --cwd=./site dev --host | {
+		while read -r line; do
+			echo "[SITE] $(date -Iseconds): $line"
+		done
+	}
 
+	interfaces=(localhost)
+	if which ip >/dev/null 2>&1; then
+		# shellcheck disable=SC2207
+		interfaces+=($(ip a | awk '/inet / {print $2}' | cut -d/ -f1))
+	elif which ifconfig >/dev/null 2>&1; then
+		# shellcheck disable=SC2207
+		interfaces+=($(ifconfig | awk '/inet / {print $2}'))
+	fi
+
+	# Space padding used after the URLs to align "==".
+	space_padding=26
 	log
 	log "===================================================================="
 	log "==                                                                =="
 	log "==            Coder is now running in development mode.           =="
-	log "==                  API:    http://localhost:3000                 =="
-	log "==                  Web UI: http://localhost:8080                 =="
+	for iface in "${interfaces[@]}"; do
+		log "$(printf "==                  API:    http://%s:3000%$((space_padding - ${#iface}))s==" "$iface" "")"
+	done
+	for iface in "${interfaces[@]}"; do
+		log "$(printf "==                  Web UI: http://%s:8080%$((space_padding - ${#iface}))s==" "$iface" "")"
+	done
 	log "==                                                                =="
 	log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
 	log "===================================================================="
 	log
 
 	# Wait for both frontend and backend to exit.
-	wait
+	wait_cmds
 )

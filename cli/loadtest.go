@@ -135,8 +135,9 @@ func loadtest() *cobra.Command {
 			client.PropagateTracing = tracePropagate
 
 			// Prepare the test.
-			strategy := config.Strategy.ExecutionStrategy()
-			th := harness.NewTestHarness(strategy)
+			runStrategy := config.Strategy.ExecutionStrategy()
+			cleanupStrategy := config.CleanupStrategy.ExecutionStrategy()
+			th := harness.NewTestHarness(runStrategy, cleanupStrategy)
 
 			for i, t := range config.Tests {
 				name := fmt.Sprintf("%s-%d", t.Type, i)

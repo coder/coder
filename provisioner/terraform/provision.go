@@ -69,16 +69,17 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		}
 	}()
 
-	logr := streamLogger{stream: stream}
+	sink := streamLogSink{
+		logger: s.logger.Named("execution_logs"),
+		stream: stream,
+	}
 	start := request.GetStart()
 
 	e := s.executor(start.Directory)
 	if err = e.checkMinVersion(ctx); err != nil {
 		return err
 	}
-	if err = logTerraformEnvVars(logr); err != nil {
-		return err
-	}
+	logTerraformEnvVars(sink)
 
 	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
 	if len(start.State) > 0 {
@@ -111,7 +112,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 
 	s.logger.Debug(ctx, "running initialization")
-	err = e.init(ctx, killCtx, logr)
+	err = e.init(ctx, killCtx, sink)
 	if err != nil {
 		if ctx.Err() != nil {
 			return stream.Send(&proto.Provision_Response{
@@ -136,10 +137,10 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	var resp *proto.Provision_Response
 	if start.DryRun {
-		resp, err = e.plan(ctx, killCtx, env, vars, logr,
+		resp, err = e.plan(ctx, killCtx, env, vars, sink,
 			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	} else {
-		resp, err = e.apply(ctx, killCtx, env, vars, logr,
+		resp, err = e.apply(ctx, killCtx, env, vars, sink,
 			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
 	}
 	if err != nil {
@@ -231,7 +232,7 @@ var (
 	}
 )
 
-func logTerraformEnvVars(logr logger) error {
+func logTerraformEnvVars(sink logSink) {
 	env := safeEnviron()
 	for _, e := range env {
 		if strings.HasPrefix(e, "TF_") {
@@ -242,14 +243,10 @@ func logTerraformEnvVars(logr logger) error {
 			if !tfEnvSafeToPrint[parts[0]] {
 				parts[1] = "<value redacted>"
 			}
-			err := logr.Log(&proto.Log{
+			sink.Log(&proto.Log{
 				Level:  proto.LogLevel_WARN,
 				Output: fmt.Sprintf("terraform environment variable: %s=%s", parts[0], parts[1]),
 			})
-			if err != nil {
-				return err
-			}
 		}
 	}
-	return nil
 }

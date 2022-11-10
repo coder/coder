@@ -91,11 +91,11 @@ func list() *cobra.Command {
 				}
 				filter.Owner = myUser.Username
 			}
-			workspaces, err := client.Workspaces(cmd.Context(), filter)
+			res, err := client.Workspaces(cmd.Context(), filter)
 			if err != nil {
 				return err
 			}
-			if len(workspaces) == 0 {
+			if len(res.Workspaces) == 0 {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  "+cliui.Styles.Code.Render("coder create <name>"))
@@ -112,8 +112,8 @@ func list() *cobra.Command {
 			}
 
 			now := time.Now()
-			displayWorkspaces = make([]workspaceListRow, len(workspaces))
-			for i, workspace := range workspaces {
+			displayWorkspaces = make([]workspaceListRow, len(res.Workspaces))
+			for i, workspace := range res.Workspaces {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
 
