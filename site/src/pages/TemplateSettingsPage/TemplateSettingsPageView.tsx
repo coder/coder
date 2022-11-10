@@ -10,6 +10,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { colors } from "theme/colors"
 import Button from "@material-ui/core/Button"
 import { useTranslation } from "react-i18next"
+import { Navigate } from "react-router-dom"
 
 export interface TemplateSettingsPageViewProps {
   template?: Template
@@ -20,6 +21,7 @@ export interface TemplateSettingsPageViewProps {
   onCancelDelete: () => void
   isConfirmingDelete: boolean
   isDeleting: boolean
+  isDeleted: boolean
   isSubmitting: boolean
   errors?: {
     getTemplateError?: unknown
@@ -38,6 +40,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   onCancelDelete,
   isConfirmingDelete,
   isDeleting,
+  isDeleted,
   isSubmitting,
   errors = {},
   initialTouched,
@@ -45,6 +48,10 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   const classes = useStyles()
   const isLoading = !template && !errors.getTemplateError
   const { t } = useTranslation("templatePage")
+
+  if (isDeleted) {
+    return <Navigate to="/templates" />
+  }
 
   return (
     <FullPageForm title={t("templateSettings.title")} onCancel={onCancel}>

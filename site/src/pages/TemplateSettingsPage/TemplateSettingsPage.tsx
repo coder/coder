@@ -57,6 +57,7 @@ export const TemplateSettingsPage: FC = () => {
         onCancelDelete={() => send("CANCEL_DELETE")}
         isConfirmingDelete={state.matches("confirmingDelete")}
         isDeleting={state.matches("deleting")}
+        isDeleted={state.matches("deleted")}
       />
     </>
   )
