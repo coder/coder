@@ -128,7 +128,7 @@ WHERE
 
 -- name: GetUsers :many
 SELECT
-	*
+	*, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE

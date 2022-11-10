@@ -4114,7 +4114,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -4183,7 +4183,23 @@ type GetUsersParams struct {
 	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
+type GetUsersRow struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	Status         UserStatus     `db:"status" json:"status"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted        bool           `db:"deleted" json:"deleted"`
+	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
+	Count          int64          `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.Deleted,
 		arg.AfterID,
@@ -4197,9 +4213,9 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []GetUsersRow
 	for rows.Next() {
-		var i User
+		var i GetUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
@@ -4213,6 +4229,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -6063,7 +6080,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(workspaces.*) OVER() AS count
 FROM
 	workspaces
 LEFT JOIN LATERAL (
@@ -6210,7 +6227,22 @@ type GetWorkspacesParams struct {
 	Limit         int32       `db:"limit_" json:"limit_"`
 }
 
-func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error) {
+type GetWorkspacesRow struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
+	Deleted           bool           `db:"deleted" json:"deleted"`
+	Name              string         `db:"name" json:"name"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
+	Count             int64          `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
 		arg.Deleted,
 		arg.Status,
@@ -6226,9 +6258,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Workspace
+	var items []GetWorkspacesRow
 	for rows.Next() {
-		var i Workspace
+		var i GetWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -6241,6 +6273,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
