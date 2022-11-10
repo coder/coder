@@ -233,7 +233,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Provisioner:     importJob.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     createTemplate.Description,
-			DefaultTtl:      int64(ttl),
+			DefaultTTL:      int64(ttl),
 			CreatedBy:       apiKey.UserID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -473,7 +473,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
 			req.Icon == template.Icon &&
-			req.DefaultTTLMillis == time.Duration(template.DefaultTtl).Milliseconds() {
+			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() {
 			return nil
 		}
 
@@ -496,7 +496,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			Name:        name,
 			Description: desc,
 			Icon:        icon,
-			DefaultTtl:  int64(maxTTL),
+			DefaultTTL:  int64(maxTTL),
 		})
 		if err != nil {
 			return err
@@ -640,7 +640,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 			Provisioner:     job.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     "This template was auto-imported by Coder.",
-			DefaultTtl:      0,
+			DefaultTTL:      0,
 			CreatedBy:       opts.userID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -745,7 +745,7 @@ func (api *API) convertTemplate(
 		BuildTimeStats:      buildTimeStats,
 		Description:         template.Description,
 		Icon:                template.Icon,
-		DefaultTTLMillis:    time.Duration(template.DefaultTtl).Milliseconds(),
+		DefaultTTLMillis:    time.Duration(template.DefaultTTL).Milliseconds(),
 		CreatedByID:         template.CreatedBy,
 		CreatedByName:       createdByName,
 	}

@@ -3041,7 +3041,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.Provisioner,
 		&i.ActiveVersionID,
 		&i.Description,
-		&i.DefaultTtl,
+		&i.DefaultTTL,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3082,7 +3082,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.Provisioner,
 		&i.ActiveVersionID,
 		&i.Description,
-		&i.DefaultTtl,
+		&i.DefaultTTL,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3115,7 +3115,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.Provisioner,
 			&i.ActiveVersionID,
 			&i.Description,
-			&i.DefaultTtl,
+			&i.DefaultTTL,
 			&i.CreatedBy,
 			&i.Icon,
 			&i.UserACL,
@@ -3194,7 +3194,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.Provisioner,
 			&i.ActiveVersionID,
 			&i.Description,
-			&i.DefaultTtl,
+			&i.DefaultTTL,
 			&i.CreatedBy,
 			&i.Icon,
 			&i.UserACL,
@@ -3243,7 +3243,7 @@ type InsertTemplateParams struct {
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 	Description     string          `db:"description" json:"description"`
-	DefaultTtl      int64           `db:"default_ttl" json:"default_ttl"`
+	DefaultTTL      int64           `db:"default_ttl" json:"default_ttl"`
 	CreatedBy       uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon            string          `db:"icon" json:"icon"`
 	UserACL         TemplateACL     `db:"user_acl" json:"user_acl"`
@@ -3260,7 +3260,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Provisioner,
 		arg.ActiveVersionID,
 		arg.Description,
-		arg.DefaultTtl,
+		arg.DefaultTTL,
 		arg.CreatedBy,
 		arg.Icon,
 		arg.UserACL,
@@ -3277,7 +3277,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.Provisioner,
 		&i.ActiveVersionID,
 		&i.Description,
-		&i.DefaultTtl,
+		&i.DefaultTTL,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3317,7 +3317,7 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.Provisioner,
 		&i.ActiveVersionID,
 		&i.Description,
-		&i.DefaultTtl,
+		&i.DefaultTTL,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,
@@ -3387,7 +3387,7 @@ type UpdateTemplateMetaByIDParams struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 	Description string    `db:"description" json:"description"`
-	DefaultTtl  int64     `db:"default_ttl" json:"default_ttl"`
+	DefaultTTL  int64     `db:"default_ttl" json:"default_ttl"`
 	Name        string    `db:"name" json:"name"`
 	Icon        string    `db:"icon" json:"icon"`
 }
@@ -3397,7 +3397,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.ID,
 		arg.UpdatedAt,
 		arg.Description,
-		arg.DefaultTtl,
+		arg.DefaultTTL,
 		arg.Name,
 		arg.Icon,
 	)
@@ -3412,7 +3412,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.Provisioner,
 		&i.ActiveVersionID,
 		&i.Description,
-		&i.DefaultTtl,
+		&i.DefaultTTL,
 		&i.CreatedBy,
 		&i.Icon,
 		&i.UserACL,

@@ -1455,7 +1455,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Name = arg.Name
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
-		tpl.DefaultTtl = arg.DefaultTtl
+		tpl.DefaultTTL = arg.DefaultTTL
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
@@ -2236,7 +2236,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		Provisioner:     arg.Provisioner,
 		ActiveVersionID: arg.ActiveVersionID,
 		Description:     arg.Description,
-		DefaultTtl:      arg.DefaultTtl,
+		DefaultTTL:      arg.DefaultTTL,
 		CreatedBy:       arg.CreatedBy,
 		UserACL:         arg.UserACL,
 		GroupACL:        arg.GroupACL,
