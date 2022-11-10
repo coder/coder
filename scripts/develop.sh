@@ -62,7 +62,11 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 	"${CODER_DEV_SHIM}" server --address 0.0.0.0:3000 || kill -INT -$$ &
 
 	echo '== Waiting for Coder to become ready'
-	timeout 60s bash -c 'until curl -s --fail http://localhost:3000/healthz > /dev/null 2>&1; do sleep 0.5; done'
+	curl --silent --fail --connect-timeout 1 --max-time 1 --retry 60 --retry-delay 1 --retry-max-time 60 --retry-all-errors 'http://localhost:3000/healthz' ||
+		{
+			echo '== ERROR: Coder did not become ready in time'
+			kill -INT -$$
+		}
 
 	# Check if credentials are already set up to avoid setting up again.
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
