@@ -21,7 +21,7 @@ describe("WorkspacesPage", () => {
     // Given
     server.use(
       rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json([]))
+        return res(ctx.status(200), ctx.json({ workspaces: [], count: 0 }))
       }),
     )
 
@@ -53,6 +53,6 @@ describe("WorkspacesPage", () => {
       },
       { timeout: 2000 },
     )
-    await screen.findByText(MockWorkspace.name)
+    await screen.findByText(`${MockWorkspace.name}1`)
   })
 })

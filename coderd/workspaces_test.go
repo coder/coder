@@ -147,7 +147,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	firstWorkspaces, err := other.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(first) fetch workspaces")
 
-	require.ElementsMatch(t, otherWorkspaces, firstWorkspaces)
+	require.ElementsMatch(t, otherWorkspaces.Workspaces, firstWorkspaces.Workspaces)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
@@ -646,27 +646,27 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		defer cancel()
 
 		// full match
-		ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: workspace.Name,
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 1, workspace.Name)
-		require.Equal(t, workspace.ID, ws[0].ID)
+		require.Len(t, res.Workspaces, 1, workspace.Name)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 
 		// partial match
-		ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: workspace.Name[1 : len(workspace.Name)-2],
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 1)
-		require.Equal(t, workspace.ID, ws[0].ID)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 
 		// no match
-		ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: "$$$$",
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 0)
+		require.Len(t, res.Workspaces, 0)
 	})
 	t.Run("Template", func(t *testing.T) {
 		t.Parallel()
@@ -683,17 +683,17 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		defer cancel()
 
 		// empty
-		ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
-		require.Len(t, ws, 2)
+		require.Len(t, res.Workspaces, 2)
 
 		// single template
-		ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Template: template.Name,
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 1)
-		require.Equal(t, workspace.ID, ws[0].ID)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
 	t.Run("Status", func(t *testing.T) {
 		t.Parallel()
@@ -716,7 +716,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// filter finds both running workspaces
 		ws1, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
-		require.Len(t, ws1, 2)
+		require.Len(t, ws1.Workspaces, 2)
 
 		// stop workspace1
 		build1 := coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStop)
@@ -727,8 +727,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			Status: "running",
 		})
 		require.NoError(t, err)
-		require.Len(t, ws2, 1)
-		require.Equal(t, workspace2.ID, ws2[0].ID)
+		require.Len(t, ws2.Workspaces, 1)
+		require.Equal(t, workspace2.ID, ws2.Workspaces[0].ID)
 
 		// stop workspace2
 		build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
@@ -739,7 +739,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			Status: "running",
 		})
 		require.NoError(t, err)
-		require.Len(t, ws3, 0)
+		require.Len(t, ws3.Workspaces, 0)
 	})
 	t.Run("FilterQuery", func(t *testing.T) {
 		t.Parallel()
@@ -756,12 +756,12 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		defer cancel()
 
 		// single workspace
-		ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
 		})
 		require.NoError(t, err)
-		require.Len(t, ws, 1)
-		require.Equal(t, workspace.ID, ws[0].ID)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
 }
 
@@ -781,14 +781,14 @@ func TestOffsetLimit(t *testing.T) {
 	// empty finds all workspaces
 	ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	require.Len(t, ws, 3)
+	require.Len(t, ws.Workspaces, 3)
 
 	// offset 1 finds 2 workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 	})
 	require.NoError(t, err)
-	require.Len(t, ws, 2)
+	require.Len(t, ws.Workspaces, 2)
 
 	// offset 1 limit 1 finds 1 workspace
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
@@ -796,41 +796,14 @@ func TestOffsetLimit(t *testing.T) {
 		Limit:  1,
 	})
 	require.NoError(t, err)
-	require.Len(t, ws, 1)
+	require.Len(t, ws.Workspaces, 1)
 
 	// offset 3 finds no workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 3,
 	})
 	require.NoError(t, err)
-	require.Len(t, ws, 0)
-}
-
-func TestWorkspaceCount(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	user := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	template2 := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
-	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template2.ID)
-
-	response, err := client.WorkspaceCount(ctx, codersdk.WorkspaceCountRequest{})
-	require.NoError(t, err, "fetch workspace count")
-	// counts all
-	require.Equal(t, int(response.Count), 3)
-
-	response2, err2 := client.WorkspaceCount(ctx, codersdk.WorkspaceCountRequest{
-		SearchQuery: fmt.Sprintf("template:%s", template.Name),
-	})
-	require.NoError(t, err2, "fetch workspace count")
-	// counts only those that pass filter
-	require.Equal(t, int(response2.Count), 1)
+	require.Len(t, ws.Workspaces, 0)
 }
 
 func TestPostWorkspaceBuild(t *testing.T) {
@@ -974,11 +947,11 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: user.UserID.String(),
 		})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 0)
+		require.Len(t, res.Workspaces, 0)
 	})
 }
 
