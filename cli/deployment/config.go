@@ -374,7 +374,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		},
 		APIRateLimit: &codersdk.DeploymentConfigField[int]{
 			Name:    "API Rate Limit",
-			Usage:   "Maximum number of requests per second allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
+			Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
 			Flag:    "api-rate-limit",
 			Default: 512,
 		},
