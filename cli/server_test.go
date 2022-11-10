@@ -657,6 +657,7 @@ func TestServer(t *testing.T) {
 
 			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "512", resp.Header.Get("X-Ratelimit-Limit"))
 			cancelFunc()
@@ -685,6 +686,7 @@ func TestServer(t *testing.T) {
 
 			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, val, resp.Header.Get("X-Ratelimit-Limit"))
 			cancelFunc()
@@ -712,6 +714,7 @@ func TestServer(t *testing.T) {
 
 			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 			require.NoError(t, err)
+			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "", resp.Header.Get("X-Ratelimit-Limit"))
 			cancelFunc()

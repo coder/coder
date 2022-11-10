@@ -17,7 +17,7 @@ Flags:
   -a, --address string                               Bind address of the server.
                                                      Consumes $CODER_ADDRESS (default
                                                      "127.0.0.1:3000")
-      --api-rate-limit int                           Maximum number of requests per second
+      --api-rate-limit int                           Maximum number of requests per minute
                                                      allowed to the API per user, or per IP
                                                      address for unauthenticated users.
                                                      Negative values mean no rate limit. Some
