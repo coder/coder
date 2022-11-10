@@ -12,7 +12,7 @@ var (
 	UsernameValidRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
 	usernameReplace    = regexp.MustCompile("[^a-zA-Z0-9-]*")
 
-	templateDisplayName = regexp.MustCompile("^[a-zA-Z0-9](.*[^ ])?$")
+	templateDisplayName = regexp.MustCompile(`^[^\s](.*[^\s])?$`)
 )
 
 // UsernameFrom returns a best-effort username from the provided string.
