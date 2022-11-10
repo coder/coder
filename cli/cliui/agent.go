@@ -83,10 +83,12 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		}
 		waitMessage = m
 
-		// This saves the cursor position, then defers clearing from the cursor
-		// position to the end of the screen.
-		_, _ = fmt.Fprintf(writer, "\033[s\r\033[2K%s%s\n\n", moveUp, Styles.Paragraph.Render(Styles.Prompt.String()+waitMessage))
-		defer fmt.Fprintf(writer, "\033[u\033[J")
+		// Stop the spinner while we write our message.
+		spin.Stop()
+		// Clear the line and (if necessary) move up a line to write our message.
+		_, _ = fmt.Fprintf(writer, "\033[2K%s%s\n\n", moveUp, Styles.Paragraph.Render(Styles.Prompt.String()+waitMessage))
+		// Safe to resume operation.
+		spin.Start()
 	}
 	go func() {
 		select {
