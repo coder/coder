@@ -55,6 +55,7 @@ type metadataAttributes struct {
 	ResourceID string         `mapstructure:"resource_id"`
 	Hide       bool           `mapstructure:"hide"`
 	Icon       string         `mapstructure:"icon"`
+	Cost       int            `mapstructure:"cost"`
 	Items      []metadataItem `mapstructure:"item"`
 }
 
