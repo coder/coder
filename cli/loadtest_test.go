@@ -38,6 +38,9 @@ func TestLoadTest(t *testing.T) {
 			Strategy: cli.LoadTestStrategy{
 				Type: cli.LoadTestStrategyTypeLinear,
 			},
+			CleanupStrategy: cli.LoadTestStrategy{
+				Type: cli.LoadTestStrategyTypeLinear,
+			},
 			Tests: []cli.LoadTest{
 				{
 					Type:  cli.LoadTestTypePlacebo,
@@ -86,6 +89,10 @@ func TestLoadTest(t *testing.T) {
 
 		config := cli.LoadTestConfig{
 			Strategy: cli.LoadTestStrategy{
+				Type:             cli.LoadTestStrategyTypeConcurrent,
+				ConcurrencyLimit: 2,
+			},
+			CleanupStrategy: cli.LoadTestStrategy{
 				Type:             cli.LoadTestStrategyTypeConcurrent,
 				ConcurrencyLimit: 2,
 			},
@@ -208,6 +215,9 @@ func TestLoadTest(t *testing.T) {
 
 				config := cli.LoadTestConfig{
 					Strategy: cli.LoadTestStrategy{
+						Type: cli.LoadTestStrategyTypeLinear,
+					},
+					CleanupStrategy: cli.LoadTestStrategy{
 						Type: cli.LoadTestStrategyTypeLinear,
 					},
 					Tests: []cli.LoadTest{

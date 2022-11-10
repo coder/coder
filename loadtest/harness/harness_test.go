@@ -18,7 +18,7 @@ type panickingExecutionStrategy struct{}
 
 var _ harness.ExecutionStrategy = panickingExecutionStrategy{}
 
-func (panickingExecutionStrategy) Execute(_ context.Context, _ []*harness.TestRun) error {
+func (panickingExecutionStrategy) Run(_ context.Context, _ []harness.TestFn) ([]error, error) {
 	panic(testPanicMessage)
 }
 
@@ -28,8 +28,8 @@ type erroringExecutionStrategy struct {
 
 var _ harness.ExecutionStrategy = erroringExecutionStrategy{}
 
-func (e erroringExecutionStrategy) Execute(_ context.Context, _ []*harness.TestRun) error {
-	return e.err
+func (e erroringExecutionStrategy) Run(_ context.Context, _ []harness.TestFn) ([]error, error) {
+	return []error{}, e.err
 }
 
 func Test_TestHarness(t *testing.T) {
@@ -40,7 +40,7 @@ func Test_TestHarness(t *testing.T) {
 
 		expectedErr := xerrors.New("expected error")
 
-		h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+		h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 		r1 := h.AddRun("test", "1", fakeTestFns(nil, nil))
 		r2 := h.AddRun("test", "2", fakeTestFns(expectedErr, nil))
 
@@ -65,7 +65,7 @@ func Test_TestHarness(t *testing.T) {
 
 		expectedErr := xerrors.New("expected error")
 
-		h := harness.NewTestHarness(erroringExecutionStrategy{err: expectedErr})
+		h := harness.NewTestHarness(erroringExecutionStrategy{err: expectedErr}, harness.LinearExecutionStrategy{})
 		_ = h.AddRun("test", "1", fakeTestFns(nil, nil))
 
 		err := h.Run(context.Background())
@@ -76,7 +76,7 @@ func Test_TestHarness(t *testing.T) {
 	t.Run("CatchesExecutionPanic", func(t *testing.T) {
 		t.Parallel()
 
-		h := harness.NewTestHarness(panickingExecutionStrategy{})
+		h := harness.NewTestHarness(panickingExecutionStrategy{}, harness.LinearExecutionStrategy{})
 		_ = h.AddRun("test", "1", fakeTestFns(nil, nil))
 
 		err := h.Run(context.Background())
@@ -93,7 +93,7 @@ func Test_TestHarness(t *testing.T) {
 
 			expectedErr := xerrors.New("expected error")
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", fakeTestFns(nil, expectedErr))
 
 			err := h.Run(context.Background())
@@ -107,13 +107,51 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("Panic", func(t *testing.T) {
 			t.Parallel()
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", testFns{
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
 					return nil
 				},
 				CleanupFn: func(_ context.Context, _ string) error {
 					panic(testPanicMessage)
+				},
+			})
+
+			err := h.Run(context.Background())
+			require.NoError(t, err)
+
+			err = h.Cleanup(context.Background())
+			require.Error(t, err)
+			require.ErrorContains(t, err, "panic")
+			require.ErrorContains(t, err, testPanicMessage)
+		})
+
+		t.Run("CatchesExecutionError", func(t *testing.T) {
+			t.Parallel()
+
+			expectedErr := xerrors.New("expected error")
+
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, erroringExecutionStrategy{err: expectedErr})
+			_ = h.AddRun("test", "1", fakeTestFns(nil, nil))
+
+			err := h.Run(context.Background())
+			require.NoError(t, err)
+
+			err = h.Cleanup(context.Background())
+			require.Error(t, err)
+			require.ErrorIs(t, err, expectedErr)
+		})
+
+		t.Run("CatchesExecutionPanic", func(t *testing.T) {
+			t.Parallel()
+
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, panickingExecutionStrategy{})
+			_ = h.AddRun("test", "1", testFns{
+				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
+					return nil
+				},
+				CleanupFn: func(_ context.Context, _ string) error {
+					return nil
 				},
 			})
 
@@ -133,7 +171,7 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("RegisterAfterStart", func(t *testing.T) {
 			t.Parallel()
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			_ = h.Run(context.Background())
 
 			require.Panics(t, func() {
@@ -144,7 +182,7 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("DuplicateTestID", func(t *testing.T) {
 			t.Parallel()
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 
 			name, id := "test", "1"
 			_ = h.AddRun(name, id, fakeTestFns(nil, nil))
@@ -157,7 +195,7 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("StartedTwice", func(t *testing.T) {
 			t.Parallel()
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			h.Run(context.Background())
 
 			require.Panics(t, func() {
@@ -168,7 +206,7 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("ResultsBeforeStart", func(t *testing.T) {
 			t.Parallel()
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 
 			require.Panics(t, func() {
 				h.Results()
@@ -183,7 +221,7 @@ func Test_TestHarness(t *testing.T) {
 				endRun     = make(chan struct{})
 				testsEnded = make(chan struct{})
 			)
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", testFns{
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
 					close(started)
@@ -210,14 +248,14 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("CleanupBeforeStart", func(t *testing.T) {
 			t.Parallel()
 
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 
 			require.Panics(t, func() {
 				h.Cleanup(context.Background())
 			})
 		})
 
-		t.Run("ClenaupBeforeFinish", func(t *testing.T) {
+		t.Run("CleanupBeforeFinish", func(t *testing.T) {
 			t.Parallel()
 
 			var (
@@ -225,7 +263,7 @@ func Test_TestHarness(t *testing.T) {
 				endRun     = make(chan struct{})
 				testsEnded = make(chan struct{})
 			)
-			h := harness.NewTestHarness(harness.LinearExecutionStrategy{})
+			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", testFns{
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
 					close(started)
