@@ -3019,7 +3019,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 FROM
 	templates
 WHERE
@@ -3046,13 +3046,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 FROM
 	templates
 WHERE
@@ -3087,12 +3088,13 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -3120,6 +3122,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.Icon,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -3136,7 +3139,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 FROM
 	templates
 WHERE
@@ -3199,6 +3202,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.Icon,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -3228,10 +3232,11 @@ INSERT INTO
 		created_by,
 		icon,
 		user_acl,
-		group_acl
+		group_acl,
+		display_name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 `
 
 type InsertTemplateParams struct {
@@ -3248,6 +3253,7 @@ type InsertTemplateParams struct {
 	Icon            string          `db:"icon" json:"icon"`
 	UserACL         TemplateACL     `db:"user_acl" json:"user_acl"`
 	GroupACL        TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -3265,6 +3271,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Icon,
 		arg.UserACL,
 		arg.GroupACL,
+		arg.DisplayName,
 	)
 	var i Template
 	err := row.Scan(
@@ -3282,6 +3289,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -3295,7 +3303,7 @@ SET
 WHERE
 	id = $3
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3322,6 +3330,7 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -3376,11 +3385,12 @@ SET
 	description = $3,
 	default_ttl = $4,
 	name = $5,
-	icon = $6
+	icon = $6,
+	display_name = $7
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -3390,6 +3400,7 @@ type UpdateTemplateMetaByIDParams struct {
 	DefaultTtl  int64     `db:"default_ttl" json:"default_ttl"`
 	Name        string    `db:"name" json:"name"`
 	Icon        string    `db:"icon" json:"icon"`
+	DisplayName string    `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
@@ -3400,6 +3411,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.DefaultTtl,
 		arg.Name,
 		arg.Icon,
+		arg.DisplayName,
 	)
 	var i Template
 	err := row.Scan(
@@ -3417,6 +3429,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }

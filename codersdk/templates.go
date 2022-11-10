@@ -19,6 +19,7 @@ type Template struct {
 	UpdatedAt           time.Time       `json:"updated_at"`
 	OrganizationID      uuid.UUID       `json:"organization_id"`
 	Name                string          `json:"name"`
+	DisplayName         string          `json:"display_name"`
 	Provisioner         ProvisionerType `json:"provisioner"`
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
@@ -71,7 +72,8 @@ type UpdateTemplateACL struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,username"`
+	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
 	Description      string `json:"description,omitempty"`
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
