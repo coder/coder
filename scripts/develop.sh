@@ -118,15 +118,17 @@ CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 		interfaces+=($(ifconfig | awk '/inet / {print $2}'))
 	fi
 
+	# Space padding used after the URLs to align "==".
+	space_padding=26
 	log
 	log "===================================================================="
 	log "==                                                                =="
 	log "==            Coder is now running in development mode.           =="
 	for iface in "${interfaces[@]}"; do
-		log "$(printf "==                  API:    http://%s:3000%$((26 - ${#iface}))s==" "$iface" "")"
+		log "$(printf "==                  API:    http://%s:3000%$((space_padding - ${#iface}))s==" "$iface" "")"
 	done
 	for iface in "${interfaces[@]}"; do
-		log "$(printf "==                  Web UI: http://%s:8080%$((26 - ${#iface}))s==" "$iface" "")"
+		log "$(printf "==                  Web UI: http://%s:8080%$((space_padding - ${#iface}))s==" "$iface" "")"
 	done
 	log "==                                                                =="
 	log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
