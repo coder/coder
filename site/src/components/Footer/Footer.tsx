@@ -27,7 +27,7 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
   const styles = useFooterStyles()
 
 
-  const githubUrl = 'https://github.com/coder/coder/issues/new'
+  const githubUrl = 'https://github.com/coder/coder/issues/new?'
   const versionUrl = `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`
 
   const reportBugUrl = githubUrl + `labels=bug&body=${encodeURIComponent(`${versionUrl}`)}`
