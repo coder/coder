@@ -322,16 +322,18 @@ func (p *Server) acquireJob(ctx context.Context) {
 	p.activeJob = runner.New(
 		ctx,
 		job,
-		p,
-		p.opts.Logger,
-		p.opts.Filesystem,
-		p.opts.WorkDirectory,
-		provisioner,
-		p.opts.UpdateInterval,
-		p.opts.ForceCancelInterval,
-		p.opts.LogBufferInterval,
-		p.tracer,
-		p.opts.Metrics.Runner,
+		runner.Options{
+			Updater:             p,
+			Logger:              p.opts.Logger,
+			Filesystem:          p.opts.Filesystem,
+			WorkDirectory:       p.opts.WorkDirectory,
+			Provisioner:         provisioner,
+			UpdateInterval:      p.opts.UpdateInterval,
+			ForceCancelInterval: p.opts.ForceCancelInterval,
+			LogDebounceInterval: p.opts.LogBufferInterval,
+			Tracer:              p.tracer,
+			Metrics:             p.opts.Metrics.Runner,
+		},
 	)
 
 	go p.activeJob.Run()

@@ -26,9 +26,9 @@ func TestCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			Provision:       provisionCompleteWithAgent,
-			ProvisionDryRun: provisionCompleteWithAgent,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: provisionCompleteWithAgent,
+			ProvisionPlan:  provisionCompleteWithAgent,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -144,9 +144,9 @@ func TestCreate(t *testing.T) {
 
 		defaultValue := "something"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           createTestParseResponseWithDefault(defaultValue),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponseWithDefault(defaultValue),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -185,9 +185,9 @@ func TestCreate(t *testing.T) {
 
 		defaultValue := "something"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           createTestParseResponseWithDefault(defaultValue),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponseWithDefault(defaultValue),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -228,9 +228,9 @@ func TestCreate(t *testing.T) {
 
 		defaultValue := "something"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           createTestParseResponseWithDefault(defaultValue),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponseWithDefault(defaultValue),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -264,7 +264,7 @@ func TestCreate(t *testing.T) {
 					},
 				},
 			}},
-			ProvisionDryRun: []*proto.Provision_Response{
+			ProvisionPlan: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{
 						Complete: &proto.Provision_Complete{},

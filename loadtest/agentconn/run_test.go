@@ -225,9 +225,9 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{

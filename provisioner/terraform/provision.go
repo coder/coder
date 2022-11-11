@@ -23,9 +23,21 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	if request.GetCancel() != nil {
 		return nil
 	}
-	// We expect the first message is start!
-	if request.GetStart() == nil {
+
+	var (
+		applyRequest = request.GetApply()
+		planRequest  = request.GetPlan()
+	)
+
+	var (
+		config *proto.Provision_Config
+	)
+	if applyRequest == nil && planRequest == nil {
 		return nil
+	} else if applyRequest != nil {
+		config = applyRequest.Config
+	} else if planRequest != nil {
+		config = planRequest.Config
 	}
 
 	// Create a context for graceful cancellation bound to the stream
@@ -73,17 +85,16 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		logger: s.logger.Named("execution_logs"),
 		stream: stream,
 	}
-	start := request.GetStart()
 
-	e := s.executor(start.Directory)
+	e := s.executor(config.Directory)
 	if err = e.checkMinVersion(ctx); err != nil {
 		return err
 	}
 	logTerraformEnvVars(sink)
 
-	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
-	if len(start.State) > 0 {
-		err = os.WriteFile(statefilePath, start.State, 0o600)
+	statefilePath := filepath.Join(config.Directory, "terraform.tfstate")
+	if len(config.State) > 0 {
+		err = os.WriteFile(statefilePath, config.State, 0o600)
 		if err != nil {
 			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
 		}
@@ -94,7 +105,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	// e.g. bad template param values and cannot be deleted. This is just for
 	// contingency, in the future we will try harder to prevent workspaces being
 	// broken this hard.
-	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY && len(start.State) == 0 {
+	if config.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY && len(config.State) == 0 {
 		_ = stream.Send(&proto.Provision_Response{
 			Type: &proto.Provision_Response_Log{
 				Log: &proto.Log{
@@ -127,24 +138,23 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	s.logger.Debug(ctx, "ran initialization")
 
-	env, err := provisionEnv(start)
+	env, err := provisionEnv(config, request.GetPlan().GetParameterValues())
 	if err != nil {
 		return err
 	}
-	vars, err := provisionVars(start)
-	if err != nil {
-		return err
-	}
+
 	var resp *proto.Provision_Response
-	if start.DryRun {
-		resp, err = e.plan(ctx, killCtx, env, vars, sink,
-			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
-	} else {
-		resp, err = e.apply(ctx, killCtx, env, vars, sink,
-			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
-	}
-	if err != nil {
-		if start.DryRun {
+	if planRequest != nil {
+		vars, err := planVars(planRequest)
+		if err != nil {
+			return err
+		}
+
+		resp, err = e.plan(
+			ctx, killCtx, env, vars, sink,
+			config.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY,
+		)
+		if err != nil {
 			if ctx.Err() != nil {
 				return stream.Send(&proto.Provision_Response{
 					Type: &proto.Provision_Response_Complete{
@@ -156,6 +166,13 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 			}
 			return xerrors.Errorf("plan terraform: %w", err)
 		}
+		return stream.Send(resp)
+	}
+	// Must be apply
+	resp, err = e.apply(
+		ctx, killCtx, applyRequest.Plan, env, sink,
+	)
+	if err != nil {
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
 		// In this case, we return Complete with an explicit error message.
@@ -169,13 +186,12 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 			},
 		})
 	}
-
 	return stream.Send(resp)
 }
 
-func provisionVars(start *proto.Provision_Start) ([]string, error) {
+func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	vars := []string{}
-	for _, param := range start.ParameterValues {
+	for _, param := range plan.ParameterValues {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
 			continue
@@ -188,21 +204,21 @@ func provisionVars(start *proto.Provision_Start) ([]string, error) {
 	return vars, nil
 }
 
-func provisionEnv(start *proto.Provision_Start) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
-		"CODER_AGENT_URL="+start.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
-		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
-		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,
-		"CODER_WORKSPACE_OWNER_EMAIL="+start.Metadata.WorkspaceOwnerEmail,
-		"CODER_WORKSPACE_ID="+start.Metadata.WorkspaceId,
-		"CODER_WORKSPACE_OWNER_ID="+start.Metadata.WorkspaceOwnerId,
+		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(config.Metadata.WorkspaceTransition.String()),
+		"CODER_WORKSPACE_NAME="+config.Metadata.WorkspaceName,
+		"CODER_WORKSPACE_OWNER="+config.Metadata.WorkspaceOwner,
+		"CODER_WORKSPACE_OWNER_EMAIL="+config.Metadata.WorkspaceOwnerEmail,
+		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
+		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
-	for _, param := range start.ParameterValues {
+	for _, param := range params {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
 			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))

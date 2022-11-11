@@ -92,15 +92,17 @@ func TestEcho(t *testing.T) {
 			},
 		}}
 		data, err := echo.Tar(&echo.Responses{
-			Provision: responses,
+			ProvisionApply: responses,
 		})
 		require.NoError(t, err)
 		client, err := api.Provision(ctx)
 		require.NoError(t, err)
 		err = client.Send(&proto.Provision_Request{
-			Type: &proto.Provision_Request_Start{
-				Start: &proto.Provision_Start{
-					Directory: unpackTar(t, fs, data),
+			Type: &proto.Provision_Request_Plan{
+				Plan: &proto.Provision_Plan{
+					Config: &proto.Provision_Config{
+						Directory: unpackTar(t, fs, data),
+					},
 				},
 			},
 		})
