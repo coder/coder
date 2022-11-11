@@ -28,11 +28,11 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
 
 
   const githubUrl = 'https://github.com/coder/coder/issues/new?'
-  const versionUrl = encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`)
+  const body = encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`)
 
-  const reportBugUrl = githubUrl + `labels=bug&body=${versionUrl}}`
-  const enhancementUrl = githubUrl + `labels=enhancement&body=${versionUrl}}`
-  const shareFeedbackUrl = githubUrl + `labels=feedback&body=${versionUrl}}`
+  const reportBugUrl = githubUrl + `labels=bug&body=${body}}`
+  const enhancementUrl = githubUrl + `labels=enhancement&body=${body}}`
+  const shareFeedbackUrl = githubUrl + `labels=feedback&body=${body}}`
 
   const discordUrl = 'https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer'
 
