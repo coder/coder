@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,33 @@ import (
 
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
+	t.Run("Debounce", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		pubsub := database.NewPubsubInMemory()
+		srv := &provisionerdserver.Server{
+			ID:                 uuid.New(),
+			Logger:             slogtest.Make(t, nil),
+			AccessURL:          &url.URL{},
+			Provisioners:       []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Database:           db,
+			Pubsub:             pubsub,
+			Telemetry:          telemetry.NewNoop(),
+			AcquireJobDebounce: time.Hour,
+		}
+		job, err := srv.AcquireJob(context.Background(), nil)
+		require.NoError(t, err)
+		require.Equal(t, &proto.AcquiredJob{}, job)
+		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			ID:          uuid.New(),
+			InitiatorID: uuid.New(),
+			Provisioner: database.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
+		job, err = srv.AcquireJob(context.Background(), nil)
+		require.NoError(t, err)
+		require.Equal(t, &proto.AcquiredJob{}, job)
+	})
 	t.Run("NoJobs", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t)

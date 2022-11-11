@@ -283,7 +283,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-
+	if template.Deleted {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return
+	}
 	if !api.Authorize(r, rbac.ActionRead, template) {
 		httpapi.ResourceNotFound(rw)
 		return

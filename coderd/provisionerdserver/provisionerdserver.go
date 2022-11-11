@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,11 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
+var (
+	lastAcquire      time.Time
+	lastAcquireMutex sync.RWMutex
+)
+
 type Server struct {
 	AccessURL    *url.URL
 	ID           uuid.UUID
@@ -35,10 +41,23 @@ type Server struct {
 	Database     database.Store
 	Pubsub       database.Pubsub
 	Telemetry    telemetry.Reporter
+
+	AcquireJobDebounce time.Duration
 }
 
 // AcquireJob queries the database to lock a job.
 func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+	// This prevents loads of provisioner daemons from consistently
+	// querying the database when no jobs are available.
+	//
+	// The debounce only occurs when no job is returned, so if loads of
+	// jobs are added at once, they will start after at most this duration.
+	lastAcquireMutex.RLock()
+	if !lastAcquire.IsZero() && time.Since(lastAcquire) < server.AcquireJobDebounce {
+		lastAcquireMutex.RUnlock()
+		return &proto.AcquiredJob{}, nil
+	}
+	lastAcquireMutex.RUnlock()
 	// This marks the job as locked in the database.
 	job, err := server.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 		StartedAt: sql.NullTime{
@@ -54,6 +73,9 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	if errors.Is(err, sql.ErrNoRows) {
 		// The provisioner daemon assumes no jobs are available if
 		// an empty struct is returned.
+		lastAcquireMutex.Lock()
+		lastAcquire = time.Now()
+		lastAcquireMutex.Unlock()
 		return &proto.AcquiredJob{}, nil
 	}
 	if err != nil {
@@ -228,6 +250,12 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	}
 
 	return protoJob, err
+}
+
+func (_ *Server) CommitQuota(ctx, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	return &proto.CommitQuotaResponse{
+		Ok: true,
+	}, nil
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {

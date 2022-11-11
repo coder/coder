@@ -72,7 +72,7 @@ exit_cleanup() {
 }
 start_cmd() {
 	echo "== CMD: $*" >&2
-	"$@" || fatal "CMD: $*" &
+	"$@" 2>&1 || fatal "CMD: $*" &
 	pids+=("$!")
 }
 wait_cmds() {
@@ -138,11 +138,11 @@ fatal() {
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 start_cmd yarn --cwd=./site dev --host | {
+	CODER_HOST=http://127.0.0.1:3000 start_cmd yarn --cwd=./site dev --host > >(
 		while read -r line; do
 			echo "[SITE] $(date -Iseconds): $line"
 		done
-	}
+	)
 
 	interfaces=(localhost)
 	if which ip >/dev/null 2>&1; then

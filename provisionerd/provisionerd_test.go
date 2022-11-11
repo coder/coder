@@ -229,7 +229,7 @@ func TestProvisionerd(t *testing.T) {
 			didComplete   atomic.Bool
 			didLog        atomic.Bool
 			didAcquireJob atomic.Bool
-			didDryRun     atomic.Bool
+			didDryRun     = atomic.NewBool(true)
 			didReadme     atomic.Bool
 			completeChan  = make(chan struct{})
 			completeOnce  sync.Once
@@ -299,8 +299,8 @@ func TestProvisionerd(t *testing.T) {
 				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
 					request, err := stream.Recv()
 					require.NoError(t, err)
-					if request.GetStart().DryRun {
-						didDryRun.Store(true)
+					if request.GetApply() != nil {
+						didDryRun.Store(false)
 					}
 					err = stream.Send(&sdkproto.Provision_Response{
 						Type: &sdkproto.Provision_Response_Log{

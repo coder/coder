@@ -633,6 +633,94 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		<-serverErr
 	})
+
+	t.Run("RateLimit", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Default", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			root, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--address", ":0",
+				"--access-url", "http://example.com",
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "512", resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Changed", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			val := "100"
+			root, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--address", ":0",
+				"--access-url", "http://example.com",
+				"--api-rate-limit", val,
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, val, resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Disabled", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			root, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--address", ":0",
+				"--access-url", "http://example.com",
+				"--api-rate-limit", "-1",
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "", resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
+	})
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {

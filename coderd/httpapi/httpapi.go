@@ -33,13 +33,14 @@ func init() {
 		}
 		return name
 	})
+
 	nameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
 		if !ok {
 			return false
 		}
-		valid := UsernameValid(str)
+		valid := NameValid(str)
 		return valid == nil
 	}
 	for _, tag := range []string{"username", "template_name", "workspace_name"} {
@@ -47,6 +48,20 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	templateDisplayNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := TemplateDisplayNameValid(str)
+		return valid == nil
+	}
+	err := validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
+	if err != nil {
+		panic(err)
 	}
 }
 

@@ -283,13 +283,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.Description = "original description"
-			ctr.Icon = "/icons/original-icon.png"
-			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateMeta{
 			Name:             "new-template-name",
+			DisplayName:      "Displayed Name 456",
 			Description:      "lorem ipsum dolor sit amet et cetera",
 			Icon:             "/icons/new-icon.png",
 			DefaultTTLMillis: 12 * time.Hour.Milliseconds(),
@@ -305,6 +302,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
+		assert.Equal(t, req.DisplayName, updated.DisplayName)
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
@@ -314,6 +312,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
+		assert.Equal(t, req.DisplayName, updated.DisplayName)
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
@@ -516,9 +515,9 @@ func TestTemplateMetrics(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{

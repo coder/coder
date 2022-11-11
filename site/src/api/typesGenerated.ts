@@ -175,6 +175,7 @@ export interface CreateParameterRequest {
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string
+  readonly display_name?: string
   readonly description?: string
   readonly icon?: string
   readonly template_version_id: string
@@ -302,6 +303,7 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly user_workspace_quota: DeploymentConfigField<number>
   readonly provisioner: ProvisionerConfig
+  readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
 }
 
@@ -612,6 +614,7 @@ export interface Template {
   readonly updated_at: string
   readonly organization_id: string
   readonly name: string
+  readonly display_name: string
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
   readonly workspace_owner_count: number
@@ -696,6 +699,7 @@ export interface UpdateTemplateACL {
 // From codersdk/templates.go
 export interface UpdateTemplateMeta {
   readonly name?: string
+  readonly display_name?: string
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number

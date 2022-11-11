@@ -69,6 +69,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     useFormik<UpdateTemplateMeta>({
       initialValues: {
         name: template.name,
+        display_name: template.display_name,
         description: template.description,
         // on display, convert from ms => hours
         default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,

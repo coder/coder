@@ -116,13 +116,19 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	if err != nil {
 		return err
 	}
-	request := msg.GetStart()
-	if request == nil {
-		// A cancel could occur here!
+
+	var config *proto.Provision_Config
+	switch {
+	case msg.GetPlan() != nil:
+		config = msg.GetPlan().GetConfig()
+	case msg.GetApply() != nil:
+		config = msg.GetApply().GetConfig()
+	default:
+		// Probably a cancel
 		return nil
 	}
 
-	for _, param := range request.ParameterValues {
+	for _, param := range msg.GetPlan().GetParameterValues() {
 		if param.Name == ParameterExecKey {
 			toks := strings.Split(param.Value, "=")
 			if len(toks) < 2 {
@@ -139,11 +145,13 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 
 	for index := 0; ; index++ {
-		extension := ".protobuf"
-		if request.DryRun {
-			extension = ".dry.protobuf"
+		var extension string
+		if msg.GetPlan() != nil {
+			extension = ".plan.protobuf"
+		} else {
+			extension = ".apply.protobuf"
 		}
-		path := filepath.Join(request.Directory, fmt.Sprintf("%d.provision"+extension, index))
+		path := filepath.Join(config.Directory, fmt.Sprintf("%d.provision"+extension, index))
 		_, err := e.filesystem.Stat(path)
 		if err != nil {
 			if index == 0 {
@@ -175,9 +183,9 @@ func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 }
 
 type Responses struct {
-	Parse           []*proto.Parse_Response
-	Provision       []*proto.Provision_Response
-	ProvisionDryRun []*proto.Provision_Response
+	Parse          []*proto.Parse_Response
+	ProvisionApply []*proto.Provision_Response
+	ProvisionPlan  []*proto.Provision_Response
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
@@ -185,8 +193,8 @@ func Tar(responses *Responses) ([]byte, error) {
 	if responses == nil {
 		responses = &Responses{ParseComplete, ProvisionComplete, ProvisionComplete}
 	}
-	if responses.ProvisionDryRun == nil {
-		responses.ProvisionDryRun = responses.Provision
+	if responses.ProvisionPlan == nil {
+		responses.ProvisionPlan = responses.ProvisionApply
 	}
 
 	var buffer bytes.Buffer
@@ -208,13 +216,13 @@ func Tar(responses *Responses) ([]byte, error) {
 			return nil, err
 		}
 	}
-	for index, response := range responses.Provision {
+	for index, response := range responses.ProvisionApply {
 		data, err := protobuf.Marshal(response)
 		if err != nil {
 			return nil, err
 		}
 		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.provision.protobuf", index),
+			Name: fmt.Sprintf("%d.provision.apply.protobuf", index),
 			Size: int64(len(data)),
 		})
 		if err != nil {
@@ -225,13 +233,13 @@ func Tar(responses *Responses) ([]byte, error) {
 			return nil, err
 		}
 	}
-	for index, response := range responses.ProvisionDryRun {
+	for index, response := range responses.ProvisionPlan {
 		data, err := protobuf.Marshal(response)
 		if err != nil {
 			return nil, err
 		}
 		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.provision.dry.protobuf", index),
+			Name: fmt.Sprintf("%d.provision.plan.protobuf", index),
 			Size: int64(len(data)),
 		})
 		if err != nil {

@@ -1303,6 +1303,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		}
 		tpl.UpdatedAt = database.Now()
 		tpl.Name = arg.Name
+		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
 		tpl.DefaultTtl = arg.DefaultTtl
