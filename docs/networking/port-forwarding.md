@@ -66,7 +66,7 @@ Another way to port forward is to configure a `coder_app` resource in the worksp
 resource "coder_app" "node-react-app" {
   agent_id  = coder_agent.dev.id
   slug      = "node-react-app"
-  icon      = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/React-icon.svg/2300px-React-icon.svg.png"
+  icon      = "https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"
   url       = "http://localhost:3000"
   subdomain = true
   share     = "authenticated"
