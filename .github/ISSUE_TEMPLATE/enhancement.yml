@@ -1,0 +1,15 @@
+name: Enhancement
+description: Provide supporting details to request development of a feature.
+labels: feature
+body:
+  - type: textarea
+    id: feature
+    attributes:
+      label: What would you like to be added?
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why is this needed?
