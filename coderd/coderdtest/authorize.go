@@ -320,7 +320,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	// Setup some data in the database.
 	version := CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		Provision: []*proto.Provision_Response{{
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					// Return a workspace resource
