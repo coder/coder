@@ -107,7 +107,8 @@ message UpdateJobResponse {
 }
 
 message CommitQuotaRequest {
-    int32 cost = 1;
+    string job_id = 1;
+    int32 cost = 2;
 }
 
 message CommitQuotaResponse {

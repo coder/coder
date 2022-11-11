@@ -34,13 +34,14 @@ var (
 )
 
 type Server struct {
-	AccessURL    *url.URL
-	ID           uuid.UUID
-	Logger       slog.Logger
-	Provisioners []database.ProvisionerType
-	Database     database.Store
-	Pubsub       database.Pubsub
-	Telemetry    telemetry.Reporter
+	AccessURL      *url.URL
+	ID             uuid.UUID
+	Logger         slog.Logger
+	Provisioners   []database.ProvisionerType
+	Database       database.Store
+	Pubsub         database.Pubsub
+	Telemetry      telemetry.Reporter
+	QuotaCommitter QuotaCommitter
 
 	AcquireJobDebounce time.Duration
 }
@@ -252,10 +253,14 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	return protoJob, err
 }
 
-func (_ *Server) CommitQuota(ctx, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
-	return &proto.CommitQuotaResponse{
-		Ok: true,
-	}, nil
+func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	if server.QuotaCommitter == nil {
+		// We're probably in community edition or a test.
+		return &proto.CommitQuotaResponse{
+			Ok: true,
+		}, nil
+	}
+	return server.QuotaCommitter.CommitQuota(ctx, request)
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {

@@ -869,7 +869,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	}
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		Cost: int32(cost),
+		JobId: r.job.JobId,
+		Cost:  int32(cost),
 	})
 	if err != nil {
 		return r.failedJobf("commit quota: %+v", err)
