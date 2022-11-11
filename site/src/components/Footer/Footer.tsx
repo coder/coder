@@ -11,7 +11,9 @@ export const Language = {
     return `Coder ${buildInfo.version}`
   },
   copyrightText: `Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
-  reportBugLink: "Report an issue or share feedback",
+  reportBugLink: "Report a bug encountered while using Coder",
+  enhancementLink: "Request an enhancement to Coder",
+  shareFeedbackLink: "Share your experience with Coder",
   discordLink: "Join Coder on Discord",
 }
 
@@ -24,16 +26,22 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
 }) => {
   const styles = useFooterStyles()
 
-  const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
 
-<!--- Ask a question or leave feedback! -->`)}`
-  const discordUrl = `https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer`
+  const githubUrl = 'https://github.com/coder/coder/issues/new'
+  const versionUrl = `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`
+
+  const reportBugUrl = githubUrl + `labels=bug&body=${encodeURIComponent(`${versionUrl}`)}`
+  const enhancementUrl = githubUrl + `labels=enhancement&body=${encodeURIComponent(`${versionUrl}`)}`
+  const shareFeedbackUrl = githubUrl + `labels=feedback&body=${encodeURIComponent(`${versionUrl}`)}`
+
+  const discordUrl = 'https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer'
 
   return (
     <div className={styles.root}>
       <div className={styles.copyRight}>{Language.copyrightText}</div>
       {buildInfo && (
         <div className={styles.buildInfo}>
+
           <Link
             className={styles.link}
             variant="caption"
@@ -44,15 +52,37 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
             {Language.buildInfoText(buildInfo)}
           </Link>
           &nbsp;|&nbsp;
+
           <Link
             className={styles.link}
             variant="caption"
             target="_blank"
-            href={githubUrl}
+            href={reportBugUrl}
           >
             <AssistantIcon className={styles.icon} /> {Language.reportBugLink}
           </Link>
           &nbsp;|&nbsp;
+
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={enhancementUrl}
+          >
+            <AssistantIcon className={styles.icon} /> {Language.enhancementLink}
+          </Link>
+          &nbsp;|&nbsp;
+
+          <Link
+            className={styles.link}
+            variant="caption"
+            target="_blank"
+            href={shareFeedbackUrl}
+          >
+            <AssistantIcon className={styles.icon} /> {Language.shareFeedbackLink}
+          </Link>
+          &nbsp;|&nbsp;
+
           <Link
             className={styles.link}
             variant="caption"
