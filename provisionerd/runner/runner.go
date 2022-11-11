@@ -912,24 +912,26 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			return nil, failed
 		}
 		cost := countCost(completed.GetWorkspaceBuild().Resources)
-		resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-			Cost: int32(cost),
-		})
-		if err != nil {
-			return nil, r.failedJobf("commit quota: %+v", err)
-		}
-		r.queueLog(ctx, &proto.Log{
-			Source:    proto.LogSource_PROVISIONER,
-			Level:     sdkproto.LogLevel_INFO,
-			CreatedAt: time.Now().UnixMilli(),
-			Output: fmt.Sprintf(
-				"cost: %v\ntotal: %v\n available: %v\n",
-				cost, resp.TotalCredits, resp.CreditsAvailable,
-			),
-			Stage: stage,
-		})
-		if !resp.Ok {
-			return nil, r.failedJobf("insufficient quota")
+		if cost > 0 {
+			resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
+				Cost: int32(cost),
+			})
+			if err != nil {
+				return nil, r.failedJobf("commit quota: %+v", err)
+			}
+			r.queueLog(ctx, &proto.Log{
+				Source:    proto.LogSource_PROVISIONER,
+				Level:     sdkproto.LogLevel_INFO,
+				CreatedAt: time.Now().UnixMilli(),
+				Output: fmt.Sprintf(
+					"cost: %v\ntotal: %v\n available: %v\n",
+					cost, resp.TotalCredits, resp.CreditsAvailable,
+				),
+				Stage: stage,
+			})
+			if !resp.Ok {
+				return nil, r.failedJobf("insufficient quota")
+			}
 		}
 	}
 	return r.buildWorkspace(ctx, stage, false)

@@ -238,10 +238,15 @@ func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr lo
 	if err != nil {
 		return nil, err
 	}
+	planFileByt, err := os.ReadFile(planfilePath)
+	if err != nil {
+		return nil, err
+	}
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
 				Resources: resources,
+				Plan:      planFileByt,
 			},
 		},
 	}, nil

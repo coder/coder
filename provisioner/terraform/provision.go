@@ -137,11 +137,15 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	var resp *proto.Provision_Response
 	if start.DryRun {
-		resp, err = e.plan(ctx, killCtx, env, vars, sink,
-			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
+		resp, err = e.plan(
+			ctx, killCtx, env, vars, sink,
+			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY,
+		)
 	} else {
-		resp, err = e.apply(ctx, killCtx, env, vars, sink,
-			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY)
+		resp, err = e.apply(
+			ctx, killCtx, env, vars, sink,
+			start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY,
+		)
 	}
 	if err != nil {
 		if start.DryRun {
