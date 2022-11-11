@@ -19,22 +19,22 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: repro
-    attributes:
-      label: How can we reproduce it (as minimally and precisely as possible)?
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Anything else we need to know?
-
-  - type: textarea
-    id: coderVersion
-    attributes:
-      label: Coder version
-      value: |
-        ```console
-        $ coder version
-        # paste output here
-        ```
+#  - type: textarea
+#    id: repro
+#    attributes:
+#      label: How can we reproduce it (as minimally and precisely as possible)?
+#
+#  - type: textarea
+#    id: additional
+#    attributes:
+#      label: Anything else we need to know?
+#
+#  - type: textarea
+#    id: coderVersion
+#    attributes:
+#      label: Coder version
+#      value: |
+#        ```console
+#        $ coder version
+#        # paste output here
+#        ```
