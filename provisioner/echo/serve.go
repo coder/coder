@@ -118,11 +118,12 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 
 	var config *proto.Provision_Config
-	if msg.GetPlan() != nil {
+	switch {
+	case msg.GetPlan() != nil:
 		config = msg.GetPlan().GetConfig()
-	} else if msg.GetApply() != nil {
+	case msg.GetApply() != nil:
 		config = msg.GetApply().GetConfig()
-	} else {
+	default:
 		// Probably a cancel
 		return nil
 	}
