@@ -191,10 +191,9 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.CreateFirstUserRequest{
-			Email:            "testuser@coder.com",
-			Username:         "testuser",
-			Password:         "testpass",
-			OrganizationName: "testorg",
+			Email:    "testuser@coder.com",
+			Username: "testuser",
+			Password: "testpass",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
