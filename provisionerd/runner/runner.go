@@ -42,6 +42,7 @@ type Runner struct {
 	metrics             Metrics
 	job                 *proto.AcquiredJob
 	sender              JobUpdater
+	quotaCommitter      QuotaCommitter
 	logger              slog.Logger
 	filesystem          afero.Fs
 	workDirectory       string
@@ -86,8 +87,13 @@ type JobUpdater interface {
 	CompleteJob(ctx context.Context, in *proto.CompletedJob) error
 }
 
+type QuotaCommitter interface {
+	CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
+}
+
 type Options struct {
 	Updater             JobUpdater
+	QuotaCommitter      QuotaCommitter
 	Logger              slog.Logger
 	Filesystem          afero.Fs
 	WorkDirectory       string
@@ -115,6 +121,7 @@ func New(
 		metrics:             opts.Metrics,
 		job:                 job,
 		sender:              opts.Updater,
+		quotaCommitter:      opts.QuotaCommitter,
 		logger:              opts.Logger.With(slog.F("job_id", job.JobId)),
 		filesystem:          opts.Filesystem,
 		workDirectory:       opts.WorkDirectory,
@@ -776,29 +783,11 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}, nil
 }
 
-func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
-	ctx, span := r.startTrace(ctx, tracing.FuncName())
-	defer span.End()
-
-	var stage string
-	switch r.job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
-	case sdkproto.WorkspaceTransition_START:
-		stage = "Starting workspace"
-	case sdkproto.WorkspaceTransition_STOP:
-		stage = "Stopping workspace"
-	case sdkproto.WorkspaceTransition_DESTROY:
-		stage = "Destroying workspace"
-	}
-
-	r.queueLog(ctx, &proto.Log{
-		Source:    proto.LogSource_PROVISIONER_DAEMON,
-		Level:     sdkproto.LogLevel_INFO,
-		Stage:     stage,
-		CreatedAt: time.Now().UnixMilli(),
-	})
-
-	// use the notStopped so that if we attempt to gracefully cancel, the stream will still be available for us
-	// to send the cancel to the provisioner
+func (r *Runner) buildWorkspace(ctx context.Context, stage string, dry bool) (
+	*proto.CompletedJob, *proto.FailedJob,
+) {
+	// use the notStopped so that if we attempt to gracefully cancel, the stream
+	// will still be available for us to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
 		return nil, r.failedJobf("provision: %s", err)
@@ -823,6 +812,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				ParameterValues: r.job.GetWorkspaceBuild().ParameterValues,
 				Metadata:        r.job.GetWorkspaceBuild().Metadata,
 				State:           r.job.GetWorkspaceBuild().State,
+				DryRun:          dry,
 			},
 		},
 	})
@@ -887,6 +877,62 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			return nil, r.failedJobf("invalid message type %T received from provisioner", msg.Type)
 		}
 	}
+}
+
+func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
+	ctx, span := r.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	var (
+		stage       string
+		commitQuota bool
+	)
+	switch r.job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
+	case sdkproto.WorkspaceTransition_START:
+		stage = "Starting workspace"
+		commitQuota = true
+	case sdkproto.WorkspaceTransition_STOP:
+		stage = "Stopping workspace"
+		commitQuota = true
+	case sdkproto.WorkspaceTransition_DESTROY:
+		stage = "Destroying workspace"
+	}
+
+	r.queueLog(ctx, &proto.Log{
+		Source:    proto.LogSource_PROVISIONER_DAEMON,
+		Level:     sdkproto.LogLevel_INFO,
+		Stage:     stage,
+		CreatedAt: time.Now().UnixMilli(),
+	})
+
+	if commitQuota {
+		stage := "Quota Planning"
+		completed, failed := r.buildWorkspace(ctx, stage, false)
+		if failed != nil {
+			return nil, failed
+		}
+		cost := countCost(completed.GetWorkspaceBuild().Resources)
+		resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
+			Cost: int32(cost),
+		})
+		if err != nil {
+			return nil, r.failedJobf("commit quota: %+v", err)
+		}
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_INFO,
+			CreatedAt: time.Now().UnixMilli(),
+			Output: fmt.Sprintf(
+				"cost: %v\ntotal: %v\n available: %v\n",
+				cost, resp.TotalCredits, resp.CreditsAvailable,
+			),
+			Stage: stage,
+		})
+		if !resp.Ok {
+			return nil, r.failedJobf("insufficient quota")
+		}
+	}
+	return r.buildWorkspace(ctx, stage, false)
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
