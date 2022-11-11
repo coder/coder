@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -297,21 +298,26 @@ func (e executor) graph(ctx, killCtx context.Context) (string, error) {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) apply(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool,
+func (e executor) apply(
+	ctx, killCtx context.Context, plan []byte, logr logSink,
 ) (*proto.Provision_Response, error) {
+	planFile, err := ioutil.TempFile("", "coder-terrafrom-plan")
+	if err != nil {
+		return nil, xerrors.Errorf("create plan file: %w", err)
+	}
+	_, err = planFile.Write(plan)
+	if err != nil {
+		return nil, xerrors.Errorf("write plan file: %w", err)
+	}
+	defer os.Remove(planFile.Name())
+
 	args := []string{
 		"apply",
 		"-no-color",
 		"-auto-approve",
 		"-input=false",
 		"-json",
-		"-refresh=true",
-	}
-	if destroy {
-		args = append(args, "-destroy")
-	}
-	for _, variable := range vars {
-		args = append(args, "-var", variable)
+		planFile.Name(),
 	}
 
 	outWriter, doneOut := provisionLogWriter(logr)
@@ -323,7 +329,7 @@ func (e executor) apply(ctx, killCtx context.Context, env, vars []string, logr l
 		<-doneErr
 	}()
 
-	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	err = e.execWriteOutput(ctx, killCtx, args, nil, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}

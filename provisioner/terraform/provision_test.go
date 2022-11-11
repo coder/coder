@@ -113,16 +113,17 @@ func TestProvision_Cancel(t *testing.T) {
 			response, err := api.Provision(ctx)
 			require.NoError(t, err)
 			err = response.Send(&proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						Directory: dir,
-						DryRun:    false,
+				Type: &proto.Provision_Request_Plan{
+					Plan: &proto.Provision_Plan{
+						Config: &proto.Provision_Config{
+							Directory: dir,
+							Metadata:  &proto.Provision_Metadata{},
+						},
 						ParameterValues: []*proto.ParameterValue{{
 							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 							Name:              "A",
 							Value:             "example",
 						}},
-						Metadata: &proto.Provision_Metadata{},
 					},
 				},
 			})
@@ -175,7 +176,7 @@ func TestProvision(t *testing.T) {
 	testCases := []struct {
 		Name    string
 		Files   map[string]string
-		Request *proto.Provision_Request
+		Request *proto.Provision_Plan
 		// Response may be nil to not check the response.
 		Response *proto.Provision_Response
 		// If ErrorContains is not empty, then response.Recv() should return an
