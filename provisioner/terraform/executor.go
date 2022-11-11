@@ -77,6 +77,10 @@ func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []stri
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
+	if env == nil {
+		// We don't want to passthrough host env when unset.
+		env = []string{}
+	}
 	cmd.Env = env
 
 	// We want logs to be written in the correct order, so we wrap all logging
@@ -299,7 +303,7 @@ func (e executor) graph(ctx, killCtx context.Context) (string, error) {
 
 // revive:disable-next-line:flag-parameter
 func (e executor) apply(
-	ctx, killCtx context.Context, plan []byte, logr logSink,
+	ctx, killCtx context.Context, plan []byte, env []string, logr logSink,
 ) (*proto.Provision_Response, error) {
 	planFile, err := ioutil.TempFile("", "coder-terrafrom-plan")
 	if err != nil {
@@ -329,7 +333,7 @@ func (e executor) apply(
 		<-doneErr
 	}()
 
-	err = e.execWriteOutput(ctx, killCtx, args, nil, outWriter, errWriter)
+	err = e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}

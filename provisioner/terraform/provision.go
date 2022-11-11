@@ -138,13 +138,13 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	s.logger.Debug(ctx, "ran initialization")
 
+	env, err := provisionEnv(config, request.GetPlan().GetParameterValues())
+	if err != nil {
+		return err
+	}
+
 	var resp *proto.Provision_Response
 	if planRequest != nil {
-		env, err := planEnv(planRequest)
-		if err != nil {
-			return err
-		}
-
 		vars, err := planVars(planRequest)
 		if err != nil {
 			return err
@@ -170,7 +170,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	}
 	// Must be apply
 	resp, err = e.apply(
-		ctx, killCtx, applyRequest.Plan, sink,
+		ctx, killCtx, applyRequest.Plan, env, sink,
 	)
 	if err != nil {
 		errorMessage := err.Error()
@@ -204,21 +204,21 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	return vars, nil
 }
 
-func planEnv(plan *proto.Provision_Plan) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
-		"CODER_AGENT_URL="+plan.Config.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(plan.Config.Metadata.WorkspaceTransition.String()),
-		"CODER_WORKSPACE_NAME="+plan.Config.Metadata.WorkspaceName,
-		"CODER_WORKSPACE_OWNER="+plan.Config.Metadata.WorkspaceOwner,
-		"CODER_WORKSPACE_OWNER_EMAIL="+plan.Config.Metadata.WorkspaceOwnerEmail,
-		"CODER_WORKSPACE_ID="+plan.Config.Metadata.WorkspaceId,
-		"CODER_WORKSPACE_OWNER_ID="+plan.Config.Metadata.WorkspaceOwnerId,
+		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(config.Metadata.WorkspaceTransition.String()),
+		"CODER_WORKSPACE_NAME="+config.Metadata.WorkspaceName,
+		"CODER_WORKSPACE_OWNER="+config.Metadata.WorkspaceOwner,
+		"CODER_WORKSPACE_OWNER_EMAIL="+config.Metadata.WorkspaceOwnerEmail,
+		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
+		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
-	for _, param := range plan.ParameterValues {
+	for _, param := range params {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
 			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
