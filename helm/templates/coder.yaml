@@ -54,6 +54,18 @@ spec:
           env:
             - name: CODER_ADDRESS
               value: "0.0.0.0:{{ include "coder.port" . }}"
+            # Set the default access URL so a `helm apply` works by default.
+            # See: https://github.com/coder/coder/issues/5024
+            {{- $hasAccessURL := false }}
+            {{- range .Values.coder.env }}
+              {{- if eq .name "CODER_ACCESS_URL" }}
+                {{- $hasAccessURL = true }}
+              {{- end }}
+            {{- end }}
+            {{- if not $hasAccessURL }}
+            - name: CODER_ACCESS_URL
+              value: "{{ include "coder.portName" . }}://coder.{{.Release.Namespace}}.svc.cluster.local"
+            {{- end }}
             # Used for inter-pod communication with high-availability.
             - name: KUBE_POD_IP
               valueFrom:
