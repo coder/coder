@@ -82,6 +82,7 @@ type WorkspaceResource struct {
 	Icon       string                      `json:"icon"`
 	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
 	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
+	Cost       int32                       `json:"cost"`
 }
 
 type WorkspaceResourceMetadata struct {

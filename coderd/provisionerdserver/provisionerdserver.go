@@ -703,6 +703,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Name:       protoResource.Name,
 		Hide:       protoResource.Hide,
 		Icon:       protoResource.Icon,
+		Cost:       protoResource.Cost,
 		InstanceType: sql.NullString{
 			String: protoResource.InstanceType,
 			Valid:  protoResource.InstanceType != "",

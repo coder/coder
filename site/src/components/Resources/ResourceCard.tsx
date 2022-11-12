@@ -12,6 +12,7 @@ import IconButton from "@material-ui/core/IconButton"
 import Tooltip from "@material-ui/core/Tooltip"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CopyableValue } from "components/CopyableValue/CopyableValue"
+import CostIcon from "@material-ui/icons/AttachMoney"
 
 export interface ResourceCardProps {
   resource: WorkspaceResource
@@ -53,6 +54,14 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 
         <Stack alignItems="flex-start" direction="row" spacing={5}>
           <div className={styles.metadataHeader}>
+            {resource.cost > 0 && (
+              <div className={styles.metadata}>
+                <div className={styles.metadataLabel}>
+                  cost <CostIcon />
+                </div>
+                <div className={styles.metadataValue}>{resource.cost}</div>
+              </div>
+            )}
             {visibleMetadata.map((meta) => {
               return (
                 <div className={styles.metadata} key={meta.key}>

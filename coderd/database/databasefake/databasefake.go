@@ -2247,6 +2247,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Name:       arg.Name,
 		Hide:       arg.Hide,
 		Icon:       arg.Icon,
+		Cost:       arg.Cost,
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil

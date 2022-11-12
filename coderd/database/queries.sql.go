@@ -5972,9 +5972,9 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type)
+	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -5987,6 +5987,7 @@ type InsertWorkspaceResourceParams struct {
 	Hide         bool                `db:"hide" json:"hide"`
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
+	Cost         int32               `db:"cost" json:"cost"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -6000,6 +6001,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.Hide,
 		arg.Icon,
 		arg.InstanceType,
+		arg.Cost,
 	)
 	var i WorkspaceResource
 	err := row.Scan(

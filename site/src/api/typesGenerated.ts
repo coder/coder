@@ -918,6 +918,7 @@ export interface WorkspaceResource {
   readonly icon: string
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
+  readonly cost: number
 }
 
 // From codersdk/workspacebuilds.go
