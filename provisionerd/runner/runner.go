@@ -886,7 +886,7 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	}
 	for _, line := range []string{
 		fmt.Sprintf("Build cost       —   %v", cost),
-		fmt.Sprintf("Total allowance  —   %v", resp.TotalAllowance),
+		fmt.Sprintf("Budget           —   %v", resp.Budget),
 		fmt.Sprintf("Credits consumed —   %v", resp.CreditsConsumed),
 	} {
 		r.queueLog(ctx, &proto.Log{

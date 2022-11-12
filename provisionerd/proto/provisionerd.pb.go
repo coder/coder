@@ -729,7 +729,7 @@ type CommitQuotaResponse struct {
 
 	Ok              bool  `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
 	CreditsConsumed int32 `protobuf:"varint,2,opt,name=credits_consumed,json=creditsConsumed,proto3" json:"credits_consumed,omitempty"`
-	TotalAllowance  int32 `protobuf:"varint,3,opt,name=total_allowance,json=totalAllowance,proto3" json:"total_allowance,omitempty"`
+	Budget  int32 `protobuf:"varint,3,opt,name=budget,json=totalAllowance,proto3" json:"budget,omitempty"`
 }
 
 func (x *CommitQuotaResponse) Reset() {
@@ -778,9 +778,9 @@ func (x *CommitQuotaResponse) GetCreditsConsumed() int32 {
 	return 0
 }
 
-func (x *CommitQuotaResponse) GetTotalAllowance() int32 {
+func (x *CommitQuotaResponse) GetBudget() int32 {
 	if x != nil {
-		return x.TotalAllowance
+		return x.Budget
 	}
 	return 0
 }

@@ -903,7 +903,7 @@ export interface WorkspaceOptions {
 // From codersdk/workspacequota.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
-  readonly total_allowance: number
+  readonly budget: number
 }
 
 // From codersdk/workspacebuilds.go

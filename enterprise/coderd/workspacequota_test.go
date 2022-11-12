@@ -21,7 +21,7 @@ func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, con
 	got, err := client.WorkspaceQuota(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceQuota{
-		TotalAllowance:  total,
+		Budget:          total,
 		CreditsConsumed: consumed,
 	}, got)
 }

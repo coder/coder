@@ -39,9 +39,9 @@ func (c *Committer) CommitQuota(
 	}
 
 	var (
-		consumed  int64
-		allowance int64
-		permit    bool
+		consumed int64
+		budget   int64
+		permit   bool
 	)
 	err = c.Database.InTxOpts(func(s database.Store) error {
 		var err error
@@ -50,7 +50,7 @@ func (c *Committer) CommitQuota(
 			return err
 		}
 
-		allowance, err = s.GetQuotaAllowanceForUser(ctx, workspace.OwnerID)
+		budget, err = s.GetQuotaAllowanceForUser(ctx, workspace.OwnerID)
 		if err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func (c *Committer) CommitQuota(
 		}
 
 		newConsumed := int64(request.Cost) + consumed
-		if newConsumed > allowance && netIncrease {
+		if newConsumed > budget && netIncrease {
 			return nil
 		}
 
@@ -95,7 +95,7 @@ func (c *Committer) CommitQuota(
 	return &proto.CommitQuotaResponse{
 		Ok:              permit,
 		CreditsConsumed: int32(consumed),
-		TotalAllowance:  int32(allowance),
+		Budget:          int32(budget),
 	}, nil
 }
 
@@ -136,6 +136,6 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceQuota{
 		CreditsConsumed: int(quotaConsumed),
-		TotalAllowance:  int(quotaAllowance),
+		Budget:          int(quotaAllowance),
 	})
 }

@@ -55,7 +55,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
-  quota_allowance?: number
+  quota_budget?: number
 }
 
 /**
@@ -78,7 +78,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
-  quota_allowance,
+  quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -191,7 +191,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats
           workspace={workspace}
-          quota_allowance={quota_allowance}
+          quota_budget={quota_budget}
           handleUpdate={handleUpdate}
         />
 

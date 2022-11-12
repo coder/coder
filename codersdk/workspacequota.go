@@ -9,7 +9,7 @@ import (
 
 type WorkspaceQuota struct {
 	CreditsConsumed int `json:"credits_consumed"`
-	TotalAllowance  int `json:"total_allowance"`
+	Budget          int `json:"budget"`
 }
 
 func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQuota, error) {

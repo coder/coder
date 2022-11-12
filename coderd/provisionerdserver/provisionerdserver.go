@@ -259,8 +259,8 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 	if q == nil {
 		// We're probably in community edition or a test.
 		return &proto.CommitQuotaResponse{
-			TotalAllowance: -1,
-			Ok:             true,
+			Budget: -1,
+			Ok:     true,
 		}, nil
 	}
 	return (*q).CommitQuota(ctx, request)

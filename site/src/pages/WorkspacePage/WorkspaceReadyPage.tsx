@@ -127,7 +127,7 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfoState.context.buildInfo}
         applicationsHost={applicationsHost}
         template={template}
-        quota_allowance={quotaState.context.quota?.total_allowance}
+        quota_budgetuotaState.context.quota?.budget}
       />
       <DeleteDialog
         entity="workspace"

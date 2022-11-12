@@ -22,13 +22,13 @@ const Language = {
 
 export interface WorkspaceStatsProps {
   workspace: Workspace
-  quota_allowance?: number
+  quota_budget?: number
   handleUpdate: () => void
 }
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
-  quota_allowance,
+  quota_budget,
   handleUpdate,
 }) => {
   const styles = useStyles()
@@ -81,7 +81,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         <div className={styles.statItem}>
           <span className={styles.statsLabel}>{Language.costLabel}:</span>
           <span className={styles.statsValue}>
-            {workspace.latest_build.cost} / {quota_allowance}
+            {workspace.latest_build.cost} / {quota_budget}
           </span>
         </div>
       )}
