@@ -107,13 +107,22 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	quotaAllowance, err := api.Database.GetQuotaAllowanceForUser(r.Context(), user.ID)
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get allowance",
-			Detail:  err.Error(),
-		})
-		return
+	api.entitlementsMu.RLock()
+	licensed := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
+	api.entitlementsMu.RUnlock()
+
+	// There are no groups and thus no allowance if RBAC isn't licensed.
+	var quotaAllowance int64 = -1
+	if licensed {
+		var err error
+		quotaAllowance, err = api.Database.GetQuotaAllowanceForUser(r.Context(), user.ID)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get allowance",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	quotaConsumed, err := api.Database.GetQuotaConsumedForUser(r.Context(), user.ID)

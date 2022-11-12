@@ -585,7 +585,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
-	QuotaCommiter                     atomic.Pointer[proto.QuotaCommitter]
+	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"

@@ -85,7 +85,7 @@ func (q *sqlQuerier) InTxOpts(function func(Store) error, txOpts *sql.TxOptions)
 		return nil
 	}
 
-	transaction, err := q.sdb.BeginTxx(context.Background(), nil)
+	transaction, err := q.sdb.BeginTxx(context.Background(), txOpts)
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}

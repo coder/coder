@@ -45,8 +45,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			WorkspaceQuota: true,
-			TemplateRBAC:   true,
+			TemplateRBAC: true,
 		})
 
 		verifyQuota(ctx, t, client, 0, 0)

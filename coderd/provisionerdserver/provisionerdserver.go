@@ -42,7 +42,7 @@ type Server struct {
 	Database       database.Store
 	Pubsub         database.Pubsub
 	Telemetry      telemetry.Reporter
-	QuotaCommitter atomic.Pointer[proto.QuotaCommitter]
+	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
 
 	AcquireJobDebounce time.Duration
 }
@@ -259,7 +259,8 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 	if q == nil {
 		// We're probably in community edition or a test.
 		return &proto.CommitQuotaResponse{
-			Ok: true,
+			TotalAllowance: -1,
+			Ok:             true,
 		}, nil
 	}
 	return (*q).CommitQuota(ctx, request)

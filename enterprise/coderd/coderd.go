@@ -113,7 +113,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 
 		r.Route("/workspace-quota", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+			)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
@@ -223,7 +225,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		codersdk.FeatureAuditLog:         api.AuditLogging,
 		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
 		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureWorkspaceQuota:   true,
 		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
 		codersdk.FeatureMultipleGitAuth:  len(api.GitAuthConfigs) > 1,
 		codersdk.FeatureTemplateRBAC:     api.RBAC,
@@ -261,13 +262,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
+	if changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); changed {
 		if enabled {
 			committer := Committer{Database: api.Database}
 			ptr := proto.QuotaCommitter(&committer)
-			api.AGPL.QuotaCommiter.Store(&ptr)
+			api.AGPL.QuotaCommitter.Store(&ptr)
+		} else {
+			api.AGPL.QuotaCommitter.Store(nil)
 		}
-		// TODO
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
