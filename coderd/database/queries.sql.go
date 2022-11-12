@@ -5612,6 +5612,41 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 	return i, err
 }
 
+const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :one
+UPDATE
+	workspace_builds
+SET
+	cost = $2
+WHERE
+	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+`
+
+type UpdateWorkspaceBuildCostByIDParams struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Cost int32     `db:"cost" json:"cost"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.Cost)
+	var i WorkspaceBuild
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.BuildNumber,
+		&i.Transition,
+		&i.InitiatorID,
+		&i.ProvisionerState,
+		&i.JobID,
+		&i.Deadline,
+		&i.Reason,
+		&i.Cost,
+	)
+	return i, err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type

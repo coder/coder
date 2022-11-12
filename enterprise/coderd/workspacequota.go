@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -16,9 +18,22 @@ type Committer struct {
 	Database database.Store
 }
 
-func (_ *Committer) CommitQuota(
+func (c *Committer) CommitQuota(
 	ctx context.Context, request *proto.CommitQuotaRequest,
 ) (*proto.CommitQuotaResponse, error) {
+	id, err := uuid.Parse(request.JobId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = c.Database.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+		ID:   id,
+		Cost: request.Cost,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	return &proto.CommitQuotaResponse{
 		Ok:               false,
 		TotalCredits:     10,

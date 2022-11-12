@@ -2755,6 +2755,20 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
+func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != arg.ID {
+			continue
+		}
+		workspaceBuild.Cost = arg.Cost
+		q.workspaceBuilds[index] = workspaceBuild
+		return workspaceBuild, nil
+	}
+	return database.WorkspaceBuild{}, sql.ErrNoRows
+}
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	q.mutex.Lock()
