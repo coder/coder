@@ -1261,13 +1261,13 @@ func handleOauth2ClientCertificates(cfg *codersdk.DeploymentConfig, ctx context.
 			return nil, err
 		}
 
-		ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+		return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					Certificates: certificates,
 				},
 			},
-		})
+		}), nil
 	}
 	return ctx, nil
 }
