@@ -3,7 +3,6 @@ import {
   createWorkspace,
   getTemplates,
   getTemplateVersionSchema,
-  getWorkspaceQuota,
 } from "api/api"
 import {
   CreateWorkspaceRequest,
@@ -211,17 +210,6 @@ export const createWorkspaceMachine = createMachine(
           owner?.id ?? "me",
           createWorkspaceRequest,
         )
-      },
-      getWorkspaceQuota: (context) => {
-        if (!context.workspaceQuotaEnabled) {
-          // resolving with a limit of 0 will disable the component
-          return Promise.resolve({
-            user_workspace_count: 0,
-            user_workspace_limit: 0,
-          })
-        }
-
-        return getWorkspaceQuota(context.owner?.id ?? "me")
       },
     },
     guards: {
