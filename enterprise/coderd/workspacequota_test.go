@@ -18,48 +18,10 @@ import (
 )
 
 func TestWorkspaceQuota(t *testing.T) {
-	t.Parallel()
-	t.Run("Disabled", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		client := coderdenttest.New(t, &coderdenttest.Options{})
-		_ = coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			WorkspaceQuota: true,
-		})
-		q1, err := client.WorkspaceQuota(ctx, codersdk.Me)
-		require.NoError(t, err)
-		require.EqualValues(t, q1.UserWorkspaceLimit, 0)
-	})
-	t.Run("Enabled", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		max := 3
-		client := coderdenttest.New(t, &coderdenttest.Options{
-			UserWorkspaceQuota: max,
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			WorkspaceQuota: true,
-		})
-		q1, err := client.WorkspaceQuota(ctx, codersdk.Me)
-		require.NoError(t, err)
-		require.EqualValues(t, q1.UserWorkspaceLimit, max)
+	// TODO: refactor for new impl
 
-		// ensure other user IDs work too
-		u2, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "whatever@yo.com",
-			Username:       "haha",
-			Password:       "laskjdnvkaj",
-			OrganizationID: user.OrganizationID,
-		})
-		require.NoError(t, err)
-		q2, err := client.WorkspaceQuota(ctx, u2.ID.String())
-		require.NoError(t, err)
-		require.EqualValues(t, q1, q2)
-	})
+	t.Parallel()
+
 	t.Run("BlocksBuild", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -71,14 +33,15 @@ func TestWorkspaceQuota(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 			},
 		})
+
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			WorkspaceQuota: true,
 		})
 		q1, err := client.WorkspaceQuota(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.EqualValues(t, q1.UserWorkspaceCount, 0)
-		require.EqualValues(t, q1.UserWorkspaceLimit, max)
+		require.EqualValues(t, q1.CreditsConsumed, 0)
+		require.EqualValues(t, q1.TotalCredits, max)
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -89,6 +52,7 @@ func TestWorkspaceQuota(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "example",
 							Type: "aws_instance",
+							Cost: 1,
 							Agents: []*proto.Agent{{
 								Id:   uuid.NewString(),
 								Name: "example",
@@ -104,19 +68,22 @@ func TestWorkspaceQuota(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err = client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+		workspace, err := client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID:        template.ID,
 			Name:              "ajksdnvksjd",
 			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
 		})
-		require.Error(t, err)
-		require.ErrorContains(t, err, "User workspace limit")
+		require.NoError(t, err)
 
 		// ensure count increments
-		q1, err = client.WorkspaceQuota(ctx, codersdk.Me)
-		require.NoError(t, err)
-		require.EqualValues(t, q1.UserWorkspaceCount, 1)
-		require.EqualValues(t, q1.UserWorkspaceLimit, max)
+		// q1, err = client.WorkspaceQuota(ctx, codersdk.Me)
+		// require.NoError(t, err)
+		// require.EqualValues(t, q1.CreditsConsumed, 1)
+		// require.EqualValues(t, q1.TotalCredits, max)
+
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Contains(t, build.Job.Error, "quota")
 	})
 }

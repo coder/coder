@@ -1,36 +1,29 @@
 package coderd
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisionerd/proto"
 )
 
-type enforcer struct {
-	userWorkspaceLimit int
+type Committer struct {
+	Database database.Store
 }
 
-func NewEnforcer(userWorkspaceLimit int) workspacequota.Enforcer {
-	return &enforcer{
-		userWorkspaceLimit: userWorkspaceLimit,
-	}
-}
-
-func (e *enforcer) UserWorkspaceLimit() int {
-	return e.userWorkspaceLimit
-}
-
-func (e *enforcer) CanCreateWorkspace(count int) bool {
-	if e.userWorkspaceLimit == 0 {
-		return true
-	}
-
-	return count < e.userWorkspaceLimit
+func (_ *Committer) CommitQuota(
+	ctx context.Context, request *proto.CommitQuotaRequest,
+) (*proto.CommitQuotaResponse, error) {
+	return &proto.CommitQuotaResponse{
+		Ok:               false,
+		TotalCredits:     10,
+		CreditsAvailable: 0,
+	}, nil
 }
 
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
@@ -52,9 +45,9 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	e := *api.AGPL.WorkspaceQuotaEnforcer.Load()
+	// e := *api.AGPL.WorkspaceQuotaEnforcer.Load()
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceQuota{
-		UserWorkspaceCount: len(workspaces),
-		UserWorkspaceLimit: e.UserWorkspaceLimit(),
+		CreditsConsumed: len(workspaces),
+		TotalCredits:    1,
 	})
 }

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ type Server struct {
 	Database       database.Store
 	Pubsub         database.Pubsub
 	Telemetry      telemetry.Reporter
-	QuotaCommitter QuotaCommitter
+	QuotaCommitter atomic.Pointer[proto.QuotaCommitter]
 
 	AcquireJobDebounce time.Duration
 }
@@ -254,13 +255,14 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
-	if server.QuotaCommitter == nil {
+	q := server.QuotaCommitter.Load()
+	if q == nil {
 		// We're probably in community edition or a test.
 		return &proto.CommitQuotaResponse{
 			Ok: true,
 		}, nil
 	}
-	return server.QuotaCommitter.CommitQuota(ctx, request)
+	return (*q).CommitQuota(ctx, request)
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {

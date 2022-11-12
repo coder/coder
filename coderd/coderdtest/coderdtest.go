@@ -526,7 +526,8 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
-		workspaceBuild, err := client.WorkspaceBuild(context.Background(), build)
+		var err error
+		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild

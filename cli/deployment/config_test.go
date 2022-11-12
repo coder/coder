@@ -79,16 +79,14 @@ func TestConfig(t *testing.T) {
 	}, {
 		Name: "Enterprise",
 		Env: map[string]string{
-			"CODER_AUDIT_LOGGING":        "false",
-			"CODER_BROWSER_ONLY":         "true",
-			"CODER_SCIM_API_KEY":         "some-key",
-			"CODER_USER_WORKSPACE_QUOTA": "10",
+			"CODER_AUDIT_LOGGING": "false",
+			"CODER_BROWSER_ONLY":  "true",
+			"CODER_SCIM_API_KEY":  "some-key",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.AuditLogging.Value, false)
 			require.Equal(t, config.BrowserOnly.Value, true)
 			require.Equal(t, config.SCIMAPIKey.Value, "some-key")
-			require.Equal(t, config.UserWorkspaceQuota.Value, 10)
 		},
 	}, {
 		Name: "TLS",

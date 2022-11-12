@@ -20,12 +20,12 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
+	"github.com/coder/coder/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/tailnet"
 )
 
@@ -183,9 +183,8 @@ type Options struct {
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly        bool
-	SCIMAPIKey         []byte
-	UserWorkspaceQuota int
+	BrowserOnly bool
+	SCIMAPIKey  []byte
 
 	// Used for high availability.
 	DERPServerRelayAddress string
@@ -224,7 +223,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		codersdk.FeatureAuditLog:         api.AuditLogging,
 		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
 		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
+		codersdk.FeatureWorkspaceQuota:   true,
 		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
 		codersdk.FeatureMultipleGitAuth:  len(api.GitAuthConfigs) > 1,
 		codersdk.FeatureTemplateRBAC:     api.RBAC,
@@ -263,11 +262,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
-		enforcer := workspacequota.NewNop()
 		if enabled {
-			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+			committer := Committer{}
+			ptr := proto.QuotaCommitter(&committer)
+			api.AGPL.QuotaCommiter.Store(&ptr)
 		}
-		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
+		// TODO
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {

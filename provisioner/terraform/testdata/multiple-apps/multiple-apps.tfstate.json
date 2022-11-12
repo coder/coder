@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.3.4",
+  "terraform_version": "1.3.3",
   "values": {
     "root_module": {
       "resources": [
@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "8cf70a43-80fa-4f84-b651-f6ff21f7fbcc",
+            "id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "b41f44b7-f889-4ce9-9061-4f34952103d7",
+            "token": "6979bc13-f1c4-4639-8c43-c9fc8e951b4d",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -34,12 +34,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "8cf70a43-80fa-4f84-b651-f6ff21f7fbcc",
+            "agent_id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
             "command": null,
             "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "927154ef-0b53-4b90-b6de-034581c46759",
+            "id": "7b5c8f8f-b8c2-4496-89ad-f53c291c6819",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -62,7 +62,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "8cf70a43-80fa-4f84-b651-f6ff21f7fbcc",
+            "agent_id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
             "command": null,
             "display_name": null,
             "healthcheck": [
@@ -73,7 +73,7 @@
               }
             ],
             "icon": null,
-            "id": "e8b2c750-ac93-4126-964f-603cb06aa12e",
+            "id": "960554a6-ec68-4088-8052-e6bb2c415522",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -98,12 +98,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "8cf70a43-80fa-4f84-b651-f6ff21f7fbcc",
+            "agent_id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
             "command": null,
             "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "a1897b85-9691-4c7b-9a10-ff87c12efc89",
+            "id": "f4d1b294-ae33-44d3-874c-1a197ca68907",
             "name": null,
             "relative_path": null,
             "share": "owner",

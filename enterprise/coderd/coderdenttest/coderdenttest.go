@@ -70,7 +70,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     oop.AccessURL.String(),
 		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
-		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,

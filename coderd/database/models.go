@@ -700,6 +700,7 @@ type WorkspaceBuild struct {
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
+	Cost              int32               `db:"cost" json:"cost"`
 }
 
 type WorkspaceResource struct {

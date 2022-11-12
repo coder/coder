@@ -125,6 +125,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"job_id":              ActionIgnore,
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
+		"cost":                ActionIgnore,
 	},
 })
 

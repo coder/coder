@@ -444,7 +444,8 @@ CREATE TABLE workspace_builds (
     provisioner_state bytea,
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL
+    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
+    cost integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (

@@ -849,7 +849,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			}
 
 			r.logger.Debug(context.Background(), "provision complete no error")
-			r.logger.Info(context.Background(), "provision successful; marked job as complete",
+			r.logger.Info(context.Background(), "provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),
@@ -863,7 +863,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 }
 
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
-	cost := countCost(resources)
+	cost := sumCost(resources)
 	if cost == 0 {
 		return nil
 	}
@@ -875,17 +875,29 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	if err != nil {
 		return r.failedJobf("commit quota: %+v", err)
 	}
-	r.queueLog(ctx, &proto.Log{
-		Source:    proto.LogSource_PROVISIONER,
-		Level:     sdkproto.LogLevel_INFO,
-		CreatedAt: time.Now().UnixMilli(),
-		Output: fmt.Sprintf(
-			"cost: %v\ntotal: %v\n available: %v\n",
-			cost, resp.TotalCredits, resp.CreditsAvailable,
-		),
-		Stage: "Commit Quota",
-	})
+	const stage = "Commit quota"
+	for _, line := range []string{
+		fmt.Sprintf("Build cost        —   %v", cost),
+		fmt.Sprintf("Total Allowance   —   %v", resp.TotalCredits),
+		fmt.Sprintf("Credits Remaining — %v", resp.CreditsAvailable),
+	} {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_INFO,
+			CreatedAt: time.Now().UnixMilli(),
+			Output:    line,
+			Stage:     stage,
+		})
+	}
+
 	if !resp.Ok {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_WARN,
+			CreatedAt: time.Now().UnixMilli(),
+			Output:    "This build would exceed your quota. Failing.",
+			Stage:     stage,
+		})
 		return r.failedJobf("insufficient quota")
 	}
 	return nil
@@ -910,12 +922,6 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		applyStage = "Destroying workspace"
 	}
 
-	r.queueLog(ctx, &proto.Log{
-		Source:    proto.LogSource_PROVISIONER_DAEMON,
-		Level:     sdkproto.LogLevel_INFO,
-		Stage:     applyStage,
-		CreatedAt: time.Now().UnixMilli(),
-	})
 	config := &sdkproto.Provision_Config{
 		Directory: r.workDirectory,
 		Metadata:  r.job.GetWorkspaceBuild().Metadata,
@@ -933,12 +939,21 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if failed != nil {
 		return nil, failed
 	}
+	r.flushQueuedLogs(ctx)
 	if commitQuota {
 		failed = r.commitQuota(ctx, completedPlan.GetResources())
+		r.flushQueuedLogs(ctx)
 		if failed != nil {
 			return nil, failed
 		}
 	}
+
+	r.queueLog(ctx, &proto.Log{
+		Source:    proto.LogSource_PROVISIONER_DAEMON,
+		Level:     sdkproto.LogLevel_INFO,
+		Stage:     applyStage,
+		CreatedAt: time.Now().UnixMilli(),
+	})
 
 	completedApply, failed := r.buildWorkspace(ctx, applyStage, &sdkproto.Provision_Request{
 		Type: &sdkproto.Provision_Request_Apply{
@@ -951,6 +966,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if failed != nil {
 		return nil, failed
 	}
+	r.flushQueuedLogs(ctx)
 
 	return &proto.CompletedJob{
 		JobId: r.job.JobId,

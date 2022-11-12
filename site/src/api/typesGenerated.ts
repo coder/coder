@@ -301,7 +301,6 @@ export interface DeploymentConfig {
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
-  readonly user_workspace_quota: DeploymentConfigField<number>
   readonly provisioner: ProvisionerConfig
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
@@ -899,8 +898,8 @@ export interface WorkspaceOptions {
 
 // From codersdk/workspacequota.go
 export interface WorkspaceQuota {
-  readonly user_workspace_count: number
-  readonly user_workspace_limit: number
+  readonly credits_consumed: number
+  readonly total_credits: number
 }
 
 // From codersdk/workspacebuilds.go
