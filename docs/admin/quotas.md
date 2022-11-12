@@ -1,32 +1,32 @@
 # Quotas
 
-Coder Enterprise admins may define deployment-level quotas to control costs
-and ensure equitable access to cloud resources. The quota system currently controls
+Coder Enterprise admins may define quotas to control costs
+and ensure equitable access to cloud resources. The quota system controls
 instanteneous cost. For example, the system can ensure that every user in your
-deployment has a spend rate lower than $100/month at any given moment.
+deployment has a spend rate lower than $10/day at any given moment.
 
-Enforcement occurs on workspace create, start, and stop operations. If a user
-hits their quota, they can always unblock themselves by stopping or deleting
-one of their workspaces.
+The Workspace Provisioner enforces quota on workspace start and stop operations.
+When users reach their quota, they can always unblock themselves by stopping or deleting
+their workspace(s).
 
 Quotas are licensed with [Groups](./groups.md).
 
 ## Definitions
 
-- **Credits** are the fundamental units of the quota system. They map to the
+- **Credits** is the fundamental unit of the quota system. They map to the
   smallest denomination of your preferred currency. For example, if you work with USD,
   think of each credit as a cent.
-- **Budget** is the enforced, upper limit of credit spend
+- **Budget** is the per-user, enforced, upper limit to credit spend.
+- **Allowance** is a grant of credits to the budget.
 
 ## Establishing Costs
 
-Templates describe their daily cost through the `daily_cost` attribute in
+Templates describe their cost through the `daily_cost` attribute in
 [`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
-Since costs are defined with each resource, an offline workspace may consume
+Since costs are associated with resources, an offline workspace may consume
 less quota than an online workspace.
 
-A common Coder use case is workspaces with persistent storage and ephemeral
-compute. For example:
+A common use case is separating costs for a persistent volume and ephemeral compute:
 
 ```hcl
 resource "coder_metadata" "volume" {
@@ -58,16 +58,32 @@ resource "docker_container" "workspace" {
 In that template, the workspace consumes 10 quota credits when it's offline, and
 30 when it's online.
 
-Coder checks for Quota availability on workspace create, start, and stop
-operations.
+## Establishing Budgets
 
-When a user creates a workspace, the `resource_metadata.cost` fields are summed up,
+Each group has a configurable Quota Allowance. A user's budget is calculated as
+the some of their groups' Quota Allowance. For example:
 
-Then, when users create workspaces they would see:
+| Group Name | Quota Allowance |
+| ---------- | --------------- |
+| Frontend   | 100             |
+| Backend    | 200             |
+| Data       | 300             |
 
-<img src="../images/admin/quotas.png"/>
+<br/>
+
+| Username | Groups            | Budget |
+| -------- | ----------------- | ------ |
+| jill     | Frontend, Backend | 300    |
+| jack     | Backend, Data     | 500    |
+| sam      | Data              | 300    |
+| alex     | Frontend          | 100    |
 
 ## Quota Enforcement
+
+Coder enforces Quota on workspace start and stop operations. The workspace
+build process dynamically calculates costs, so quota violation fails builds
+as opposed to failing the build-triggering operation. For example, the Workspace
+Create Form will never get held up by quota enforcement.
 
 ## Up next
 
