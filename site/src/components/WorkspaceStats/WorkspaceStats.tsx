@@ -13,10 +13,11 @@ const Language = {
   templateLabel: "Template",
   statusLabel: "Workspace Status",
   versionLabel: "Version",
-  lastBuiltLabel: "Last Built",
+  lastBuiltLabel: "Last built",
   outdated: "Outdated",
   upToDate: "Up to date",
   byLabel: "Last built by",
+  costLabel: "Cost",
 }
 
 export interface WorkspaceStatsProps {
@@ -73,6 +74,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.byLabel}:</span>
         <span className={styles.statsValue}>{initiatedBy}</span>
+      </div>
+      <div className={styles.statItem}>
+        <span className={styles.statsLabel}>{Language.costLabel}:</span>
+        <span className={styles.statsValue}>{workspace.latest_build.cost}</span>
       </div>
     </div>
   )

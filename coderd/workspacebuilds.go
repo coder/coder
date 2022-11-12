@@ -931,6 +931,7 @@ func (api *API) convertWorkspaceBuild(
 		Reason:             codersdk.BuildReason(build.Reason),
 		Resources:          apiResources,
 		Status:             convertWorkspaceStatus(apiJob.Status, transition),
+		Cost:               build.Cost,
 	}, nil
 }
 

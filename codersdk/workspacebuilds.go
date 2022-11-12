@@ -68,6 +68,7 @@ type WorkspaceBuild struct {
 	Resources          []WorkspaceResource `json:"resources"`
 	Deadline           NullTime            `json:"deadline,omitempty"`
 	Status             WorkspaceStatus     `json:"status"`
+	Cost               int32               `json:"cost"`
 }
 
 type WorkspaceResource struct {

@@ -881,6 +881,7 @@ export interface WorkspaceBuild {
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
   readonly status: WorkspaceStatus
+  readonly cost: number
 }
 
 // From codersdk/workspaces.go
