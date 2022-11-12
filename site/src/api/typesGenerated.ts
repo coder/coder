@@ -156,6 +156,7 @@ export interface CreateFirstUserResponse {
 export interface CreateGroupRequest {
   readonly name: string
   readonly avatar_url: string
+  readonly quota_allowance: number
 }
 
 // From codersdk/users.go
@@ -501,6 +502,7 @@ export interface PatchGroupRequest {
   readonly remove_users: string[]
   readonly name: string
   readonly avatar_url?: string
+  readonly quota_allowance?: number
 }
 
 // From codersdk/deploymentconfig.go

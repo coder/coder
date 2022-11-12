@@ -192,7 +192,8 @@ CREATE TABLE groups (
     id uuid NOT NULL,
     name text NOT NULL,
     organization_id uuid NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL
+    avatar_url text DEFAULT ''::text NOT NULL,
+    quota_allowance integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE licenses (
@@ -464,7 +465,8 @@ CREATE TABLE workspace_resources (
     name character varying(64) NOT NULL,
     hide boolean DEFAULT false NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
-    instance_type character varying(256)
+    instance_type character varying(256),
+    cost integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspaces (

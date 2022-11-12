@@ -1079,7 +1079,7 @@ func (q *sqlQuerier) GetAllOrganizationMembers(ctx context.Context, organization
 
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT
-	id, name, organization_id, avatar_url
+	id, name, organization_id, avatar_url, quota_allowance
 FROM
 	groups
 WHERE
@@ -1096,13 +1096,14 @@ func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, err
 		&i.Name,
 		&i.OrganizationID,
 		&i.AvatarURL,
+		&i.QuotaAllowance,
 	)
 	return i, err
 }
 
 const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
 SELECT
-	id, name, organization_id, avatar_url
+	id, name, organization_id, avatar_url, quota_allowance
 FROM
 	groups
 WHERE
@@ -1126,6 +1127,7 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 		&i.Name,
 		&i.OrganizationID,
 		&i.AvatarURL,
+		&i.QuotaAllowance,
 	)
 	return i, err
 }
@@ -1185,7 +1187,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 
 const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
 SELECT
-	id, name, organization_id, avatar_url
+	id, name, organization_id, avatar_url, quota_allowance
 FROM
 	groups
 WHERE
@@ -1208,6 +1210,7 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 			&i.Name,
 			&i.OrganizationID,
 			&i.AvatarURL,
+			&i.QuotaAllowance,
 		); err != nil {
 			return nil, err
 		}
@@ -1224,7 +1227,7 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 
 const getUserGroups = `-- name: GetUserGroups :many
 SELECT
-	groups.id, groups.name, groups.organization_id, groups.avatar_url
+	groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance
 FROM
 	groups
 JOIN
@@ -1249,6 +1252,7 @@ func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Gro
 			&i.Name,
 			&i.OrganizationID,
 			&i.AvatarURL,
+			&i.QuotaAllowance,
 		); err != nil {
 			return nil, err
 		}
@@ -1270,7 +1274,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	( $1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url
+	( $1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance
 `
 
 // We use the organization_id as the id
@@ -1284,6 +1288,7 @@ func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uui
 		&i.Name,
 		&i.OrganizationID,
 		&i.AvatarURL,
+		&i.QuotaAllowance,
 	)
 	return i, err
 }
@@ -1293,10 +1298,11 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-	avatar_url
+	avatar_url,
+	quota_allowance
 )
 VALUES
-	( $1, $2, $3, $4) RETURNING id, name, organization_id, avatar_url
+	( $1, $2, $3, $4, $5) RETURNING id, name, organization_id, avatar_url, quota_allowance
 `
 
 type InsertGroupParams struct {
@@ -1304,6 +1310,7 @@ type InsertGroupParams struct {
 	Name           string    `db:"name" json:"name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
+	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 }
 
 func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error) {
@@ -1312,6 +1319,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 		arg.Name,
 		arg.OrganizationID,
 		arg.AvatarURL,
+		arg.QuotaAllowance,
 	)
 	var i Group
 	err := row.Scan(
@@ -1319,6 +1327,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 		&i.Name,
 		&i.OrganizationID,
 		&i.AvatarURL,
+		&i.QuotaAllowance,
 	)
 	return i, err
 }
@@ -1346,26 +1355,34 @@ UPDATE
 	groups
 SET
 	name = $1,
-	avatar_url = $2
+	avatar_url = $2,
+	quota_allowance = $3
 WHERE
-	id = $3
-RETURNING id, name, organization_id, avatar_url
+	id = $4
+RETURNING id, name, organization_id, avatar_url, quota_allowance
 `
 
 type UpdateGroupByIDParams struct {
-	Name      string    `db:"name" json:"name"`
-	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
-	ID        uuid.UUID `db:"id" json:"id"`
+	Name           string    `db:"name" json:"name"`
+	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
+	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
+	ID             uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error) {
-	row := q.db.QueryRowContext(ctx, updateGroupByID, arg.Name, arg.AvatarURL, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateGroupByID,
+		arg.Name,
+		arg.AvatarURL,
+		arg.QuotaAllowance,
+		arg.ID,
+	)
 	var i Group
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.OrganizationID,
 		&i.AvatarURL,
+		&i.QuotaAllowance,
 	)
 	return i, err
 }
@@ -5649,7 +5666,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg Updat
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
 FROM
 	workspace_resources
 WHERE
@@ -5669,6 +5686,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Hide,
 		&i.Icon,
 		&i.InstanceType,
+		&i.Cost,
 	)
 	return i, err
 }
@@ -5783,7 +5801,7 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
 FROM
 	workspace_resources
 WHERE
@@ -5809,6 +5827,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Hide,
 			&i.Icon,
 			&i.InstanceType,
+			&i.Cost,
 		); err != nil {
 			return nil, err
 		}
@@ -5825,7 +5844,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
 FROM
 	workspace_resources
 WHERE
@@ -5851,6 +5870,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 			&i.Hide,
 			&i.Icon,
 			&i.InstanceType,
+			&i.Cost,
 		); err != nil {
 			return nil, err
 		}
@@ -5866,7 +5886,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 }
 
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
-SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type FROM workspace_resources WHERE created_at > $1
+SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost FROM workspace_resources WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
@@ -5888,6 +5908,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 			&i.Hide,
 			&i.Icon,
 			&i.InstanceType,
+			&i.Cost,
 		); err != nil {
 			return nil, err
 		}
@@ -5906,7 +5927,7 @@ const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
 	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -5944,6 +5965,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Hide,
 		&i.Icon,
 		&i.InstanceType,
+		&i.Cost,
 	)
 	return i, err
 }
