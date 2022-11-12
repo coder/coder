@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -54,8 +55,23 @@ func (c *Committer) CommitQuota(
 			return err
 		}
 
+		// If the new build will reduce overall quota consumption, then we
+		// allow it even if the user is over quota.
+		netIncrease := true
+		previousBuild, err := s.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+			WorkspaceID: workspace.ID,
+			BuildNumber: build.BuildNumber - 1,
+		})
+		if err == nil {
+			if build.Cost < previousBuild.Cost {
+				netIncrease = false
+			}
+		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+
 		newConsumed := int64(request.Cost) + consumed
-		if newConsumed > allowance {
+		if newConsumed > allowance && netIncrease {
 			return nil
 		}
 
