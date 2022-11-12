@@ -282,6 +282,16 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-min-version",
 				Default: "tls12",
 			},
+			ClientCertFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Cert File",
+				Usage: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-cert-file",
+			},
+			ClientKeyFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Key File",
+				Usage: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-key-file",
+			},
 		},
 		Trace: &codersdk.TraceConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{
