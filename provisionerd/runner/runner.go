@@ -868,18 +868,26 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 		return nil
 	}
 
+	const stage = "Commit quota"
+
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
 		JobId: r.job.JobId,
 		Cost:  int32(cost),
 	})
 	if err != nil {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_ERROR,
+			CreatedAt: time.Now().UnixMilli(),
+			Output:    fmt.Sprintf("Failed to commit quota: %+v", err),
+			Stage:     stage,
+		})
 		return r.failedJobf("commit quota: %+v", err)
 	}
-	const stage = "Commit quota"
 	for _, line := range []string{
 		fmt.Sprintf("Build cost        —   %v", cost),
-		fmt.Sprintf("Total Allowance   —   %v", resp.TotalCredits),
-		fmt.Sprintf("Credits Remaining — %v", resp.CreditsAvailable),
+		fmt.Sprintf("Total Allowance   —   %v", resp.TotalAllowance),
+		fmt.Sprintf("Credits Consumed — %v", resp.CreditsConsumed),
 	} {
 		r.queueLog(ctx, &proto.Log{
 			Source:    proto.LogSource_PROVISIONER,

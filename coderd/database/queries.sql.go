@@ -5664,6 +5664,53 @@ func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg Updat
 	return i, err
 }
 
+const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
+SELECT
+	SUM(quota_allowance)
+FROM
+	group_members gm
+JOIN groups g ON
+	g.id = gm.group_id
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getQuotaAllowanceForUser, userID)
+	var sum int64
+	err := row.Scan(&sum)
+	return sum, err
+}
+
+const getQuotaConsumedForUser = `-- name: GetQuotaConsumedForUser :one
+WITH latest_builds AS (
+SELECT
+	DISTINCT ON
+	(workspace_id) id,
+	workspace_id,
+	COST
+FROM
+	workspace_builds wb
+ORDER BY
+	workspace_id,
+	created_at DESC
+)
+SELECT
+	SUM(cost)
+FROM
+	workspaces
+JOIN latest_builds ON
+	latest_builds.workspace_id = workspaces.id
+WHERE NOT deleted AND workspaces.owner_id = $1
+`
+
+func (q *sqlQuerier) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getQuotaConsumedForUser, ownerID)
+	var sum int64
+	err := row.Scan(&sum)
+	return sum, err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost

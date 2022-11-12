@@ -113,8 +113,8 @@ message CommitQuotaRequest {
 
 message CommitQuotaResponse {
     bool ok = 1;
-    int32 credits_available = 2;
-    int32 total_credits = 3;
+    int32 credits_consumed = 2;
+    int32 total_allowance = 3;
 }
 
 service ProvisionerDaemon {

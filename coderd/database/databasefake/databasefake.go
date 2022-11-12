@@ -126,6 +126,9 @@ func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	defer q.mutex.Unlock()
 	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
 }
+func (q *fakeQuerier) InTxOpts(fn func(database.Store) error, _ *sql.TxOptions) error {
+	return q.InTx(fn)
+}
 
 func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	q.mutex.Lock()
@@ -2870,6 +2873,7 @@ func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 		if group.ID == arg.ID {
 			group.Name = arg.Name
 			group.AvatarURL = arg.AvatarURL
+			group.QuotaAllowance = arg.QuotaAllowance
 			q.groups[i] = group
 			return group, nil
 		}
@@ -3242,6 +3246,7 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		Name:           arg.Name,
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
+		QuotaAllowance: arg.QuotaAllowance,
 	}
 
 	q.groups = append(q.groups, group)
@@ -3441,4 +3446,47 @@ func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 		q.gitAuthLinks[index] = gitAuthLink
 	}
 	return nil
+}
+
+func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	var sum int64
+	for _, member := range q.groupMembers {
+		if member.UserID != userID {
+			continue
+		}
+		for _, group := range q.groups {
+			if group.ID == member.GroupID {
+				sum += int64(group.QuotaAllowance)
+			}
+		}
+	}
+	return sum, nil
+}
+
+func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	var sum int64
+	for _, workspace := range q.workspaces {
+		if workspace.OwnerID != userID {
+			continue
+		}
+		if workspace.Deleted {
+			continue
+		}
+
+		var lastBuild database.WorkspaceBuild
+		for _, build := range q.workspaceBuilds {
+			if build.WorkspaceID != workspace.ID {
+				continue
+			}
+			if build.CreatedAt.After(lastBuild.CreatedAt) {
+				lastBuild = build
+			}
+		}
+		sum += int64(lastBuild.Cost)
+	}
+	return sum, nil
 }

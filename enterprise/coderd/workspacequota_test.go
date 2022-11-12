@@ -3,19 +3,28 @@ package coderd_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
+
+func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, consumed, total int) {
+	t.Helper()
+
+	got, err := client.WorkspaceQuota(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.EqualValues(t, codersdk.WorkspaceQuota{
+		TotalAllowance:  total,
+		CreditsConsumed: consumed,
+	}, got)
+}
 
 func TestWorkspaceQuota(t *testing.T) {
 	// TODO: refactor for new impl
@@ -37,11 +46,35 @@ func TestWorkspaceQuota(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			WorkspaceQuota: true,
+			TemplateRBAC:   true,
 		})
-		q1, err := client.WorkspaceQuota(ctx, codersdk.Me)
+
+		verifyQuota(ctx, t, client, 0, 0)
+
+		// Add user to two groups, granting them a total budget of 3.
+		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:           "test-1",
+			QuotaAllowance: 1,
+		})
 		require.NoError(t, err)
-		require.EqualValues(t, q1.CreditsConsumed, 0)
-		require.EqualValues(t, q1.TotalCredits, max)
+
+		group2, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:           "test-2",
+			QuotaAllowance: 2,
+		})
+		require.NoError(t, err)
+
+		_, err = client.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user.UserID.String()},
+		})
+		require.NoError(t, err)
+
+		_, err = client.PatchGroup(ctx, group2.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user.UserID.String()},
+		})
+		require.NoError(t, err)
+
+		verifyQuota(ctx, t, client, 0, 3)
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -67,23 +100,45 @@ func TestWorkspaceQuota(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		workspace, err := client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
-			TemplateID:        template.ID,
-			Name:              "ajksdnvksjd",
-			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
-		})
-		require.NoError(t, err)
 
-		// ensure count increments
-		// q1, err = client.WorkspaceQuota(ctx, codersdk.Me)
-		// require.NoError(t, err)
-		// require.EqualValues(t, q1.CreditsConsumed, 1)
-		// require.EqualValues(t, q1.TotalCredits, max)
+		// Spin up three workspaces fine
+		for i := 0; i < 3; i++ {
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			verifyQuota(ctx, t, client, i+1, 3)
+			require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+		}
 
+		// Next one must fail
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Consumed shouldn't bump
+		verifyQuota(ctx, t, client, 3, 3)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		require.Contains(t, build.Job.Error, "quota")
+
+		// Delete one random workspace, then quota should recover.
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		for _, w := range workspaces.Workspaces {
+			if w.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+				continue
+			}
+			build, err := client.CreateWorkspaceBuild(ctx, w.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionDelete,
+			})
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+			verifyQuota(ctx, t, client, 2, 3)
+			break
+		}
+
+		// Next one should now succeed
+		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		verifyQuota(ctx, t, client, 3, 3)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 	})
 }

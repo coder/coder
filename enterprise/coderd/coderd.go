@@ -263,7 +263,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
 		if enabled {
-			committer := Committer{}
+			committer := Committer{Database: api.Database}
 			ptr := proto.QuotaCommitter(&committer)
 			api.AGPL.QuotaCommiter.Store(&ptr)
 		}

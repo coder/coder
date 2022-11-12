@@ -156,7 +156,13 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get group by ID: %w", err)
 		}
 
-		updateGroupParams := database.UpdateGroupByIDParams{ID: group.ID}
+		updateGroupParams := database.UpdateGroupByIDParams{
+			ID:             group.ID,
+			AvatarURL:      group.AvatarURL,
+			Name:           group.Name,
+			QuotaAllowance: group.QuotaAllowance,
+		}
+
 		// TODO: Do we care about validating this?
 		if req.AvatarURL != nil {
 			updateGroupParams.AvatarURL = *req.AvatarURL

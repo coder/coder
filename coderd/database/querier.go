@@ -72,6 +72,8 @@ type sqlcQuerier interface {
 	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error)
 	GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error)
+	GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error)
+	GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
