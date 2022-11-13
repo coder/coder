@@ -138,7 +138,7 @@ WHERE
 UPDATE
 	workspace_builds
 SET
-	cost = $2
+	daily_cost = $2
 WHERE
 	id = $1 RETURNING *;
 

@@ -63,21 +63,21 @@ func (c *Committer) CommitQuota(
 			BuildNumber: build.BuildNumber - 1,
 		})
 		if err == nil {
-			if build.Cost < previousBuild.Cost {
+			if build.DailyCost < previousBuild.DailyCost {
 				netIncrease = false
 			}
 		} else if !xerrors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 
-		newConsumed := int64(request.Cost) + consumed
+		newConsumed := int64(request.DailyCost) + consumed
 		if newConsumed > budget && netIncrease {
 			return nil
 		}
 
 		_, err = s.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
-			ID:   build.ID,
-			Cost: request.Cost,
+			ID:        build.ID,
+			DailyCost: request.DailyCost,
 		})
 		if err != nil {
 			return err

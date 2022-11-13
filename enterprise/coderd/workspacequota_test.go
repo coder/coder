@@ -82,9 +82,9 @@ func TestWorkspaceQuota(t *testing.T) {
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Cost: 1,
+							Name:      "example",
+							Type:      "aws_instance",
+							DailyCost: 1,
 							Agents: []*proto.Agent{{
 								Id:   uuid.NewString(),
 								Name: "example",

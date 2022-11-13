@@ -931,7 +931,7 @@ func (api *API) convertWorkspaceBuild(
 		Reason:             codersdk.BuildReason(build.Reason),
 		Resources:          apiResources,
 		Status:             convertWorkspaceStatus(apiJob.Status, transition),
-		Cost:               build.Cost,
+		DailyCost:          build.DailyCost,
 	}, nil
 }
 
@@ -975,7 +975,7 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Icon:       resource.Icon,
 		Agents:     agents,
 		Metadata:   convertedMetadata,
-		Cost:       resource.Cost,
+		DailyCost:  resource.DailyCost,
 	}
 }
 

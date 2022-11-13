@@ -396,7 +396,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			Metadata:     resourceMetadata[label],
 			Hide:         resourceHidden[label],
 			Icon:         resourceIcon[label],
-			Cost:         resourceCost[label],
+			DailyCost:    resourceCost[label],
 			InstanceType: applyInstanceType(resource),
 		})
 	}

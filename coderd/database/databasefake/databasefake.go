@@ -2244,7 +2244,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Name:       arg.Name,
 		Hide:       arg.Hide,
 		Icon:       arg.Icon,
-		Cost:       arg.Cost,
+		DailyCost:  arg.DailyCost,
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil
@@ -2764,7 +2764,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 		if workspaceBuild.ID != arg.ID {
 			continue
 		}
-		workspaceBuild.Cost = arg.Cost
+		workspaceBuild.DailyCost = arg.DailyCost
 		q.workspaceBuilds[index] = workspaceBuild
 		return workspaceBuild, nil
 	}
@@ -3484,7 +3484,7 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 				lastBuild = build
 			}
 		}
-		sum += int64(lastBuild.Cost)
+		sum += int64(lastBuild.DailyCost)
 	}
 	return sum, nil
 }

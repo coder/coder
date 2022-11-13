@@ -701,7 +701,7 @@ type WorkspaceBuild struct {
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
-	Cost              int32               `db:"cost" json:"cost"`
+	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
 }
 
 type WorkspaceResource struct {
@@ -714,7 +714,7 @@ type WorkspaceResource struct {
 	Hide         bool                `db:"hide" json:"hide"`
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
-	Cost         int32               `db:"cost" json:"cost"`
+	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
 }
 
 type WorkspaceResourceMetadatum struct {

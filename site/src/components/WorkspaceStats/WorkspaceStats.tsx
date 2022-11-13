@@ -77,11 +77,11 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         <span className={styles.statsLabel}>{Language.byLabel}:</span>
         <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
-      {workspace.latest_build.cost > 0 && (
+      {workspace.latest_build.daily_cost > 0 && (
         <div className={styles.statItem}>
           <span className={styles.statsLabel}>{Language.costLabel}:</span>
           <span className={styles.statsValue}>
-            {workspace.latest_build.cost} / {quota_budget}
+            {workspace.latest_build.daily_cost} / {quota_budget}
           </span>
         </div>
       )}

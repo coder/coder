@@ -881,7 +881,7 @@ export interface WorkspaceBuild {
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
   readonly status: WorkspaceStatus
-  readonly cost: number
+  readonly daily_cost: number
 }
 
 // From codersdk/workspaces.go
@@ -918,7 +918,7 @@ export interface WorkspaceResource {
   readonly icon: string
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
-  readonly cost: number
+  readonly daily_cost: number
 }
 
 // From codersdk/workspacebuilds.go

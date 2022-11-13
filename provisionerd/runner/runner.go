@@ -863,7 +863,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 }
 
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
-	cost := sumCost(resources)
+	cost := sumDailyCost(resources)
 	if cost == 0 {
 		return nil
 	}
@@ -871,8 +871,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 	const stage = "Commit quota"
 
 	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
-		JobId: r.job.JobId,
-		Cost:  int32(cost),
+		JobId:     r.job.JobId,
+		DailyCost: int32(cost),
 	})
 	if err != nil {
 		r.queueLog(ctx, &proto.Log{

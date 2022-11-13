@@ -446,7 +446,7 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
-    cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (
@@ -466,7 +466,7 @@ CREATE TABLE workspace_resources (
     hide boolean DEFAULT false NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     instance_type character varying(256),
-    cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspaces (

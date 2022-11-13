@@ -14,7 +14,7 @@ SELECT
 	DISTINCT ON
 	(workspace_id) id,
 	workspace_id,
-	COST
+	daily_cost
 FROM
 	workspace_builds wb
 ORDER BY
@@ -22,7 +22,7 @@ ORDER BY
 	created_at DESC
 )
 SELECT
-	SUM(cost)
+	SUM(daily_cost)
 FROM
 	workspaces
 JOIN latest_builds ON

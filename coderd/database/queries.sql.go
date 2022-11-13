@@ -5152,7 +5152,7 @@ func (q *sqlQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg Updat
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 FROM
 	workspace_builds
 WHERE
@@ -5179,13 +5179,13 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
 
 const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.cost
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -5221,7 +5221,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5237,7 +5237,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.cost
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -5275,7 +5275,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5292,7 +5292,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 FROM
 	workspace_builds
 WHERE
@@ -5317,14 +5317,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 FROM
 	workspace_builds
 WHERE
@@ -5349,14 +5349,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 FROM
 	workspace_builds
 WHERE
@@ -5385,14 +5385,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 FROM
 	workspace_builds
 WHERE
@@ -5460,7 +5460,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5476,7 +5476,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost FROM workspace_builds WHERE created_at > $1
+SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost FROM workspace_builds WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
@@ -5501,7 +5501,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 			&i.JobID,
 			&i.Deadline,
 			&i.Reason,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5533,7 +5533,7 @@ INSERT INTO
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -5580,7 +5580,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
@@ -5593,7 +5593,7 @@ SET
 	provisioner_state = $3,
 	deadline = $4
 WHERE
-	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 `
 
 type UpdateWorkspaceBuildByIDParams struct {
@@ -5624,7 +5624,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
@@ -5633,18 +5633,18 @@ const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :one
 UPDATE
 	workspace_builds
 SET
-	cost = $2
+	daily_cost = $2
 WHERE
-	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, cost
+	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
 `
 
 type UpdateWorkspaceBuildCostByIDParams struct {
-	ID   uuid.UUID `db:"id" json:"id"`
-	Cost int32     `db:"cost" json:"cost"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	DailyCost int32     `db:"daily_cost" json:"daily_cost"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.Cost)
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.DailyCost)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
@@ -5659,7 +5659,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg Updat
 		&i.JobID,
 		&i.Deadline,
 		&i.Reason,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
@@ -5688,7 +5688,7 @@ SELECT
 	DISTINCT ON
 	(workspace_id) id,
 	workspace_id,
-	COST
+	daily_cost
 FROM
 	workspace_builds wb
 ORDER BY
@@ -5696,7 +5696,7 @@ ORDER BY
 	created_at DESC
 )
 SELECT
-	SUM(cost)
+	SUM(daily_cost)
 FROM
 	workspaces
 JOIN latest_builds ON
@@ -5713,7 +5713,7 @@ func (q *sqlQuerier) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.U
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
 FROM
 	workspace_resources
 WHERE
@@ -5733,7 +5733,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Hide,
 		&i.Icon,
 		&i.InstanceType,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }
@@ -5848,7 +5848,7 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
 FROM
 	workspace_resources
 WHERE
@@ -5874,7 +5874,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Hide,
 			&i.Icon,
 			&i.InstanceType,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5891,7 +5891,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
 FROM
 	workspace_resources
 WHERE
@@ -5917,7 +5917,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 			&i.Hide,
 			&i.Icon,
 			&i.InstanceType,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5933,7 +5933,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 }
 
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
-SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost FROM workspace_resources WHERE created_at > $1
+SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost FROM workspace_resources WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
@@ -5955,7 +5955,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 			&i.Hide,
 			&i.Icon,
 			&i.InstanceType,
-			&i.Cost,
+			&i.DailyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -5972,9 +5972,9 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost)
+	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, cost
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -5987,7 +5987,7 @@ type InsertWorkspaceResourceParams struct {
 	Hide         bool                `db:"hide" json:"hide"`
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
-	Cost         int32               `db:"cost" json:"cost"`
+	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -6001,7 +6001,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.Hide,
 		arg.Icon,
 		arg.InstanceType,
-		arg.Cost,
+		arg.DailyCost,
 	)
 	var i WorkspaceResource
 	err := row.Scan(
@@ -6014,7 +6014,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Hide,
 		&i.Icon,
 		&i.InstanceType,
-		&i.Cost,
+		&i.DailyCost,
 	)
 	return i, err
 }

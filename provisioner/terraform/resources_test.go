@@ -145,11 +145,11 @@ func TestConvertResources(t *testing.T) {
 		}},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {{
-			Name: "about",
-			Type: "null_resource",
-			Hide: true,
-			Icon: "/icon/server.svg",
-			Cost: 29,
+			Name:      "about",
+			Type:      "null_resource",
+			Hide:      true,
+			Icon:      "/icon/server.svg",
+			DailyCost: 29,
 			Metadata: []*proto.Resource_Metadata{{
 				Key:   "hello",
 				Value: "world",

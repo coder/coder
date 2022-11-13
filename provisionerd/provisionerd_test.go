@@ -525,7 +525,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 				commitQuota: func(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
 					return &proto.CommitQuotaResponse{
-						Ok: com.Cost < 20,
+						Ok: com.DailyCost < 20,
 					}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
@@ -551,10 +551,10 @@ func TestProvisionerd(t *testing.T) {
 							Complete: &sdkproto.Provision_Complete{
 								Resources: []*sdkproto.Resource{
 									{
-										Cost: 10,
+										DailyCost: 10,
 									},
 									{
-										Cost: 15,
+										DailyCost: 15,
 									},
 								},
 							},
