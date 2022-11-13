@@ -90,12 +90,12 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{})
 			if err != nil {
 				return err
 			}
 			defer conn.Close()
-
+			conn.AwaitReachable(ctx)
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
