@@ -673,6 +673,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	coordinator := tailnet.NewCoordinator()
 	agentID := uuid.New()
 	statsCh := make(chan *codersdk.AgentStats)
+	fs := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
 		Client: &client{
 			t:           t,
@@ -681,7 +682,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 			statsChan:   statsCh,
 			coordinator: coordinator,
 		},
-		Filesystem:             afero.NewMemMapFs(),
+		Filesystem:             fs,
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
