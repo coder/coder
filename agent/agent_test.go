@@ -360,7 +360,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
-		content := "some output"
+		content := "output"
 		_, _, fs := setupAgent(t, codersdk.WorkspaceAgentMetadata{
 			StartupScript: "echo " + content,
 		}, 0)
