@@ -62,14 +62,16 @@ func TestTailnet(t *testing.T) {
 			err := w1.UpdateNodes([]*tailnet.Node{node})
 			require.NoError(t, err)
 		})
-
+		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
 		conn := make(chan struct{})
 		go func() {
 			listener, err := w1.Listen("tcp", ":35565")
 			assert.NoError(t, err)
 			defer listener.Close()
 			nc, err := listener.Accept()
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			_ = nc.Close()
 			conn <- struct{}{}
 		}()

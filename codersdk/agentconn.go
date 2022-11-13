@@ -16,9 +16,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/tailnet"
@@ -133,27 +131,18 @@ type AgentConn struct {
 	CloseFunc func()
 }
 
+func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	return c.Conn.AwaitReachable(ctx, TailnetIP)
+}
+
 func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	errCh := make(chan error, 1)
-	durCh := make(chan time.Duration, 1)
-	go c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
-		if pr.Err != "" {
-			errCh <- xerrors.New(pr.Err)
-			return
-		}
-		durCh <- time.Duration(pr.LatencySeconds * float64(time.Second))
-	})
-	select {
-	case err := <-errCh:
-		return 0, err
-	case <-ctx.Done():
-		return 0, ctx.Err()
-	case dur := <-durCh:
-		return dur, nil
-	}
+	return c.Conn.Ping(ctx, TailnetIP)
 }
 
 func (c *AgentConn) CloseWithError(_ error) error {
