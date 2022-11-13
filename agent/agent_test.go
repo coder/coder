@@ -370,9 +370,11 @@ func TestAgent(t *testing.T) {
 		require.Eventually(t, func() bool {
 			content, err := os.ReadFile(tempPath)
 			if err != nil {
+				t.Logf("read file %q: %s", tempPath, err)
 				return false
 			}
 			if len(content) == 0 {
+				t.Logf("no content in %q", tempPath)
 				return false
 			}
 			if runtime.GOOS == "windows" {
