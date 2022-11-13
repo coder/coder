@@ -244,9 +244,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
-		"GET:/api/v2/workspaces/":      {StatusCode: http.StatusOK, NoAuthorize: true},
-		"GET:/api/v2/workspaces/count": {StatusCode: http.StatusOK, NoAuthorize: true},
-		"GET:/api/v2/users/count":      {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/users/count": {StatusCode: http.StatusOK, NoAuthorize: true},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -321,7 +320,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	// Setup some data in the database.
 	version := CreateTemplateVersion(t, client, admin.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		Provision: []*proto.Provision_Response{{
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					// Return a workspace resource

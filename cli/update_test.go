@@ -52,9 +52,9 @@ func TestUpdate(t *testing.T) {
 		require.Equal(t, version1.ID.String(), ws.LatestBuild.TemplateVersionID.String())
 
 		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		}, template.ID)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 
@@ -100,9 +100,9 @@ func TestUpdate(t *testing.T) {
 
 		defaultValue := "something"
 		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           createTestParseResponseWithDefault(defaultValue),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponseWithDefault(defaultValue),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		}, template.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 
