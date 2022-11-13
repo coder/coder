@@ -195,7 +195,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return nil
-	})
+	}, nil)
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",

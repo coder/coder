@@ -288,7 +288,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 		template = api.convertTemplate(dbTemplate, 0, createdByNameMap[dbTemplate.ID.String()])
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting template.",
@@ -509,7 +509,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -688,7 +688,7 @@ func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateO
 		}
 
 		return nil
-	})
+	}, nil)
 
 	return template, err
 }

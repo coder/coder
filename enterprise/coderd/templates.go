@@ -171,7 +171,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update template ACL by ID: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

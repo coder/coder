@@ -136,7 +136,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		return
 	}
@@ -536,7 +536,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting workspace build.",

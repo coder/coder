@@ -43,7 +43,7 @@ func (c *Committer) CommitQuota(
 		budget   int64
 		permit   bool
 	)
-	err = c.Database.InTxOpts(func(s database.Store) error {
+	err = c.Database.InTx(func(s database.Store) error {
 		var err error
 		consumed, err = s.GetQuotaConsumedForUser(ctx, workspace.OwnerID)
 		if err != nil {

@@ -460,7 +460,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating workspace.",
@@ -691,7 +691,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		resp := codersdk.Response{
 			Message: "Error updating workspace time until shutdown.",
@@ -788,7 +788,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		resp.Message = "Deadline updated to " + newDeadline.Format(time.RFC3339) + "."
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		api.Logger.Info(ctx, "extending workspace", slog.Error(err))
 	}

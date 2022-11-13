@@ -121,13 +121,10 @@ func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
-func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
+func (q *fakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
-}
-func (q *fakeQuerier) InTxOpts(fn func(database.Store) error, _ *sql.TxOptions) error {
-	return q.InTx(fn)
 }
 
 func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {

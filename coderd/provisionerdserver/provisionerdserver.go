@@ -634,7 +634,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 
 			return nil
-		})
+		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
