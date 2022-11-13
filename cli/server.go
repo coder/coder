@@ -568,6 +568,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 						InsecureSkipVerify: true,
 					},
 				}
+				defer client.HTTPClient.CloseIdleConnections()
 			}
 
 			// Since errCh only has one buffered slot, all routines
