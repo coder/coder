@@ -363,7 +363,7 @@ func TestAgent(t *testing.T) {
 		tempPath := filepath.Join(t.TempDir(), "content.txt")
 		content := "somethingnice"
 		setupAgent(t, codersdk.WorkspaceAgentMetadata{
-			StartupScript: fmt.Sprintf("echo %s > %s", content, tempPath),
+			StartupScript: fmt.Sprintf("echo %s> %s", content, tempPath),
 		}, 0)
 
 		var gotContent string
