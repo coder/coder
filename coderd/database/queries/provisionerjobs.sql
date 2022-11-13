@@ -22,9 +22,8 @@ WHERE
 			AND nested.canceled_at IS NULL
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			-- Ensure tags are equal!
-			AND nested.tags @> @tags :: jsonb
-			AND nested.tags <@ @tags :: jsonb
+			-- Ensure the caller satisfies all job tags.
+			AND @tags :: jsonb @> nested.tags
 		ORDER BY
 			nested.created_at FOR
 		UPDATE
@@ -64,10 +63,11 @@ INSERT INTO
 		storage_method,
 		file_id,
 		"type",
-		"input"
+		"input",
+		tags
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 
 -- name: UpdateProvisionerJobByID :exec
 UPDATE

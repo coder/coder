@@ -2477,8 +2477,8 @@ WHERE
 			AND nested.canceled_at IS NULL
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
-			AND nested.tags @> $4 :: jsonb
-			AND nested.tags <@ $4 :: jsonb
+			-- Ensure the caller satisfies all job tags.
+			AND $4 :: jsonb @> nested.tags
 		ORDER BY
 			nested.created_at FOR
 		UPDATE
@@ -2668,10 +2668,11 @@ INSERT INTO
 		storage_method,
 		file_id,
 		"type",
-		"input"
+		"input",
+		tags
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
 `
 
 type InsertProvisionerJobParams struct {
@@ -2685,6 +2686,7 @@ type InsertProvisionerJobParams struct {
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
+	Tags           dbtype.Map               `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -2699,6 +2701,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.FileID,
 		arg.Type,
 		arg.Input,
+		arg.Tags,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
