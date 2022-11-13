@@ -61,7 +61,7 @@ func TestAgent(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			conn, stats := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+			conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 
 			sshClient, err := conn.SSHClient(ctx)
 			require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestAgent(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			conn, stats := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+			conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 
 			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.NewString(), 128, 128, "/bin/bash")
 			require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestAgent(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			home = "/" + strings.ReplaceAll(home, "\\", "/")
 		}
-		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -261,7 +261,7 @@ func TestAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -361,9 +361,9 @@ func TestAgent(t *testing.T) {
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
 		tempPath := filepath.Join(t.TempDir(), "content.txt")
-		content := "somethingnice"
+		content := "hello"
 		setupAgent(t, codersdk.WorkspaceAgentMetadata{
-			StartupScript: fmt.Sprintf("echo %s> %s", content, tempPath),
+			StartupScript: "echo " + content + " > " + tempPath,
 		}, 0)
 
 		var gotContent string
@@ -386,7 +386,7 @@ func TestAgent(t *testing.T) {
 			}
 			gotContent = string(content)
 			return true
-		}, testutil.WaitMedium, testutil.IntervalMedium)
+		}, testutil.WaitShort, testutil.IntervalMedium)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
 
@@ -402,7 +402,7 @@ func TestAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
@@ -499,7 +499,7 @@ func TestAgent(t *testing.T) {
 					}
 				}()
 
-				conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+				conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 				require.True(t, conn.AwaitReachable(context.Background()))
 				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 				require.NoError(t, err)
@@ -520,7 +520,7 @@ func TestAgent(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		derpMap := tailnettest.RunDERPAndSTUN(t)
-		conn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
+		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
 			DERPMap: derpMap,
 		}, 0)
 		defer conn.Close()
@@ -603,7 +603,7 @@ func TestAgent(t *testing.T) {
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
-	agentConn, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+	agentConn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	waitGroup := sync.WaitGroup{}
@@ -646,7 +646,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 func setupSSHSession(t *testing.T, options codersdk.WorkspaceAgentMetadata) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	conn, _ := setupAgent(t, options, 0)
+	conn, _, _ := setupAgent(t, options, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -666,6 +666,7 @@ func (c closeFunc) Close() error {
 func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeout time.Duration) (
 	*codersdk.AgentConn,
 	<-chan *codersdk.AgentStats,
+	afero.Fs,
 ) {
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
@@ -708,7 +709,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	conn.SetNodeCallback(sendNode)
 	return &codersdk.AgentConn{
 		Conn: conn,
-	}, statsCh
+	}, statsCh, fs
 }
 
 var dialTestPayload = []byte("dean-was-here123")

@@ -387,7 +387,6 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	defer func() {
 		_ = writer.Close()
 	}()
-
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
