@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "b9ad3c58-afe3-4491-9259-29a7b119e2a3",
+            "id": "5c92d003-112d-4eb1-8e5f-d3009aa52fcb",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "b18455d1-05dc-4b91-9398-a30d3c47ec5f",
+            "token": "fedbf404-c42d-4360-815b-5ffc34198df3",
             "troubleshooting_url": null
           },
           "sensitive_values": {}

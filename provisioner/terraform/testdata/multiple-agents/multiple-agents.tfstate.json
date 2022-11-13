@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "365d1c79-abd7-48e8-b20a-997d5d459656",
+            "id": "e545d734-f852-4fda-ac8f-39e3ff094e58",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "e7ff2465-da92-446f-9eb7-456295ff3198",
+            "token": "c2c47266-af7a-467c-9ffc-30c3270ffecb",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -39,11 +39,11 @@
             "connection_timeout": 1,
             "dir": null,
             "env": null,
-            "id": "a960778a-7b50-48e8-b793-f71a1062d710",
+            "id": "b5e18556-d202-478f-80d9-76f34a4cb105",
             "init_script": "",
             "os": "darwin",
             "startup_script": null,
-            "token": "c4f0b4d3-d2c7-4282-afc4-1af0f9f9d674",
+            "token": "795082f9-642a-4647-a595-6539edaa74a3",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -61,11 +61,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "eeb30483-ecb4-41b4-b47a-fe8dce151785",
+            "id": "27e1114a-bc92-4e35-ab57-1680f3b7658f",
             "init_script": "",
             "os": "windows",
             "startup_script": null,
-            "token": "318c17f6-715c-4512-adca-7cf8f8f54108",
+            "token": "c4fc1679-eb42-4d9f-bca8-fcf9641a7256",
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {}

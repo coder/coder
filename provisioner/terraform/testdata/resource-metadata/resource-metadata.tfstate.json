@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "59a5577b-943c-455c-ba25-b0426491cb9b",
+            "id": "7766b2a9-c00f-4cde-9acc-1fc05651dbdf",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "f7a9cd09-4b51-4771-96d8-ebf18f512eec",
+            "token": "5e54c173-a813-4df0-b87d-0617082769dc",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -34,10 +34,10 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "cost": 29,
+            "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "58978dca-5863-464c-a8e7-4d8fac3ec3dc",
+            "id": "e43f1cd6-5dbb-4d6b-8942-37f914b37be5",
             "item": [
               {
                 "is_null": false,

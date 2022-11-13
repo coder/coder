@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
+            "id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "6979bc13-f1c4-4639-8c43-c9fc8e951b4d",
+            "token": "fa05ad9c-2062-4707-a27f-12364c89641e",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -34,12 +34,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
+            "agent_id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "command": null,
             "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "7b5c8f8f-b8c2-4496-89ad-f53c291c6819",
+            "id": "038d0f6c-90b7-465b-915a-8a9f0cf21757",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -62,7 +62,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
+            "agent_id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "command": null,
             "display_name": null,
             "healthcheck": [
@@ -73,7 +73,7 @@
               }
             ],
             "icon": null,
-            "id": "960554a6-ec68-4088-8052-e6bb2c415522",
+            "id": "c00ec121-a167-4418-8c4e-2ccae0a0cd6e",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -98,12 +98,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "0df860a0-b37b-4866-bd48-3ea1d5c22aef",
+            "agent_id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "command": null,
             "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "f4d1b294-ae33-44d3-874c-1a197ca68907",
+            "id": "e9226aa6-a1a6-42a7-8557-64620cbf3dc2",
             "name": null,
             "relative_path": null,
             "share": "owner",

@@ -55,7 +55,7 @@ type metadataAttributes struct {
 	ResourceID string         `mapstructure:"resource_id"`
 	Hide       bool           `mapstructure:"hide"`
 	Icon       string         `mapstructure:"icon"`
-	Cost       int32          `mapstructure:"cost"`
+	DailyCost  int32          `mapstructure:"daily_cost"`
 	Items      []metadataItem `mapstructure:"item"`
 }
 
@@ -363,7 +363,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 
 		resourceHidden[targetLabel] = attrs.Hide
 		resourceIcon[targetLabel] = attrs.Icon
-		resourceCost[targetLabel] = attrs.Cost
+		resourceCost[targetLabel] = attrs.DailyCost
 		for _, item := range attrs.Items {
 			resourceMetadata[targetLabel] = append(resourceMetadata[targetLabel],
 				&proto.Resource_Metadata{

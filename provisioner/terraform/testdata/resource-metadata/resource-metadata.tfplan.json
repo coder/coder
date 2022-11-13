@@ -31,7 +31,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "cost": 29,
+            "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
             "item": [
@@ -126,7 +126,7 @@
         ],
         "before": null,
         "after": {
-          "cost": 29,
+          "daily_cost": 29,
           "hide": true,
           "icon": "/icon/server.svg",
           "item": [
@@ -208,7 +208,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.2"
+        "version_constraint": "0.6.3"
       },
       "null": {
         "name": "null",
@@ -240,7 +240,7 @@
           "name": "about_info",
           "provider_config_key": "coder",
           "expressions": {
-            "cost": {
+            "daily_cost": {
               "constant_value": 29
             },
             "hide": {
