@@ -1263,8 +1263,7 @@ func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.Deploymen
 
 		return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					//nolint:gosec
+				TLSClientConfig: &tls.Config{ //nolint:gosec
 					Certificates: certificates,
 				},
 			},
