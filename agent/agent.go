@@ -56,6 +56,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
+	TempDir                string
 	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
@@ -78,6 +79,9 @@ func New(options Options) io.Closer {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
+	if options.TempDir == "" {
+		options.TempDir = os.TempDir()
+	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
 			return "", nil
@@ -93,6 +97,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
+		tempDir:                options.TempDir,
 		stats:                  &Stats{},
 	}
 	server.init(ctx)
@@ -104,6 +109,7 @@ type agent struct {
 	client        Client
 	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	tempDir       string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -375,14 +381,14 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	a.logger.Info(ctx, "running startup script", slog.F("script", script))
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
 	}()
-
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
