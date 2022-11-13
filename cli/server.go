@@ -392,7 +392,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				ctx, err := handleOauth2ClientCertificates(cfg, ctx)
+				ctx, err := handleOauth2ClientCertificates(ctx, cfg)
 				if err != nil {
 					return xerrors.Errorf("configure oidc client certificates: %w", err)
 				}
@@ -1254,7 +1254,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	return connectionURL, ep.Stop, nil
 }
 
-func handleOauth2ClientCertificates(cfg *codersdk.DeploymentConfig, ctx context.Context) (context.Context, error) {
+func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.DeploymentConfig) (context.Context, error) {
 	if cfg.TLS.ClientCertFile.Value != "" && cfg.TLS.ClientKeyFile.Value != "" {
 		certificates, err := loadCertificates([]string{cfg.TLS.ClientCertFile.Value}, []string{cfg.TLS.ClientKeyFile.Value})
 		if err != nil {
