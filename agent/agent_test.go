@@ -360,21 +360,20 @@ func TestAgent(t *testing.T) {
 
 	t.Run("StartupScript", func(t *testing.T) {
 		t.Parallel()
-		tempPath := filepath.Join(t.TempDir(), "content.txt")
-		content := "hello"
-		setupAgent(t, codersdk.WorkspaceAgentMetadata{
-			StartupScript: "echo " + content + " > " + tempPath,
+		content := "some output"
+		_, _, fs := setupAgent(t, codersdk.WorkspaceAgentMetadata{
+			StartupScript: "echo " + content,
 		}, 0)
-
 		var gotContent string
 		require.Eventually(t, func() bool {
-			content, err := os.ReadFile(tempPath)
+			outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
+			content, err := afero.ReadFile(fs, outputPath)
 			if err != nil {
-				t.Logf("read file %q: %s", tempPath, err)
+				t.Logf("read file %q: %s", outputPath, err)
 				return false
 			}
 			if len(content) == 0 {
-				t.Logf("no content in %q", tempPath)
+				t.Logf("no content in %q", outputPath)
 				return false
 			}
 			if runtime.GOOS == "windows" {
