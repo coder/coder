@@ -476,6 +476,12 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				ctx := session.Context()
+
+				// Typically sftp sessions don't request a TTY, but if they do,
+				// we must ensure the gliderlabs/ssh CRLF emulation is disabled.
+				// Otherwise sftp will be broken. This can happen if a user sets
+				// `RequestTTY force` in their SSH config.
 				session.DisablePTYEmulation()
 
 				var opts []sftp.ServerOption
@@ -484,22 +490,33 @@ func (a *agent) init(ctx context.Context) {
 				// https://github.com/coder/coder/issues/3620
 				u, err := user.Current()
 				if err != nil {
-					a.logger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
 				} else {
 					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
 				if err != nil {
-					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
+					sshLogger.Debug(ctx, "initialize sftp server", slog.Error(err))
 					return
 				}
 				defer server.Close()
+
 				err = server.Serve()
 				if errors.Is(err, io.EOF) {
+					// Unless we call `session.Exit(0)` here, the client won't
+					// receive `exit-status` because `(*sftp.Server).Close()`
+					// calls `Close()` on the underlying connection (session),
+					// which actually calls `channel.Close()` because it isn't
+					// wrapped. This causes sftp clients to receive a non-zero
+					// exit code. Typically sftp clients don't echo this exit
+					// code but `scp` on macOS does (when using the default
+					// SFTP backend).
+					_ = session.Exit(0)
 					return
 				}
-				a.logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
+				sshLogger.Warn(ctx, "sftp server closed with error", slog.Error(err))
+				_ = session.Exit(1)
 			},
 		},
 	}
