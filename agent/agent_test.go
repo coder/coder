@@ -681,6 +681,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 			statsChan:   statsCh,
 			coordinator: coordinator,
 		},
+		Filesystem:             afero.NewMemMapFs(),
 		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})

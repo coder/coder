@@ -376,7 +376,11 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	tempDir, err := afero.TempDir(a.filesystem, "", "")
+	if err != nil {
+		return xerrors.Errorf("create temp dir: %w", err)
+	}
+	writer, err := a.filesystem.OpenFile(filepath.Join(tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
