@@ -147,9 +147,9 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -638,11 +638,11 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err, "get current user details")
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err, "get workspaces")
-		require.Len(t, workspaces, 1, "expected 1 workspace")
+		require.Len(t, res.Workspaces, 1, "expected 1 workspace")
 
 		appHost, err := client.GetAppHost(ctx)
 		require.NoError(t, err, "get app host")
@@ -651,7 +651,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			AppSlug:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
-			WorkspaceName: workspaces[0].Name,
+			WorkspaceName: res.Workspaces[0].Name,
 			Username:      me.Username,
 		}.String()
 

@@ -41,9 +41,9 @@ func Test_Runner(t *testing.T) {
 		authToken2 := uuid.NewString()
 		authToken3 := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Log{
 						Log: &proto.Log{
@@ -108,12 +108,13 @@ func Test_Runner(t *testing.T) {
 		go func() {
 			var workspace codersdk.Workspace
 			for {
-				workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 					Owner: codersdk.Me,
 				})
 				if !assert.NoError(t, err) {
 					return
 				}
+				workspaces := res.Workspaces
 
 				if len(workspaces) == 1 {
 					workspace = workspaces[0]
@@ -166,10 +167,11 @@ func Test_Runner(t *testing.T) {
 		require.Contains(t, logsStr, `"agent3" is connected`)
 
 		// Find the workspace.
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err)
+		workspaces := res.Workspaces
 		require.Len(t, workspaces, 1)
 
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspaces[0].LatestBuild.ID)
@@ -191,9 +193,9 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{
 						Complete: &proto.Provision_Complete{

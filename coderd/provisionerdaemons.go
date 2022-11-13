@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -55,7 +56,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 // ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
 // in the same process.
-func (api *API) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) ListenProvisionerDaemon(ctx context.Context, acquireJobDebounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
 	clientSession, serverSession := provisionersdk.TransportPipe()
 	defer func() {
 		if err != nil {
@@ -77,13 +78,14 @@ func (api *API) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCP
 
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:    api.AccessURL,
-		ID:           daemon.ID,
-		Database:     api.Database,
-		Pubsub:       api.Pubsub,
-		Provisioners: daemon.Provisioners,
-		Telemetry:    api.Telemetry,
-		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		AccessURL:          api.AccessURL,
+		ID:                 daemon.ID,
+		Database:           api.Database,
+		Pubsub:             api.Pubsub,
+		Provisioners:       daemon.Provisioners,
+		Telemetry:          api.Telemetry,
+		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		AcquireJobDebounce: acquireJobDebounce,
 	})
 	if err != nil {
 		return nil, err

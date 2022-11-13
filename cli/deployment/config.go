@@ -372,6 +372,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: 10 * time.Minute,
 			},
 		},
+		APIRateLimit: &codersdk.DeploymentConfigField[int]{
+			Name:    "API Rate Limit",
+			Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
+			Flag:    "api-rate-limit",
+			Default: 512,
+		},
 		Experimental: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Experimental",
 			Usage: "Enable experimental features. Experimental features are not ready for production.",

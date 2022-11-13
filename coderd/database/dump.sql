@@ -353,10 +353,13 @@ CREATE TABLE templates (
     created_by uuid NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    display_name character varying(64) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
+
+COMMENT ON COLUMN templates.display_name IS 'Display name is a custom, human-friendly template name that user can set.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
@@ -623,6 +626,8 @@ CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+
+CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 

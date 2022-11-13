@@ -136,6 +136,19 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// run the query again to get the total count for frontend pagination
+	filter.Offset = 0
+	filter.Limit = 0
+	all, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	count := len(all)
+
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -154,58 +167,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, wss)
-}
-
-func (api *API) workspaceCount(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-
-	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr, codersdk.Pagination{})
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid workspace search query.",
-			Validations: errs,
-		})
-		return
-	}
-
-	if filter.OwnerUsername == "me" {
-		filter.OwnerID = apiKey.UserID
-		filter.OwnerUsername = ""
-	}
-
-	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	countFilter := database.GetWorkspaceCountParams{
-		Deleted:       filter.Deleted,
-		OwnerUsername: filter.OwnerUsername,
-		OwnerID:       filter.OwnerID,
-		Name:          filter.Name,
-		Status:        filter.Status,
-		TemplateIds:   filter.TemplateIds,
-		TemplateName:  filter.TemplateName,
-	}
-
-	count, err := api.Database.GetAuthorizedWorkspaceCount(ctx, countFilter, sqlFilter)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace count.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceCountResponse{
-		Count: count,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+		Workspaces: wss,
+		Count:      count,
 	})
 }
 
@@ -319,7 +283,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-
+	if template.Deleted {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return
+	}
 	if !api.Authorize(r, rbac.ActionRead, template) {
 		httpapi.ResourceNotFound(rw)
 		return
