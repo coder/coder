@@ -17,7 +17,7 @@ const Language = {
   outdated: "Outdated",
   upToDate: "Up to date",
   byLabel: "Last built by",
-  costLabel: "Cost",
+  costLabel: "Daily cost",
 }
 
 export interface WorkspaceStatsProps {
