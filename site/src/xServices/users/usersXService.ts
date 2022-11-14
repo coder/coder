@@ -112,7 +112,7 @@ export const usersMachine =
         events: {} as UsersEvent,
         services: {} as {
           getUsers: {
-            data: TypesGen.User[]
+            data: TypesGen.GetUsersResponse
           }
           createUser: {
             data: TypesGen.User
@@ -132,46 +132,11 @@ export const usersMachine =
           updateUserRoles: {
             data: TypesGen.User
           }
-          getUserCount: {
-            data: TypesGen.UserCountResponse
-          }
         },
       },
       predictableActionArguments: true,
       id: "usersState",
-      type: "parallel",
       states: {
-        count: {
-          initial: "gettingCount",
-          states: {
-            idle: {},
-            gettingCount: {
-              entry: "clearGetCountError",
-              invoke: {
-                src: "getUserCount",
-                id: "getUserCount",
-                onDone: [
-                  {
-                    target: "idle",
-                    actions: "assignCount",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: "assignGetCountError",
-                  },
-                ],
-              },
-            },
-          },
-          on: {
-            UPDATE_FILTER: {
-              target: ".gettingCount",
-              actions: ["assignFilter", "sendResetPage"],
-            },
-          },
-        },
         users: {
           initial: "startingPagination",
           states: {
@@ -234,6 +199,10 @@ export const usersMachine =
                 UPDATE_PAGE: {
                   target: "gettingUsers",
                   actions: "updateURL",
+                },
+                UPDATE_FILTER: {
+                  target: "gettingUsers",
+                  actions: ["assignFilter", "sendResetPage"],
                 },
               },
             },
@@ -404,9 +373,6 @@ export const usersMachine =
             limit,
           })
         },
-        getUserCount: (context) => {
-          return API.getUserCount(queryToFilter(context.filter))
-        },
         suspendUser: (context) => {
           if (!context.userIdToSuspend) {
             throw new Error("userIdToSuspend is undefined")
@@ -462,16 +428,8 @@ export const usersMachine =
           userIdToUpdateRoles: (_) => undefined,
         }),
         assignUsers: assign({
-          users: (_, event) => event.data,
-        }),
-        assignCount: assign({
+          users: (_, event) => event.data.users,
           count: (_, event) => event.data.count,
-        }),
-        assignGetCountError: assign({
-          getCountError: (_, event) => event.data,
-        }),
-        clearGetCountError: assign({
-          getCountError: (_) => undefined,
         }),
         assignFilter: assign({
           filter: (_, event) => event.query,

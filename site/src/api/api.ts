@@ -133,9 +133,9 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 
 export const getUsers = async (
   options: TypesGen.UsersRequest,
-): Promise<TypesGen.User[]> => {
+): Promise<TypesGen.GetUsersResponse> => {
   const url = getURLWithSearchParams("/api/v2/users", options)
-  const response = await axios.get<TypesGen.User[]>(url.toString())
+  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString())
   return response.data
 }
 
