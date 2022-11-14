@@ -192,7 +192,8 @@ CREATE TABLE groups (
     id uuid NOT NULL,
     name text NOT NULL,
     organization_id uuid NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL
+    avatar_url text DEFAULT ''::text NOT NULL,
+    quota_allowance integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE licenses (
@@ -444,7 +445,8 @@ CREATE TABLE workspace_builds (
     provisioner_state bytea,
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL
+    reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
+    daily_cost integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (
@@ -463,7 +465,8 @@ CREATE TABLE workspace_resources (
     name character varying(64) NOT NULL,
     hide boolean DEFAULT false NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
-    instance_type character varying(256)
+    instance_type character varying(256),
+    daily_cost integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspaces (

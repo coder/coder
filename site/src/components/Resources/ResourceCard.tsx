@@ -53,6 +53,16 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 
         <Stack alignItems="flex-start" direction="row" spacing={5}>
           <div className={styles.metadataHeader}>
+            {resource.daily_cost > 0 && (
+              <div className={styles.metadata}>
+                <div className={styles.metadataLabel}>
+                  <b>cost</b>
+                </div>
+                <div className={styles.metadataValue}>
+                  {resource.daily_cost}
+                </div>
+              </div>
+            )}
             {visibleMetadata.map((meta) => {
               return (
                 <div className={styles.metadata} key={meta.key}>

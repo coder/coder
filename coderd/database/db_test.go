@@ -43,8 +43,8 @@ func TestNestedInTx(t *testing.T) {
 				LoginType:      database.LoginTypeGithub,
 			})
 			return err
-		})
-	})
+		}, nil)
+	}, nil)
 	require.NoError(t, err, "outer tx: %w", err)
 
 	user, err := db.GetUserByID(context.Background(), uid)

@@ -55,6 +55,7 @@ type metadataAttributes struct {
 	ResourceID string         `mapstructure:"resource_id"`
 	Hide       bool           `mapstructure:"hide"`
 	Icon       string         `mapstructure:"icon"`
+	DailyCost  int32          `mapstructure:"daily_cost"`
 	Items      []metadataItem `mapstructure:"item"`
 }
 
@@ -301,6 +302,8 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}
 	resourceIcon := map[string]string{}
+	resourceCost := map[string]int32{}
+
 	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_metadata" {
 			continue
@@ -360,6 +363,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 
 		resourceHidden[targetLabel] = attrs.Hide
 		resourceIcon[targetLabel] = attrs.Icon
+		resourceCost[targetLabel] = attrs.DailyCost
 		for _, item := range attrs.Items {
 			resourceMetadata[targetLabel] = append(resourceMetadata[targetLabel],
 				&proto.Resource_Metadata{
@@ -389,9 +393,10 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			Name:         resource.Name,
 			Type:         resource.Type,
 			Agents:       agents,
+			Metadata:     resourceMetadata[label],
 			Hide:         resourceHidden[label],
 			Icon:         resourceIcon[label],
-			Metadata:     resourceMetadata[label],
+			DailyCost:    resourceCost[label],
 			InstanceType: applyInstanceType(resource),
 		})
 	}

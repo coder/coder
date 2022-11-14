@@ -324,6 +324,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		job,
 		runner.Options{
 			Updater:             p,
+			QuotaCommitter:      p,
 			Logger:              p.opts.Logger,
 			Filesystem:          p.opts.Filesystem,
 			WorkDirectory:       p.opts.WorkDirectory,
@@ -363,6 +364,17 @@ func (p *Server) clientDoWithRetries(
 		return resp, err
 	}
 	return nil, ctx.Err()
+}
+
+func (p *Server) CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	out, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
+		return client.CommitQuota(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	// nolint: forcetypeassert
+	return out.(*proto.CommitQuotaResponse), nil
 }
 
 func (p *Server) UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {

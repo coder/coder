@@ -369,12 +369,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Enterprise: true,
 			Secret:     true,
 		},
-		UserWorkspaceQuota: &codersdk.DeploymentConfigField[int]{
-			Name:       "User Workspace Quota",
-			Usage:      "Enables and sets a limit on how many workspaces each user can create.",
-			Flag:       "user-workspace-quota",
-			Enterprise: true,
-		},
 		Provisioner: &codersdk.ProvisionerConfig{
 			Daemons: &codersdk.DeploymentConfigField[int]{
 				Name:    "Provisioner Daemons",

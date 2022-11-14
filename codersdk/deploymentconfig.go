@@ -38,7 +38,6 @@ type DeploymentConfig struct {
 	AuditLogging                    *DeploymentConfigField[bool]            `json:"audit_logging" typescript:",notnull"`
 	BrowserOnly                     *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
-	UserWorkspaceQuota              *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
 	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
 	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`

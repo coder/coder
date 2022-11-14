@@ -745,8 +745,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		db := databasefake.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
-			Name: "something",
-			Type: "aws_instance",
+			Name:      "something",
+			Type:      "aws_instance",
+			DailyCost: 10,
 			Agents: []*sdkproto.Agent{{
 				Name: "dev",
 				Env: map[string]string{
@@ -767,6 +768,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
+		require.EqualValues(t, 10, resources[0].DailyCost)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
 		require.NoError(t, err)
 		require.Len(t, agents, 1)
