@@ -239,7 +239,7 @@ Review editable template properties by running `coder templates edit -h`.
 Alternatively, you can pull down the template as a compressed file (`.tar.gz`) to your current directory:
 
 ```sh
-coder templates pull <template-name> file.tar.gz
+coder templates pull <template-name> file.tar
 ```
 
 Then, unzip it by running:
