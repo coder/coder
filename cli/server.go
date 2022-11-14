@@ -68,8 +68,9 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -363,6 +364,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
+				APIRateLimit:                cfg.APIRateLimit.Value,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -388,6 +390,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				if cfg.OIDC.IssuerURL.Value == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
+				}
+
+				ctx, err := handleOauth2ClientCertificates(ctx, cfg)
+				if err != nil {
+					return xerrors.Errorf("configure oidc client certificates: %w", err)
 				}
 
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
@@ -502,18 +509,28 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("parse telemetry url: %w", err)
 				}
 
+				gitAuth := make([]telemetry.GitAuth, 0)
+				for _, cfg := range gitAuthConfigs {
+					gitAuth = append(gitAuth, telemetry.GitAuth{
+						Type: string(cfg.Type),
+					})
+				}
+
 				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres: builtinPostgres,
-					DeploymentID:    deploymentID,
-					Database:        options.Database,
-					Logger:          logger.Named("telemetry"),
-					URL:             telemetryURL,
-					GitHubOAuth:     cfg.OAuth2.Github.ClientID.Value != "",
-					OIDCAuth:        cfg.OIDC.ClientID.Value != "",
-					OIDCIssuerURL:   cfg.OIDC.IssuerURL.Value,
-					Prometheus:      cfg.Prometheus.Enable.Value,
-					STUN:            len(cfg.DERP.Server.STUNAddresses.Value) != 0,
-					Tunnel:          tunnel != nil,
+					BuiltinPostgres:    builtinPostgres,
+					DeploymentID:       deploymentID,
+					Database:           options.Database,
+					Logger:             logger.Named("telemetry"),
+					URL:                telemetryURL,
+					Wildcard:           cfg.WildcardAccessURL.Value != "",
+					DERPServerRelayURL: cfg.DERP.Server.RelayURL.Value,
+					GitAuth:            gitAuth,
+					GitHubOAuth:        cfg.OAuth2.Github.ClientID.Value != "",
+					OIDCAuth:           cfg.OIDC.ClientID.Value != "",
+					OIDCIssuerURL:      cfg.OIDC.IssuerURL.Value,
+					Prometheus:         cfg.Prometheus.Enable.Value,
+					STUN:               len(cfg.DERP.Server.STUNAddresses.Value) != 0,
+					Tunnel:             tunnel != nil,
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
@@ -566,6 +583,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 						InsecureSkipVerify: true,
 					},
 				}
+				defer client.HTTPClient.CloseIdleConnections()
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -899,7 +917,7 @@ func newProvisionerDaemon(
 	}
 
 	provisioners := provisionerd.Provisioners{
-		string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
 	}
 	// include echo provisioner when in dev mode
 	if dev {
@@ -920,9 +938,13 @@ func newProvisionerDaemon(
 				}
 			}
 		}()
-		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
+		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
 	}
-	return provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+		// This debounces calls to listen every second. Read the comment
+		// in provisionerdserver.go to learn more!
+		return coderAPI.ListenProvisionerDaemon(ctx, time.Second)
+	}, &provisionerd.Options{
 		Logger:              logger,
 		PollInterval:        500 * time.Millisecond,
 		UpdateInterval:      500 * time.Millisecond,
@@ -1241,4 +1263,22 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
 	}
 	return connectionURL, ep.Stop, nil
+}
+
+func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.DeploymentConfig) (context.Context, error) {
+	if cfg.TLS.ClientCertFile.Value != "" && cfg.TLS.ClientKeyFile.Value != "" {
+		certificates, err := loadCertificates([]string{cfg.TLS.ClientCertFile.Value}, []string{cfg.TLS.ClientKeyFile.Value})
+		if err != nil {
+			return nil, err
+		}
+
+		return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{ //nolint:gosec
+					Certificates: certificates,
+				},
+			},
+		}), nil
+	}
+	return ctx, nil
 }

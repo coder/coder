@@ -36,6 +36,9 @@ func workspaceAgent() *cobra.Command {
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
 				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
@@ -57,22 +60,22 @@ func workspaceAgent() *cobra.Command {
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
-				logger.Info(cmd.Context(), "spawning reaper process")
+				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(reaper.WithExecArgs(args...))
 				if err != nil {
-					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
+					logger.Error(ctx, "failed to reap", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				logger.Info(cmd.Context(), "reaper process exiting")
+				logger.Info(ctx, "reaper process exiting")
 				return nil
 			}
 
 			version := buildinfo.Version()
-			logger.Info(cmd.Context(), "starting agent",
+			logger.Info(ctx, "starting agent",
 				slog.F("url", coderURL),
 				slog.F("auth", auth),
 				slog.F("version", version),
@@ -84,7 +87,7 @@ func workspaceAgent() *cobra.Command {
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			pprofSrvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
+			pprofSrvClose := serveHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
 
 			// exchangeToken returns a session token.
@@ -102,7 +105,7 @@ func workspaceAgent() *cobra.Command {
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var gcpClient *metadata.Client
-				gcpClientRaw := cmd.Context().Value("gcp-client")
+				gcpClientRaw := ctx.Value("gcp-client")
 				if gcpClientRaw != nil {
 					gcpClient, _ = gcpClientRaw.(*metadata.Client)
 				}
@@ -113,7 +116,7 @@ func workspaceAgent() *cobra.Command {
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var awsClient *http.Client
-				awsClientRaw := cmd.Context().Value("aws-client")
+				awsClientRaw := ctx.Value("aws-client")
 				if awsClientRaw != nil {
 					awsClient, _ = awsClientRaw.(*http.Client)
 					if awsClient != nil {
@@ -127,7 +130,7 @@ func workspaceAgent() *cobra.Command {
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var azureClient *http.Client
-				azureClientRaw := cmd.Context().Value("azure-client")
+				azureClientRaw := ctx.Value("azure-client")
 				if azureClientRaw != nil {
 					azureClient, _ = azureClientRaw.(*http.Client)
 					if azureClient != nil {
@@ -166,7 +169,7 @@ func workspaceAgent() *cobra.Command {
 					"GIT_ASKPASS": executablePath,
 				},
 			})
-			<-cmd.Context().Done()
+			<-ctx.Done()
 			return closer.Close()
 		},
 	}

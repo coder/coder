@@ -17,6 +17,14 @@ Flags:
   -a, --address string                               Bind address of the server.
                                                      Consumes $CODER_ADDRESS (default
                                                      "127.0.0.1:3000")
+      --api-rate-limit int                           Maximum number of requests per minute
+                                                     allowed to the API per user, or per IP
+                                                     address for unauthenticated users.
+                                                     Negative values mean no rate limit. Some
+                                                     API endpoints are always rate limited
+                                                     regardless of this value to prevent
+                                                     denial-of-service attacks.
+                                                     Consumes $CODER_API_RATE_LIMIT (default 512)
       --cache-dir string                             The directory to cache temporary files.
                                                      If unspecified and $CACHE_DIRECTORY is
                                                      set, it will be used for compatibility
@@ -169,6 +177,14 @@ Flags:
                                                      used for checking the authenticity of
                                                      client
                                                      Consumes $CODER_TLS_CLIENT_CA_FILE
+      --tls-client-cert-file string                  Path to certificate for client TLS
+                                                     authentication. It requires a PEM-encoded
+                                                     file.
+                                                     Consumes $CODER_TLS_CLIENT_CERT_FILE
+      --tls-client-key-file string                   Path to key for client TLS
+                                                     authentication. It requires a PEM-encoded
+                                                     file.
+                                                     Consumes $CODER_TLS_CLIENT_KEY_FILE
       --tls-enable                                   Whether TLS will be enabled.
                                                      Consumes $CODER_TLS_ENABLE
       --tls-key-file strings                         Paths to the private keys for each of the

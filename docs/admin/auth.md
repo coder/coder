@@ -75,6 +75,12 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 
 > When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
 
+If your OpenID Connect provider requires client TLS certificates for authentication, you can configure them like so:
+```console
+CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
+CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
+```
+
 ## SCIM (enterprise)
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header

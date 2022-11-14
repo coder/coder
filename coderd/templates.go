@@ -239,6 +239,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			GroupACL: database.TemplateACL{
 				organization.ID.String(): []rbac.Action{rbac.ActionRead},
 			},
+			DisplayName: createTemplate.DisplayName,
+			Icon:        createTemplate.Icon,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -472,6 +474,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
+			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTtl).Milliseconds() {
 			return nil
@@ -479,12 +482,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		// Update template metadata -- empty fields are not overwritten.
 		name := req.Name
+		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
 		maxTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 
 		if name == "" {
 			name = template.Name
+		}
+		if displayName == "" {
+			displayName = template.DisplayName
 		}
 		if desc == "" {
 			desc = template.Description
@@ -494,6 +501,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			ID:          template.ID,
 			UpdatedAt:   database.Now(),
 			Name:        name,
+			DisplayName: displayName,
 			Description: desc,
 			Icon:        icon,
 			DefaultTtl:  int64(maxTTL),
@@ -738,6 +746,7 @@ func (api *API) convertTemplate(
 		UpdatedAt:           template.UpdatedAt,
 		OrganizationID:      template.OrganizationID,
 		Name:                template.Name,
+		DisplayName:         template.DisplayName,
 		Provisioner:         codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:     template.ActiveVersionID,
 		WorkspaceOwnerCount: workspaceOwnerCount,

@@ -3019,7 +3019,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 FROM
 	templates
 WHERE
@@ -3046,13 +3046,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 FROM
 	templates
 WHERE
@@ -3087,12 +3088,13 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -3120,6 +3122,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.Icon,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -3136,7 +3139,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 FROM
 	templates
 WHERE
@@ -3199,6 +3202,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.Icon,
 			&i.UserACL,
 			&i.GroupACL,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -3228,10 +3232,11 @@ INSERT INTO
 		created_by,
 		icon,
 		user_acl,
-		group_acl
+		group_acl,
+		display_name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 `
 
 type InsertTemplateParams struct {
@@ -3248,6 +3253,7 @@ type InsertTemplateParams struct {
 	Icon            string          `db:"icon" json:"icon"`
 	UserACL         TemplateACL     `db:"user_acl" json:"user_acl"`
 	GroupACL        TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -3265,6 +3271,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Icon,
 		arg.UserACL,
 		arg.GroupACL,
+		arg.DisplayName,
 	)
 	var i Template
 	err := row.Scan(
@@ -3282,6 +3289,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -3295,7 +3303,7 @@ SET
 WHERE
 	id = $3
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3322,6 +3330,7 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -3376,11 +3385,12 @@ SET
 	description = $3,
 	default_ttl = $4,
 	name = $5,
-	icon = $6
+	icon = $6,
+	display_name = $7
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -3390,6 +3400,7 @@ type UpdateTemplateMetaByIDParams struct {
 	DefaultTtl  int64     `db:"default_ttl" json:"default_ttl"`
 	Name        string    `db:"name" json:"name"`
 	Icon        string    `db:"icon" json:"icon"`
+	DisplayName string    `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
@@ -3400,6 +3411,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.DefaultTtl,
 		arg.Name,
 		arg.Icon,
+		arg.DisplayName,
 	)
 	var i Template
 	err := row.Scan(
@@ -3417,6 +3429,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.Icon,
 		&i.UserACL,
 		&i.GroupACL,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -5986,160 +5999,6 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.LastUsedAt,
 	)
 	return i, err
-}
-
-const getWorkspaceCount = `-- name: GetWorkspaceCount :one
-SELECT
-	COUNT(*) as count
-FROM
-	workspaces
-LEFT JOIN LATERAL (
-	SELECT
-		workspace_builds.transition,
-		provisioner_jobs.started_at,
-		provisioner_jobs.updated_at,
-		provisioner_jobs.canceled_at,
-		provisioner_jobs.completed_at,
-		provisioner_jobs.error
-	FROM
-		workspace_builds
-	LEFT JOIN
-		provisioner_jobs
-	ON
-		provisioner_jobs.id = workspace_builds.job_id
-	WHERE
-		workspace_builds.workspace_id = workspaces.id
-	ORDER BY
-		build_number DESC
-	LIMIT
-		1
-) latest_build ON TRUE
-WHERE
-	-- Optionally include deleted workspaces
-	workspaces.deleted = $1
-	AND CASE
-		WHEN $2 :: text != '' THEN
-			CASE
-				WHEN $2 = 'pending' THEN
-					latest_build.started_at IS NULL
-				WHEN $2 = 'starting' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'start'::workspace_transition
-
-				WHEN $2 = 'running' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'start'::workspace_transition
-
-				WHEN $2 = 'stopping' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'stop'::workspace_transition
-
-				WHEN $2 = 'stopped' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'stop'::workspace_transition
-
-				WHEN $2 = 'failed' THEN
-					(latest_build.canceled_at IS NOT NULL AND
-						latest_build.error IS NOT NULL) OR
-					(latest_build.completed_at IS NOT NULL AND
-						latest_build.error IS NOT NULL)
-
-				WHEN $2 = 'canceling' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NULL
-
-				WHEN $2 = 'canceled' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NOT NULL
-
-				WHEN $2 = 'deleted' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'delete'::workspace_transition
-
-				WHEN $2 = 'deleting' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'delete'::workspace_transition
-
-				ELSE
-					true
-			END
-		ELSE true
-	END
-	-- Filter by owner_id
-	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			owner_id = $3
-		ELSE true
-	END
-	-- Filter by owner_name
-	AND CASE
-		WHEN $4 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
-		ELSE true
-	END
-	-- Filter by template_name
-	-- There can be more than 1 template with the same name across organizations.
-	-- Use the organization filter to restrict to 1 org if needed.
-	AND CASE
-		WHEN $5 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5)  AND deleted = false)
-		ELSE true
-	END
-	-- Filter by template_ids
-	AND CASE
-		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			template_id = ANY($6)
-		ELSE true
-	END
-	-- Filter by name, matching on substring
-	AND CASE
-		WHEN $7 :: text != '' THEN
-			name ILIKE '%' || $7 || '%'
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaceCount
-	-- @authorize_filter
-`
-
-type GetWorkspaceCountParams struct {
-	Deleted       bool        `db:"deleted" json:"deleted"`
-	Status        string      `db:"status" json:"status"`
-	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername string      `db:"owner_username" json:"owner_username"`
-	TemplateName  string      `db:"template_name" json:"template_name"`
-	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
-	Name          string      `db:"name" json:"name"`
-}
-
-// this duplicates the filtering in GetWorkspaces
-func (q *sqlQuerier) GetWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceCount,
-		arg.Deleted,
-		arg.Status,
-		arg.OwnerID,
-		arg.OwnerUsername,
-		arg.TemplateName,
-		pq.Array(arg.TemplateIds),
-		arg.Name,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const getWorkspaceCountByUserID = `-- name: GetWorkspaceCountByUserID :one

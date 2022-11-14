@@ -69,8 +69,9 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
@@ -298,12 +299,14 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
+	client := codersdk.New(coderAPI.AccessURL)
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
+		client.HTTPClient.CloseIdleConnections()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	return client, provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -325,14 +328,16 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+	closer := provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+		return coderAPI.ListenProvisionerDaemon(ctx, 0)
+	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
-			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
+			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},
 		WorkDirectory: t.TempDir(),
 	})

@@ -447,13 +447,14 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		_ = conn.Close()
 		return nil, err
 	}
+
 	return &AgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
 			<-closed
 		},
-	}, err
+	}, nil
 }
 
 // WorkspaceAgent returns an agent by ID.

@@ -18,9 +18,9 @@ func TestShow(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			Provision:       provisionCompleteWithAgent,
-			ProvisionDryRun: provisionCompleteWithAgent,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: provisionCompleteWithAgent,
+			ProvisionPlan:  provisionCompleteWithAgent,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
