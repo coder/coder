@@ -225,17 +225,24 @@ resource "kubernetes_pod" "podName" {
 
 ### Edit templates
 
-You can delete a template using the coder CLI. Only
+You can edit a template using the coder CLI. Only
 [template admins and owners](./admin/users.md) can edit a template.
 
-Using the CLI, login to Coder and run the following command to delete a template:
+Using the CLI, login to Coder and run the following command to edit a single template:
+
+```sh
+coder templates edit <template-name> --description "This is my template"
+```
+
+Review editable template properties by running `coder templates edit -h`.
+
+Alternatively, you can pull down the template as a compressed file (`.tar.gz`) to your current directory:
 
 ```sh
 coder templates pull <template-name> file.tar.gz
 ```
 
-This will pull down the template as a gzipped file to your current directory. Then unzip
-it by running:
+Then, unzip it by running:
 
 ```sh
 tar -xf file.tar.gz
