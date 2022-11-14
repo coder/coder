@@ -54,17 +54,17 @@ func groupEdit() *cobra.Command {
 				req.AvatarURL = &avatarURL
 			}
 
-			users, err := client.Users(ctx, codersdk.UsersRequest{})
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{})
 			if err != nil {
 				return xerrors.Errorf("get users: %w", err)
 			}
 
-			req.AddUsers, err = convertToUserIDs(addUsers, users)
+			req.AddUsers, err = convertToUserIDs(addUsers, userRes.Users)
 			if err != nil {
 				return xerrors.Errorf("parse add-users: %w", err)
 			}
 
-			req.RemoveUsers, err = convertToUserIDs(rmUsers, users)
+			req.RemoveUsers, err = convertToUserIDs(rmUsers, userRes.Users)
 			if err != nil {
 				return xerrors.Errorf("parse rm-users: %w", err)
 			}
