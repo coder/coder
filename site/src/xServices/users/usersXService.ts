@@ -138,9 +138,12 @@ export const usersMachine =
       id: "usersState",
       on: {
         UPDATE_FILTER: {
-          target: ".gettingUsers",
           actions: ["assignFilter", "sendResetPage"],
           internal: false,
+        },
+        UPDATE_PAGE: {
+          target: "gettingUsers",
+          actions: "updateURL",
         },
       },
       initial: "startingPagination",
@@ -200,14 +203,6 @@ export const usersMachine =
             UPDATE_USER_ROLES: {
               target: "updatingUserRoles",
               actions: "assignUserIdToUpdateRoles",
-            },
-            UPDATE_PAGE: {
-              target: "gettingUsers",
-              actions: "updateURL",
-            },
-            UPDATE_FILTER: {
-              target: "gettingUsers",
-              actions: ["assignFilter", "sendResetPage"],
             },
           },
         },
