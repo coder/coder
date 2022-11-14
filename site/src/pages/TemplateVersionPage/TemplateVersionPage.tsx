@@ -13,9 +13,11 @@ import { Stack } from "components/Stack/Stack"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { useOrganizationId } from "hooks/useOrganizationId"
+import { Helmet } from "react-helmet-async"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
+import { pageTitle } from "util/page"
 import { templateVersionMachine } from "xServices/templateVersion/templateVersionXService"
 
 type Params = {
@@ -53,6 +55,10 @@ export const TemplateVersionPage: React.FC = () => {
 
   return (
     <>
+      <Helmet>
+        <title>{pageTitle(`Version ${versionName} · ${template}`)}</title>
+      </Helmet>
+
       <Margins>
         <PageHeader>
           <PageHeaderCaption>Versions</PageHeaderCaption>
