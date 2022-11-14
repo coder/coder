@@ -115,7 +115,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <TextField
           {...getFieldHelpers("display_name")}
           disabled={isSubmitting}
-          autoFocus
           fullWidth
           label={Language.displayNameLabel}
           variant="outlined"
