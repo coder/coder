@@ -174,7 +174,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(context.Background(), "fetched metadata")
+	a.logger.Info(ctx, "fetched metadata")
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -208,7 +208,7 @@ func (a *agent) run(ctx context.Context) error {
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
-	if a.network == nil {
+	if network == nil {
 		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
@@ -365,7 +365,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return err
 	}
 	defer coordinator.Close()
-	a.logger.Info(context.Background(), "connected to coordination server")
+	a.logger.Info(ctx, "connected to coordination server")
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
 	network.SetNodeCallback(sendNodes)
 	select {
