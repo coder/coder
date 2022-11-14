@@ -5,8 +5,8 @@ and ensure equitable access to cloud resources. The quota system controls
 instantaneous cost. For example, the system can ensure that every user in your
 deployment has a spend rate lower than $10/day at any given moment.
 
-The Workspace Provisioner enforces quota on workspace start and stop operations.
-When users reach their quota, they can always unblock themselves by stopping or deleting
+The workspace provisioner enforces quota during workspace start and stop operations.
+When users reach their quota, they may unblock themselves by stopping or deleting
 their workspace(s).
 
 Quotas are licensed with [Groups](./groups.md).
@@ -61,7 +61,11 @@ In that template, the workspace consumes 10 quota credits when it's offline, and
 ## Establishing Budgets
 
 Each group has a configurable Quota Allowance. A user's budget is calculated as
-the some of their groups' Quota Allowance. For example:
+the sum of their allowances.
+
+![group-settings](../images/admin/quota-groups.png)
+
+For example:
 
 | Group Name | Quota Allowance |
 | ---------- | --------------- |
@@ -71,12 +75,12 @@ the some of their groups' Quota Allowance. For example:
 
 <br/>
 
-| Username | Groups            | Budget |
-| -------- | ----------------- | ------ |
-| jill     | Frontend, Backend | 300    |
-| jack     | Backend, Data     | 500    |
-| sam      | Data              | 300    |
-| alex     | Frontend          | 100    |
+| Username | Groups            | Effective Budget |
+| -------- | ----------------- | ---------------- |
+| jill     | Frontend, Backend | 300              |
+| jack     | Backend, Data     | 500              |
+| sam      | Data              | 300              |
+| alex     | Frontend          | 100              |
 
 ## Quota Enforcement
 
@@ -84,6 +88,8 @@ Coder enforces Quota on workspace start and stop operations. The workspace
 build process dynamically calculates costs, so quota violation fails builds
 as opposed to failing the build-triggering operation. For example, the Workspace
 Create Form will never get held up by quota enforcement.
+
+![build-log](../images/admin/quota-buildlog.png)
 
 ## Up next
 
