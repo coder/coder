@@ -85,10 +85,6 @@ func ssh() *cobra.Command {
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
-				FallbackTroubleshootingURL: client.URL.ResolveReference(&url.URL{
-					Path:     fmt.Sprintf("/templates/%s", workspace.TemplateName),
-					Fragment: "readme",
-				}).String(),
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
