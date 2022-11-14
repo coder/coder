@@ -538,7 +538,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		return
 	}
@@ -693,7 +693,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("update active version: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating active template version.",
@@ -894,7 +894,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			return xerrors.Errorf("insert template version: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: err.Error(),

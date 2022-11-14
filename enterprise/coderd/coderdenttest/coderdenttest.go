@@ -70,7 +70,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     oop.AccessURL.String(),
 		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
-		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,
@@ -110,7 +109,6 @@ type LicenseOptions struct {
 	AuditLog         bool
 	BrowserOnly      bool
 	SCIM             bool
-	WorkspaceQuota   bool
 	TemplateRBAC     bool
 	HighAvailability bool
 	MultipleGitAuth  bool
@@ -145,10 +143,6 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.SCIM {
 		scim = 1
 	}
-	var workspaceQuota int64
-	if options.WorkspaceQuota {
-		workspaceQuota = 1
-	}
 	highAvailability := int64(0)
 	if options.HighAvailability {
 		highAvailability = 1
@@ -182,7 +176,6 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			AuditLog:         auditLog,
 			BrowserOnly:      browserOnly,
 			SCIM:             scim,
-			WorkspaceQuota:   workspaceQuota,
 			HighAvailability: highAvailability,
 			TemplateRBAC:     rbacEnabled,
 			MultipleGitAuth:  multipleGitAuth,

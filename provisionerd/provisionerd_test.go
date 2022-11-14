@@ -481,6 +481,97 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
+	t.Run("WorkspaceBuildQuotaExceeded", func(t *testing.T) {
+		t.Parallel()
+		var (
+			didComplete   atomic.Bool
+			didLog        atomic.Bool
+			didAcquireJob atomic.Bool
+			didFail       atomic.Bool
+			completeChan  = make(chan struct{})
+			completeOnce  sync.Once
+		)
+
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					if !didAcquireJob.CAS(false, true) {
+						completeOnce.Do(func() { close(completeChan) })
+						return &proto.AcquiredJob{}, nil
+					}
+
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						TemplateSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
+						},
+					}, nil
+				},
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) != 0 {
+						didLog.Store(true)
+					}
+					return &proto.UpdateJobResponse{}, nil
+				},
+				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
+					didComplete.Store(true)
+					return &proto.Empty{}, nil
+				},
+				commitQuota: func(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+					return &proto.CommitQuotaResponse{
+						Ok: com.DailyCost < 20,
+					}, nil
+				},
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					didFail.Store(true)
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Log{
+							Log: &sdkproto.Log{
+								Level:  sdkproto.LogLevel_DEBUG,
+								Output: "wow",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					err = stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Resources: []*sdkproto.Resource{
+									{
+										DailyCost: 10,
+									},
+									{
+										DailyCost: 15,
+									},
+								},
+							},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
+			}),
+		})
+		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		require.True(t, didLog.Load())
+		require.True(t, didFail.Load())
+		require.False(t, didComplete.Load())
+		require.NoError(t, closer.Close())
+	})
+
 	t.Run("WorkspaceBuildFailComplete", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -1039,6 +1130,7 @@ func (p *provisionerTestServer) Provision(stream sdkproto.DRPCProvisioner_Provis
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
 	acquireJob  func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error)
+	commitQuota func(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
 	updateJob   func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	failJob     func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
@@ -1046,6 +1138,14 @@ type provisionerDaemonTestServer struct {
 
 func (p *provisionerDaemonTestServer) AcquireJob(ctx context.Context, empty *proto.Empty) (*proto.AcquiredJob, error) {
 	return p.acquireJob(ctx, empty)
+}
+func (p *provisionerDaemonTestServer) CommitQuota(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	if p.commitQuota == nil {
+		return &proto.CommitQuotaResponse{
+			Ok: true,
+		}, nil
+	}
+	return p.commitQuota(ctx, com)
 }
 
 func (p *provisionerDaemonTestServer) UpdateJob(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {

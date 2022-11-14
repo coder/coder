@@ -14,6 +14,7 @@ import (
 )
 
 func Test_Runner(t *testing.T) {
+	t.Skip("This test is flakey, see https://github.com/coder/coder/actions/runs/3463709674/jobs/5784335013#step:9:215")
 	t.Parallel()
 
 	t.Run("NoSleep", func(t *testing.T) {

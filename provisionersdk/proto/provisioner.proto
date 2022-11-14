@@ -132,7 +132,7 @@ message Resource {
     bool hide = 5;
     string icon = 6;
     string instance_type = 7;
-    int32 cost = 8;
+    int32 daily_cost = 8;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

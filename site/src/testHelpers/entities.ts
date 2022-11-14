@@ -311,6 +311,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
     { key: "type", value: "a-workspace-resource", sensitive: false },
     { key: "api_key", value: "12345678", sensitive: true },
   ],
+  daily_cost: 10,
 }
 
 export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
@@ -331,6 +332,7 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
   ],
+  daily_cost: 10,
 }
 
 export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
@@ -351,6 +353,7 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
   ],
+  daily_cost: 20,
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
@@ -383,6 +386,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   reason: "initiator",
   resources: [MockWorkspaceResource],
   status: "running",
+  daily_cost: 20,
 }
 
 export const MockFailedWorkspaceBuild = (
@@ -405,6 +409,7 @@ export const MockFailedWorkspaceBuild = (
   reason: "initiator",
   resources: [],
   status: "running",
+  daily_cost: 20,
 })
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -988,8 +993,8 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
-  user_workspace_count: 0,
-  user_workspace_limit: 100,
+  credits_consumed: 0,
+  budget: 100,
 }
 
 export const MockGroup: TypesGen.Group = {
@@ -998,6 +1003,7 @@ export const MockGroup: TypesGen.Group = {
   avatar_url: "https://example.com",
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
+  quota_allowance: 5,
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {

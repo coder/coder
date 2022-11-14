@@ -8,8 +8,8 @@ import (
 )
 
 type WorkspaceQuota struct {
-	UserWorkspaceCount int `json:"user_workspace_count"`
-	UserWorkspaceLimit int `json:"user_workspace_limit"`
+	CreditsConsumed int `json:"credits_consumed"`
+	Budget          int `json:"budget"`
 }
 
 func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQuota, error) {

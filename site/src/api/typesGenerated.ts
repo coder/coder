@@ -156,6 +156,7 @@ export interface CreateFirstUserResponse {
 export interface CreateGroupRequest {
   readonly name: string
   readonly avatar_url: string
+  readonly quota_allowance: number
 }
 
 // From codersdk/users.go
@@ -301,7 +302,6 @@ export interface DeploymentConfig {
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
-  readonly user_workspace_quota: DeploymentConfigField<number>
   readonly provisioner: ProvisionerConfig
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
@@ -374,6 +374,7 @@ export interface Group {
   readonly organization_id: string
   readonly members: User[]
   readonly avatar_url: string
+  readonly quota_allowance: number
 }
 
 // From codersdk/workspaceapps.go
@@ -502,6 +503,7 @@ export interface PatchGroupRequest {
   readonly remove_users: string[]
   readonly name: string
   readonly avatar_url?: string
+  readonly quota_allowance?: number
 }
 
 // From codersdk/deploymentconfig.go
@@ -881,6 +883,7 @@ export interface WorkspaceBuild {
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
   readonly status: WorkspaceStatus
+  readonly daily_cost: number
 }
 
 // From codersdk/workspaces.go
@@ -899,10 +902,10 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
-// From codersdk/workspacequota.go
+// From codersdk/quota.go
 export interface WorkspaceQuota {
-  readonly user_workspace_count: number
-  readonly user_workspace_limit: number
+  readonly credits_consumed: number
+  readonly budget: number
 }
 
 // From codersdk/workspacebuilds.go
@@ -917,6 +920,7 @@ export interface WorkspaceResource {
   readonly icon: string
   readonly agents?: WorkspaceAgent[]
   readonly metadata?: WorkspaceResourceMetadata[]
+  readonly daily_cost: number
 }
 
 // From codersdk/workspacebuilds.go

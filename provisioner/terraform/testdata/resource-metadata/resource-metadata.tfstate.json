@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.3.4",
+  "terraform_version": "1.3.3",
   "values": {
     "root_module": {
       "resources": [
@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "3aeed2cf-2a5a-40f7-a0d6-2c3508f601a4",
+            "id": "7766b2a9-c00f-4cde-9acc-1fc05651dbdf",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "c22c9b1f-b077-4ed3-afa6-e10fc5485399",
+            "token": "5e54c173-a813-4df0-b87d-0617082769dc",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -34,9 +34,10 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
+            "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "1f43c366-e7a6-49dc-ac19-894fd9fceac8",
+            "id": "e43f1cd6-5dbb-4d6b-8942-37f914b37be5",
             "item": [
               {
                 "is_null": false,

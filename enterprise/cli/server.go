@@ -61,7 +61,6 @@ func server() *cobra.Command {
 			AuditLogging:           options.DeploymentConfig.AuditLogging.Value,
 			BrowserOnly:            options.DeploymentConfig.BrowserOnly.Value,
 			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAPIKey.Value),
-			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota.Value,
 			RBAC:                   true,
 			DERPServerRelayAddress: options.DeploymentConfig.DERP.Server.RelayURL.Value,
 			DERPServerRegionID:     options.DeploymentConfig.DERP.Server.RegionID.Value,
