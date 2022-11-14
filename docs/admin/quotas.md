@@ -2,7 +2,7 @@
 
 Coder Enterprise admins may define quotas to control costs
 and ensure equitable access to cloud resources. The quota system controls
-instanteneous cost. For example, the system can ensure that every user in your
+instantaneous cost. For example, the system can ensure that every user in your
 deployment has a spend rate lower than $10/day at any given moment.
 
 The Workspace Provisioner enforces quota on workspace start and stop operations.
