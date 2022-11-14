@@ -239,6 +239,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			GroupACL: database.TemplateACL{
 				organization.ID.String(): []rbac.Action{rbac.ActionRead},
 			},
+			DisplayName: createTemplate.DisplayName,
+			Icon:        createTemplate.Icon,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
