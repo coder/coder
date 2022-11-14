@@ -16,11 +16,11 @@ import (
 	"github.com/coder/coder/provisionerd/proto"
 )
 
-type Committer struct {
+type committer struct {
 	Database database.Store
 }
 
-func (c *Committer) CommitQuota(
+func (c *committer) CommitQuota(
 	ctx context.Context, request *proto.CommitQuotaRequest,
 ) (*proto.CommitQuotaResponse, error) {
 	jobID, err := uuid.Parse(request.JobId)

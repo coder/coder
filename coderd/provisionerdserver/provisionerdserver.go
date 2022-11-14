@@ -255,6 +255,23 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	jobID, err := uuid.Parse(request.JobId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse job id: %w", err)
+	}
+
+	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get job: %w", err)
+	}
+	if !job.WorkerID.Valid {
+		return nil, xerrors.New("job isn't running yet")
+	}
+
+	if job.WorkerID.UUID.String() != server.ID.String() {
+		return nil, xerrors.New("you don't own this job")
+	}
+
 	q := server.QuotaCommitter.Load()
 	if q == nil {
 		// We're probably in community edition or a test.
