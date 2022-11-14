@@ -106,35 +106,23 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
       organizationId,
     },
   })
-  const {
-    template,
-    activeTemplateVersion,
-    templateResources,
-    templateDAUs,
-    permissions: templatePermissions,
-  } = templateState.context
+  const { template, permissions: templatePermissions } = templateState.context
   const xServices = useContext(XServiceContext)
   const permissions = useSelector(xServices.authXService, selectPermissions)
-  const isLoading =
-    !template ||
-    !activeTemplateVersion ||
-    !templateResources ||
-    !permissions ||
-    !templateDAUs ||
-    !templatePermissions
-
   const hasIcon = template && template.icon && template.icon !== ""
+
+  if (!template) {
+    return <Loader />
+  }
 
   const generatePageHeaderActions = (): JSX.Element[] => {
     const pageActions: JSX.Element[] = []
 
-    if (!isLoading && templatePermissions.canUpdateTemplate) {
-      pageActions.push(<TemplateSettingsButton templateName={templateName} />)
+    if (templatePermissions?.canUpdateTemplate) {
+      pageActions.push(<TemplateSettingsButton templateName={template.name} />)
     }
 
-    if (!isLoading) {
-      pageActions.push(<CreateWorkspaceButton templateName={templateName} />)
-    }
+    pageActions.push(<CreateWorkspaceButton templateName={template.name} />)
 
     return pageActions
   }
@@ -152,65 +140,59 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
           }
         >
           <Stack direction="row" spacing={3} className={styles.pageTitle}>
-            {!isLoading && (
-              <div>
-                {hasIcon ? (
-                  <div className={styles.iconWrapper}>
-                    <img src={template.icon} alt="" />
-                  </div>
-                ) : (
-                  <Avatar className={styles.avatar}>
-                    {firstLetter(templateName)}
-                  </Avatar>
-                )}
-              </div>
-            )}
+            <div>
+              {hasIcon ? (
+                <div className={styles.iconWrapper}>
+                  <img src={template.icon} alt="" />
+                </div>
+              ) : (
+                <Avatar className={styles.avatar}>
+                  {firstLetter(template.name)}
+                </Avatar>
+              )}
+            </div>
 
-            {!isLoading && (
-              <div>
-                <PageHeaderTitle>{templateName}</PageHeaderTitle>
-                <PageHeaderSubtitle condensed>
-                  {template.description === ""
-                    ? Language.noDescription
-                    : template.description}
-                </PageHeaderSubtitle>
-              </div>
-            )}
+            <div>
+              <PageHeaderTitle>{template.name}</PageHeaderTitle>
+              <PageHeaderSubtitle condensed>
+                {template.description === ""
+                  ? Language.noDescription
+                  : template.description}
+              </PageHeaderSubtitle>
+            </div>
           </Stack>
         </PageHeader>
       </Margins>
 
-      {!isLoading && (
-        <div className={styles.tabs}>
-          <Margins>
-            <Stack direction="row" spacing={0.25}>
-              <NavLink
-                end
-                to={`/templates/${template.name}`}
-                className={({ isActive }) =>
-                  combineClasses([
-                    styles.tabItem,
-                    isActive ? styles.tabItemActive : undefined,
-                  ])
-                }
-              >
-                Summary
-              </NavLink>
-              <NavLink
-                to={`/templates/${template.name}/permissions`}
-                className={({ isActive }) =>
-                  combineClasses([
-                    styles.tabItem,
-                    isActive ? styles.tabItemActive : undefined,
-                  ])
-                }
-              >
-                Permissions
-              </NavLink>
-            </Stack>
-          </Margins>
-        </div>
-      )}
+      <div className={styles.tabs}>
+        <Margins>
+          <Stack direction="row" spacing={0.25}>
+            <NavLink
+              end
+              to={`/templates/${template.name}`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Summary
+            </NavLink>
+            <NavLink
+              to={`/templates/${template.name}/permissions`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Permissions
+            </NavLink>
+          </Stack>
+        </Margins>
+      </div>
 
       <Margins>
         <TemplateLayoutContext.Provider
