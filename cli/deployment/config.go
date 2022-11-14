@@ -334,7 +334,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		},
 		AgentFallbackTroubleshootingURL: &codersdk.DeploymentConfigField[string]{
 			Name:    "Agent Fallback Troubleshooting URL",
-			Usage:   "URL to use for agent fallback troubleshooting",
+			Usage:   "URL to use for agent troubleshooting when not set in the template",
 			Flag:    "agent-fallback-troubleshooting-url",
 			Hidden:  true,
 			Default: "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
