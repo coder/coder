@@ -2789,7 +2789,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
-	SUM(quota_allowance)
+	coalesce(SUM(quota_allowance), 0)::BIGINT
 FROM
 	group_members gm
 JOIN groups g ON
@@ -2800,9 +2800,9 @@ WHERE
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getQuotaAllowanceForUser, userID)
-	var sum int64
-	err := row.Scan(&sum)
-	return sum, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const getQuotaConsumedForUser = `-- name: GetQuotaConsumedForUser :one

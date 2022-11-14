@@ -1,6 +1,6 @@
 -- name: GetQuotaAllowanceForUser :one
 SELECT
-	SUM(quota_allowance)
+	coalesce(SUM(quota_allowance), 0)::BIGINT
 FROM
 	group_members gm
 JOIN groups g ON
