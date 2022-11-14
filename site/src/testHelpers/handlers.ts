@@ -74,9 +74,6 @@ export const handlers = [
       ctx.json([M.MockUser, M.MockUser2, M.SuspendedMockUser]),
     )
   }),
-  rest.get("/api/v2/users/count", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockUserCountResponse))
-  }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))
   }),
