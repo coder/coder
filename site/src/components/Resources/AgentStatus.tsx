@@ -85,7 +85,11 @@ const TimeoutStatus: React.FC<{
         <HelpTooltipTitle>{t("timeoutTooltip.title")}</HelpTooltipTitle>
         <HelpTooltipText>
           {t("timeoutTooltip.message")}{" "}
-          <Link target="_blank" rel="noreferrer" href={agent.troubleshooting_url}>
+          <Link
+            target="_blank"
+            rel="noreferrer"
+            href={agent.troubleshooting_url}
+          >
             {t("timeoutTooltip.link")}
           </Link>
           .
