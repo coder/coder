@@ -174,4 +174,52 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, displayName, updated.DisplayName)
 		assert.Equal(t, icon, updated.Icon)
 	})
+	t.Run("WithPropertiesThenEmptyEdit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		initialDisplayName := "This is a template"
+		initialDescription := "This is description"
+		initialIcon := "/img/icon.png"
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DisplayName = initialDisplayName
+			ctr.Description = initialDescription
+			ctr.Icon = initialIcon
+		})
+
+		// Test created template
+		created, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, initialDisplayName, created.DisplayName)
+		assert.Equal(t, initialDescription, created.Description)
+		assert.Equal(t, initialIcon, created.Icon)
+
+		// Test the cli command.
+		cmdArgs := []string{
+			"templates",
+			"edit",
+			template.Name,
+		}
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+
+		ctx, _ := testutil.Context(t)
+		err = cmd.ExecuteContext(ctx)
+
+		require.NoError(t, err)
+
+		// Assert that the template metadata changed.
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		// Properties don't change
+		assert.Equal(t, template.Name, updated.Name)
+		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.DisplayName, updated.DisplayName)
+		// Icon is removed, as the API considers it as "delete" request
+		assert.Equal(t, "", updated.Icon)
+	})
 }
