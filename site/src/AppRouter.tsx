@@ -126,16 +126,14 @@ export const AppRouter: FC = () => {
           }
         />
 
-        <Route path="workspaces">
-          <Route
-            index
-            element={
-              <AuthAndFrame>
-                <WorkspacesPage />
-              </AuthAndFrame>
-            }
-          />
-        </Route>
+        <Route
+          path="workspaces"
+          element={
+            <AuthAndFrame>
+              <WorkspacesPage />
+            </AuthAndFrame>
+          }
+        />
 
         <Route path="templates">
           <Route
