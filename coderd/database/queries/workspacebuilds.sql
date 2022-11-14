@@ -133,3 +133,12 @@ SET
 	deadline = $4
 WHERE
 	id = $1 RETURNING *;
+
+-- name: UpdateWorkspaceBuildCostByID :one
+UPDATE
+	workspace_builds
+SET
+	daily_cost = $2
+WHERE
+	id = $1 RETURNING *;
+

@@ -136,7 +136,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		return
 	}
@@ -536,7 +536,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting workspace build.",
@@ -931,6 +931,7 @@ func (api *API) convertWorkspaceBuild(
 		Reason:             codersdk.BuildReason(build.Reason),
 		Resources:          apiResources,
 		Status:             convertWorkspaceStatus(apiJob.Status, transition),
+		DailyCost:          build.DailyCost,
 	}, nil
 }
 
@@ -974,6 +975,7 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Icon:       resource.Icon,
 		Agents:     agents,
 		Metadata:   convertedMetadata,
+		DailyCost:  resource.DailyCost,
 	}
 }
 

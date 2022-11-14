@@ -19,7 +19,6 @@ const (
 	FeatureAuditLog         = "audit_log"
 	FeatureBrowserOnly      = "browser_only"
 	FeatureSCIM             = "scim"
-	FeatureWorkspaceQuota   = "workspace_quota"
 	FeatureTemplateRBAC     = "template_rbac"
 	FeatureHighAvailability = "high_availability"
 	FeatureMultipleGitAuth  = "multiple_git_auth"
@@ -30,7 +29,6 @@ var FeatureNames = []string{
 	FeatureAuditLog,
 	FeatureBrowserOnly,
 	FeatureSCIM,
-	FeatureWorkspaceQuota,
 	FeatureTemplateRBAC,
 	FeatureHighAvailability,
 	FeatureMultipleGitAuth,

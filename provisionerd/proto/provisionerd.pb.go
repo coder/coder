@@ -667,6 +667,124 @@ func (x *UpdateJobResponse) GetParameterValues() []*proto.ParameterValue {
 	return nil
 }
 
+type CommitQuotaRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	JobId     string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	DailyCost int32  `protobuf:"varint,2,opt,name=daily_cost,json=dailyCost,proto3" json:"daily_cost,omitempty"`
+}
+
+func (x *CommitQuotaRequest) Reset() {
+	*x = CommitQuotaRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CommitQuotaRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitQuotaRequest) ProtoMessage() {}
+
+func (x *CommitQuotaRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitQuotaRequest.ProtoReflect.Descriptor instead.
+func (*CommitQuotaRequest) Descriptor() ([]byte, []int) {
+	return file_provisionerd_proto_provisionerd_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CommitQuotaRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CommitQuotaRequest) GetDailyCost() int32 {
+	if x != nil {
+		return x.DailyCost
+	}
+	return 0
+}
+
+type CommitQuotaResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Ok              bool  `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	CreditsConsumed int32 `protobuf:"varint,2,opt,name=credits_consumed,json=creditsConsumed,proto3" json:"credits_consumed,omitempty"`
+	Budget          int32 `protobuf:"varint,3,opt,name=budget,proto3" json:"budget,omitempty"`
+}
+
+func (x *CommitQuotaResponse) Reset() {
+	*x = CommitQuotaResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CommitQuotaResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitQuotaResponse) ProtoMessage() {}
+
+func (x *CommitQuotaResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitQuotaResponse.ProtoReflect.Descriptor instead.
+func (*CommitQuotaResponse) Descriptor() ([]byte, []int) {
+	return file_provisionerd_proto_provisionerd_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CommitQuotaResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *CommitQuotaResponse) GetCreditsConsumed() int32 {
+	if x != nil {
+		return x.CreditsConsumed
+	}
+	return 0
+}
+
+func (x *CommitQuotaResponse) GetBudget() int32 {
+	if x != nil {
+		return x.Budget
+	}
+	return 0
+}
+
 type AcquiredJob_WorkspaceBuild struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -682,7 +800,7 @@ type AcquiredJob_WorkspaceBuild struct {
 func (x *AcquiredJob_WorkspaceBuild) Reset() {
 	*x = AcquiredJob_WorkspaceBuild{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[7]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -695,7 +813,7 @@ func (x *AcquiredJob_WorkspaceBuild) String() string {
 func (*AcquiredJob_WorkspaceBuild) ProtoMessage() {}
 
 func (x *AcquiredJob_WorkspaceBuild) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[7]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -757,7 +875,7 @@ type AcquiredJob_TemplateImport struct {
 func (x *AcquiredJob_TemplateImport) Reset() {
 	*x = AcquiredJob_TemplateImport{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[8]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -770,7 +888,7 @@ func (x *AcquiredJob_TemplateImport) String() string {
 func (*AcquiredJob_TemplateImport) ProtoMessage() {}
 
 func (x *AcquiredJob_TemplateImport) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[8]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -805,7 +923,7 @@ type AcquiredJob_TemplateDryRun struct {
 func (x *AcquiredJob_TemplateDryRun) Reset() {
 	*x = AcquiredJob_TemplateDryRun{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[9]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -818,7 +936,7 @@ func (x *AcquiredJob_TemplateDryRun) String() string {
 func (*AcquiredJob_TemplateDryRun) ProtoMessage() {}
 
 func (x *AcquiredJob_TemplateDryRun) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[9]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -859,7 +977,7 @@ type FailedJob_WorkspaceBuild struct {
 func (x *FailedJob_WorkspaceBuild) Reset() {
 	*x = FailedJob_WorkspaceBuild{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[10]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -872,7 +990,7 @@ func (x *FailedJob_WorkspaceBuild) String() string {
 func (*FailedJob_WorkspaceBuild) ProtoMessage() {}
 
 func (x *FailedJob_WorkspaceBuild) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[10]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -904,7 +1022,7 @@ type FailedJob_TemplateImport struct {
 func (x *FailedJob_TemplateImport) Reset() {
 	*x = FailedJob_TemplateImport{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[11]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -917,7 +1035,7 @@ func (x *FailedJob_TemplateImport) String() string {
 func (*FailedJob_TemplateImport) ProtoMessage() {}
 
 func (x *FailedJob_TemplateImport) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[11]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -942,7 +1060,7 @@ type FailedJob_TemplateDryRun struct {
 func (x *FailedJob_TemplateDryRun) Reset() {
 	*x = FailedJob_TemplateDryRun{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[12]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -955,7 +1073,7 @@ func (x *FailedJob_TemplateDryRun) String() string {
 func (*FailedJob_TemplateDryRun) ProtoMessage() {}
 
 func (x *FailedJob_TemplateDryRun) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[12]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -983,7 +1101,7 @@ type CompletedJob_WorkspaceBuild struct {
 func (x *CompletedJob_WorkspaceBuild) Reset() {
 	*x = CompletedJob_WorkspaceBuild{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[13]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -996,7 +1114,7 @@ func (x *CompletedJob_WorkspaceBuild) String() string {
 func (*CompletedJob_WorkspaceBuild) ProtoMessage() {}
 
 func (x *CompletedJob_WorkspaceBuild) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[13]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1038,7 +1156,7 @@ type CompletedJob_TemplateImport struct {
 func (x *CompletedJob_TemplateImport) Reset() {
 	*x = CompletedJob_TemplateImport{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[14]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1051,7 +1169,7 @@ func (x *CompletedJob_TemplateImport) String() string {
 func (*CompletedJob_TemplateImport) ProtoMessage() {}
 
 func (x *CompletedJob_TemplateImport) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[14]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1092,7 +1210,7 @@ type CompletedJob_TemplateDryRun struct {
 func (x *CompletedJob_TemplateDryRun) Reset() {
 	*x = CompletedJob_TemplateDryRun{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[15]
+		mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1105,7 +1223,7 @@ func (x *CompletedJob_TemplateDryRun) String() string {
 func (*CompletedJob_TemplateDryRun) ProtoMessage() {}
 
 func (x *CompletedJob_TemplateDryRun) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[15]
+	mi := &file_provisionerd_proto_provisionerd_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1289,31 +1407,48 @@ var file_provisionerd_proto_provisionerd_proto_rawDesc = []byte{
 	0x6c, 0x75, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x70, 0x72, 0x6f,
 	0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
 	0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0f, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
-	0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x2a, 0x34, 0x0a, 0x09, 0x4c, 0x6f, 0x67, 0x53,
-	0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x16, 0x0a, 0x12, 0x50, 0x52, 0x4f, 0x56, 0x49, 0x53, 0x49,
-	0x4f, 0x4e, 0x45, 0x52, 0x5f, 0x44, 0x41, 0x45, 0x4d, 0x4f, 0x4e, 0x10, 0x00, 0x12, 0x0f, 0x0a,
-	0x0b, 0x50, 0x52, 0x4f, 0x56, 0x49, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x52, 0x10, 0x01, 0x32, 0x98,
-	0x02, 0x0a, 0x11, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x44, 0x61,
-	0x65, 0x6d, 0x6f, 0x6e, 0x12, 0x3c, 0x0a, 0x0a, 0x41, 0x63, 0x71, 0x75, 0x69, 0x72, 0x65, 0x4a,
-	0x6f, 0x62, 0x12, 0x13, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72,
-	0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x19, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x41, 0x63, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x4a,
-	0x6f, 0x62, 0x12, 0x4c, 0x0a, 0x09, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4a, 0x6f, 0x62, 0x12,
-	0x1e, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x55,
-	0x70, 0x64, 0x61, 0x74, 0x65, 0x4a, 0x6f, 0x62, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x1f, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x55,
-	0x70, 0x64, 0x61, 0x74, 0x65, 0x4a, 0x6f, 0x62, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x37, 0x0a, 0x07, 0x46, 0x61, 0x69, 0x6c, 0x4a, 0x6f, 0x62, 0x12, 0x17, 0x2e, 0x70, 0x72,
-	0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x46, 0x61, 0x69, 0x6c, 0x65,
-	0x64, 0x4a, 0x6f, 0x62, 0x1a, 0x13, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
-	0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x3e, 0x0a, 0x0b, 0x43, 0x6f, 0x6d,
-	0x70, 0x6c, 0x65, 0x74, 0x65, 0x4a, 0x6f, 0x62, 0x12, 0x1a, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69,
-	0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65,
-	0x64, 0x4a, 0x6f, 0x62, 0x1a, 0x13, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
-	0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x42, 0x2b, 0x5a, 0x29, 0x67, 0x69, 0x74,
-	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f,
-	0x64, 0x65, 0x72, 0x2f, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64,
-	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x22, 0x4a, 0x0a, 0x12, 0x43, 0x6f, 0x6d, 0x6d,
+	0x69, 0x74, 0x51, 0x75, 0x6f, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x15,
+	0x0a, 0x06, 0x6a, 0x6f, 0x62, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
+	0x6a, 0x6f, 0x62, 0x49, 0x64, 0x12, 0x1d, 0x0a, 0x0a, 0x64, 0x61, 0x69, 0x6c, 0x79, 0x5f, 0x63,
+	0x6f, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x09, 0x64, 0x61, 0x69, 0x6c, 0x79,
+	0x43, 0x6f, 0x73, 0x74, 0x22, 0x68, 0x0a, 0x13, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x51, 0x75,
+	0x6f, 0x74, 0x61, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x6f,
+	0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x02, 0x6f, 0x6b, 0x12, 0x29, 0x0a, 0x10, 0x63,
+	0x72, 0x65, 0x64, 0x69, 0x74, 0x73, 0x5f, 0x63, 0x6f, 0x6e, 0x73, 0x75, 0x6d, 0x65, 0x64, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0f, 0x63, 0x72, 0x65, 0x64, 0x69, 0x74, 0x73, 0x43, 0x6f,
+	0x6e, 0x73, 0x75, 0x6d, 0x65, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x62, 0x75, 0x64, 0x67, 0x65, 0x74,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x06, 0x62, 0x75, 0x64, 0x67, 0x65, 0x74, 0x2a, 0x34,
+	0x0a, 0x09, 0x4c, 0x6f, 0x67, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x16, 0x0a, 0x12, 0x50,
+	0x52, 0x4f, 0x56, 0x49, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x52, 0x5f, 0x44, 0x41, 0x45, 0x4d, 0x4f,
+	0x4e, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x50, 0x52, 0x4f, 0x56, 0x49, 0x53, 0x49, 0x4f, 0x4e,
+	0x45, 0x52, 0x10, 0x01, 0x32, 0xec, 0x02, 0x0a, 0x11, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69,
+	0x6f, 0x6e, 0x65, 0x72, 0x44, 0x61, 0x65, 0x6d, 0x6f, 0x6e, 0x12, 0x3c, 0x0a, 0x0a, 0x41, 0x63,
+	0x71, 0x75, 0x69, 0x72, 0x65, 0x4a, 0x6f, 0x62, 0x12, 0x13, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69,
+	0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x19, 0x2e,
+	0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x41, 0x63, 0x71,
+	0x75, 0x69, 0x72, 0x65, 0x64, 0x4a, 0x6f, 0x62, 0x12, 0x52, 0x0a, 0x0b, 0x43, 0x6f, 0x6d, 0x6d,
+	0x69, 0x74, 0x51, 0x75, 0x6f, 0x74, 0x61, 0x12, 0x20, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73,
+	0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x51, 0x75, 0x6f,
+	0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x51,
+	0x75, 0x6f, 0x74, 0x61, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x09,
+	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4a, 0x6f, 0x62, 0x12, 0x1e, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4a,
+	0x6f, 0x62, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4a,
+	0x6f, 0x62, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x37, 0x0a, 0x07, 0x46, 0x61,
+	0x69, 0x6c, 0x4a, 0x6f, 0x62, 0x12, 0x17, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f,
+	0x6e, 0x65, 0x72, 0x64, 0x2e, 0x46, 0x61, 0x69, 0x6c, 0x65, 0x64, 0x4a, 0x6f, 0x62, 0x1a, 0x13,
+	0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d,
+	0x70, 0x74, 0x79, 0x12, 0x3e, 0x0a, 0x0b, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x4a,
+	0x6f, 0x62, 0x12, 0x1a, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72,
+	0x64, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x4a, 0x6f, 0x62, 0x1a, 0x13,
+	0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2e, 0x45, 0x6d,
+	0x70, 0x74, 0x79, 0x42, 0x2b, 0x5a, 0x29, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
+	0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x70, 0x72,
+	0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x64, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1329,7 +1464,7 @@ func file_provisionerd_proto_provisionerd_proto_rawDescGZIP() []byte {
 }
 
 var file_provisionerd_proto_provisionerd_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_provisionerd_proto_provisionerd_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_provisionerd_proto_provisionerd_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_provisionerd_proto_provisionerd_proto_goTypes = []interface{}{
 	(LogSource)(0),                      // 0: provisionerd.LogSource
 	(*Empty)(nil),                       // 1: provisionerd.Empty
@@ -1339,55 +1474,59 @@ var file_provisionerd_proto_provisionerd_proto_goTypes = []interface{}{
 	(*Log)(nil),                         // 5: provisionerd.Log
 	(*UpdateJobRequest)(nil),            // 6: provisionerd.UpdateJobRequest
 	(*UpdateJobResponse)(nil),           // 7: provisionerd.UpdateJobResponse
-	(*AcquiredJob_WorkspaceBuild)(nil),  // 8: provisionerd.AcquiredJob.WorkspaceBuild
-	(*AcquiredJob_TemplateImport)(nil),  // 9: provisionerd.AcquiredJob.TemplateImport
-	(*AcquiredJob_TemplateDryRun)(nil),  // 10: provisionerd.AcquiredJob.TemplateDryRun
-	(*FailedJob_WorkspaceBuild)(nil),    // 11: provisionerd.FailedJob.WorkspaceBuild
-	(*FailedJob_TemplateImport)(nil),    // 12: provisionerd.FailedJob.TemplateImport
-	(*FailedJob_TemplateDryRun)(nil),    // 13: provisionerd.FailedJob.TemplateDryRun
-	(*CompletedJob_WorkspaceBuild)(nil), // 14: provisionerd.CompletedJob.WorkspaceBuild
-	(*CompletedJob_TemplateImport)(nil), // 15: provisionerd.CompletedJob.TemplateImport
-	(*CompletedJob_TemplateDryRun)(nil), // 16: provisionerd.CompletedJob.TemplateDryRun
-	(proto.LogLevel)(0),                 // 17: provisioner.LogLevel
-	(*proto.ParameterSchema)(nil),       // 18: provisioner.ParameterSchema
-	(*proto.ParameterValue)(nil),        // 19: provisioner.ParameterValue
-	(*proto.Provision_Metadata)(nil),    // 20: provisioner.Provision.Metadata
-	(*proto.Resource)(nil),              // 21: provisioner.Resource
+	(*CommitQuotaRequest)(nil),          // 8: provisionerd.CommitQuotaRequest
+	(*CommitQuotaResponse)(nil),         // 9: provisionerd.CommitQuotaResponse
+	(*AcquiredJob_WorkspaceBuild)(nil),  // 10: provisionerd.AcquiredJob.WorkspaceBuild
+	(*AcquiredJob_TemplateImport)(nil),  // 11: provisionerd.AcquiredJob.TemplateImport
+	(*AcquiredJob_TemplateDryRun)(nil),  // 12: provisionerd.AcquiredJob.TemplateDryRun
+	(*FailedJob_WorkspaceBuild)(nil),    // 13: provisionerd.FailedJob.WorkspaceBuild
+	(*FailedJob_TemplateImport)(nil),    // 14: provisionerd.FailedJob.TemplateImport
+	(*FailedJob_TemplateDryRun)(nil),    // 15: provisionerd.FailedJob.TemplateDryRun
+	(*CompletedJob_WorkspaceBuild)(nil), // 16: provisionerd.CompletedJob.WorkspaceBuild
+	(*CompletedJob_TemplateImport)(nil), // 17: provisionerd.CompletedJob.TemplateImport
+	(*CompletedJob_TemplateDryRun)(nil), // 18: provisionerd.CompletedJob.TemplateDryRun
+	(proto.LogLevel)(0),                 // 19: provisioner.LogLevel
+	(*proto.ParameterSchema)(nil),       // 20: provisioner.ParameterSchema
+	(*proto.ParameterValue)(nil),        // 21: provisioner.ParameterValue
+	(*proto.Provision_Metadata)(nil),    // 22: provisioner.Provision.Metadata
+	(*proto.Resource)(nil),              // 23: provisioner.Resource
 }
 var file_provisionerd_proto_provisionerd_proto_depIdxs = []int32{
-	8,  // 0: provisionerd.AcquiredJob.workspace_build:type_name -> provisionerd.AcquiredJob.WorkspaceBuild
-	9,  // 1: provisionerd.AcquiredJob.template_import:type_name -> provisionerd.AcquiredJob.TemplateImport
-	10, // 2: provisionerd.AcquiredJob.template_dry_run:type_name -> provisionerd.AcquiredJob.TemplateDryRun
-	11, // 3: provisionerd.FailedJob.workspace_build:type_name -> provisionerd.FailedJob.WorkspaceBuild
-	12, // 4: provisionerd.FailedJob.template_import:type_name -> provisionerd.FailedJob.TemplateImport
-	13, // 5: provisionerd.FailedJob.template_dry_run:type_name -> provisionerd.FailedJob.TemplateDryRun
-	14, // 6: provisionerd.CompletedJob.workspace_build:type_name -> provisionerd.CompletedJob.WorkspaceBuild
-	15, // 7: provisionerd.CompletedJob.template_import:type_name -> provisionerd.CompletedJob.TemplateImport
-	16, // 8: provisionerd.CompletedJob.template_dry_run:type_name -> provisionerd.CompletedJob.TemplateDryRun
+	10, // 0: provisionerd.AcquiredJob.workspace_build:type_name -> provisionerd.AcquiredJob.WorkspaceBuild
+	11, // 1: provisionerd.AcquiredJob.template_import:type_name -> provisionerd.AcquiredJob.TemplateImport
+	12, // 2: provisionerd.AcquiredJob.template_dry_run:type_name -> provisionerd.AcquiredJob.TemplateDryRun
+	13, // 3: provisionerd.FailedJob.workspace_build:type_name -> provisionerd.FailedJob.WorkspaceBuild
+	14, // 4: provisionerd.FailedJob.template_import:type_name -> provisionerd.FailedJob.TemplateImport
+	15, // 5: provisionerd.FailedJob.template_dry_run:type_name -> provisionerd.FailedJob.TemplateDryRun
+	16, // 6: provisionerd.CompletedJob.workspace_build:type_name -> provisionerd.CompletedJob.WorkspaceBuild
+	17, // 7: provisionerd.CompletedJob.template_import:type_name -> provisionerd.CompletedJob.TemplateImport
+	18, // 8: provisionerd.CompletedJob.template_dry_run:type_name -> provisionerd.CompletedJob.TemplateDryRun
 	0,  // 9: provisionerd.Log.source:type_name -> provisionerd.LogSource
-	17, // 10: provisionerd.Log.level:type_name -> provisioner.LogLevel
+	19, // 10: provisionerd.Log.level:type_name -> provisioner.LogLevel
 	5,  // 11: provisionerd.UpdateJobRequest.logs:type_name -> provisionerd.Log
-	18, // 12: provisionerd.UpdateJobRequest.parameter_schemas:type_name -> provisioner.ParameterSchema
-	19, // 13: provisionerd.UpdateJobResponse.parameter_values:type_name -> provisioner.ParameterValue
-	19, // 14: provisionerd.AcquiredJob.WorkspaceBuild.parameter_values:type_name -> provisioner.ParameterValue
-	20, // 15: provisionerd.AcquiredJob.WorkspaceBuild.metadata:type_name -> provisioner.Provision.Metadata
-	20, // 16: provisionerd.AcquiredJob.TemplateImport.metadata:type_name -> provisioner.Provision.Metadata
-	19, // 17: provisionerd.AcquiredJob.TemplateDryRun.parameter_values:type_name -> provisioner.ParameterValue
-	20, // 18: provisionerd.AcquiredJob.TemplateDryRun.metadata:type_name -> provisioner.Provision.Metadata
-	21, // 19: provisionerd.CompletedJob.WorkspaceBuild.resources:type_name -> provisioner.Resource
-	21, // 20: provisionerd.CompletedJob.TemplateImport.start_resources:type_name -> provisioner.Resource
-	21, // 21: provisionerd.CompletedJob.TemplateImport.stop_resources:type_name -> provisioner.Resource
-	21, // 22: provisionerd.CompletedJob.TemplateDryRun.resources:type_name -> provisioner.Resource
+	20, // 12: provisionerd.UpdateJobRequest.parameter_schemas:type_name -> provisioner.ParameterSchema
+	21, // 13: provisionerd.UpdateJobResponse.parameter_values:type_name -> provisioner.ParameterValue
+	21, // 14: provisionerd.AcquiredJob.WorkspaceBuild.parameter_values:type_name -> provisioner.ParameterValue
+	22, // 15: provisionerd.AcquiredJob.WorkspaceBuild.metadata:type_name -> provisioner.Provision.Metadata
+	22, // 16: provisionerd.AcquiredJob.TemplateImport.metadata:type_name -> provisioner.Provision.Metadata
+	21, // 17: provisionerd.AcquiredJob.TemplateDryRun.parameter_values:type_name -> provisioner.ParameterValue
+	22, // 18: provisionerd.AcquiredJob.TemplateDryRun.metadata:type_name -> provisioner.Provision.Metadata
+	23, // 19: provisionerd.CompletedJob.WorkspaceBuild.resources:type_name -> provisioner.Resource
+	23, // 20: provisionerd.CompletedJob.TemplateImport.start_resources:type_name -> provisioner.Resource
+	23, // 21: provisionerd.CompletedJob.TemplateImport.stop_resources:type_name -> provisioner.Resource
+	23, // 22: provisionerd.CompletedJob.TemplateDryRun.resources:type_name -> provisioner.Resource
 	1,  // 23: provisionerd.ProvisionerDaemon.AcquireJob:input_type -> provisionerd.Empty
-	6,  // 24: provisionerd.ProvisionerDaemon.UpdateJob:input_type -> provisionerd.UpdateJobRequest
-	3,  // 25: provisionerd.ProvisionerDaemon.FailJob:input_type -> provisionerd.FailedJob
-	4,  // 26: provisionerd.ProvisionerDaemon.CompleteJob:input_type -> provisionerd.CompletedJob
-	2,  // 27: provisionerd.ProvisionerDaemon.AcquireJob:output_type -> provisionerd.AcquiredJob
-	7,  // 28: provisionerd.ProvisionerDaemon.UpdateJob:output_type -> provisionerd.UpdateJobResponse
-	1,  // 29: provisionerd.ProvisionerDaemon.FailJob:output_type -> provisionerd.Empty
-	1,  // 30: provisionerd.ProvisionerDaemon.CompleteJob:output_type -> provisionerd.Empty
-	27, // [27:31] is the sub-list for method output_type
-	23, // [23:27] is the sub-list for method input_type
+	8,  // 24: provisionerd.ProvisionerDaemon.CommitQuota:input_type -> provisionerd.CommitQuotaRequest
+	6,  // 25: provisionerd.ProvisionerDaemon.UpdateJob:input_type -> provisionerd.UpdateJobRequest
+	3,  // 26: provisionerd.ProvisionerDaemon.FailJob:input_type -> provisionerd.FailedJob
+	4,  // 27: provisionerd.ProvisionerDaemon.CompleteJob:input_type -> provisionerd.CompletedJob
+	2,  // 28: provisionerd.ProvisionerDaemon.AcquireJob:output_type -> provisionerd.AcquiredJob
+	9,  // 29: provisionerd.ProvisionerDaemon.CommitQuota:output_type -> provisionerd.CommitQuotaResponse
+	7,  // 30: provisionerd.ProvisionerDaemon.UpdateJob:output_type -> provisionerd.UpdateJobResponse
+	1,  // 31: provisionerd.ProvisionerDaemon.FailJob:output_type -> provisionerd.Empty
+	1,  // 32: provisionerd.ProvisionerDaemon.CompleteJob:output_type -> provisionerd.Empty
+	28, // [28:33] is the sub-list for method output_type
+	23, // [23:28] is the sub-list for method input_type
 	23, // [23:23] is the sub-list for extension type_name
 	23, // [23:23] is the sub-list for extension extendee
 	0,  // [0:23] is the sub-list for field type_name
@@ -1484,7 +1623,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AcquiredJob_WorkspaceBuild); i {
+			switch v := v.(*CommitQuotaRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1496,7 +1635,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AcquiredJob_TemplateImport); i {
+			switch v := v.(*CommitQuotaResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1508,7 +1647,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AcquiredJob_TemplateDryRun); i {
+			switch v := v.(*AcquiredJob_WorkspaceBuild); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1520,7 +1659,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FailedJob_WorkspaceBuild); i {
+			switch v := v.(*AcquiredJob_TemplateImport); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1532,7 +1671,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FailedJob_TemplateImport); i {
+			switch v := v.(*AcquiredJob_TemplateDryRun); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1544,7 +1683,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FailedJob_TemplateDryRun); i {
+			switch v := v.(*FailedJob_WorkspaceBuild); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1556,7 +1695,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CompletedJob_WorkspaceBuild); i {
+			switch v := v.(*FailedJob_TemplateImport); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1568,7 +1707,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CompletedJob_TemplateImport); i {
+			switch v := v.(*FailedJob_TemplateDryRun); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1580,6 +1719,30 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 		file_provisionerd_proto_provisionerd_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CompletedJob_WorkspaceBuild); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_provisionerd_proto_provisionerd_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CompletedJob_TemplateImport); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_provisionerd_proto_provisionerd_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompletedJob_TemplateDryRun); i {
 			case 0:
 				return &v.state
@@ -1613,7 +1776,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_provisionerd_proto_provisionerd_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   16,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

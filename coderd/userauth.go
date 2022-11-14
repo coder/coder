@@ -520,7 +520,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("in tx: %w", err)
 	}

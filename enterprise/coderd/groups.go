@@ -53,6 +53,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		Name:           req.Name,
 		OrganizationID: org.ID,
 		AvatarURL:      req.AvatarURL,
+		QuotaAllowance: int32(req.QuotaAllowance),
 	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -155,19 +156,25 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get group by ID: %w", err)
 		}
 
-		// TODO: Do we care about validating this?
-		if req.AvatarURL != nil {
-			group.AvatarURL = *req.AvatarURL
-		}
-		if req.Name != "" {
-			group.Name = req.Name
+		updateGroupParams := database.UpdateGroupByIDParams{
+			ID:             group.ID,
+			AvatarURL:      group.AvatarURL,
+			Name:           group.Name,
+			QuotaAllowance: group.QuotaAllowance,
 		}
 
-		group, err = tx.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
-			ID:        group.ID,
-			Name:      group.Name,
-			AvatarURL: group.AvatarURL,
-		})
+		// TODO: Do we care about validating this?
+		if req.AvatarURL != nil {
+			updateGroupParams.AvatarURL = *req.AvatarURL
+		}
+		if req.Name != "" {
+			updateGroupParams.Name = req.Name
+		}
+		if req.QuotaAllowance != nil {
+			updateGroupParams.QuotaAllowance = int32(*req.QuotaAllowance)
+		}
+
+		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
 		if err != nil {
 			return xerrors.Errorf("update group by ID: %w", err)
 		}
@@ -188,7 +195,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return nil
-	})
+	}, nil)
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",
@@ -327,6 +334,7 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 		Name:           g.Name,
 		OrganizationID: g.OrganizationID,
 		AvatarURL:      g.AvatarURL,
+		QuotaAllowance: int(g.QuotaAllowance),
 		Members:        convertUsers(users, orgs),
 	}
 }
