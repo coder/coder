@@ -201,7 +201,7 @@ describe("UsersPage", () => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
           jest
             .spyOn(API, "getUsers")
-            .mockResolvedValueOnce([SuspendedMockUser, MockUser2])
+            .mockResolvedValueOnce({ users: [SuspendedMockUser, MockUser2], count: 2 })
         })
 
         // Check if the success message is displayed
@@ -240,7 +240,7 @@ describe("UsersPage", () => {
 
       const mock = jest
         .spyOn(API, "getUsers")
-        .mockResolvedValueOnce([MockUser, MockUser2])
+        .mockResolvedValueOnce({ users: [MockUser, MockUser2], count: 2 })
 
       const nextButton = await screen.findByLabelText("Next page")
       expect(nextButton).toBeEnabled()
@@ -276,7 +276,7 @@ describe("UsersPage", () => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
           jest
             .spyOn(API, "getUsers")
-            .mockResolvedValueOnce([MockUser, SuspendedMockUser])
+            .mockResolvedValueOnce({ users: [MockUser, SuspendedMockUser], count: 2 })
         })
 
         // Check if the success message is displayed
@@ -323,7 +323,7 @@ describe("UsersPage", () => {
           jest
             .spyOn(API, "getUsers")
             .mockImplementationOnce(() =>
-              Promise.resolve([MockUser, MockUser2, SuspendedMockUser]),
+              Promise.resolve({ users: [MockUser, MockUser2, SuspendedMockUser], count: 3 }),
             )
         })
 
