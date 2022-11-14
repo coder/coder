@@ -90,7 +90,15 @@ export const nameValidator = (name: string): Yup.StringSchema =>
     .matches(usernameRE, Language.nameInvalidChars(name))
     .max(maxLenName, Language.nameTooLong(name, maxLenName))
 
-export const templateDisplayNameValidator = (displayName: string): Yup.StringSchema =>
-Yup.string()
-  .matches(templateDisplayNameRE, Language.templateDisplayNameInvalidChars(displayName))
-  .max(templateDisplayNameMaxLength, Language.nameTooLong(displayName, templateDisplayNameMaxLength))
+export const templateDisplayNameValidator = (
+  displayName: string,
+): Yup.StringSchema =>
+  Yup.string()
+    .matches(
+      templateDisplayNameRE,
+      Language.templateDisplayNameInvalidChars(displayName),
+    )
+    .max(
+      templateDisplayNameMaxLength,
+      Language.nameTooLong(displayName, templateDisplayNameMaxLength),
+    )

@@ -218,8 +218,9 @@ func TestTemplateEdit(t *testing.T) {
 		// Properties don't change
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
-		assert.Equal(t, template.DisplayName, updated.DisplayName)
-		// Icon is removed, as the API considers it as "delete" request
+		// These properties are removed, as the API considers it as "delete" request
+		// See: https://github.com/coder/coder/issues/5066
 		assert.Equal(t, "", updated.Icon)
+		assert.Equal(t, "", updated.DisplayName)
 	})
 }

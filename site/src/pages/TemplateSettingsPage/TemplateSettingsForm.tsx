@@ -12,7 +12,12 @@ import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useRef, useState } from "react"
 import { colors } from "theme/colors"
-import { getFormHelpers, nameValidator, templateDisplayNameValidator, onChangeTrimmed } from "util/formUtils"
+import {
+  getFormHelpers,
+  nameValidator,
+  templateDisplayNameValidator,
+  onChangeTrimmed,
+} from "util/formUtils"
 import * as Yup from "yup"
 
 export const Language = {
