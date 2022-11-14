@@ -242,7 +242,7 @@ Alternatively, you can pull down the template as a tape archive (`.tar`) to your
 coder templates pull <template-name> file.tar
 ```
 
-Then, unzip it by running:
+Then, extract it by running:
 
 ```sh
 tar -xf file.tar
