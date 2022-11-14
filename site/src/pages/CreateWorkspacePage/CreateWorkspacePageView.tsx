@@ -191,7 +191,7 @@ export const CreateWorkspacePageView: FC<
                   </div>
                   <Stack direction="column" spacing={0.5}>
                     <span className={styles.templateName}>
-                      {props.selectedTemplate.name}
+                      {props.selectedTemplate.display_name.length > 0 ? props.selectedTemplate.display_name : props.selectedTemplate.name}
                     </span>
                     {props.selectedTemplate.description && (
                       <span className={styles.templateDescription}>

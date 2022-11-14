@@ -110,7 +110,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <TextField
           {...getFieldHelpers("display_name")}
           disabled={isSubmitting}
-          onChange={onChangeTrimmed(form)}
           autoFocus
           fullWidth
           label={Language.displayNameLabel}
