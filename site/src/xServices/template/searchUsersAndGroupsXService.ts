@@ -64,7 +64,10 @@ export const searchUsersAndGroupsMachine = createMachine(
 
         // The Everyone groups is not returned by the API so we have to add it
         // manually
-        return { users: userRes.users, groups: [everyOneGroup(organizationId), ...groups] }
+        return {
+          users: userRes.users,
+          groups: [everyOneGroup(organizationId), ...groups],
+        }
       },
     },
     actions: {
