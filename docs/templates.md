@@ -236,7 +236,7 @@ coder templates edit <template-name> --description "This is my template"
 
 Review editable template properties by running `coder templates edit -h`.
 
-Alternatively, you can pull down the template as a compressed file (`.tar.gz`) to your current directory:
+Alternatively, you can pull down the template as a tape archive (`.tar`) to your current directory:
 
 ```sh
 coder templates pull <template-name> file.tar
