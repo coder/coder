@@ -4178,7 +4178,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -4247,7 +4247,23 @@ type GetUsersParams struct {
 	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
+type GetUsersRow struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	Status         UserStatus     `db:"status" json:"status"`
+	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType      LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted        bool           `db:"deleted" json:"deleted"`
+	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
+	Count          int64          `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.Deleted,
 		arg.AfterID,
@@ -4261,9 +4277,9 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []GetUsersRow
 	for rows.Next() {
-		var i User
+		var i GetUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
@@ -4277,6 +4293,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

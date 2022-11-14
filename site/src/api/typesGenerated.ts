@@ -348,6 +348,12 @@ export interface GetAppHostResponse {
   readonly host: string
 }
 
+// From codersdk/users.go
+export interface GetUsersResponse {
+  readonly users: User[]
+  readonly count: number
+}
+
 // From codersdk/deploymentconfig.go
 export interface GitAuthConfig {
   readonly id: string
@@ -751,16 +757,6 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
-}
-
-// From codersdk/users.go
-export interface UserCountRequest {
-  readonly q?: string
-}
-
-// From codersdk/users.go
-export interface UserCountResponse {
-  readonly count: number
 }
 
 // From codersdk/users.go

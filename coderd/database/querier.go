@@ -93,7 +93,7 @@ type sqlcQuerier interface {
 	GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
-	GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error)
+	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
 	// This shouldn't check for deleted, because it's frequently used
 	// to look up references to actions. eg. a user could build a workspace
 	// for another user, then be deleted... we still want them to appear!

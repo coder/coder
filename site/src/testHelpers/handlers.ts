@@ -71,11 +71,11 @@ export const handlers = [
   rest.get("/api/v2/users", async (req, res, ctx) => {
     return res(
       ctx.status(200),
-      ctx.json([M.MockUser, M.MockUser2, M.SuspendedMockUser]),
+      ctx.json({
+        users: [M.MockUser, M.MockUser2, M.SuspendedMockUser],
+        count: 26,
+      }),
     )
-  }),
-  rest.get("/api/v2/users/count", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockUserCountResponse))
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))

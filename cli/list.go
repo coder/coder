@@ -102,12 +102,12 @@ func list() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 				return nil
 			}
-			users, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
 			usersByID := map[uuid.UUID]codersdk.User{}
-			for _, user := range users {
+			for _, user := range userRes.Users {
 				usersByID[user.ID] = user
 			}
 

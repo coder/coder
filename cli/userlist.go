@@ -30,7 +30,7 @@ func userList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			users, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			res, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
@@ -38,12 +38,12 @@ func userList() *cobra.Command {
 			out := ""
 			switch outputFormat {
 			case "table", "":
-				out, err = cliui.DisplayTable(users, "Username", columns)
+				out, err = cliui.DisplayTable(res.Users, "Username", columns)
 				if err != nil {
 					return xerrors.Errorf("render table: %w", err)
 				}
 			case "json":
-				outBytes, err := json.Marshal(users)
+				outBytes, err := json.Marshal(res.Users)
 				if err != nil {
 					return xerrors.Errorf("marshal users to JSON: %w", err)
 				}

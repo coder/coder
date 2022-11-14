@@ -114,12 +114,12 @@ func TestScim(t *testing.T) {
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
-			users, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
-			require.Len(t, users, 1)
+			require.Len(t, userRes.Users, 1)
 
-			assert.Equal(t, sUser.Emails[0].Value, users[0].Email)
-			assert.Equal(t, sUser.UserName, users[0].Username)
+			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
+			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 		})
 	})
 
@@ -194,10 +194,10 @@ func TestScim(t *testing.T) {
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
-			users, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
-			require.Len(t, users, 1)
-			assert.Equal(t, codersdk.UserStatusSuspended, users[0].Status)
+			require.Len(t, userRes.Users, 1)
+			assert.Equal(t, codersdk.UserStatusSuspended, userRes.Users[0].Status)
 		})
 	})
 }

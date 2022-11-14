@@ -83,10 +83,6 @@ export const MockUser: TypesGen.User = {
   last_seen_at: "",
 }
 
-export const MockUserCountResponse: TypesGen.UserCountResponse = {
-  count: 26,
-}
-
 export const MockUserAdmin: TypesGen.User = {
   id: "test-user",
   username: "TestUser",

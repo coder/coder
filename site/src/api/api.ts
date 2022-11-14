@@ -133,17 +133,9 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 
 export const getUsers = async (
   options: TypesGen.UsersRequest,
-): Promise<TypesGen.User[]> => {
+): Promise<TypesGen.GetUsersResponse> => {
   const url = getURLWithSearchParams("/api/v2/users", options)
-  const response = await axios.get<TypesGen.User[]>(url.toString())
-  return response.data
-}
-
-export const getUserCount = async (
-  options: TypesGen.UserCountRequest,
-): Promise<TypesGen.UserCountResponse> => {
-  const url = getURLWithSearchParams("/api/v2/users/count", options)
-  const response = await axios.get(url.toString())
+  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString())
   return response.data
 }
 
