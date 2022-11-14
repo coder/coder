@@ -311,6 +311,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		CreatedAt: provisionerJob.CreatedAt,
 		Error:     provisionerJob.Error.String,
 		FileID:    provisionerJob.FileID,
+		Tags:      provisionerJob.Tags,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {

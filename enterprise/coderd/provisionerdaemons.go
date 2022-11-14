@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,11 @@ import (
 
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceProvisionerDaemon.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	daemons, err := api.Database.GetProvisionerDaemons(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -97,8 +103,15 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	// for jobs that they own, but only authorized users can create
 	// globally scoped provisioners that attach to all jobs.
 	apiKey := httpmw.APIKey(r)
-	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
-		tags["owner"] = apiKey.UserID.String()
+	tags = provisionerdserver.MutateTags(apiKey.UserID, tags)
+
+	if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeOrganization {
+		if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
+			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
+				Message: "You aren't allowed to create provisioner daemons for the organization.",
+			})
+			return
+		}
 	}
 
 	name := namesgenerator.GetRandomName(1)
@@ -112,6 +125,15 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error writing provisioner daemon.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rawTags, err := json.Marshal(daemon.Tags)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error marshaling daemon tags.",
 			Detail:  err.Error(),
 		})
 		return
@@ -155,6 +177,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Provisioners: daemon.Provisioners,
 		Telemetry:    api.Telemetry,
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Tags:         rawTags,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))

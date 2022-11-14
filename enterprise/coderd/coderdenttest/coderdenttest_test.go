@@ -47,6 +47,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	a.URLParams["{groupName}"] = group.Name
 
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
+	skipRoutes["GET:/api/v2/organizations/{organization}/provisionerdaemons/serve"] = "This route checks for RBAC dependent on input parameters!"
+
 	assertRoute["GET:/api/v2/entitlements"] = coderdtest.RouteCheck{
 		NoAuthorize: true,
 	}
@@ -83,6 +85,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	assertRoute["GET:/api/v2/organizations/{organization}/groups/{groupName}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionRead,
 		AssertObject: groupObj,
+	}
+	assertRoute["GET:/api/v2/organizations/{organization}/provisionerdaemons"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceProvisionerDaemon,
+	}
+	assertRoute["GET:/api/v2/organizations/{organization}/provisionerdaemons"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceProvisionerDaemon,
 	}
 	assertRoute["GET:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionRead,

@@ -76,6 +76,7 @@ type ProvisionerJob struct {
 	Status      ProvisionerJobStatus `json:"status"`
 	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
 	FileID      uuid.UUID            `json:"file_id"`
+	Tags        map[string]string    `json:"tags"`
 }
 
 type ProvisionerJobLog struct {
@@ -164,10 +165,6 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		<-closed
 		return nil
 	}), nil
-}
-
-type CreateProvisionerDaemonRequest struct {
-	Name string `json:"name" validate:"required"`
 }
 
 // ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.

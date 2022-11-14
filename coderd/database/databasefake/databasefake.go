@@ -3,7 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
-	"reflect"
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -147,7 +147,27 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		if !found {
 			continue
 		}
-		if !reflect.DeepEqual(arg.Tags, provisionerJob.Tags) {
+		tags := map[string]string{}
+		if arg.Tags != nil {
+			err := json.Unmarshal(arg.Tags, &tags)
+			if err != nil {
+				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
+			}
+		}
+
+		missing := false
+		for key, value := range provisionerJob.Tags {
+			provided, found := tags[key]
+			if !found {
+				missing = true
+				break
+			}
+			if provided != value {
+				missing = true
+				break
+			}
+		}
+		if missing {
 			continue
 		}
 		provisionerJob.StartedAt = arg.StartedAt
@@ -2291,6 +2311,7 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		FileID:         arg.FileID,
 		Type:           arg.Type,
 		Input:          arg.Input,
+		Tags:           arg.Tags,
 	}
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil

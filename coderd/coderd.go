@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -659,9 +661,17 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 		CreatedAt:    database.Now(),
 		Name:         name,
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
+		Tags: dbtype.Map{
+			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert provisioner daemon %q: %w", name, err)
+	}
+
+	tags, err := json.Marshal(daemon.Tags)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal tags: %w", err)
 	}
 
 	mux := drpcmux.New()
@@ -672,6 +682,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 		Pubsub:       api.Pubsub,
 		Provisioners: daemon.Provisioners,
 		Telemetry:    api.Telemetry,
+		Tags:         tags,
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
