@@ -37,9 +37,9 @@ func WorkspaceDisplayStatus(jobStatus ProvisionerJobStatus, transition Workspace
 	case ProvisionerJobPending:
 		return "Queued"
 	case ProvisionerJobCanceling:
-		return "Canceling action"
+		return "Canceling"
 	case ProvisionerJobCanceled:
-		return "Canceled action"
+		return "Canceled"
 	case ProvisionerJobFailed:
 		return "Failed"
 	default:

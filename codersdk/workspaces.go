@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -36,11 +38,9 @@ type WorkspacesRequest struct {
 	Pagination
 }
 
-type WorkspaceCountRequest struct {
-	SearchQuery string `json:"q,omitempty"`
-}
-type WorkspaceCountResponse struct {
-	Count int64 `json:"count"`
+type WorkspacesResponse struct {
+	Workspaces []Workspace `json:"workspaces"`
+	Count      int         `json:"count"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -137,6 +137,8 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 }
 
 func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	//nolint:bodyclose
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/watch", id), nil)
 	if err != nil {
@@ -145,7 +147,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	nextEvent := ServerSentEventReader(res.Body)
+	nextEvent := ServerSentEventReader(ctx, res.Body)
 
 	wc := make(chan Workspace, 256)
 	go func() {
@@ -161,18 +163,19 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 				if err != nil {
 					return
 				}
-				if sse.Type == ServerSentEventTypeData {
-					var ws Workspace
-					b, ok := sse.Data.([]byte)
-					if !ok {
-						return
-					}
-					err = json.Unmarshal(b, &ws)
-					if err != nil {
-						return
-					}
-					wc <- ws
+				if sse.Type != ServerSentEventTypeData {
+					continue
 				}
+				var ws Workspace
+				b, ok := sse.Data.([]byte)
+				if !ok {
+					return
+				}
+				err = json.Unmarshal(b, &ws)
+				if err != nil {
+					return
+				}
+				wc <- ws
 			}
 		}
 	}()
@@ -305,51 +308,23 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 }
 
 // Workspaces returns all workspaces the authenticated user has access to.
-func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
+func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (WorkspacesResponse, error) {
 	page := Pagination{
 		Offset: filter.Offset,
 		Limit:  filter.Limit,
 	}
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption(), page.asRequestOption())
 	if err != nil {
-		return nil, err
+		return WorkspacesResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return WorkspacesResponse{}, readBodyAsError(res)
 	}
 
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
-func (c *Client) WorkspaceCount(ctx context.Context, req WorkspaceCountRequest) (WorkspaceCountResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces/count", nil, func(r *http.Request) {
-		q := r.URL.Query()
-		var params []string
-		if req.SearchQuery != "" {
-			params = append(params, req.SearchQuery)
-		}
-		q.Set("q", strings.Join(params, " "))
-		r.URL.RawQuery = q.Encode()
-	})
-	if err != nil {
-		return WorkspaceCountResponse{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceCountResponse{}, readBodyAsError(res)
-	}
-
-	var countRes WorkspaceCountResponse
-	err = json.NewDecoder(res.Body).Decode(&countRes)
-	if err != nil {
-		return WorkspaceCountResponse{}, err
-	}
-
-	return countRes, nil
+	var wres WorkspacesResponse
+	return wres, json.NewDecoder(res.Body).Decode(&wres)
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
@@ -395,4 +370,11 @@ func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
 
 	var host GetAppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
+}
+
+// WorkspaceNotifyChannel is the PostgreSQL NOTIFY
+// channel to listen for updates on. The payload is empty,
+// because the size of a workspace payload can be very large.
+func WorkspaceNotifyChannel(id uuid.UUID) string {
+	return fmt.Sprintf("workspace:%s", id)
 }

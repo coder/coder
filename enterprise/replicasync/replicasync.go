@@ -26,6 +26,7 @@ var (
 )
 
 type Options struct {
+	ID              uuid.UUID
 	CleanupInterval time.Duration
 	UpdateInterval  time.Duration
 	PeerTimeout     time.Duration
@@ -39,6 +40,9 @@ type Options struct {
 func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub database.Pubsub, options *Options) (*Manager, error) {
 	if options == nil {
 		options = &Options{}
+	}
+	if options.ID == uuid.Nil {
+		options.ID = uuid.New()
 	}
 	if options.PeerTimeout == 0 {
 		options.PeerTimeout = 3 * time.Second
@@ -59,9 +63,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
 	}
-	id := uuid.New()
 	replica, err := db.InsertReplica(ctx, database.InsertReplicaParams{
-		ID:              id,
+		ID:              options.ID,
 		CreatedAt:       database.Now(),
 		StartedAt:       database.Now(),
 		UpdatedAt:       database.Now(),
@@ -74,13 +77,13 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
 	}
-	err = pubsub.Publish(PubsubEvent, []byte(id.String()))
+	err = pubsub.Publish(PubsubEvent, []byte(options.ID.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("publish new replica: %w", err)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	manager := &Manager{
-		id:          id,
+		id:          options.ID,
 		options:     options,
 		db:          db,
 		pubsub:      pubsub,

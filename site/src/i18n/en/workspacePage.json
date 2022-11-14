@@ -37,7 +37,8 @@
   "agentStatus": {
     "connected": "Connected",
     "connecting": "Connecting...",
-    "disconnected": "Disconnected"
+    "disconnected": "Disconnected",
+    "timeout": "Timeout"
   },
   "buildMessage": {
     "start": "started",

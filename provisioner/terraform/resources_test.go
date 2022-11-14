@@ -33,10 +33,11 @@ func TestConvertResources(t *testing.T) {
 			Name: "b",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+				Name:                     "main",
+				OperatingSystem:          "linux",
+				Architecture:             "amd64",
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
 			}},
 		}},
 		// This can happen when resources hierarchically conflict.
@@ -46,10 +47,11 @@ func TestConvertResources(t *testing.T) {
 			Name: "first",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+				Name:                     "main",
+				OperatingSystem:          "linux",
+				Architecture:             "amd64",
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
 			}},
 		}, {
 			Name: "second",
@@ -60,10 +62,11 @@ func TestConvertResources(t *testing.T) {
 			Name: "main",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_InstanceId{},
+				Name:                     "main",
+				OperatingSystem:          "linux",
+				Architecture:             "amd64",
+				Auth:                     &proto.Agent_InstanceId{},
+				ConnectionTimeoutSeconds: 120,
 			}},
 		}},
 		// Ensures that calls to resources through modules work
@@ -72,10 +75,11 @@ func TestConvertResources(t *testing.T) {
 			Name: "example",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "main",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+				Name:                     "main",
+				OperatingSystem:          "linux",
+				Architecture:             "amd64",
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
 			}},
 		}},
 		// Ensures the attachment of multiple agents to a single
@@ -84,20 +88,24 @@ func TestConvertResources(t *testing.T) {
 			Name: "dev",
 			Type: "null_resource",
 			Agents: []*proto.Agent{{
-				Name:            "dev1",
-				OperatingSystem: "linux",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+				Name:                     "dev1",
+				OperatingSystem:          "linux",
+				Architecture:             "amd64",
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
 			}, {
-				Name:            "dev2",
-				OperatingSystem: "darwin",
-				Architecture:    "amd64",
-				Auth:            &proto.Agent_Token{},
+				Name:                     "dev2",
+				OperatingSystem:          "darwin",
+				Architecture:             "amd64",
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 1,
 			}, {
-				Name:            "dev3",
-				OperatingSystem: "windows",
-				Architecture:    "arm64",
-				Auth:            &proto.Agent_Token{},
+				Name:                     "dev3",
+				OperatingSystem:          "windows",
+				Architecture:             "arm64",
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
+				TroubleshootingUrl:       "https://coder.com/troubleshoot",
 			}},
 		}},
 		// Ensures multiple applications can be set for a single agent.
@@ -131,7 +139,8 @@ func TestConvertResources(t *testing.T) {
 						Subdomain:   false,
 					},
 				},
-				Auth: &proto.Agent_Token{},
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
 			}},
 		}},
 		// Tests fetching metadata about workspace resources.
@@ -285,6 +294,58 @@ func TestAppSlugValidation(t *testing.T) {
 	require.Nil(t, resources)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
+}
+
+func TestInstanceTypeAssociation(t *testing.T) {
+	t.Parallel()
+	type tc struct {
+		ResourceType    string
+		InstanceTypeKey string
+	}
+	for _, tc := range []tc{{
+		ResourceType:    "google_compute_instance",
+		InstanceTypeKey: "machine_type",
+	}, {
+		ResourceType:    "aws_instance",
+		InstanceTypeKey: "instance_type",
+	}, {
+		ResourceType:    "aws_spot_instance_request",
+		InstanceTypeKey: "instance_type",
+	}, {
+		ResourceType:    "azurerm_linux_virtual_machine",
+		InstanceTypeKey: "size",
+	}, {
+		ResourceType:    "azurerm_windows_virtual_machine",
+		InstanceTypeKey: "size",
+	}} {
+		tc := tc
+		t.Run(tc.ResourceType, func(t *testing.T) {
+			t.Parallel()
+			instanceType, err := cryptorand.String(12)
+			require.NoError(t, err)
+			resources, err := terraform.ConvertResources(&tfjson.StateModule{
+				Resources: []*tfjson.StateResource{{
+					Address: tc.ResourceType + ".dev",
+					Type:    tc.ResourceType,
+					Name:    "dev",
+					Mode:    tfjson.ManagedResourceMode,
+					AttributeValues: map[string]interface{}{
+						tc.InstanceTypeKey: instanceType,
+					},
+				}},
+				// This is manually created to join the edges.
+			}, `digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] `+tc.ResourceType+`.dev" [label = "`+tc.ResourceType+`.dev", shape = "box"]
+	}
+}`)
+			require.NoError(t, err)
+			require.Len(t, resources, 1)
+			require.Equal(t, resources[0].GetInstanceType(), instanceType)
+		})
+	}
 }
 
 func TestInstanceIDAssociation(t *testing.T) {

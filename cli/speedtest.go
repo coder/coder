@@ -62,51 +62,56 @@ func speedtest() *cobra.Command {
 				return err
 			}
 			defer conn.Close()
-			ticker := time.NewTicker(time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-ticker.C:
+			if direct {
+				ticker := time.NewTicker(time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-ticker.C:
+					}
+					dur, err := conn.Ping(ctx)
+					if err != nil {
+						continue
+					}
+					status := conn.Status()
+					if len(status.Peers()) != 1 {
+						continue
+					}
+					peer := status.Peer[status.Peers()[0]]
+					if peer.CurAddr == "" && direct {
+						cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
+						continue
+					}
+					via := peer.Relay
+					if via == "" {
+						via = "direct"
+					}
+					cmd.Printf("%dms via %s\n", dur.Milliseconds(), via)
+					break
 				}
-				dur, err := conn.Ping(ctx)
-				if err != nil {
-					continue
-				}
-				status := conn.Status()
-				if len(status.Peers()) != 1 {
-					continue
-				}
-				peer := status.Peer[status.Peers()[0]]
-				if peer.CurAddr == "" && direct {
-					cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
-					continue
-				}
-				via := peer.Relay
-				if via == "" {
-					via = "direct"
-				}
-				cmd.Printf("%dms via %s\n", dur.Milliseconds(), via)
-				break
+			} else {
+				conn.AwaitReachable(ctx)
 			}
 			dir := tsspeedtest.Download
 			if reverse {
 				dir = tsspeedtest.Upload
 			}
 			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), dir)
-			results, err := conn.Speedtest(dir, duration)
+			results, err := conn.Speedtest(ctx, dir, duration)
 			if err != nil {
 				return err
 			}
 			tableWriter := cliui.Table()
 			tableWriter.AppendHeader(table.Row{"Interval", "Transfer", "Bandwidth"})
+			startTime := results[0].IntervalStart
 			for _, r := range results {
 				if r.Total {
 					tableWriter.AppendSeparator()
 				}
 				tableWriter.AppendRow(table.Row{
-					fmt.Sprintf("%.2f-%.2f sec", r.IntervalStart.Seconds(), r.IntervalEnd.Seconds()),
+					fmt.Sprintf("%.2f-%.2f sec", r.IntervalStart.Sub(startTime).Seconds(), r.IntervalEnd.Sub(startTime).Seconds()),
 					fmt.Sprintf("%.4f MBits", r.MegaBits()),
 					fmt.Sprintf("%.4f Mbits/sec", r.MBitsPerSecond()),
 				})

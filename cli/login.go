@@ -214,7 +214,7 @@ func login() *cobra.Command {
 					Text:   "Paste your token here:",
 					Secret: true,
 					Validate: func(token string) error {
-						client.SessionToken = token
+						client.SetSessionToken(token)
 						_, err := client.User(cmd.Context(), codersdk.Me)
 						if err != nil {
 							return xerrors.New("That's not a valid token!")
@@ -228,7 +228,7 @@ func login() *cobra.Command {
 			}
 
 			// Login to get user data - verify it is OK before persisting
-			client.SessionToken = sessionToken
+			client.SetSessionToken(sessionToken)
 			resp, err := client.User(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("get user: %w", err)

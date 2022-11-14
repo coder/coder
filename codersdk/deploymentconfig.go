@@ -23,13 +23,12 @@ type DeploymentConfig struct {
 	ProxyTrustedOrigins         *DeploymentConfigField[[]string]        `json:"proxy_trusted_origins" typescript:",notnull"`
 	CacheDirectory              *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
 	InMemoryDatabase            *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
-	ProvisionerDaemons          *DeploymentConfigField[int]             `json:"provisioner_daemons" typescript:",notnull"`
 	PostgresURL                 *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
 	OAuth2                      *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
 	OIDC                        *OIDCConfig                             `json:"oidc" typescript:",notnull"`
 	Telemetry                   *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
 	TLS                         *TLSConfig                              `json:"tls" typescript:",notnull"`
-	TraceEnable                 *DeploymentConfigField[bool]            `json:"trace_enable" typescript:",notnull"`
+	Trace                       *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie            *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
 	SSHKeygenAlgorithm          *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
 	AutoImportTemplates         *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
@@ -39,6 +38,9 @@ type DeploymentConfig struct {
 	BrowserOnly                 *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	UserWorkspaceQuota          *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
+	Provisioner                 *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
+	APIRateLimit                *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
+	Experimental                *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -99,12 +101,20 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable       *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	CertFiles    *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
-	ClientAuth   *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles     *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
-	MinVersion   *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
+	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
+	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
+	MinVersion     *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+	ClientCertFile *DeploymentConfigField[string]   `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  *DeploymentConfigField[string]   `json:"client_key_file" typescript:",notnull"`
+}
+
+type TraceConfig struct {
+	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     *DeploymentConfigField[bool]   `json:"capture_logs" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -116,6 +126,11 @@ type GitAuthConfig struct {
 	TokenURL     string   `json:"token_url"`
 	Regex        string   `json:"regex"`
 	Scopes       []string `json:"scopes"`
+}
+
+type ProvisionerConfig struct {
+	Daemons             *DeploymentConfigField[int]           `json:"daemons" typescript:",notnull"`
+	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 
 type Flaggable interface {

@@ -88,6 +88,7 @@
     "promptui",
     "protobuf",
     "provisionerd",
+    "provisionerdserver",
     "provisionersdk",
     "ptty",
     "ptys",

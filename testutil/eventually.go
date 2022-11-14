@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -20,11 +21,20 @@ import (
 //
 // condition is not run in a goroutine; use the provided
 // context argument for cancellation if required.
-func Eventually(ctx context.Context, t testing.TB, condition func(context.Context) bool, tick time.Duration) bool {
+func Eventually(ctx context.Context, t testing.TB, condition func(ctx context.Context) (done bool), tick time.Duration, msgAndArgs ...interface{}) (done bool) {
 	t.Helper()
 
 	if _, ok := ctx.Deadline(); !ok {
 		panic("developer error: must set deadline or timeout on ctx")
+	}
+
+	msg := "Eventually timed out"
+	if len(msgAndArgs) > 0 {
+		if m, ok := msgAndArgs[0].(string); ok {
+			msg = fmt.Sprintf(m, msgAndArgs[1:]...)
+		} else {
+			panic("developer error: first argument of msgAndArgs must be a string")
+		}
 	}
 
 	ticker := time.NewTicker(tick)
@@ -32,10 +42,10 @@ func Eventually(ctx context.Context, t testing.TB, condition func(context.Contex
 	for tick := ticker.C; ; {
 		select {
 		case <-ctx.Done():
-			assert.NoError(t, ctx.Err(), "Eventually timed out")
+			assert.NoError(t, ctx.Err(), msg)
 			return false
 		case <-tick:
-			if !assert.NoError(t, ctx.Err(), "Eventually timed out") {
+			if !assert.NoError(t, ctx.Err(), msg) {
 				return false
 			}
 			if condition(ctx) {

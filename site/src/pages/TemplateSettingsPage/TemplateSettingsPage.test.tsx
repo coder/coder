@@ -10,7 +10,7 @@ import {
   validationSchema,
 } from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
-import { Language as ViewLanguage } from "./TemplateSettingsPageView"
+import i18next from "i18next"
 
 const renderTemplateSettingsPage = async () => {
   const renderResult = renderWithAuth(<TemplateSettingsPage />, {
@@ -24,17 +24,18 @@ const renderTemplateSettingsPage = async () => {
 
 const validFormValues = {
   name: "Name",
+  display_name: "Test Template",
   description: "A description",
   icon: "A string",
-  max_ttl_ms: 1,
+  default_ttl_ms: 1,
 }
 
 const fillAndSubmitForm = async ({
   name,
   description,
-  max_ttl_ms,
+  default_ttl_ms,
   icon,
-}: Omit<Required<UpdateTemplateMeta>, "min_autostart_interval_ms">) => {
+}: Required<UpdateTemplateMeta>) => {
   const nameField = await screen.findByLabelText(FormLanguage.nameLabel)
   await userEvent.clear(nameField)
   await userEvent.type(nameField, name)
@@ -49,9 +50,9 @@ const fillAndSubmitForm = async ({
   await userEvent.clear(iconField)
   await userEvent.type(iconField, icon)
 
-  const maxTtlField = await screen.findByLabelText(FormLanguage.maxTtlLabel)
+  const maxTtlField = await screen.findByLabelText(FormLanguage.defaultTtlLabel)
   await userEvent.clear(maxTtlField)
-  await userEvent.type(maxTtlField, max_ttl_ms.toString())
+  await userEvent.type(maxTtlField, default_ttl_ms.toString())
 
   const submitButton = await screen.findByText(
     FooterFormLanguage.defaultSubmitLabel,
@@ -61,9 +62,23 @@ const fillAndSubmitForm = async ({
 
 describe("TemplateSettingsPage", () => {
   it("renders", async () => {
+    const { t } = i18next
+    const pageTitle = t("templateSettings.title", {
+      ns: "templatePage",
+    })
     await renderTemplateSettingsPage()
-    const element = await screen.findByText(ViewLanguage.title)
+    const element = await screen.findByText(pageTitle)
     expect(element).toBeDefined()
+  })
+
+  it("allows an admin to delete a template", async () => {
+    const { t } = i18next
+    await renderTemplateSettingsPage()
+    const deleteCta = t("templateSettings.dangerZone.deleteCta", {
+      ns: "templatePage",
+    })
+    const deleteButton = await screen.findByText(deleteCta)
+    expect(deleteButton).toBeDefined()
   })
 
   it("succeeds", async () => {
@@ -87,7 +102,7 @@ describe("TemplateSettingsPage", () => {
     })
 
     await fillAndSubmitForm(validFormValues)
-    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the max_ttl_ms
+    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the default_ttl_ms
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
 
     await waitFor(() =>
@@ -95,7 +110,7 @@ describe("TemplateSettingsPage", () => {
         "test-template",
         expect.objectContaining({
           ...validFormValues,
-          max_ttl_ms: 3600000, // the max_ttl_ms to ms
+          default_ttl_ms: 3600000, // the default_ttl_ms to ms
         }),
       ),
     )
@@ -104,7 +119,7 @@ describe("TemplateSettingsPage", () => {
   it("allows a ttl of 7 days", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      max_ttl_ms: 24 * 7,
+      default_ttl_ms: 24 * 7,
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).not.toThrowError()
@@ -113,7 +128,7 @@ describe("TemplateSettingsPage", () => {
   it("allows ttl of 0", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      max_ttl_ms: 0,
+      default_ttl_ms: 0,
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).not.toThrowError()
@@ -122,7 +137,7 @@ describe("TemplateSettingsPage", () => {
   it("disallows a ttl of 7 days + 1 hour", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      max_ttl_ms: 24 * 7 + 1,
+      default_ttl_ms: 24 * 7 + 1,
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(FormLanguage.ttlMaxError)

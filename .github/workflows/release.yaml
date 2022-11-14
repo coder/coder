@@ -20,13 +20,15 @@ permissions:
   contents: write
   # Necessary to push docker images to ghcr.io.
   packages: write
+  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+  id-token: write
 
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -166,6 +168,26 @@ jobs:
             ./build/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup GCloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+
+      - name: Publish Helm Chart
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          mkdir -p build/helm
+          cp "build/coder_helm_${version}.tgz" build/helm
+          gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
+          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
       - name: Upload artifacts to actions (if dry-run or snapshot)
         if: ${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}

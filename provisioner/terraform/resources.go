@@ -14,14 +14,16 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth            string            `mapstructure:"auth"`
-	OperatingSystem string            `mapstructure:"os"`
-	Architecture    string            `mapstructure:"arch"`
-	Directory       string            `mapstructure:"dir"`
-	ID              string            `mapstructure:"id"`
-	Token           string            `mapstructure:"token"`
-	Env             map[string]string `mapstructure:"env"`
-	StartupScript   string            `mapstructure:"startup_script"`
+	Auth                     string            `mapstructure:"auth"`
+	OperatingSystem          string            `mapstructure:"os"`
+	Architecture             string            `mapstructure:"arch"`
+	Directory                string            `mapstructure:"dir"`
+	ID                       string            `mapstructure:"id"`
+	Token                    string            `mapstructure:"token"`
+	Env                      map[string]string `mapstructure:"env"`
+	StartupScript            string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -118,13 +120,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
 		agent := &proto.Agent{
-			Name:            tfResource.Name,
-			Id:              attrs.ID,
-			Env:             attrs.Env,
-			StartupScript:   attrs.StartupScript,
-			OperatingSystem: attrs.OperatingSystem,
-			Architecture:    attrs.Architecture,
-			Directory:       attrs.Directory,
+			Name:                     tfResource.Name,
+			Id:                       attrs.ID,
+			Env:                      attrs.Env,
+			StartupScript:            attrs.StartupScript,
+			OperatingSystem:          attrs.OperatingSystem,
+			Architecture:             attrs.Architecture,
+			Directory:                attrs.Directory,
+			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+			TroubleshootingUrl:       attrs.TroubleshootingURL,
 		}
 		switch attrs.Auth {
 		case "token":
@@ -382,12 +386,13 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		}
 
 		resources = append(resources, &proto.Resource{
-			Name:     resource.Name,
-			Type:     resource.Type,
-			Agents:   agents,
-			Hide:     resourceHidden[label],
-			Icon:     resourceIcon[label],
-			Metadata: resourceMetadata[label],
+			Name:         resource.Name,
+			Type:         resource.Type,
+			Agents:       agents,
+			Hide:         resourceHidden[label],
+			Icon:         resourceIcon[label],
+			Metadata:     resourceMetadata[label],
+			InstanceType: applyInstanceType(resource),
 		})
 	}
 
@@ -403,6 +408,31 @@ func convertAddressToLabel(address string) string {
 type graphResource struct {
 	Label string
 	Depth uint
+}
+
+// applyInstanceType sets the instance type on an agent if it matches
+// one of the special resource types that we track.
+func applyInstanceType(resource *tfjson.StateResource) string {
+	key, isValid := map[string]string{
+		"google_compute_instance":         "machine_type",
+		"aws_instance":                    "instance_type",
+		"aws_spot_instance_request":       "instance_type",
+		"azurerm_linux_virtual_machine":   "size",
+		"azurerm_windows_virtual_machine": "size",
+	}[resource.Type]
+	if !isValid {
+		return ""
+	}
+
+	instanceTypeRaw, isValid := resource.AttributeValues[key]
+	if !isValid {
+		return ""
+	}
+	instanceType, isValid := instanceTypeRaw.(string)
+	if !isValid {
+		return ""
+	}
+	return instanceType
 }
 
 // applyAutomaticInstanceID checks if the resource is one of a set of *magical* IDs

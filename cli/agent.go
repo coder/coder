@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" //nolint: gosec
+	"net/http/pprof"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -28,7 +28,6 @@ import (
 func workspaceAgent() *cobra.Command {
 	var (
 		auth         string
-		pprofEnabled bool
 		pprofAddress string
 		noReap       bool
 	)
@@ -37,6 +36,9 @@ func workspaceAgent() *cobra.Command {
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
 				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
@@ -58,22 +60,22 @@ func workspaceAgent() *cobra.Command {
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
-				logger.Info(cmd.Context(), "spawning reaper process")
+				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(reaper.WithExecArgs(args...))
 				if err != nil {
-					logger.Error(cmd.Context(), "failed to reap", slog.Error(err))
+					logger.Error(ctx, "failed to reap", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
 				}
 
-				logger.Info(cmd.Context(), "reaper process exiting")
+				logger.Info(ctx, "reaper process exiting")
 				return nil
 			}
 
 			version := buildinfo.Version()
-			logger.Info(cmd.Context(), "starting agent",
+			logger.Info(ctx, "starting agent",
 				slog.F("url", coderURL),
 				slog.F("auth", auth),
 				slog.F("version", version),
@@ -82,15 +84,11 @@ func workspaceAgent() *cobra.Command {
 			// Set a reasonable timeout so requests can't hang forever!
 			client.HTTPClient.Timeout = 10 * time.Second
 
-			if pprofEnabled {
-				srvClose := serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")
-				defer srvClose()
-			} else {
-				// If pprof wasn't enabled at startup, allow a
-				// `kill -USR1 $agent_pid` to start it (on Unix).
-				srvClose := agentStartPPROFOnUSR1(cmd.Context(), logger, pprofAddress)
-				defer srvClose()
-			}
+			// Enable pprof handler
+			// This prevents the pprof import from being accidentally deleted.
+			_ = pprof.Handler
+			pprofSrvClose := serveHandler(ctx, logger, nil, pprofAddress, "pprof")
+			defer pprofSrvClose()
 
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
@@ -102,12 +100,12 @@ func workspaceAgent() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
 				}
-				client.SessionToken = token
+				client.SetSessionToken(token)
 			case "google-instance-identity":
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var gcpClient *metadata.Client
-				gcpClientRaw := cmd.Context().Value("gcp-client")
+				gcpClientRaw := ctx.Value("gcp-client")
 				if gcpClientRaw != nil {
 					gcpClient, _ = gcpClientRaw.(*metadata.Client)
 				}
@@ -118,7 +116,7 @@ func workspaceAgent() *cobra.Command {
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var awsClient *http.Client
-				awsClientRaw := cmd.Context().Value("aws-client")
+				awsClientRaw := ctx.Value("aws-client")
 				if awsClientRaw != nil {
 					awsClient, _ = awsClientRaw.(*http.Client)
 					if awsClient != nil {
@@ -132,7 +130,7 @@ func workspaceAgent() *cobra.Command {
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
 				var azureClient *http.Client
-				azureClientRaw := cmd.Context().Value("azure-client")
+				azureClientRaw := ctx.Value("azure-client")
 				if azureClientRaw != nil {
 					azureClient, _ = azureClientRaw.(*http.Client)
 					if azureClient != nil {
@@ -156,31 +154,27 @@ func workspaceAgent() *cobra.Command {
 			closer := agent.New(agent.Options{
 				Client: client,
 				Logger: logger,
-				ExchangeToken: func(ctx context.Context) error {
+				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
-						return nil
+						return client.SessionToken(), nil
 					}
 					resp, err := exchangeToken(ctx)
 					if err != nil {
-						return err
+						return "", err
 					}
-					client.SessionToken = resp.SessionToken
-					return nil
+					client.SetSessionToken(resp.SessionToken)
+					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
-					// Override the "CODER_AGENT_TOKEN" variable in all
-					// shells so "gitssh" and "gitaskpass" works!
-					"CODER_AGENT_TOKEN": client.SessionToken,
-					"GIT_ASKPASS":       executablePath,
+					"GIT_ASKPASS": executablePath,
 				},
 			})
-			<-cmd.Context().Done()
+			<-ctx.Done()
 			return closer.Close()
 		},
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.BoolVarP(cmd.Flags(), &pprofEnabled, "pprof-enable", "", "CODER_AGENT_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd

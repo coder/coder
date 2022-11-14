@@ -13,15 +13,21 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 (
 	cd "$SCRIPT_DIR"
 
-	# Dump the updated schema.
-	go run gen/dump/main.go
+	echo generate 1>&2
+
+	# Dump the updated schema (use make to utilize caching).
+	make -C ../.. --no-print-directory coderd/database/dump.sql
 	# The logic below depends on the exact version being correct :(
 	go run github.com/kyleconroy/sqlc/cmd/sqlc@v1.13.0 generate
 
 	first=true
 	for fi in queries/*.sql.go; do
-		# Find the last line from the imports section and add 1.
+		# Find the last line from the imports section and add 1. We have to
+		# disable pipefail temporarily to avoid ERRPIPE errors when piping into
+		# `head -n1`.
+		set +o pipefail
 		cut=$(grep -n ')' "$fi" | head -n 1 | cut -d: -f1)
+		set -o pipefail
 		cut=$((cut + 1))
 
 		# Copy the header from the first file only, ignoring the source comment.

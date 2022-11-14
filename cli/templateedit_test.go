@@ -10,8 +10,8 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestTemplateEdit(t *testing.T) {
@@ -23,33 +23,29 @@ func TestTemplateEdit(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.Description = "original description"
-			ctr.Icon = "/icons/default-icon.png"
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
-		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Test the cli command.
 		name := "new-template-name"
+		displayName := "New Display Name 789"
 		desc := "lorem ipsum dolor sit amet et cetera"
 		icon := "/icons/new-icon.png"
-		maxTTL := 12 * time.Hour
-		minAutostartInterval := time.Minute
+		defaultTTL := 12 * time.Hour
 		cmdArgs := []string{
 			"templates",
 			"edit",
 			template.Name,
 			"--name", name,
+			"--display-name", displayName,
 			"--description", desc,
 			"--icon", icon,
-			"--max-ttl", maxTTL.String(),
-			"--min-autostart-interval", minAutostartInterval.String(),
+			"--default-ttl", defaultTTL.String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		ctx, _ := testutil.Context(t)
+		err := cmd.ExecuteContext(ctx)
 
 		require.NoError(t, err)
 
@@ -57,24 +53,18 @@ func TestTemplateEdit(t *testing.T) {
 		updated, err := client.Template(context.Background(), template.ID)
 		require.NoError(t, err)
 		assert.Equal(t, name, updated.Name)
+		assert.Equal(t, displayName, updated.DisplayName)
 		assert.Equal(t, desc, updated.Description)
 		assert.Equal(t, icon, updated.Icon)
-		assert.Equal(t, maxTTL.Milliseconds(), updated.MaxTTLMillis)
-		assert.Equal(t, minAutostartInterval.Milliseconds(), updated.MinAutostartIntervalMillis)
+		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
 	})
-
 	t.Run("NotModified", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.Description = "original description"
-			ctr.Icon = "/icons/default-icon.png"
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
-		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Test the cli command.
 		cmdArgs := []string{
@@ -84,13 +74,13 @@ func TestTemplateEdit(t *testing.T) {
 			"--name", template.Name,
 			"--description", template.Description,
 			"--icon", template.Icon,
-			"--max-ttl", (time.Duration(template.MaxTTLMillis) * time.Millisecond).String(),
-			"--min-autostart-interval", (time.Duration(template.MinAutostartIntervalMillis) * time.Millisecond).String(),
+			"--default-ttl", (time.Duration(template.DefaultTTLMillis) * time.Millisecond).String(),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		ctx, _ := testutil.Context(t)
+		err := cmd.ExecuteContext(ctx)
 
 		require.ErrorContains(t, err, "not modified")
 
@@ -100,7 +90,38 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
-		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+	})
+	t.Run("InvalidDisplayName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Test the cli command.
+		cmdArgs := []string{
+			"templates",
+			"edit",
+			template.Name,
+			"--name", template.Name,
+			"--display-name", " a-b-c",
+		}
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+
+		ctx, _ := testutil.Context(t)
+		err := cmd.ExecuteContext(ctx)
+
+		require.Error(t, err, "client call must fail")
+		_, isSdkError := codersdk.AsError(err)
+		require.True(t, isSdkError, "sdk error is expected")
+
+		// Assert that the template metadata did not change.
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, template.Name, updated.Name)
+		assert.Equal(t, "", template.DisplayName)
 	})
 }

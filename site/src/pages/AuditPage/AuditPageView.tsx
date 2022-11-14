@@ -5,6 +5,7 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
 import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
 import {
@@ -19,6 +20,7 @@ import { TableLoader } from "components/TableLoader/TableLoader"
 import { Timeline } from "components/Timeline/Timeline"
 import { AuditHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 
 export const Language = {
@@ -43,6 +45,7 @@ export interface AuditPageViewProps {
   filter: string
   onFilter: (filter: string) => void
   paginationRef: PaginationMachineRef
+  isNonInitialPage: boolean
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -51,7 +54,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   filter,
   onFilter,
   paginationRef,
+  isNonInitialPage,
 }) => {
+  const { t } = useTranslation("auditLog")
   const isLoading = auditLogs === undefined || count === undefined
   const isEmpty = !isLoading && auditLogs.length === 0
 
@@ -77,23 +82,38 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
       <TableContainer>
         <Table>
           <TableBody>
-            {isLoading && <TableLoader />}
-
-            {auditLogs && (
-              <Timeline
-                items={auditLogs}
-                getDate={(log) => new Date(log.time)}
-                row={(log) => <AuditLogRow key={log.id} auditLog={log} />}
-              />
-            )}
-
-            {isEmpty && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <EmptyState message="No audit logs available" />
-                </TableCell>
-              </TableRow>
-            )}
+            <ChooseOne>
+              <Cond condition={isLoading}>
+                <TableLoader />
+              </Cond>
+              <Cond condition={isEmpty}>
+                <ChooseOne>
+                  <Cond condition={isNonInitialPage}>
+                    <TableRow>
+                      <TableCell colSpan={999}>
+                        <EmptyState message={t("table.emptyPage")} />
+                      </TableCell>
+                    </TableRow>
+                  </Cond>
+                  <Cond>
+                    <TableRow>
+                      <TableCell colSpan={999}>
+                        <EmptyState message={t("table.noLogs")} />
+                      </TableCell>
+                    </TableRow>
+                  </Cond>
+                </ChooseOne>
+              </Cond>
+              <Cond>
+                {auditLogs && (
+                  <Timeline
+                    items={auditLogs}
+                    getDate={(log) => new Date(log.time)}
+                    row={(log) => <AuditLogRow key={log.id} auditLog={log} />}
+                  />
+                )}
+              </Cond>
+            </ChooseOne>
           </TableBody>
         </Table>
       </TableContainer>

@@ -139,6 +139,14 @@ export const getUsers = async (
   return response.data
 }
 
+export const getUserCount = async (
+  options: TypesGen.UserCountRequest,
+): Promise<TypesGen.UserCountResponse> => {
+  const url = getURLWithSearchParams("/api/v2/users/count", options)
+  const response = await axios.get(url.toString())
+  return response.data
+}
+
 export const getOrganization = async (
   organizationId: string,
 ): Promise<TypesGen.Organization> => {
@@ -290,17 +298,9 @@ export const getURLWithSearchParams = (
 
 export const getWorkspaces = async (
   options: TypesGen.WorkspacesRequest,
-): Promise<TypesGen.Workspace[]> => {
+): Promise<TypesGen.WorkspacesResponse> => {
   const url = getURLWithSearchParams("/api/v2/workspaces", options)
-  const response = await axios.get<TypesGen.Workspace[]>(url)
-  return response.data
-}
-
-export const getWorkspacesCount = async (
-  options: TypesGen.WorkspaceCountRequest,
-): Promise<TypesGen.WorkspaceCountResponse> => {
-  const url = getURLWithSearchParams("/api/v2/workspaces/count", options)
-  const response = await axios.get(url)
+  const response = await axios.get<TypesGen.WorkspacesResponse>(url)
   return response.data
 }
 

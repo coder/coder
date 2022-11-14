@@ -19,6 +19,7 @@ import (
 type customQuerier interface {
 	templateQuerier
 	workspaceQuerier
+	userQuerier
 }
 
 type templateQuerier interface {
@@ -112,7 +113,6 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
-	GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -168,20 +168,18 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	return items, nil
 }
 
-func (q *sqlQuerier) GetAuthorizedWorkspaceCount(ctx context.Context, arg GetWorkspaceCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
-	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
-	// authorizedFilter between the end of the where clause and those statements.
-	filter := strings.Replace(getWorkspaceCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
-	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaceCount :one\n%s", filter)
+type userQuerier interface {
+	GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+	filter := strings.Replace(getFilteredUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
+	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filter)
 	row := q.db.QueryRowContext(ctx, query,
 		arg.Deleted,
-		arg.Status,
-		arg.OwnerID,
-		arg.OwnerUsername,
-		arg.TemplateName,
-		pq.Array(arg.TemplateIds),
-		arg.Name,
+		arg.Search,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
 	)
 	var count int64
 	err := row.Scan(&count)

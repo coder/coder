@@ -56,7 +56,8 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
-	ExchangeToken          func(ctx context.Context) error
+	TempDir                string
+	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
@@ -78,6 +79,14 @@ func New(options Options) io.Closer {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
+	if options.TempDir == "" {
+		options.TempDir = os.TempDir()
+	}
+	if options.ExchangeToken == nil {
+		options.ExchangeToken = func(ctx context.Context) (string, error) {
+			return "", nil
+		}
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
@@ -88,6 +97,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
+		tempDir:                options.TempDir,
 		stats:                  &Stats{},
 	}
 	server.init(ctx)
@@ -97,8 +107,9 @@ func New(options Options) io.Closer {
 type agent struct {
 	logger        slog.Logger
 	client        Client
-	exchangeToken func(ctx context.Context) error
+	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	tempDir       string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -110,8 +121,9 @@ type agent struct {
 
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
-	metadata  atomic.Value
-	sshServer *ssh.Server
+	metadata     atomic.Value
+	sessionToken atomic.Pointer[string]
+	sshServer    *ssh.Server
 
 	network *tailnet.Conn
 	stats   *Stats
@@ -147,14 +159,13 @@ func (a *agent) run(ctx context.Context) error {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
-	if a.exchangeToken != nil {
-		err := a.exchangeToken(ctx)
-		if err != nil {
-			return xerrors.Errorf("exchange token: %w", err)
-		}
+	sessionToken, err := a.exchangeToken(ctx)
+	if err != nil {
+		return xerrors.Errorf("exchange token: %w", err)
 	}
+	a.sessionToken.Store(&sessionToken)
 
-	err := a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
+	err = a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
 	}
@@ -163,7 +174,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(context.Background(), "fetched metadata")
+	a.logger.Info(ctx, "fetched metadata")
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -197,7 +208,7 @@ func (a *agent) run(ctx context.Context) error {
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
-	if a.network == nil {
+	if network == nil {
 		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
@@ -221,12 +232,18 @@ func (a *agent) run(ctx context.Context) error {
 }
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*tailnet.Conn, error) {
+	a.closeMutex.Lock()
+	if a.isClosed() {
+		a.closeMutex.Unlock()
+		return nil, xerrors.New("closed")
+	}
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:   derpMap,
 		Logger:    a.logger.Named("tailnet"),
 	})
 	if err != nil {
+		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	a.network = network
@@ -237,14 +254,13 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		}
 		return a.stats.wrapConn(conn)
 	})
+	a.connCloseWait.Add(4)
+	a.closeMutex.Unlock()
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -260,9 +276,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -298,9 +311,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		for {
@@ -323,9 +333,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
-	a.closeMutex.Lock()
-	a.connCloseWait.Add(1)
-	a.closeMutex.Unlock()
 	go func() {
 		defer a.connCloseWait.Done()
 		defer statisticsListener.Close()
@@ -358,7 +365,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return err
 	}
 	defer coordinator.Close()
-	a.logger.Info(context.Background(), "connected to coordination server")
+	a.logger.Info(ctx, "connected to coordination server")
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
 	network.SetNodeCallback(sendNodes)
 	select {
@@ -374,14 +381,14 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	a.logger.Info(ctx, "running startup script", slog.F("script", script))
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
 	}()
-
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
@@ -469,6 +476,12 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				ctx := session.Context()
+
+				// Typically sftp sessions don't request a TTY, but if they do,
+				// we must ensure the gliderlabs/ssh CRLF emulation is disabled.
+				// Otherwise sftp will be broken. This can happen if a user sets
+				// `RequestTTY force` in their SSH config.
 				session.DisablePTYEmulation()
 
 				var opts []sftp.ServerOption
@@ -477,22 +490,33 @@ func (a *agent) init(ctx context.Context) {
 				// https://github.com/coder/coder/issues/3620
 				u, err := user.Current()
 				if err != nil {
-					a.logger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
 				} else {
 					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
 				if err != nil {
-					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
+					sshLogger.Debug(ctx, "initialize sftp server", slog.Error(err))
 					return
 				}
 				defer server.Close()
+
 				err = server.Serve()
 				if errors.Is(err, io.EOF) {
+					// Unless we call `session.Exit(0)` here, the client won't
+					// receive `exit-status` because `(*sftp.Server).Close()`
+					// calls `Close()` on the underlying connection (session),
+					// which actually calls `channel.Close()` because it isn't
+					// wrapped. This causes sftp clients to receive a non-zero
+					// exit code. Typically sftp clients don't echo this exit
+					// code but `scp` on macOS does (when using the default
+					// SFTP backend).
+					_ = session.Exit(0)
 					return
 				}
-				a.logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
+				sshLogger.Warn(ctx, "sftp server closed with error", slog.Error(err))
+				_ = session.Exit(1)
 			},
 		},
 	}
@@ -537,25 +561,26 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
 
-	// gliderlabs/ssh returns a command slice of zero
-	// when a shell is requested.
-	command := rawCommand
-	if len(command) == 0 {
-		command = shell
-		if runtime.GOOS != "windows" {
-			// On Linux and macOS, we should start a login
-			// shell to consume juicy environment variables!
-			command += " -l"
-		}
-	}
-
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
 	caller := "-c"
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
-	cmd := exec.CommandContext(ctx, shell, caller, command)
+	args := []string{caller, rawCommand}
+
+	// gliderlabs/ssh returns a command slice of zero
+	// when a shell is requested.
+	if len(rawCommand) == 0 {
+		args = []string{}
+		if runtime.GOOS != "windows" {
+			// On Linux and macOS, we should start a login
+			// shell to consume juicy environment variables!
+			args = append(args, "-l")
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
 		// Default to $HOME if a directory is not set!
@@ -569,12 +594,14 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	// Set environment variables reliable detection of being inside a
 	// Coder workspace.
 	cmd.Env = append(cmd.Env, "CODER=true")
-
 	cmd.Env = append(cmd.Env, fmt.Sprintf("USER=%s", username))
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
 	unixExecutablePath := strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
+
+	// Specific Coder subcommands require the agent token exposed!
+	cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_AGENT_TOKEN=%s", *a.sessionToken.Load()))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
 	// and thus expected to be present by SSH clients). Since the agent does
@@ -584,6 +611,13 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	dstAddr, dstPort := "0.0.0.0", "0"
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CLIENT=%s %s %s", srcAddr, srcPort, dstPort))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_CONNECTION=%s %s %s %s", srcAddr, srcPort, dstAddr, dstPort))
+
+	// This adds the ports dialog to code-server that enables
+	// proxying a port dynamically.
+	cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", metadata.VSCodePortProxyURI))
+
+	// Hide Coder message on code-server's "Getting Started" page
+	cmd.Env = append(cmd.Env, "CS_DISABLE_GETTING_STARTED_OVERRIDE=true")
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.

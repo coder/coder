@@ -47,7 +47,7 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Pprof.Enable.Value, true)
 			require.Equal(t, config.Prometheus.Address.Value, "hello-world")
 			require.Equal(t, config.Prometheus.Enable.Value, true)
-			require.Equal(t, config.ProvisionerDaemons.Value, 5)
+			require.Equal(t, config.Provisioner.Daemons.Value, 5)
 			require.Equal(t, config.SecureAuthCookie.Value, true)
 			require.Equal(t, config.SSHKeygenAlgorithm.Value, "potato")
 			require.Equal(t, config.Telemetry.Enable.Value, false)
@@ -113,6 +113,16 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.TLS.ClientCAFile.Value, "/some/path")
 			require.Equal(t, config.TLS.Enable.Value, true)
 			require.Equal(t, config.TLS.MinVersion.Value, "tls10")
+		},
+	}, {
+		Name: "Trace",
+		Env: map[string]string{
+			"CODER_TRACE_ENABLE":            "true",
+			"CODER_TRACE_HONEYCOMB_API_KEY": "my-honeycomb-key",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Trace.Enable.Value, true)
+			require.Equal(t, config.Trace.HoneycombAPIKey.Value, "my-honeycomb-key")
 		},
 	}, {
 		Name: "OIDC",
@@ -189,9 +199,20 @@ func TestConfig(t *testing.T) {
 				Regex:        "gitlab.com",
 			}}, config.GitAuth.Value)
 		},
+	}, {
+		Name: "Wrong env must not break default values",
+		Env: map[string]string{
+			"CODER_PROMETHEUS_ENABLE": "true",
+			"CODER_PROMETHEUS":        "true", // Wrong env name, must not break prom addr.
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Equal(t, config.Prometheus.Enable.Value, true)
+			require.Equal(t, config.Prometheus.Address.Value, config.Prometheus.Address.Default)
+		},
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Helper()
 			for key, value := range tc.Env {
 				t.Setenv(key, value)
 			}

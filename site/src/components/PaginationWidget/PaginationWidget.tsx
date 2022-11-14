@@ -34,24 +34,24 @@ export const PaginationWidget = ({
   const currentPage = paginationState.context.page
   const numRecordsPerPage = paginationState.context.limit
 
-  const numPages = numRecords
-    ? Math.ceil(numRecords / numRecordsPerPage)
-    : undefined
+  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
   const firstPageActive = currentPage === 1 && numPages !== 0
   const lastPageActive = currentPage === numPages && numPages !== 0
+  // if beyond page 1, show pagination widget even if there's only one true page, so user can navigate back
+  const showWidget = numPages > 1 || currentPage > 1
 
   return (
-    <div style={containerStyle} className={styles.defaultContainerStyles}>
-      <Button
-        className={styles.prevLabelStyles}
-        aria-label="Previous page"
-        disabled={firstPageActive}
-        onClick={() => send({ type: "PREVIOUS_PAGE" })}
-      >
-        <KeyboardArrowLeft />
-        <div>{prevLabel}</div>
-      </Button>
-      <Maybe condition={numPages !== undefined}>
+    <Maybe condition={showWidget}>
+      <div style={containerStyle} className={styles.defaultContainerStyles}>
+        <Button
+          className={styles.prevLabelStyles}
+          aria-label="Previous page"
+          disabled={firstPageActive}
+          onClick={() => send({ type: "PREVIOUS_PAGE" })}
+        >
+          <KeyboardArrowLeft />
+          <div>{prevLabel}</div>
+        </Button>
         <ChooseOne>
           <Cond condition={isMobile}>
             <PageButton
@@ -61,37 +61,36 @@ export const PaginationWidget = ({
             />
           </Cond>
           <Cond>
-            {numPages &&
-              buildPagedList(numPages, currentPage).map((page) =>
-                typeof page !== "number" ? (
-                  <PageButton
-                    key={`Page${page}`}
-                    activePage={currentPage}
-                    placeholder="..."
-                    disabled
-                  />
-                ) : (
-                  <PageButton
-                    key={`Page${page}`}
-                    activePage={currentPage}
-                    page={page}
-                    numPages={numPages}
-                    onPageClick={() => send({ type: "GO_TO_PAGE", page })}
-                  />
-                ),
-              )}
+            {buildPagedList(numPages, currentPage).map((page) =>
+              typeof page !== "number" ? (
+                <PageButton
+                  key={`Page${page}`}
+                  activePage={currentPage}
+                  placeholder="..."
+                  disabled
+                />
+              ) : (
+                <PageButton
+                  key={`Page${page}`}
+                  activePage={currentPage}
+                  page={page}
+                  numPages={numPages}
+                  onPageClick={() => send({ type: "GO_TO_PAGE", page })}
+                />
+              ),
+            )}
           </Cond>
         </ChooseOne>
-      </Maybe>
-      <Button
-        aria-label="Next page"
-        disabled={lastPageActive}
-        onClick={() => send({ type: "NEXT_PAGE" })}
-      >
-        <div>{nextLabel}</div>
-        <KeyboardArrowRight />
-      </Button>
-    </div>
+        <Button
+          aria-label="Next page"
+          disabled={lastPageActive}
+          onClick={() => send({ type: "NEXT_PAGE" })}
+        >
+          <div>{nextLabel}</div>
+          <KeyboardArrowRight />
+        </Button>
+      </div>
+    </Maybe>
   )
 }
 

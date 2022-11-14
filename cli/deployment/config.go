@@ -137,7 +137,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		ProxyTrustedOrigins: &codersdk.DeploymentConfigField[[]string]{
 			Name:  "Proxy Trusted Origins",
 			Flag:  "proxy-trusted-origins",
-			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. example.com",
+			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
 		},
 		CacheDirectory: &codersdk.DeploymentConfigField[string]{
 			Name:    "Cache Directory",
@@ -150,12 +150,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:  "Controls whether data will be stored in an in-memory database.",
 			Flag:   "in-memory",
 			Hidden: true,
-		},
-		ProvisionerDaemons: &codersdk.DeploymentConfigField[int]{
-			Name:    "Provisioner Daemons",
-			Usage:   "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
-			Flag:    "provisioner-daemons",
-			Default: 3,
 		},
 		PostgresURL: &codersdk.DeploymentConfigField[string]{
 			Name:   "Postgres Connection URL",
@@ -288,11 +282,34 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-min-version",
 				Default: "tls12",
 			},
+			ClientCertFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Cert File",
+				Usage: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-cert-file",
+			},
+			ClientKeyFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Key File",
+				Usage: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-key-file",
+			},
 		},
-		TraceEnable: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Trace Enable",
-			Usage: "Whether application tracing data is collected.",
-			Flag:  "trace",
+		Trace: &codersdk.TraceConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
+				Name:  "Trace Enable",
+				Usage: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+				Flag:  "trace",
+			},
+			HoneycombAPIKey: &codersdk.DeploymentConfigField[string]{
+				Name:   "Trace Honeycomb API Key",
+				Usage:  "Enables trace exporting to Honeycomb.io using the provided API Key.",
+				Flag:   "trace-honeycomb-api-key",
+				Secret: true,
+			},
+			CaptureLogs: &codersdk.DeploymentConfigField[bool]{
+				Name:  "Capture Logs in Traces",
+				Usage: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+				Flag:  "trace-logs",
+			},
 		},
 		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Secure Auth Cookie",
@@ -351,6 +368,31 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:       "user-workspace-quota",
 			Enterprise: true,
 		},
+		Provisioner: &codersdk.ProvisionerConfig{
+			Daemons: &codersdk.DeploymentConfigField[int]{
+				Name:    "Provisioner Daemons",
+				Usage:   "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+				Flag:    "provisioner-daemons",
+				Default: 3,
+			},
+			ForceCancelInterval: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Force Cancel Interval",
+				Usage:   "Time to force cancel provisioning tasks that are stuck.",
+				Flag:    "provisioner-force-cancel-interval",
+				Default: 10 * time.Minute,
+			},
+		},
+		APIRateLimit: &codersdk.DeploymentConfigField[int]{
+			Name:    "API Rate Limit",
+			Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
+			Flag:    "api-rate-limit",
+			Default: 512,
+		},
+		Experimental: &codersdk.DeploymentConfigField[bool]{
+			Name:  "Experimental",
+			Usage: "Enable experimental features. Experimental features are not ready for production.",
+			Flag:  "experimental",
+		},
 	}
 }
 
@@ -362,7 +404,6 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfi
 		return nil, xerrors.Errorf("get global config from flag: %w", err)
 	}
 	vip.SetEnvPrefix("coder")
-	vip.AutomaticEnv()
 
 	if flg != "" {
 		vip.SetConfigFile(flg + "/server.yaml")
@@ -385,21 +426,26 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 		typ = val.Type()
 	}
 
-	// Manually bind to env to support CODER_$INDEX_$FIELD format for structured slices.
-	_ = vip.BindEnv(prefix, formatEnv(prefix))
-
+	// Ensure that we only bind env variables to proper fields,
+	// otherwise Viper will get confused if the parent struct is
+	// assigned a value.
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		value := val.FieldByName("Value").Interface()
 		switch value.(type) {
 		case string:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetString(vip.GetString(prefix))
 		case bool:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetBool(vip.GetBool(prefix))
 		case int:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetInt(int64(vip.GetInt(prefix)))
 		case time.Duration:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			val.FieldByName("Value").SetInt(int64(vip.GetDuration(prefix)))
 		case []string:
+			vip.MustBindEnv(prefix, formatEnv(prefix))
 			// As of October 21st, 2022 we supported delimiting a string
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
@@ -414,6 +460,7 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			}
 			val.FieldByName("Value").Set(reflect.ValueOf(value))
 		case []codersdk.GitAuthConfig:
+			// Do not bind to CODER_GITAUTH, instead bind to CODER_GITAUTH_0_*, etc.
 			values := readSliceFromViper[codersdk.GitAuthConfig](vip, prefix, value)
 			val.FieldByName("Value").Set(reflect.ValueOf(values))
 		default:
@@ -463,6 +510,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 				prop = fve.Tag.Get("yaml")
 			}
 			configKey := fmt.Sprintf("%s.%d.%s", key, entry, prop)
+
+			// Ensure the env entry for this key is registered
+			// before checking value.
+			vip.MustBindEnv(configKey, formatEnv(configKey))
+
 			value := vip.Get(configKey)
 			if value == nil {
 				continue
@@ -494,7 +546,6 @@ func NewViper() *viper.Viper {
 	dc := newConfig()
 	vip := viper.New()
 	vip.SetEnvPrefix("coder")
-	vip.AutomaticEnv()
 	vip.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 	setViperDefaults("", vip, dc)
@@ -557,6 +608,10 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 		shorthand := val.FieldByName("Shorthand").String()
 		hidden := val.FieldByName("Hidden").Bool()
 		value := val.FieldByName("Default").Interface()
+
+		// Allow currently set environment variables
+		// to override default values in help output.
+		vip.MustBindEnv(prefix, formatEnv(prefix))
 
 		switch value.(type) {
 		case string:

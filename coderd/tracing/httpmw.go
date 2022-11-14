@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -23,10 +25,26 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 				return
 			}
 
+			// Extract the trace context from the request headers.
+			tmp := otel.GetTextMapPropagator()
+			hc := propagation.HeaderCarrier(r.Header)
+			ctx := tmp.Extract(r.Context(), hc)
+
 			// start span with default span name. Span name will be updated to "method route" format once request finishes.
-			ctx, span := tracer.Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.RequestURI))
+			ctx, span := tracer.Start(ctx, fmt.Sprintf("%s %s", r.Method, r.RequestURI))
 			defer span.End()
 			r = r.WithContext(ctx)
+
+			if span.SpanContext().HasTraceID() && span.SpanContext().HasSpanID() {
+				// Technically these values are included in the Traceparent
+				// header, but they are easier to read for humans this way.
+				rw.Header().Set("X-Trace-ID", span.SpanContext().TraceID().String())
+				rw.Header().Set("X-Span-ID", span.SpanContext().SpanID().String())
+
+				// Inject the trace context into the response headers.
+				hc := propagation.HeaderCarrier(rw.Header())
+				tmp.Inject(ctx, hc)
+			}
 
 			sw, ok := rw.(*StatusWriter)
 			if !ok {
@@ -62,6 +80,37 @@ func EndHTTPSpan(r *http.Request, status int, span trace.Span) {
 	span.End()
 }
 
+type tracerNameKey struct{}
+
+// SetTracerName sets the tracer name that will be used by all spans created
+// from the context.
+func SetTracerName(ctx context.Context, tracerName string) context.Context {
+	return context.WithValue(ctx, tracerNameKey{}, tracerName)
+}
+
+// GetTracerName returns the tracer name from the context, or TracerName if none
+// is set.
+func GetTracerName(ctx context.Context) string {
+	if tracerName, ok := ctx.Value(tracerNameKey{}).(string); ok {
+		return tracerName
+	}
+
+	return TracerName
+}
+
+// StartSpan calls StartSpanWithName with the name set to the caller's function
+// name.
 func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return trace.SpanFromContext(ctx).TracerProvider().Tracer(TracerName).Start(ctx, FuncNameSkip(1), opts...)
+	return StartSpanWithName(ctx, FuncNameSkip(1), opts...)
+}
+
+// StartSpanWithName starts a new span with the given name from the context. If
+// a tracer name was set on the context (or one of its parents), it will be used
+// as the tracer name instead of the default TracerName.
+func StartSpanWithName(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	tracerName := GetTracerName(ctx)
+	return trace.SpanFromContext(ctx).
+		TracerProvider().
+		Tracer(tracerName).
+		Start(ctx, name, opts...)
 }

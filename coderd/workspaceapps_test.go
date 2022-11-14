@@ -121,7 +121,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, uint16(tcpAddr.Port))
+	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
@@ -135,18 +135,21 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 	}
 	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
+	})
 
 	return client, user, workspace, uint16(tcpAddr.Port)
 }
 
-func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, appHost string, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	authToken := uuid.NewString()
 
 	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -197,7 +200,18 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
+	if appHost != "" {
+		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf(
+			"http://{{port}}--%s--%s--%s%s",
+			proxyTestAgentName,
+			workspace.Name,
+			"testuser",
+			strings.ReplaceAll(appHost, "*", ""),
+		), metadata.VSCodePortProxyURI)
+	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),
@@ -339,7 +353,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		// Get the current user and API key.
 		user, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken, "-")[0])
+		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
 		require.NoError(t, err)
 
 		// Try to load the application without authentication.
@@ -407,7 +421,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 
 		// Verify the API key permissions
 		appClient := codersdk.New(client.URL)
-		appClient.SessionToken = apiKey
+		appClient.SetSessionToken(apiKey)
 		appClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		appClient.HTTPClient.Transport = client.HTTPClient.Transport
 
@@ -529,6 +543,9 @@ func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 	}
 	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -568,6 +585,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 		}
 		client.HTTPClient.Transport = transport
+		t.Cleanup(func() {
+			transport.CloseIdleConnections()
+		})
 
 		return client
 	}
@@ -618,11 +638,11 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err, "get current user details")
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err, "get workspaces")
-		require.Len(t, workspaces, 1, "expected 1 workspace")
+		require.Len(t, res.Workspaces, 1, "expected 1 workspace")
 
 		appHost, err := client.GetAppHost(ctx)
 		require.NoError(t, err, "get app host")
@@ -631,7 +651,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			AppSlug:       appName,
 			Port:          port,
 			AgentName:     proxyTestAgentName,
-			WorkspaceName: workspaces[0].Name,
+			WorkspaceName: res.Workspaces[0].Name,
 			Username:      me.Username,
 		}.String()
 
@@ -882,7 +902,7 @@ func TestAppSharing(t *testing.T) {
 			Password: password,
 		})
 		require.NoError(t, err)
-		clientInOtherOrg.SessionToken = loginRes.SessionToken
+		clientInOtherOrg.SetSessionToken(loginRes.SessionToken)
 		clientInOtherOrg.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
@@ -905,14 +925,14 @@ func TestAppSharing(t *testing.T) {
 		// If the client has a session token, we also want to check that a
 		// scoped key works.
 		clients := []*codersdk.Client{client}
-		if client.SessionToken != "" {
+		if client.SessionToken() != "" {
 			token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 				Scope: codersdk.APIKeyScopeApplicationConnect,
 			})
 			require.NoError(t, err)
 
 			scopedClient := codersdk.New(client.URL)
-			scopedClient.SessionToken = token.Key
+			scopedClient.SetSessionToken(token.Key)
 			scopedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 
 			clients = append(clients, scopedClient)
