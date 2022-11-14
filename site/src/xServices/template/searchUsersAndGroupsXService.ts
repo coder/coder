@@ -58,7 +58,7 @@ export const searchUsersAndGroupsMachine = createMachine(
     services: {
       search: async ({ organizationId }, { query }) => {
         const [users, groups] = await Promise.all([
-          getUsers(queryToFilter(query)),
+          (await getUsers(queryToFilter(query))).users,
           getGroups(organizationId),
         ])
 
