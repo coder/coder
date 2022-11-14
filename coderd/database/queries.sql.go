@@ -2819,7 +2819,7 @@ ORDER BY
 	created_at DESC
 )
 SELECT
-	SUM(daily_cost)
+	coalesce(SUM(daily_cost), 0)::BIGINT
 FROM
 	workspaces
 JOIN latest_builds ON
@@ -2829,9 +2829,9 @@ WHERE NOT deleted AND workspaces.owner_id = $1
 
 func (q *sqlQuerier) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getQuotaConsumedForUser, ownerID)
-	var sum int64
-	err := row.Scan(&sum)
-	return sum, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const deleteReplicasUpdatedBefore = `-- name: DeleteReplicasUpdatedBefore :exec

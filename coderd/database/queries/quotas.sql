@@ -22,7 +22,7 @@ ORDER BY
 	created_at DESC
 )
 SELECT
-	SUM(daily_cost)
+	coalesce(SUM(daily_cost), 0)::BIGINT
 FROM
 	workspaces
 JOIN latest_builds ON
