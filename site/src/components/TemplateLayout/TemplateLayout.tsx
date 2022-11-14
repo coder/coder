@@ -151,9 +151,12 @@ export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
                 </Avatar>
               )}
             </div>
-
             <div>
-              <PageHeaderTitle>{template.name}</PageHeaderTitle>
+              <PageHeaderTitle>
+                {template.display_name.length > 0
+                  ? template.display_name
+                  : template.name}
+              </PageHeaderTitle>
               <PageHeaderSubtitle condensed>
                 {template.description === ""
                   ? Language.noDescription

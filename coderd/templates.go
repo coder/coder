@@ -480,7 +480,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 
-		// Update template metadata -- empty fields are not overwritten.
+		// Update template metadata -- empty fields are not overwritten,
+		// except for display_name, icon, and default_ttl.
+		// The exception is required to clear content of these fields with UI.
 		name := req.Name
 		displayName := req.DisplayName
 		desc := req.Description
@@ -489,9 +491,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		if name == "" {
 			name = template.Name
-		}
-		if displayName == "" {
-			displayName = template.DisplayName
 		}
 		if desc == "" {
 			desc = template.Description

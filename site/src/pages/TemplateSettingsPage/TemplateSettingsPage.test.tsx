@@ -24,7 +24,7 @@ const renderTemplateSettingsPage = async () => {
 
 const validFormValues = {
   name: "Name",
-  display_name: "Test Template",
+  display_name: "A display name",
   description: "A description",
   icon: "A string",
   default_ttl_ms: 1,
@@ -32,6 +32,7 @@ const validFormValues = {
 
 const fillAndSubmitForm = async ({
   name,
+  display_name,
   description,
   default_ttl_ms,
   icon,
@@ -39,6 +40,15 @@ const fillAndSubmitForm = async ({
   const nameField = await screen.findByLabelText(FormLanguage.nameLabel)
   await userEvent.clear(nameField)
   await userEvent.type(nameField, name)
+
+  const { t } = i18next
+  const displayNameLabel = t("displayNameLabel", {
+    ns: "templatePage",
+  })
+
+  const displayNameField = await screen.findByLabelText(displayNameLabel)
+  await userEvent.clear(displayNameField)
+  await userEvent.type(displayNameField, display_name)
 
   const descriptionField = await screen.findByLabelText(
     FormLanguage.descriptionLabel,

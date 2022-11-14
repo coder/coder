@@ -22,7 +22,15 @@ export const TemplateSummaryPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Template`)}</title>
+        <title>
+          {pageTitle(
+            `${
+              template.display_name.length > 0
+                ? template.display_name
+                : template.name
+            } · Template`,
+          )}
+        </title>
       </Helmet>
       <TemplateSummaryPageView
         template={template}
