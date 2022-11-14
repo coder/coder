@@ -538,7 +538,7 @@ func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
+func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -579,7 +579,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 		// If no users after the time, then we return an empty list.
 		if !found {
-			return nil, sql.ErrNoRows
+			return []database.GetUsersRow{}, nil
 		}
 	}
 
@@ -617,9 +617,11 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByRole
 	}
 
+	beforePageCount := len(users)
+
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
-			return nil, sql.ErrNoRows
+			return []database.GetUsersRow{}, nil
 		}
 		users = users[params.OffsetOpt:]
 	}
@@ -631,7 +633,30 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = users[:params.LimitOpt]
 	}
 
-	return users, nil
+	return convertUsers(users, int64(beforePageCount)), nil
+}
+
+func convertUsers(users []database.User, count int64) []database.GetUsersRow {
+	rows := make([]database.GetUsersRow, len(users))
+	for i, u := range users {
+		rows[i] = database.GetUsersRow{
+			ID:             u.ID,
+			Email:          u.Email,
+			Username:       u.Username,
+			HashedPassword: u.HashedPassword,
+			CreatedAt:      u.CreatedAt,
+			UpdatedAt:      u.UpdatedAt,
+			Status:         u.Status,
+			RBACRoles:      u.RBACRoles,
+			LoginType:      u.LoginType,
+			AvatarURL:      u.AvatarURL,
+			Deleted:        u.Deleted,
+			LastSeenAt:     u.LastSeenAt,
+			Count:          count,
+		}
+	}
+
+	return rows
 }
 
 func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {

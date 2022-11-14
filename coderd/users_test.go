@@ -81,11 +81,11 @@ func TestFirstUser(t *testing.T) {
 		allUsers, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
 
-		require.Len(t, allUsers, 2)
+		require.Len(t, allUsers.Users, 2)
 
 		// We sent the "GET Users" request with the first user, but the second user
 		// should be Never since they haven't performed a request.
-		for _, user := range allUsers {
+		for _, user := range allUsers.Users {
 			if user.ID == firstUser.ID {
 				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
 			} else {
@@ -1211,7 +1211,7 @@ func TestGetUsers(t *testing.T) {
 		users, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
 		require.Len(t, users, 2)
-		require.Len(t, users[0].OrganizationIDs, 1)
+		require.Len(t, users.Users[0].OrganizationIDs, 1)
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
@@ -1304,6 +1304,63 @@ func TestGetFilteredUserCount(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, 1, int(response.Count))
+	})
+}
+
+func TestNewGetUsers(t *testing.T) {
+	t.Parallel()
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.User(ctx, first.UserID.String())
+		require.NoError(t, err, "")
+
+		_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		res, err := client.Users(ctx, codersdk.UsersRequest{})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 2)
+		require.Equal(t, res.Count, 2)
+
+		res, err = client.Users(ctx, codersdk.UsersRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Count, 2)
+
+		res, err = client.Users(ctx, codersdk.UsersRequest{
+			Pagination: codersdk.Pagination{
+				Offset: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 1)
+		require.Equal(t, res.Count, 2)
+
+		// if offset is higher than the count postgres returns an empty array
+		// and not an ErrNoRows error. This also means the count must be 0.
+		res, err = client.Users(ctx, codersdk.UsersRequest{
+			Pagination: codersdk.Pagination{
+				Offset: 3,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Users, 0)
+		require.Equal(t, res.Count, 0)
 	})
 }
 
@@ -1546,15 +1603,15 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		},
 	}))
 	require.NoError(t, err, "first page")
-	require.Equalf(t, page, allUsers[:limit], "first page, limit=%d", limit)
-	count += len(page)
+	require.Equalf(t, page.Users, allUsers[:limit], "first page, limit=%d", limit)
+	count += len(page.Users)
 
 	for {
-		if len(page) == 0 {
+		if len(page.Users) == 0 {
 			break
 		}
 
-		afterCursor := page[len(page)-1].ID
+		afterCursor := page.Users[len(page.Users)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at
 		// is unique.
@@ -1593,7 +1650,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		}))
 		require.NoError(t, err, "prev page")
 		require.Equal(t, allUsers[count-limit:count], prevPage, "prev users")
-		count += len(page)
+		count += len(page.Users)
 	}
 }
 

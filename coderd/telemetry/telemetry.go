@@ -344,10 +344,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		users, err := r.options.Database.GetUsers(ctx, database.GetUsersParams{})
+		userRows, err := r.options.Database.GetUsers(ctx, database.GetUsersParams{})
 		if err != nil {
 			return xerrors.Errorf("get users: %w", err)
 		}
+		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
 		for _, dbUser := range users {
 			if dbUser.Status != database.UserStatusActive {

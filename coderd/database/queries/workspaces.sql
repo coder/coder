@@ -10,7 +10,7 @@ LIMIT
 
 -- name: GetWorkspaces :many
 SELECT
-	workspaces.*, COUNT(workspaces.*) OVER() AS count
+	workspaces.*
 FROM
 	workspaces
 LEFT JOIN LATERAL (

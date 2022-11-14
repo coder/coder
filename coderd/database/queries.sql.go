@@ -6080,7 +6080,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(workspaces.*) OVER() AS count
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
 FROM
 	workspaces
 LEFT JOIN LATERAL (
@@ -6227,22 +6227,7 @@ type GetWorkspacesParams struct {
 	Limit         int32       `db:"limit_" json:"limit_"`
 }
 
-type GetWorkspacesRow struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	Deleted           bool           `db:"deleted" json:"deleted"`
-	Name              string         `db:"name" json:"name"`
-	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	Count             int64          `db:"count" json:"count"`
-}
-
-func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
 		arg.Deleted,
 		arg.Status,
@@ -6258,9 +6243,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetWorkspacesRow
+	var items []Workspace
 	for rows.Next() {
-		var i GetWorkspacesRow
+		var i Workspace
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -6273,7 +6258,6 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
-			&i.Count,
 		); err != nil {
 			return nil, err
 		}

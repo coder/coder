@@ -71,3 +71,25 @@ func (User) RBACObject() rbac.Object {
 func (License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense
 }
+
+func ConvertUserRows(rows []GetUsersRow) []User {
+	users := make([]User, len(rows))
+	for i, r := range rows {
+		users[i] = User{
+			ID:             r.ID,
+			Email:          r.Email,
+			Username:       r.Username,
+			HashedPassword: r.HashedPassword,
+			CreatedAt:      r.CreatedAt,
+			UpdatedAt:      r.UpdatedAt,
+			Status:         r.Status,
+			RBACRoles:      r.RBACRoles,
+			LoginType:      r.LoginType,
+			AvatarURL:      r.AvatarURL,
+			Deleted:        r.Deleted,
+			LastSeenAt:     r.LastSeenAt,
+		}
+	}
+
+	return users
+}
