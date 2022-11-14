@@ -902,7 +902,7 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
-// From codersdk/workspacequota.go
+// From codersdk/quota.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
   readonly budget: number
