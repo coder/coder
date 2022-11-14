@@ -1307,61 +1307,58 @@ func TestGetFilteredUserCount(t *testing.T) {
 	})
 }
 
-func TestNewGetUsers(t *testing.T) {
+func TestGetUsersPagination(t *testing.T) {
 	t.Parallel()
-	t.Run("Pagination", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		_, err := client.User(ctx, first.UserID.String())
-		require.NoError(t, err, "")
+	_, err := client.User(ctx, first.UserID.String())
+	require.NoError(t, err, "")
 
-		_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "alice@email.com",
-			Username:       "alice",
-			Password:       "password",
-			OrganizationID: first.OrganizationID,
-		})
-		require.NoError(t, err)
-
-		res, err := client.Users(ctx, codersdk.UsersRequest{})
-		require.NoError(t, err)
-		require.Len(t, res.Users, 2)
-		require.Equal(t, res.Count, 2)
-
-		res, err = client.Users(ctx, codersdk.UsersRequest{
-			Pagination: codersdk.Pagination{
-				Limit: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Users, 1)
-		require.Equal(t, res.Count, 2)
-
-		res, err = client.Users(ctx, codersdk.UsersRequest{
-			Pagination: codersdk.Pagination{
-				Offset: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Users, 1)
-		require.Equal(t, res.Count, 2)
-
-		// if offset is higher than the count postgres returns an empty array
-		// and not an ErrNoRows error. This also means the count must be 0.
-		res, err = client.Users(ctx, codersdk.UsersRequest{
-			Pagination: codersdk.Pagination{
-				Offset: 3,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Users, 0)
-		require.Equal(t, res.Count, 0)
+	_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "alice@email.com",
+		Username:       "alice",
+		Password:       "password",
+		OrganizationID: first.OrganizationID,
 	})
+	require.NoError(t, err)
+
+	res, err := client.Users(ctx, codersdk.UsersRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 2)
+	require.Equal(t, res.Count, 2)
+
+	res, err = client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Limit: 1,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 1)
+	require.Equal(t, res.Count, 2)
+
+	res, err = client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Offset: 1,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 1)
+	require.Equal(t, res.Count, 2)
+
+	// if offset is higher than the count postgres returns an empty array
+	// and not an ErrNoRows error. This also means the count must be 0.
+	res, err = client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Offset: 3,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 0)
+	require.Equal(t, res.Count, 0)
 }
 
 func TestPostTokens(t *testing.T) {
