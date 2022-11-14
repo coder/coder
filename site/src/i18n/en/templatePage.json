@@ -9,5 +9,6 @@
       "deleteTemplateCaption": "Once you delete a template, there is no going back. Please be certain.",
       "deleteCta": "Delete Template"
     }
-  }
+  },
+  "displayNameLabel": "Display name"
 }

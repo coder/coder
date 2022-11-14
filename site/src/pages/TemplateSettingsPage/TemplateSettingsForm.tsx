@@ -19,10 +19,11 @@ import {
   onChangeTrimmed,
 } from "util/formUtils"
 import * as Yup from "yup"
+import i18next from "i18next"
+import { useTranslation } from "react-i18next"
 
 export const Language = {
   nameLabel: "Name",
-  displayNameLabel: "Display name",
   descriptionLabel: "Description",
   defaultTtlLabel: "Auto-stop default",
   iconLabel: "Icon",
@@ -42,7 +43,11 @@ const MS_HOUR_CONVERSION = 3600000
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
-  display_name: templateDisplayNameValidator(Language.displayNameLabel),
+  display_name: templateDisplayNameValidator(
+    i18next.t("displayNameLabel", {
+      ns: "templatePage",
+    }),
+  ),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
     Language.descriptionMaxError,
@@ -99,6 +104,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   const hasIcon = form.values.icon && form.values.icon !== ""
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
 
+  const { t } = useTranslation("templatePage")
+
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
       <Stack>
@@ -116,7 +123,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           {...getFieldHelpers("display_name")}
           disabled={isSubmitting}
           fullWidth
-          label={Language.displayNameLabel}
+          label={t("displayNameLabel")}
           variant="outlined"
         />
 

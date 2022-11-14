@@ -41,9 +41,12 @@ const fillAndSubmitForm = async ({
   await userEvent.clear(nameField)
   await userEvent.type(nameField, name)
 
-  const displayNameField = await screen.findByLabelText(
-    FormLanguage.displayNameLabel,
-  )
+  const { t } = i18next
+  const displayNameLabel = t("displayNameLabel", {
+    ns: "templatePage",
+  })
+
+  const displayNameField = await screen.findByLabelText(displayNameLabel)
   await userEvent.clear(displayNameField)
   await userEvent.type(displayNameField, display_name)
 
