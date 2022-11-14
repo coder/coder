@@ -106,11 +106,24 @@ message UpdateJobResponse {
     repeated provisioner.ParameterValue parameter_values = 2;
 }
 
+message CommitQuotaRequest {
+    string job_id = 1;
+    int32 daily_cost = 2;
+}
+
+message CommitQuotaResponse {
+    bool ok = 1;
+    int32 credits_consumed = 2;
+    int32 budget = 3;
+}
+
 service ProvisionerDaemon {
     // AcquireJob requests a job. Implementations should
     // hold a lock on the job until CompleteJob() is
     // called with the matching ID.
     rpc AcquireJob(Empty) returns (AcquiredJob);
+
+    rpc CommitQuota(CommitQuotaRequest) returns (CommitQuotaResponse);
 
     // UpdateJob streams periodic updates for a job.
     // Implementations should buffer logs so this stream

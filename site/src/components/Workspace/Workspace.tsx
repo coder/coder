@@ -55,6 +55,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  quota_budget?: number
 }
 
 /**
@@ -77,6 +78,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -187,7 +189,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           handleClick={() => navigate(`/templates`)}
         />
 
-        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+        <WorkspaceStats
+          workspace={workspace}
+          quota_budget={quota_budget}
+          handleUpdate={handleUpdate}
+        />
 
         {isTransitioning !== undefined && isTransitioning && (
           <WorkspaceBuildProgress

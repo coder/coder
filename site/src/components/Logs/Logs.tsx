@@ -48,7 +48,8 @@ const useStyles = makeStyles((theme) => ({
     overflowX: "auto",
   },
   line: {
-    whiteSpace: "nowrap",
+    // Whitespace is significant in terminal output for alignment
+    whiteSpace: "pre",
   },
   space: {
     userSelect: "none",

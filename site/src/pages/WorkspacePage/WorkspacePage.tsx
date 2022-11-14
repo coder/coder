@@ -8,6 +8,7 @@ import { Loader } from "components/Loader/Loader"
 import { firstOrItem } from "util/array"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
+import { quotaMachine } from "xServices/quotas/quotasXService"
 
 export const WorkspacePage: FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } =
@@ -21,6 +22,8 @@ export const WorkspacePage: FC = () => {
     getTemplateWarning,
     checkPermissionsError,
   } = workspaceState.context
+  const [quotaState, quotaSend] = useMachine(quotaMachine)
+  const { getQuotaError } = quotaState.context
   const styles = useStyles()
 
   /**
@@ -32,6 +35,10 @@ export const WorkspacePage: FC = () => {
       workspaceName &&
       workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, workspaceSend])
+
+  useEffect(() => {
+    username && quotaSend({ type: "GET_QUOTA", username })
+  }, [username, quotaSend])
 
   return (
     <ChooseOne>
@@ -46,11 +53,21 @@ export const WorkspacePage: FC = () => {
           {Boolean(checkPermissionsError) && (
             <AlertBanner severity="error" error={checkPermissionsError} />
           )}
+          {Boolean(getQuotaError) && (
+            <AlertBanner severity="error" error={getQuotaError} />
+          )}
         </div>
       </Cond>
-      <Cond condition={Boolean(workspace) && workspaceState.matches("ready")}>
+      <Cond
+        condition={
+          Boolean(workspace) &&
+          workspaceState.matches("ready") &&
+          quotaState.matches("success")
+        }
+      >
         <WorkspaceReadyPage
           workspaceState={workspaceState}
+          quotaState={quotaState}
           workspaceSend={workspaceSend}
         />
       </Cond>

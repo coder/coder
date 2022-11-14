@@ -4,7 +4,6 @@ import { FormFooter } from "components/FormFooter/FormFooter"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
-import { WorkspaceQuota } from "components/WorkspaceQuota/WorkspaceQuota"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { i18n } from "i18n"
 import { FC, useState } from "react"
@@ -20,7 +19,6 @@ export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
-  GET_WORKSPACE_QUOTA_ERROR = "getWorkspaceQuotaError",
 }
 
 export interface CreateWorkspacePageViewProps {
@@ -32,7 +30,6 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateSchema?: TypesGen.ParameterSchema[]
-  workspaceQuota?: TypesGen.WorkspaceQuota
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
   owner: TypesGen.User | null
@@ -93,12 +90,6 @@ export const CreateWorkspacePageView: FC<
         form.setSubmitting(false)
       },
     })
-
-  const canSubmit =
-    props.workspaceQuota && props.workspaceQuota.user_workspace_limit > 0
-      ? props.workspaceQuota.user_workspace_count <
-        props.workspaceQuota.user_workspace_limit
-      : true
 
   const isLoading = props.loadingTemplateSchema || props.loadingTemplates
 
@@ -239,17 +230,6 @@ export const CreateWorkspacePageView: FC<
                   inputMargin="dense"
                   showAvatar
                 />
-
-                {props.workspaceQuota && (
-                  <WorkspaceQuota
-                    quota={props.workspaceQuota}
-                    error={
-                      props.createWorkspaceErrors[
-                        CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR
-                      ]
-                    }
-                  />
-                )}
               </Stack>
             </div>
           )}
@@ -291,7 +271,6 @@ export const CreateWorkspacePageView: FC<
             styles={formFooterStyles}
             onCancel={props.onCancel}
             isLoading={props.creatingWorkspace}
-            submitDisabled={!canSubmit}
             submitLabel={t("createWorkspace")}
           />
         </Stack>

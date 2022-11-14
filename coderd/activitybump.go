@@ -63,7 +63,7 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspace databas
 			return xerrors.Errorf("update workspace build: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		log.Error(
 			ctx, "bump failed",

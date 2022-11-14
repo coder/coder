@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,13 +35,14 @@ var (
 )
 
 type Server struct {
-	AccessURL    *url.URL
-	ID           uuid.UUID
-	Logger       slog.Logger
-	Provisioners []database.ProvisionerType
-	Database     database.Store
-	Pubsub       database.Pubsub
-	Telemetry    telemetry.Reporter
+	AccessURL      *url.URL
+	ID             uuid.UUID
+	Logger         slog.Logger
+	Provisioners   []database.ProvisionerType
+	Database       database.Store
+	Pubsub         database.Pubsub
+	Telemetry      telemetry.Reporter
+	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
 
 	AcquireJobDebounce time.Duration
 }
@@ -250,6 +252,35 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	}
 
 	return protoJob, err
+}
+
+func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	jobID, err := uuid.Parse(request.JobId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse job id: %w", err)
+	}
+
+	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get job: %w", err)
+	}
+	if !job.WorkerID.Valid {
+		return nil, xerrors.New("job isn't running yet")
+	}
+
+	if job.WorkerID.UUID.String() != server.ID.String() {
+		return nil, xerrors.New("you don't own this job")
+	}
+
+	q := server.QuotaCommitter.Load()
+	if q == nil {
+		// We're probably in community edition or a test.
+		return &proto.CommitQuotaResponse{
+			Budget: -1,
+			Ok:     true,
+		}, nil
+	}
+	return (*q).CommitQuota(ctx, request)
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
@@ -620,7 +651,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 
 			return nil
-		})
+		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
@@ -690,6 +721,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Name:       protoResource.Name,
 		Hide:       protoResource.Hide,
 		Icon:       protoResource.Icon,
+		DailyCost:  protoResource.DailyCost,
 		InstanceType: sql.NullString{
 			String: protoResource.InstanceType,
 			Valid:  protoResource.InstanceType != "",

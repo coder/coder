@@ -700,7 +700,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user's password.",
@@ -1147,7 +1147,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			return xerrors.Errorf("create organization member: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
