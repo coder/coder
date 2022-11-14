@@ -38,7 +38,7 @@ describe("TemplateSummaryPage", () => {
 
     renderPage()
     await screen.findByText(MockTemplate.display_name)
-    screen.getByTestId("markdown")
+    await screen.findByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
   })
