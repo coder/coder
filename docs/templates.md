@@ -245,7 +245,7 @@ coder templates pull <template-name> file.tar
 Then, unzip it by running:
 
 ```sh
-tar -xf file.tar.gz
+tar -xf file.tar
 ```
 
 Make the changes to your template then run this command from the root of the template folder:
