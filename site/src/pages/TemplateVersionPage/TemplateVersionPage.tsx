@@ -6,7 +6,7 @@ import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import {
   PageHeader,
-  PageHeaderSubtitle,
+  PageHeaderCaption,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
@@ -55,6 +55,7 @@ export const TemplateVersionPage: React.FC = () => {
     <>
       <Margins>
         <PageHeader>
+          <PageHeaderCaption>Versions</PageHeaderCaption>
           <PageHeaderTitle>{versionName}</PageHeaderTitle>
         </PageHeader>
       </Margins>
