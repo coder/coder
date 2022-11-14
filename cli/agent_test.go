@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -71,12 +70,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
-		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
-			defer cancelFunc()
-			_, err := dialer.Ping(ctx)
-			return err == nil
-		}, testutil.WaitMedium, testutil.IntervalFast)
+		require.True(t, dialer.AwaitReachable(context.Background()))
 		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)
@@ -134,12 +128,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
-		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
-			defer cancelFunc()
-			_, err := dialer.Ping(ctx)
-			return err == nil
-		}, testutil.WaitMedium, testutil.IntervalFast)
+		require.True(t, dialer.AwaitReachable(context.Background()))
 		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)
@@ -197,13 +186,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
-		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
-			defer cancelFunc()
-			_, err := dialer.Ping(ctx)
-			return err == nil
-		}, testutil.WaitMedium, testutil.IntervalFast)
-
+		require.True(t, dialer.AwaitReachable(context.Background()))
 		sshClient, err := dialer.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()

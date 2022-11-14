@@ -299,12 +299,14 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
+	client := codersdk.New(coderAPI.AccessURL)
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
+		client.HTTPClient.CloseIdleConnections()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	return client, provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work

@@ -392,6 +392,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
+				ctx, err := handleOauth2ClientCertificates(ctx, cfg)
+				if err != nil {
+					return xerrors.Errorf("configure oidc client certificates: %w", err)
+				}
+
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
@@ -568,6 +573,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 						InsecureSkipVerify: true,
 					},
 				}
+				defer client.HTTPClient.CloseIdleConnections()
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -1247,4 +1253,22 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
 	}
 	return connectionURL, ep.Stop, nil
+}
+
+func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.DeploymentConfig) (context.Context, error) {
+	if cfg.TLS.ClientCertFile.Value != "" && cfg.TLS.ClientKeyFile.Value != "" {
+		certificates, err := loadCertificates([]string{cfg.TLS.ClientCertFile.Value}, []string{cfg.TLS.ClientKeyFile.Value})
+		if err != nil {
+			return nil, err
+		}
+
+		return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{ //nolint:gosec
+					Certificates: certificates,
+				},
+			},
+		}), nil
+	}
+	return ctx, nil
 }

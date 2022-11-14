@@ -178,12 +178,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		defer func() {
 			_ = conn.Close()
 		}()
-		require.Eventually(t, func() bool {
-			ctx, cancelFunc := context.WithTimeout(ctx, testutil.IntervalFast)
-			defer cancelFunc()
-			_, err := conn.Ping(ctx)
-			return err == nil
-		}, testutil.WaitLong, testutil.IntervalFast)
+		conn.AwaitReachable(ctx)
 	})
 
 	t.Run("FailNonLatestBuild", func(t *testing.T) {
