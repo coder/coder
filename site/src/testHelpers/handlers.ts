@@ -71,7 +71,10 @@ export const handlers = [
   rest.get("/api/v2/users", async (req, res, ctx) => {
     return res(
       ctx.status(200),
-      ctx.json({ users: [M.MockUser, M.MockUser2, M.SuspendedMockUser], count: 26 }),
+      ctx.json({
+        users: [M.MockUser, M.MockUser2, M.SuspendedMockUser],
+        count: 26,
+      }),
     )
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
