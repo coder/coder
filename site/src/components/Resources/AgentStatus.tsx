@@ -58,15 +58,12 @@ const ConnectingStatus: React.FC = () => {
 
 const TimeoutStatus: React.FC<{
   agent: WorkspaceAgent
-  workspace: Workspace
-}> = ({ agent, workspace }) => {
+}> = ({ agent }) => {
   const { t } = useTranslation("agent")
   const styles = useStyles()
   const anchorRef = useRef<SVGSVGElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "timeout-popover" : undefined
-  const troubleshootLink =
-    agent.troubleshooting_url ?? `/templates/${workspace.template_name}#readme`
 
   return (
     <>
@@ -88,7 +85,7 @@ const TimeoutStatus: React.FC<{
         <HelpTooltipTitle>{t("timeoutTooltip.title")}</HelpTooltipTitle>
         <HelpTooltipText>
           {t("timeoutTooltip.message")}{" "}
-          <Link target="_blank" rel="noreferrer" href={troubleshootLink}>
+          <Link target="_blank" rel="noreferrer" href={agent.troubleshooting_url}>
             {t("timeoutTooltip.link")}
           </Link>
           .
@@ -100,8 +97,7 @@ const TimeoutStatus: React.FC<{
 
 export const AgentStatus: React.FC<{
   agent: WorkspaceAgent
-  workspace: Workspace
-}> = ({ agent, workspace }) => {
+}> = ({ agent }) => {
   return (
     <ChooseOne>
       <Cond condition={agent.status === "connected"}>
@@ -111,7 +107,7 @@ export const AgentStatus: React.FC<{
         <DisconnectedStatus />
       </Cond>
       <Cond condition={agent.status === "timeout"}>
-        <TimeoutStatus agent={agent} workspace={workspace} />
+        <TimeoutStatus agent={agent} />
       </Cond>
       <Cond>
         <ConnectingStatus />
