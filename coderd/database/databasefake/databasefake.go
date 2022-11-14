@@ -2091,6 +2091,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		CreatedBy:       arg.CreatedBy,
 		UserACL:         arg.UserACL,
 		GroupACL:        arg.GroupACL,
+		DisplayName:     arg.DisplayName,
+		Icon:            arg.Icon,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil

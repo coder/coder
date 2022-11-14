@@ -2,6 +2,9 @@
 # adapted to Coder's needs:
 # https://www.conjur.org/blog/building-a-windows-installer-from-a-linux-ci-pipeline/
 
+# Since we only build an AMD64 installer for now, ensure that the generated
+# installer matches so wingetcreate can sniff the architecture properly.
+CPU amd64
 Unicode true
 
 !define APP_NAME "Coder"

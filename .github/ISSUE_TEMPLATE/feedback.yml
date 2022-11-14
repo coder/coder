@@ -1,0 +1,10 @@
+name: Feedback
+description: Share your experience with us.
+labels: feedback
+body:
+  - type: textarea
+    id: feature
+    attributes:
+      label: What would you like share?
+    validations:
+      required: true

@@ -174,7 +174,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(context.Background(), "fetched metadata")
+	a.logger.Info(ctx, "fetched metadata")
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -208,7 +208,7 @@ func (a *agent) run(ctx context.Context) error {
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
-	if a.network == nil {
+	if network == nil {
 		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
@@ -365,7 +365,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return err
 	}
 	defer coordinator.Close()
-	a.logger.Info(context.Background(), "connected to coordination server")
+	a.logger.Info(ctx, "connected to coordination server")
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
 	network.SetNodeCallback(sendNodes)
 	select {
@@ -561,25 +561,26 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
 
-	// gliderlabs/ssh returns a command slice of zero
-	// when a shell is requested.
-	command := rawCommand
-	if len(command) == 0 {
-		command = shell
-		if runtime.GOOS != "windows" {
-			// On Linux and macOS, we should start a login
-			// shell to consume juicy environment variables!
-			command += " -l"
-		}
-	}
-
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
 	caller := "-c"
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
-	cmd := exec.CommandContext(ctx, shell, caller, command)
+	args := []string{caller, rawCommand}
+
+	// gliderlabs/ssh returns a command slice of zero
+	// when a shell is requested.
+	if len(rawCommand) == 0 {
+		args = []string{}
+		if runtime.GOOS != "windows" {
+			// On Linux and macOS, we should start a login
+			// shell to consume juicy environment variables!
+			args = append(args, "-l")
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
 		// Default to $HOME if a directory is not set!
