@@ -755,16 +755,6 @@ export interface User {
 }
 
 // From codersdk/users.go
-export interface UserCountRequest {
-  readonly q?: string
-}
-
-// From codersdk/users.go
-export interface UserCountResponse {
-  readonly count: number
-}
-
-// From codersdk/users.go
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
