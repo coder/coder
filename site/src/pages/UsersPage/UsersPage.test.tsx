@@ -199,12 +199,10 @@ describe("UsersPage", () => {
 
         await suspendUser(() => {
           jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser)
-          jest
-            .spyOn(API, "getUsers")
-            .mockResolvedValueOnce({
-              users: [SuspendedMockUser, MockUser2],
-              count: 2,
-            })
+          jest.spyOn(API, "getUsers").mockResolvedValueOnce({
+            users: [SuspendedMockUser, MockUser2],
+            count: 2,
+          })
         })
 
         // Check if the success message is displayed
@@ -277,12 +275,10 @@ describe("UsersPage", () => {
 
         await deleteUser(() => {
           jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined)
-          jest
-            .spyOn(API, "getUsers")
-            .mockResolvedValueOnce({
-              users: [MockUser, SuspendedMockUser],
-              count: 2,
-            })
+          jest.spyOn(API, "getUsers").mockResolvedValueOnce({
+            users: [MockUser, SuspendedMockUser],
+            count: 2,
+          })
         })
 
         // Check if the success message is displayed
@@ -326,14 +322,12 @@ describe("UsersPage", () => {
           jest
             .spyOn(API, "activateUser")
             .mockResolvedValueOnce(SuspendedMockUser)
-          jest
-            .spyOn(API, "getUsers")
-            .mockImplementationOnce(() =>
-              Promise.resolve({
-                users: [MockUser, MockUser2, SuspendedMockUser],
-                count: 3,
-              }),
-            )
+          jest.spyOn(API, "getUsers").mockImplementationOnce(() =>
+            Promise.resolve({
+              users: [MockUser, MockUser2, SuspendedMockUser],
+              count: 3,
+            }),
+          )
         })
 
         // Check if the success message is displayed
