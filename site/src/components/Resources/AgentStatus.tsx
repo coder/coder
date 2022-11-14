@@ -1,7 +1,7 @@
 import Tooltip from "@material-ui/core/Tooltip"
 import { makeStyles } from "@material-ui/core/styles"
 import { combineClasses } from "util/combineClasses"
-import { Workspace, WorkspaceAgent } from "api/typesGenerated"
+import { WorkspaceAgent } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { useTranslation } from "react-i18next"
 import WarningRounded from "@material-ui/icons/WarningRounded"
