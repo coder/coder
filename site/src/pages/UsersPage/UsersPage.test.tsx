@@ -241,7 +241,7 @@ describe("UsersPage", () => {
 
       const mock = jest
         .spyOn(API, "getUsers")
-        .mockResolvedValueOnce({ users: [MockUser, MockUser2], count: 2 })
+        .mockResolvedValueOnce({ users: [MockUser, MockUser2], count: 26 })
 
       const nextButton = await screen.findByLabelText("Next page")
       expect(nextButton).toBeEnabled()
