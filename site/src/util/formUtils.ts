@@ -23,7 +23,7 @@ export const Language = {
     return `${name} cannot be longer than ${len} characters`
   },
   templateDisplayNameInvalidChars: (name: string): string => {
-    return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`
+    return `${name} must start and end with non-whitespace character`
   },
 }
 
