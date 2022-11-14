@@ -12,11 +12,12 @@ import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useRef, useState } from "react"
 import { colors } from "theme/colors"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
+import { getFormHelpers, nameValidator, templateDisplayNameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
 
 export const Language = {
   nameLabel: "Name",
+  displayNameLabel: "Display name",
   descriptionLabel: "Description",
   defaultTtlLabel: "Auto-stop default",
   iconLabel: "Icon",
@@ -36,6 +37,7 @@ const MS_HOUR_CONVERSION = 3600000
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
+  display_name: templateDisplayNameValidator(Language.displayNameLabel),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
     Language.descriptionMaxError,
@@ -102,6 +104,16 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           autoFocus
           fullWidth
           label={Language.nameLabel}
+          variant="outlined"
+        />
+
+        <TextField
+          {...getFieldHelpers("display_name")}
+          disabled={isSubmitting}
+          onChange={onChangeTrimmed(form)}
+          autoFocus
+          fullWidth
+          label={Language.displayNameLabel}
           variant="outlined"
         />
 

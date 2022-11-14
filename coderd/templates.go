@@ -478,18 +478,17 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 
-		// Update template metadata -- empty fields are not overwritten.
+		// Update template metadata -- empty fields are not overwritten,
+		// except for display_name, icon, and default_ttl.
+		// The exception is required to clear content of these fields with UI.
 		name := req.Name
 		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
-		maxTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		defaultTTLMillis := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 
 		if name == "" {
 			name = template.Name
-		}
-		if displayName == "" {
-			displayName = template.DisplayName
 		}
 		if desc == "" {
 			desc = template.Description
@@ -502,7 +501,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName: displayName,
 			Description: desc,
 			Icon:        icon,
-			DefaultTtl:  int64(maxTTL),
+			DefaultTtl:  int64(defaultTTLMillis),
 		})
 		if err != nil {
 			return err
