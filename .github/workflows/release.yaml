@@ -119,6 +119,9 @@ jobs:
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
+          CODER_SIGN_WINDOWS: "0"
+          AUTHENTICODE_CERTIFICATE_FILE: /tmp/windows_cert.pkcs12
+          AUTHENTICODE_CERTIFICATE_PASSWORD_FILE: /tmp/windows_cert_password.txt
 
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}

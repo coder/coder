@@ -44,6 +44,8 @@ site/out/
 *.lock.hcl
 .terraform/
 
+**/*.syso
+
 .vscode/*.log
 .vscode/launch.json
 **/*.swp

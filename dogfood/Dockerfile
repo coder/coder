@@ -124,6 +124,7 @@ RUN apt-get update --quiet && apt-get install --yes \
       openjdk-11-jdk-headless \
       openssh-server \
       openssl \
+      osslsigncode \
       pkg-config \
       python3 \
       python3-pip \

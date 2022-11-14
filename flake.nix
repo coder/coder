@@ -32,6 +32,7 @@
             nodePackages.typescript
             nodePackages.typescript-language-server
             nodejs
+            osslsigncode
             openssh
             openssl
             postgresql

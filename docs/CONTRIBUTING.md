@@ -62,7 +62,8 @@ Alternatively if you do not want to use nix then you'll need to install the need
   - on macOS, run `brew install pango`
 - [`pandoc`]()
   - on macOS, run `brew install pandocomatic`
-
+- [`osslsigncode`]()
+  - on macOS, run `brew install osslsigncode`
 
 ### Development workflow
 

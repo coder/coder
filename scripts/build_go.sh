@@ -32,10 +32,11 @@ os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
 slim="${CODER_SLIM_BUILD:-0}"
 sign_darwin="${CODER_SIGN_DARWIN:-0}"
+sign_windows="${CODER_SIGN_WINDOWS:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,sign-windows -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -68,6 +69,10 @@ while true; do
 		sign_darwin=1
 		shift
 		;;
+	--sign-windows)
+		sign_windows=1
+		shift
+		;;
 	--)
 		shift
 		break
@@ -92,6 +97,20 @@ if [[ "$sign_darwin" == 1 ]]; then
 	dependencies rcodesign
 	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 fi
+
+if [[ "$sign_windows" == 1 ]]; then
+	dependencies osslsigncode
+	requiredenvs AUTHENTICODE_CERTIFICATE_FILE AUTHENTICODE_CERTIFICATE_PASSWORD_FILE
+fi
+
+if [[ "$os" == "windows" ]]; then
+	goversioninfo 	-platform-specific=true \
+					-product-version=${version} \
+					-icon=cmd/coder/coder.exe.ico \
+					-manifest=cmd/coder/coder.exe.manifest \
+					cmd/coder/versioninfo.json
+fi
+
 
 build_args=(
 	-ldflags "-s -w -X 'github.com/coder/coder/buildinfo.tag=$version'"
@@ -132,6 +151,10 @@ CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
 	execrelative ./sign_darwin.sh "$output_path" 1>&2
+fi
+
+if [[ "$sign_windows" == 1 ]] && [[ "$os" == "windows" ]]; then
+	execrelative ./sign_windows.sh "$output_path" 1>&2
 fi
 
 echo "$output_path"
