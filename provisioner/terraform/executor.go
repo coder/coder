@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,16 +15,29 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/xerrors"
-
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+// initMut is a global mutex that protects the Terraform cache directory from
+// concurrent usage by path. Only `terraform init` commands are guarded by this
+// mutex.
+//
+// When cache path is set, we must protect against multiple calls to
+// `terraform init`.
+//
+// From the Terraform documentation:
+//
+//	Note: The plugin cache directory is not guaranteed to be concurrency
+//	safe. The provider installer's behavior in environments with multiple
+//	terraform init calls is undefined.
+var initMut = &sync.Mutex{}
+
 type executor struct {
-	initMu     sync.Locker
 	binaryPath string
 	cachePath  string
 	workdir    string
@@ -63,6 +77,10 @@ func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []stri
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
 	cmd.Dir = e.workdir
+	if env == nil {
+		// We don't want to passthrough host env when unset.
+		env = []string{}
+	}
 	cmd.Env = env
 
 	// We want logs to be written in the correct order, so we wrap all logging
@@ -159,10 +177,12 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 	return version.NewVersion(vj.Version)
 }
 
-func (e executor) init(ctx, killCtx context.Context, logr logger) error {
+func (e executor) init(ctx, killCtx context.Context, logr logSink) error {
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
+		_ = outWriter.Close()
+		_ = errWriter.Close()
 		<-doneOut
 		<-doneErr
 	}()
@@ -181,15 +201,15 @@ func (e executor) init(ctx, killCtx context.Context, logr logger) error {
 	//     concurrency safe. The provider installer's behavior in
 	//     environments with multiple terraform init calls is undefined.
 	if e.cachePath != "" {
-		e.initMu.Lock()
-		defer e.initMu.Unlock()
+		initMut.Lock()
+		defer initMut.Unlock()
 	}
 
 	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errWriter)
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr logger, destroy bool) (*proto.Provision_Response, error) {
+func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool) (*proto.Provision_Response, error) {
 	planfilePath := filepath.Join(e.workdir, "terraform.tfplan")
 	args := []string{
 		"plan",
@@ -209,6 +229,8 @@ func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr lo
 	outWriter, doneOut := provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
+		_ = outWriter.Close()
+		_ = errWriter.Close()
 		<-doneOut
 		<-doneErr
 	}()
@@ -221,10 +243,15 @@ func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr lo
 	if err != nil {
 		return nil, err
 	}
+	planFileByt, err := os.ReadFile(planfilePath)
+	if err != nil {
+		return nil, err
+	}
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
 				Resources: resources,
+				Plan:      planFileByt,
 			},
 		},
 	}, nil
@@ -275,31 +302,38 @@ func (e executor) graph(ctx, killCtx context.Context) (string, error) {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) apply(ctx, killCtx context.Context, env, vars []string, logr logger, destroy bool,
+func (e executor) apply(
+	ctx, killCtx context.Context, plan []byte, env []string, logr logSink,
 ) (*proto.Provision_Response, error) {
+	planFile, err := ioutil.TempFile("", "coder-terrafrom-plan")
+	if err != nil {
+		return nil, xerrors.Errorf("create plan file: %w", err)
+	}
+	_, err = planFile.Write(plan)
+	if err != nil {
+		return nil, xerrors.Errorf("write plan file: %w", err)
+	}
+	defer os.Remove(planFile.Name())
+
 	args := []string{
 		"apply",
 		"-no-color",
 		"-auto-approve",
 		"-input=false",
 		"-json",
-		"-refresh=true",
-	}
-	if destroy {
-		args = append(args, "-destroy")
-	}
-	for _, variable := range vars {
-		args = append(args, "-var", variable)
+		planFile.Name(),
 	}
 
 	outWriter, doneOut := provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
+		_ = outWriter.Close()
+		_ = errWriter.Close()
 		<-doneOut
 		<-doneErr
 	}()
 
-	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	err = e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
@@ -368,86 +402,104 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, cmd *exec.Cmd) {
 	}()
 }
 
-type logger interface {
-	Log(*proto.Log) error
+type logSink interface {
+	Log(*proto.Log)
 }
 
-type streamLogger struct {
+type streamLogSink struct {
+	// Any errors writing to the stream will be logged to logger.
+	logger slog.Logger
 	stream proto.DRPCProvisioner_ProvisionStream
 }
 
-func (s streamLogger) Log(l *proto.Log) error {
-	return s.stream.Send(&proto.Provision_Response{
+var _ logSink = streamLogSink{}
+
+func (s streamLogSink) Log(l *proto.Log) {
+	err := s.stream.Send(&proto.Provision_Response{
 		Type: &proto.Provision_Response_Log{
 			Log: l,
 		},
 	})
+	if err != nil {
+		s.logger.Warn(context.Background(), "write log to stream",
+			slog.F("level", l.Level.String()),
+			slog.F("message", l.Output),
+			slog.Error(err),
+		)
+	}
 }
 
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
 // by the caller to end logging, after which the returned channel will be closed to indicate that logging of the written
 // data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func logWriter(logr logger, level proto.LogLevel) (io.WriteCloser, <-chan any) {
+func logWriter(sink logSink, level proto.LogLevel) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
-	go readAndLog(logr, r, done, level)
+	go readAndLog(sink, r, done, level)
 	return w, done
 }
 
-func readAndLog(logr logger, r io.Reader, done chan<- any, level proto.LogLevel) {
+func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel) {
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		err := logr.Log(&proto.Log{Level: level, Output: scanner.Text()})
-		if err != nil {
-			// Not much we can do.  We can't log because logging is itself breaking!
-			return
-		}
+		sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
 	}
 }
 
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
 // closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
 // written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func provisionLogWriter(logr logger) (io.WriteCloser, <-chan any) {
+func provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
-	go provisionReadAndLog(logr, r, done)
+	go provisionReadAndLog(sink, r, done)
 	return w, done
 }
 
-func provisionReadAndLog(logr logger, reader io.Reader, done chan<- any) {
+func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 	defer close(done)
-	decoder := json.NewDecoder(reader)
-	for {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
 		var log terraformProvisionLog
-		err := decoder.Decode(&log)
+		err := json.Unmarshal(scanner.Bytes(), &log)
 		if err != nil {
-			return
+			// Sometimes terraform doesn't log JSON, even though we asked it to.
+			// The terraform maintainers have said on the issue tracker that
+			// they don't guarantee that non-JSON lines won't get printed.
+			// https://github.com/hashicorp/terraform/issues/29252#issuecomment-887710001
+			//
+			// > I think as a practical matter it isn't possible for us to
+			// > promise that the output will always be entirely JSON, because
+			// > there's plenty of code that runs before command line arguments
+			// > are parsed and thus before we even know we're in JSON mode.
+			// > Given that, I'd suggest writing code that consumes streaming
+			// > JSON output from Terraform in such a way that it can tolerate
+			// > the output not having JSON in it at all.
+			//
+			// Log lines such as:
+			// - Acquiring state lock. This may take a few moments...
+			// - Releasing state lock. This may take a few moments...
+			if strings.TrimSpace(scanner.Text()) == "" {
+				continue
+			}
+			log.Level = "info"
+			log.Message = scanner.Text()
 		}
-		logLevel := convertTerraformLogLevel(log.Level, logr)
 
-		err = logr.Log(&proto.Log{Level: logLevel, Output: log.Message})
-		if err != nil {
-			// Not much we can do.  We can't log because logging is itself breaking!
-			return
-		}
+		logLevel := convertTerraformLogLevel(log.Level, sink)
+		sink.Log(&proto.Log{Level: logLevel, Output: log.Message})
 
+		// If the diagnostic is provided, let's provide a bit more info!
 		if log.Diagnostic == nil {
 			continue
 		}
-
-		// If the diagnostic is provided, let's provide a bit more info!
-		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, logr)
-		err = logr.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
-		if err != nil {
-			// Not much we can do.  We can't log because logging is itself breaking!
-			return
-		}
+		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, sink)
+		sink.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
 	}
 }
 
-func convertTerraformLogLevel(logLevel string, logr logger) proto.LogLevel {
+func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 	switch strings.ToLower(logLevel) {
 	case "trace":
 		return proto.LogLevel_TRACE
@@ -460,7 +512,7 @@ func convertTerraformLogLevel(logLevel string, logr logger) proto.LogLevel {
 	case "error":
 		return proto.LogLevel_ERROR
 	default:
-		_ = logr.Log(&proto.Log{
+		sink.Log(&proto.Log{
 			Level:  proto.LogLevel_WARN,
 			Output: fmt.Sprintf("unable to convert log level %s", logLevel),
 		})

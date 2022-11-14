@@ -65,14 +65,42 @@ coder:
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
-  resources:
-    {}
+  resources: {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
     # requests:
     #   cpu: 100m
     #   memory: 128Mi
+
+  # coder.affinity -- Allows specifying an affinity rule for the `coder` deployment.
+  # The default rule prefers to schedule coder pods on different
+  # nodes, which is only applicable if coder.replicaCount is greater than 1.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.coder.com
+                  operator: In
+                  values:
+                    - "true"
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+
+  # coder.tolerations -- Tolerations for tainted nodes.
+  # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: {}
+    # - key: "key"
+    #   operator: "Equal"
+    #   value: "value"
+    #   effect: "NoSchedule"
+
+  # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
+  # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+  #  kubernetes.io/os: linux
 
   # coder.service -- The Service object to expose for Coder.
   service:

@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
-func TestValid(t *testing.T) {
+func TestUsernameValid(t *testing.T) {
 	t.Parallel()
 	// Tests whether usernames are valid or not.
 	testCases := []struct {
@@ -59,7 +59,62 @@ func TestValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.UsernameValid(testCase.Username)
+			valid := httpapi.NameValid(testCase.Username)
+			require.Equal(t, testCase.Valid, valid == nil)
+		})
+	}
+}
+
+func TestTemplateDisplayNameValid(t *testing.T) {
+	t.Parallel()
+	// Tests whether display names are valid.
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"", true},
+		{"1", true},
+		{"12", true},
+		{"1 2", true},
+		{"123       456", true},
+		{"1234 678901234567890", true},
+		{"<b> </b>", true},
+		{"S", true},
+		{"a1", true},
+		{"a1K2", true},
+		{"!!!!1 ?????", true},
+		{"k\r\rm", true},
+		{"abcdefghijklmnopqrst", true},
+		{"Wow Test", true},
+		{"abcdefghijklmnopqrstu-", true},
+		{"a1b2c3d4e5f6g7h8i9j0k-", true},
+		{"BANANAS_wow", true},
+		{"test--now", true},
+		{"123456789012345678901234567890123", true},
+		{"1234567890123456789012345678901234567890123456789012345678901234", true},
+		{"-a1b2c3d4e5f6g7h8i9j0k", true},
+
+		{" ", false},
+		{"\t", false},
+		{"\r\r", false},
+		{"\t1 ", false},
+		{" a", false},
+		{"\ra ", false},
+		{" 1", false},
+		{"1 ", false},
+		{" aa", false},
+		{"aa\r", false},
+		{" 12", false},
+		{"12 ", false},
+		{"\fa1", false},
+		{"a1\t", false},
+		{"12345678901234567890123456789012345678901234567890123456789012345", false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			valid := httpapi.TemplateDisplayNameValid(testCase.Name)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
@@ -92,7 +147,7 @@ func TestFrom(t *testing.T) {
 			t.Parallel()
 			converted := httpapi.UsernameFrom(testCase.From)
 			t.Log(converted)
-			valid := httpapi.UsernameValid(converted)
+			valid := httpapi.NameValid(converted)
 			require.True(t, valid == nil)
 			if testCase.Match == "" {
 				require.NotEqual(t, testCase.From, converted)

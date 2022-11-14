@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
@@ -145,22 +144,7 @@ func portForward() *cobra.Command {
 				closeAllListeners()
 			}()
 
-			ticker := time.NewTicker(250 * time.Millisecond)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-ticker.C:
-				}
-
-				_, err = conn.Ping(ctx)
-				if err != nil {
-					continue
-				}
-				break
-			}
-			ticker.Stop()
+			conn.AwaitReachable(ctx)
 			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
 			wg.Wait()
 			return closeErr

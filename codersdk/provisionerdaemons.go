@@ -121,7 +121,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	}
 	jar.SetCookies(followURL, []*http.Cookie{{
 		Name:  SessionTokenKey,
-		Value: c.SessionToken,
+		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
 		Jar: jar,

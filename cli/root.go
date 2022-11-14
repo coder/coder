@@ -306,7 +306,7 @@ func CreateClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.SessionToken = token
+	client.SetSessionToken(token)
 	return client, nil
 }
 
@@ -347,7 +347,7 @@ func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		return nil, err
 	}
 	client := codersdk.New(serverURL)
-	client.SessionToken = token
+	client.SetSessionToken(token)
 	return client, nil
 }
 

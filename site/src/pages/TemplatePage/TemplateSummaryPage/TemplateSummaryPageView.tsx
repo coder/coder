@@ -5,7 +5,6 @@ import {
   TemplateVersion,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
@@ -21,7 +20,6 @@ export interface TemplateSummaryPageViewProps {
   templateResources: WorkspaceResource[]
   templateVersions?: TemplateVersion[]
   templateDAUs?: TemplateDAUsResponse
-  deleteTemplateError: Error | unknown
 }
 
 export const TemplateSummaryPageView: FC<
@@ -32,14 +30,9 @@ export const TemplateSummaryPageView: FC<
   templateResources,
   templateVersions,
   templateDAUs,
-  deleteTemplateError,
 }) => {
   const styles = useStyles()
   const readme = frontMatter(activeTemplateVersion.readme)
-
-  const deleteError = deleteTemplateError ? (
-    <AlertBanner severity="error" error={deleteTemplateError} dismissible />
-  ) : null
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter(
@@ -49,7 +42,6 @@ export const TemplateSummaryPageView: FC<
 
   return (
     <Stack spacing={4}>
-      {deleteError}
       <TemplateStats
         template={template}
         activeVersion={activeTemplateVersion}
@@ -59,7 +51,7 @@ export const TemplateSummaryPageView: FC<
         resources={getStartedResources(templateResources)}
       />
 
-      <div className={styles.markdownSection}>
+      <div className={styles.markdownSection} id="readme">
         <div className={styles.readmeLabel}>README.md</div>
         <div className={styles.markdownWrapper}>
           <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>

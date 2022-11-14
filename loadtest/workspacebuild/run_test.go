@@ -24,6 +24,7 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+	t.Skip("Flake seen here: https://github.com/coder/coder/actions/runs/3436164958/jobs/5729513320")
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -40,9 +41,9 @@ func Test_Runner(t *testing.T) {
 		authToken2 := uuid.NewString()
 		authToken3 := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Log{
 						Log: &proto.Log{
@@ -107,12 +108,13 @@ func Test_Runner(t *testing.T) {
 		go func() {
 			var workspace codersdk.Workspace
 			for {
-				workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 					Owner: codersdk.Me,
 				})
 				if !assert.NoError(t, err) {
 					return
 				}
+				workspaces := res.Workspaces
 
 				if len(workspaces) == 1 {
 					workspace = workspaces[0]
@@ -129,7 +131,7 @@ func Test_Runner(t *testing.T) {
 				i := i + 1
 
 				agentClient := codersdk.New(client.URL)
-				agentClient.SessionToken = authToken
+				agentClient.SetSessionToken(authToken)
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,
 					Logger: slogtest.Make(t, nil).
@@ -165,10 +167,11 @@ func Test_Runner(t *testing.T) {
 		require.Contains(t, logsStr, `"agent3" is connected`)
 
 		// Find the workspace.
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err)
+		workspaces := res.Workspaces
 		require.Len(t, workspaces, 1)
 
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspaces[0].LatestBuild.ID)
@@ -190,9 +193,9 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{
 						Complete: &proto.Provision_Complete{

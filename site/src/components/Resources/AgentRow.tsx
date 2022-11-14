@@ -12,6 +12,7 @@ import { AgentVersion } from "./AgentVersion"
 import { Maybe } from "components/Conditionals/Maybe"
 import { AgentStatus } from "./AgentStatus"
 import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
+import { useTranslation } from "react-i18next"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -31,6 +32,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   serverVersion,
 }) => {
   const styles = useStyles()
+  const { t } = useTranslation("agent")
 
   return (
     <Stack
@@ -43,7 +45,7 @@ export const AgentRow: FC<AgentRowProps> = ({
     >
       <Stack direction="row" alignItems="baseline">
         <div className={styles.agentStatusWrapper}>
-          <AgentStatus agent={agent} />
+          <AgentStatus agent={agent} workspace={workspace} />
         </div>
         <div>
           <div className={styles.agentName}>{agent.name}</div>
@@ -64,6 +66,10 @@ export const AgentRow: FC<AgentRowProps> = ({
             <Maybe condition={agent.status === "connecting"}>
               <Skeleton width={160} variant="text" />
               <Skeleton width={36} variant="text" />
+            </Maybe>
+
+            <Maybe condition={agent.status === "timeout"}>
+              {t("unableToConnect")}
             </Maybe>
           </Stack>
         </div>

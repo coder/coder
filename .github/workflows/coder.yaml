@@ -89,7 +89,7 @@ jobs:
   style-lint-golangci:
     name: style/lint/golangci
     timeout-minutes: 5
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
@@ -171,7 +171,7 @@ jobs:
   gen:
     name: "style/gen"
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     steps:
@@ -276,7 +276,7 @@ jobs:
 
   test-go:
     name: "test/go"
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -336,11 +336,7 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          test_timeout=5m
-          if [[ "${{ matrix.os }}" == windows* ]]; then
-            test_timeout=10m
-          fi
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=$test_timeout -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -356,7 +352,7 @@ jobs:
 
   test-go-postgres:
     name: "test/go/postgres"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -417,7 +413,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
     if: |
@@ -514,7 +510,7 @@ jobs:
 
   test-js:
     name: "test/js"
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3

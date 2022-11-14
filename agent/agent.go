@@ -56,6 +56,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
+	TempDir                string
 	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
@@ -78,6 +79,9 @@ func New(options Options) io.Closer {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
+	if options.TempDir == "" {
+		options.TempDir = os.TempDir()
+	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
 			return "", nil
@@ -93,6 +97,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
+		tempDir:                options.TempDir,
 		stats:                  &Stats{},
 	}
 	server.init(ctx)
@@ -104,6 +109,7 @@ type agent struct {
 	client        Client
 	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	tempDir       string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -168,7 +174,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(context.Background(), "fetched metadata")
+	a.logger.Info(ctx, "fetched metadata")
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -202,7 +208,7 @@ func (a *agent) run(ctx context.Context) error {
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
-	if a.network == nil {
+	if network == nil {
 		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
@@ -359,7 +365,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return err
 	}
 	defer coordinator.Close()
-	a.logger.Info(context.Background(), "connected to coordination server")
+	a.logger.Info(ctx, "connected to coordination server")
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
 	network.SetNodeCallback(sendNodes)
 	select {
@@ -375,14 +381,14 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	a.logger.Info(ctx, "running startup script", slog.F("script", script))
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
 	}()
-
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
@@ -470,6 +476,12 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				ctx := session.Context()
+
+				// Typically sftp sessions don't request a TTY, but if they do,
+				// we must ensure the gliderlabs/ssh CRLF emulation is disabled.
+				// Otherwise sftp will be broken. This can happen if a user sets
+				// `RequestTTY force` in their SSH config.
 				session.DisablePTYEmulation()
 
 				var opts []sftp.ServerOption
@@ -478,22 +490,33 @@ func (a *agent) init(ctx context.Context) {
 				// https://github.com/coder/coder/issues/3620
 				u, err := user.Current()
 				if err != nil {
-					a.logger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
 				} else {
 					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
 				if err != nil {
-					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
+					sshLogger.Debug(ctx, "initialize sftp server", slog.Error(err))
 					return
 				}
 				defer server.Close()
+
 				err = server.Serve()
 				if errors.Is(err, io.EOF) {
+					// Unless we call `session.Exit(0)` here, the client won't
+					// receive `exit-status` because `(*sftp.Server).Close()`
+					// calls `Close()` on the underlying connection (session),
+					// which actually calls `channel.Close()` because it isn't
+					// wrapped. This causes sftp clients to receive a non-zero
+					// exit code. Typically sftp clients don't echo this exit
+					// code but `scp` on macOS does (when using the default
+					// SFTP backend).
+					_ = session.Exit(0)
 					return
 				}
-				a.logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
+				sshLogger.Warn(ctx, "sftp server closed with error", slog.Error(err))
+				_ = session.Exit(1)
 			},
 		},
 	}
@@ -538,25 +561,26 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
 
-	// gliderlabs/ssh returns a command slice of zero
-	// when a shell is requested.
-	command := rawCommand
-	if len(command) == 0 {
-		command = shell
-		if runtime.GOOS != "windows" {
-			// On Linux and macOS, we should start a login
-			// shell to consume juicy environment variables!
-			command += " -l"
-		}
-	}
-
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
 	caller := "-c"
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
-	cmd := exec.CommandContext(ctx, shell, caller, command)
+	args := []string{caller, rawCommand}
+
+	// gliderlabs/ssh returns a command slice of zero
+	// when a shell is requested.
+	if len(rawCommand) == 0 {
+		args = []string{}
+		if runtime.GOOS != "windows" {
+			// On Linux and macOS, we should start a login
+			// shell to consume juicy environment variables!
+			args = append(args, "-l")
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
 		// Default to $HOME if a directory is not set!

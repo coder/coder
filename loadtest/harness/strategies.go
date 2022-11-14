@@ -4,11 +4,24 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/binary"
-	"io"
 	"math/rand"
 	"sync"
 	"time"
+
+	"golang.org/x/xerrors"
 )
+
+// TestFn is a function that can be run by an ExecutionStrategy.
+type TestFn func(ctx context.Context) error
+
+// ExecutionStrategy defines how a TestHarness should execute a set of runs. It
+// essentially defines the concurrency model for a given testing session.
+type ExecutionStrategy interface {
+	// Execute calls each function in whatever way the strategy wants. All
+	// errors returned from the function should be wrapped and returned, but all
+	// given functions must be executed.
+	Run(ctx context.Context, fns []TestFn) ([]error, error)
+}
 
 // LinearExecutionStrategy executes all test runs in a linear fashion, one after
 // the other.
@@ -16,13 +29,17 @@ type LinearExecutionStrategy struct{}
 
 var _ ExecutionStrategy = LinearExecutionStrategy{}
 
-// Execute implements ExecutionStrategy.
-func (LinearExecutionStrategy) Execute(ctx context.Context, runs []*TestRun) error {
-	for _, run := range runs {
-		_ = run.Run(ctx)
+// Run implements ExecutionStrategy.
+func (LinearExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]error, error) {
+	var errs []error
+	for i, fn := range fns {
+		err := fn(ctx)
+		if err != nil {
+			errs = append(errs, xerrors.Errorf("run %d: %w", i, err))
+		}
 	}
 
-	return nil
+	return errs, nil
 }
 
 // ConcurrentExecutionStrategy executes all test runs concurrently without any
@@ -31,21 +48,27 @@ type ConcurrentExecutionStrategy struct{}
 
 var _ ExecutionStrategy = ConcurrentExecutionStrategy{}
 
-// Execute implements ExecutionStrategy.
-func (ConcurrentExecutionStrategy) Execute(ctx context.Context, runs []*TestRun) error {
-	var wg sync.WaitGroup
-	for _, run := range runs {
-		run := run
+// Run implements ExecutionStrategy.
+func (ConcurrentExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]error, error) {
+	var (
+		wg   sync.WaitGroup
+		errs = newErrorsList()
+	)
+	for i, fn := range fns {
+		i, fn := i, fn
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = run.Run(ctx)
+			err := fn(ctx)
+			if err != nil {
+				errs.add(xerrors.Errorf("run %d: %w", i, err))
+			}
 		}()
 	}
 
 	wg.Wait()
-	return nil
+	return errs.errs, nil
 }
 
 // ParallelExecutionStrategy executes all test runs concurrently, but limits the
@@ -56,14 +79,17 @@ type ParallelExecutionStrategy struct {
 
 var _ ExecutionStrategy = ParallelExecutionStrategy{}
 
-// Execute implements ExecutionStrategy.
-func (p ParallelExecutionStrategy) Execute(ctx context.Context, runs []*TestRun) error {
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, p.Limit)
+// Run implements ExecutionStrategy.
+func (p ParallelExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]error, error) {
+	var (
+		wg   sync.WaitGroup
+		errs = newErrorsList()
+		sem  = make(chan struct{}, p.Limit)
+	)
 	defer close(sem)
 
-	for _, run := range runs {
-		run := run
+	for i, fn := range fns {
+		i, fn := i, fn
 
 		wg.Add(1)
 		go func() {
@@ -72,12 +98,15 @@ func (p ParallelExecutionStrategy) Execute(ctx context.Context, runs []*TestRun)
 				wg.Done()
 			}()
 			sem <- struct{}{}
-			_ = run.Run(ctx)
+			err := fn(ctx)
+			if err != nil {
+				errs.add(xerrors.Errorf("run %d: %w", i, err))
+			}
 		}()
 	}
 
 	wg.Wait()
-	return nil
+	return errs.errs, nil
 }
 
 // TimeoutExecutionStrategyWrapper is an ExecutionStrategy that wraps another
@@ -89,31 +118,19 @@ type TimeoutExecutionStrategyWrapper struct {
 
 var _ ExecutionStrategy = TimeoutExecutionStrategyWrapper{}
 
-type timeoutRunnerWrapper struct {
-	timeout time.Duration
-	inner   Runnable
-}
-
-var _ Runnable = timeoutRunnerWrapper{}
-
-func (t timeoutRunnerWrapper) Run(ctx context.Context, id string, logs io.Writer) error {
-	ctx, cancel := context.WithTimeout(ctx, t.timeout)
-	defer cancel()
-
-	return t.inner.Run(ctx, id, logs)
-}
-
-// Execute implements ExecutionStrategy.
-func (t TimeoutExecutionStrategyWrapper) Execute(ctx context.Context, runs []*TestRun) error {
-	for _, run := range runs {
-		oldRunner := run.runner
-		run.runner = timeoutRunnerWrapper{
-			timeout: t.Timeout,
-			inner:   oldRunner,
+// Run implements ExecutionStrategy.
+func (t TimeoutExecutionStrategyWrapper) Run(ctx context.Context, fns []TestFn) ([]error, error) {
+	newFns := make([]TestFn, len(fns))
+	for i, fn := range fns {
+		fn := fn
+		newFns[i] = func(ctx context.Context) error {
+			ctx, cancel := context.WithTimeout(ctx, t.Timeout)
+			defer cancel()
+			return fn(ctx)
 		}
 	}
 
-	return t.Inner.Execute(ctx, runs)
+	return t.Inner.Run(ctx, newFns)
 }
 
 // ShuffleExecutionStrategyWrapper is an ExecutionStrategy that wraps another
@@ -141,17 +158,35 @@ func (cryptoRandSource) Int63() int64 {
 
 func (cryptoRandSource) Seed(_ int64) {}
 
-// Execute implements ExecutionStrategy.
-func (s ShuffleExecutionStrategyWrapper) Execute(ctx context.Context, runs []*TestRun) error {
-	shuffledRuns := make([]*TestRun, len(runs))
-	copy(shuffledRuns, runs)
+// Run implements ExecutionStrategy.
+func (s ShuffleExecutionStrategyWrapper) Run(ctx context.Context, fns []TestFn) ([]error, error) {
+	shuffledFns := make([]TestFn, len(fns))
+	copy(shuffledFns, fns)
 
 	//nolint:gosec // gosec thinks we're using an insecure RNG, but we're not.
 	src := rand.New(cryptoRandSource{})
-	for i := range shuffledRuns {
+	for i := range shuffledFns {
 		j := src.Intn(i + 1)
-		shuffledRuns[i], shuffledRuns[j] = shuffledRuns[j], shuffledRuns[i]
+		shuffledFns[i], shuffledFns[j] = shuffledFns[j], shuffledFns[i]
 	}
 
-	return s.Inner.Execute(ctx, shuffledRuns)
+	return s.Inner.Run(ctx, shuffledFns)
+}
+
+type errorsList struct {
+	mut  *sync.Mutex
+	errs []error
+}
+
+func newErrorsList() *errorsList {
+	return &errorsList{
+		mut:  &sync.Mutex{},
+		errs: []error{},
+	}
+}
+
+func (l *errorsList) add(err error) {
+	l.mut.Lock()
+	defer l.mut.Unlock()
+	l.errs = append(l.errs, err)
 }

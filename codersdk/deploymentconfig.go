@@ -39,6 +39,7 @@ type DeploymentConfig struct {
 	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	UserWorkspaceQuota          *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
 	Provisioner                 *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
+	APIRateLimit                *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
 	Experimental                *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 }
 
@@ -100,17 +101,20 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable       *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	CertFiles    *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
-	ClientAuth   *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles     *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
-	MinVersion   *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
+	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
+	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
+	MinVersion     *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+	ClientCertFile *DeploymentConfigField[string]   `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  *DeploymentConfigField[string]   `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {
 	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     *DeploymentConfigField[bool]   `json:"capture_logs" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {

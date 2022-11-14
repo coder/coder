@@ -1,0 +1,40 @@
+name: Bug Report
+description: Report a bug encountered while using Coder.
+labels: bug
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: |
+        Please provide as much info as possible. Not doing so may result in your bug not being addressed in a timely manner.
+        If this matter is security related, please disclose it privately via https://coder.com/security
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+#  - type: textarea
+#    id: repro
+#    attributes:
+#      label: How can we reproduce it (as minimally and precisely as possible)?
+#
+#  - type: textarea
+#    id: additional
+#    attributes:
+#      label: Anything else we need to know?
+#
+#  - type: textarea
+#    id: coderVersion
+#    attributes:
+#      label: Coder version
+#      value: |
+#        ```console
+#        $ coder version
+#        # paste output here
+#        ```

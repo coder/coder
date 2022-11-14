@@ -53,10 +53,12 @@ INSERT INTO
 		startup_script,
 		directory,
 		instance_metadata,
-		resource_metadata
+		resource_metadata,
+		connection_timeout_seconds,
+		troubleshooting_url
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE

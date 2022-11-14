@@ -280,7 +280,7 @@ func TestPostLogin(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		split := strings.Split(client.SessionToken, "-")
+		split := strings.Split(client.SessionToken(), "-")
 		key, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch login key")
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
@@ -356,7 +356,7 @@ func TestPostLogout(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		keyID := strings.Split(client.SessionToken, "-")[0]
+		keyID := strings.Split(client.SessionToken(), "-")[0]
 		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), keyID)
 		require.NoError(t, err)
 		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
@@ -676,7 +676,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		client.SessionToken = resp.SessionToken
+		client.SetSessionToken(resp.SessionToken)
 
 		// Trying to get an API key should fail since all keys are deleted
 		// on password change.
@@ -1331,11 +1331,11 @@ func TestWorkspacesByUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 0)
+		require.Len(t, res.Workspaces, 0)
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
@@ -1359,19 +1359,19 @@ func TestWorkspacesByUser(t *testing.T) {
 		require.NoError(t, err)
 
 		newUserClient := codersdk.New(client.URL)
-		newUserClient.SessionToken = auth.SessionToken
+		newUserClient.SetSessionToken(auth.SessionToken)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		workspaces, err := newUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+		res, err := newUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 0)
+		require.Len(t, res.Workspaces, 0)
 
-		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
-		require.Len(t, workspaces, 1)
+		require.Len(t, res.Workspaces, 1)
 	})
 }
 

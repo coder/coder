@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -702,6 +705,8 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	newTemplate.ActiveVersionID = req.ID
 	aReq.New = newTemplate
 
+	api.publishTemplateUpdate(ctx, template.ID)
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Updated the active template version!",
 	})
@@ -986,5 +991,17 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Job:            job,
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
+	}
+}
+
+func watchTemplateChannel(id uuid.UUID) string {
+	return fmt.Sprintf("template:%s", id)
+}
+
+func (api *API) publishTemplateUpdate(ctx context.Context, templateID uuid.UUID) {
+	err := api.Pubsub.Publish(watchTemplateChannel(templateID), []byte{})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish template update",
+			slog.F("template_id", templateID), slog.Error(err))
 	}
 }

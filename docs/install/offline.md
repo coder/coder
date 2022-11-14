@@ -51,7 +51,7 @@ RUN mkdir -p /opt/terraform/plugins
 ADD filesystem-mirror-example.tfrc /opt/terraform/config.tfrc
 
 # Optionally, we can "seed" the filesystem mirror with common providers.
-# Coder and Docker. Comment out lines 37-47 if you plan on only using a
+# Coder and Docker. Comment out lines 40-49 if you plan on only using a
 # volume or network mirror:
 RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
 WORKDIR /opt/terraform/plugins/registry.terraform.io
@@ -70,7 +70,7 @@ WORKDIR /home/coder
 # Option 2) Use a network mirror.
 #    https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror
 
-#    Be sure uncomment line 56 and edit network-mirror-example.tfrc to
+#    Be sure uncomment line 60 and edit network-mirror-example.tfrc to
 #    specify the HTTPS base URL of your mirror.
 
 # ADD network-mirror-example.tfrc /opt/terraform/config.tfrc
@@ -122,7 +122,7 @@ services:
   coder:
     image: registry.example.com/coder:latest
     volumes:
-      - ./plugins:/opt/registry.terraform.io
+      - ./plugins:/opt/terraform/plugins
     # ...
   database:
     image: registry.example.com/postgres:13

@@ -46,8 +46,8 @@ vim main.tf
 
 ```hcl
 resource "coder_agent" "main" {
-    arch          = "amd64"
-    os            = "linux"
+    arch           = "amd64"
+    os             = "linux"
     startup_script = <<EOF
     #!/bin/sh
     # install and start code-server
@@ -117,29 +117,15 @@ Workspace requirements:
 - RubyMine
 - WebStorm
 
-For advanced users who want to make a custom image, you can install the
-Projector CLI in the `startup_script` of the `coder_agent` resource in a Coder
-template. Using the Projector CLI, you can use `projector config add` and
-`projector run` to configure and start a JetBrains IDE in your workspace.
-
-> Install the JetBrains IDE in your image and `chown` the `/opt` directory to
-> the user that starts the workspace. e.g., `coder`
-
-![IntelliJ in Coder](../images/projector-intellij.png)
-
-
 **Pre-built templates:**
 
-You can also reference/use to these pre-built templates with JetBrains
-projector:
+You can reference/use these pre-built templates with JetBrains projector:
 
 - IntelliJ
-  ([Docker](https://github.com/sharkymark/v2-templates/tree/main/docker-with-intellij),
-  [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
+  ([Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
 
 - PyCharm
-  ([Docker](https://github.com/sharkymark/v2-templates/tree/main/docker-with-pycharm),
-  [Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm))
+  ([Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm))
 
 > You need to have a valid `~/.kube/config` on your Coder host and a namespace
 > on a Kubernetes cluster to use the Kubernetes pod template examples.
@@ -154,9 +140,9 @@ Configure your agent and `coder_app` like so to use Jupyter:
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "coder" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/home/coder"
+  os             = "linux"
+  arch           = "amd64"
+  dir            = "/home/coder"
   startup_script = <<-EOF
 pip3 install jupyterlab
 $HOME/.local/bin/jupyter lab --ServerApp.token='' --ip='*'
@@ -190,9 +176,9 @@ Configure your agent and `coder_app` like so to use RStudio. Notice the
 
 ```hcl
 resource "coder_agent" "coder" {
-  os   = "linux"
-  arch = "amd64"
-  dir = "/home/coder"
+  os             = "linux"
+  arch           = "amd64"
+  dir            = "/home/coder"
   startup_script = <<EOT
 #!/bin/bash
 # start rstudio
@@ -203,11 +189,12 @@ EOT
 # rstudio
 resource "coder_app" "rstudio" {
   agent_id      = coder_agent.coder.id
-  name          = "rstudio"
-  icon          = "/icon/rstudio.svg"
+  slug          = "rstudio"
+  display_name  = "R Studio"
+  icon          = "https://upload.wikimedia.org/wikipedia/commons/d/d0/RStudio_logo_flat.svg"
   url           = "http://localhost:8787"
-  subdomain = true
-  share     = "owner"
+  subdomain     = true
+  share         = "owner"
 
   healthcheck {
     url       = "http://localhost:8787/healthz"
@@ -228,7 +215,7 @@ Configure your agent and `coder_app` like so to use Airflow. Notice the
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"
-  dir = "/home/coder"
+  dir  = "/home/coder"
   startup_script = <<EOT
 #!/bin/bash
 # install and start airflow
@@ -239,11 +226,12 @@ EOT
 
 resource "coder_app" "airflow" {
   agent_id      = coder_agent.coder.id
-  name          = "airflow"
+  slug          = "airflow"
+  display_name  = "Airflow"
   icon          = "https://upload.wikimedia.org/wikipedia/commons/d/de/AirflowLogo.png"
   url           = "http://localhost:8080"
-  subdomain = true
-  share     = "owner"
+  subdomain     = true
+  share         = "owner"
 
   healthcheck {
     url       = "http://localhost:8080/healthz"

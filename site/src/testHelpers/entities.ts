@@ -2,6 +2,7 @@ import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
+import { range } from "lodash"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -188,6 +189,7 @@ export const MockTemplate: TypesGen.Template = {
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
   name: "test-template",
+  display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 2,
@@ -198,8 +200,7 @@ export const MockTemplate: TypesGen.Template = {
     delete_ms: 3000,
   },
   description: "This is a test description.",
-  max_ttl_ms: 24 * 60 * 60 * 1000,
-  min_autostart_interval_ms: 60 * 60 * 1000,
+  default_ttl_ms: 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
@@ -238,6 +239,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
       preferred: true,
     },
   },
+  connection_timeout_seconds: 120,
+  troubleshooting_url: "https://coder.com/troubleshoot",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -277,6 +280,15 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-connecting",
   name: "another-workspace-agent",
   status: "connecting",
+  version: "",
+  latency: {},
+}
+
+export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-timeout",
+  name: "a-timed-out-workspace-agent",
+  status: "timeout",
   version: "",
   latency: {},
 }
@@ -513,15 +525,21 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
   },
 }
 
+// just over one page of workspaces
+export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
+  workspaces: range(1, 27).map((id: number) => ({
+    ...MockWorkspace,
+    id: id.toString(),
+    name: `${MockWorkspace.name}${id}`,
+  })),
+  count: 26,
+}
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
   parameter_values: [],
   template_id: "test-template",
-}
-
-export const MockWorkspaceCountResponse: TypesGen.WorkspaceCountResponse = {
-  count: 26, // just over 1 page
 }
 
 export const MockUserAgent: Types.UserAgent = {

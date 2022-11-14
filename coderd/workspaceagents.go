@@ -247,7 +247,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
-	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width), r.URL.Query().Get("command"))
+	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect.String(), uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
@@ -669,19 +669,21 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		}
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
-		ID:                   dbAgent.ID,
-		CreatedAt:            dbAgent.CreatedAt,
-		UpdatedAt:            dbAgent.UpdatedAt,
-		ResourceID:           dbAgent.ResourceID,
-		InstanceID:           dbAgent.AuthInstanceID.String,
-		Name:                 dbAgent.Name,
-		Architecture:         dbAgent.Architecture,
-		OperatingSystem:      dbAgent.OperatingSystem,
-		StartupScript:        dbAgent.StartupScript.String,
-		Version:              dbAgent.Version,
-		EnvironmentVariables: envs,
-		Directory:            dbAgent.Directory,
-		Apps:                 apps,
+		ID:                       dbAgent.ID,
+		CreatedAt:                dbAgent.CreatedAt,
+		UpdatedAt:                dbAgent.UpdatedAt,
+		ResourceID:               dbAgent.ResourceID,
+		InstanceID:               dbAgent.AuthInstanceID.String,
+		Name:                     dbAgent.Name,
+		Architecture:             dbAgent.Architecture,
+		OperatingSystem:          dbAgent.OperatingSystem,
+		StartupScript:            dbAgent.StartupScript.String,
+		Version:                  dbAgent.Version,
+		EnvironmentVariables:     envs,
+		Directory:                dbAgent.Directory,
+		Apps:                     apps,
+		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       dbAgent.TroubleshootingURL,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -718,11 +720,20 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	if dbAgent.DisconnectedAt.Valid {
 		workspaceAgent.DisconnectedAt = &dbAgent.DisconnectedAt.Time
 	}
+
+	connectionTimeout := time.Duration(dbAgent.ConnectionTimeoutSeconds) * time.Second
 	switch {
 	case !dbAgent.FirstConnectedAt.Valid:
-		// If the agent never connected, it's waiting for the compute
-		// to start up.
-		workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
+		switch {
+		case connectionTimeout > 0 && database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
+			// If the agent took too long to connect the first time,
+			// mark it as timed out.
+			workspaceAgent.Status = codersdk.WorkspaceAgentTimeout
+		default:
+			// If the agent never connected, it's waiting for the compute
+			// to start up.
+			workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
+		}
 	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.

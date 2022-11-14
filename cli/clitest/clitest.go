@@ -43,7 +43,7 @@ func NewWithSubcommands(
 
 // SetupConfig applies the URL and SessionToken of the client to the config.
 func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
-	err := root.Session().Write(client.SessionToken)
+	err := root.Session().Write(client.SessionToken())
 	require.NoError(t, err)
 	err = root.URL().Write(client.URL.String())
 	require.NoError(t, err)
