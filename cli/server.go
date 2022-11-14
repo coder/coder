@@ -509,18 +509,28 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("parse telemetry url: %w", err)
 				}
 
+				gitAuth := make([]telemetry.GitAuth, 0)
+				for _, cfg := range gitAuthConfigs {
+					gitAuth = append(gitAuth, telemetry.GitAuth{
+						Type: string(cfg.Type),
+					})
+				}
+
 				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres: builtinPostgres,
-					DeploymentID:    deploymentID,
-					Database:        options.Database,
-					Logger:          logger.Named("telemetry"),
-					URL:             telemetryURL,
-					GitHubOAuth:     cfg.OAuth2.Github.ClientID.Value != "",
-					OIDCAuth:        cfg.OIDC.ClientID.Value != "",
-					OIDCIssuerURL:   cfg.OIDC.IssuerURL.Value,
-					Prometheus:      cfg.Prometheus.Enable.Value,
-					STUN:            len(cfg.DERP.Server.STUNAddresses.Value) != 0,
-					Tunnel:          tunnel != nil,
+					BuiltinPostgres:    builtinPostgres,
+					DeploymentID:       deploymentID,
+					Database:           options.Database,
+					Logger:             logger.Named("telemetry"),
+					URL:                telemetryURL,
+					Wildcard:           cfg.WildcardAccessURL.Value != "",
+					DERPServerRelayURL: cfg.DERP.Server.RelayURL.Value,
+					GitAuth:            gitAuth,
+					GitHubOAuth:        cfg.OAuth2.Github.ClientID.Value != "",
+					OIDCAuth:           cfg.OIDC.ClientID.Value != "",
+					OIDCIssuerURL:      cfg.OIDC.IssuerURL.Value,
+					Prometheus:         cfg.Prometheus.Enable.Value,
+					STUN:               len(cfg.DERP.Server.STUNAddresses.Value) != 0,
+					Tunnel:             tunnel != nil,
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
