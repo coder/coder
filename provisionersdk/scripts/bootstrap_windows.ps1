@@ -15,7 +15,7 @@ while ($true) {
 		# https://github.com/microsoft/vscode-remote-release/issues/5699
 		$BINARY_URL="${ACCESS_URL}/bin/coder-windows-${ARCH}.exe"
 		Write-Output "Fetching coder agent from ${BINARY_URL}"
-		Invoke-WebRequest -Uri "${BINARY_URL}" -OutFile $env:TEMP\sshd.exe
+		Invoke-WebRequest -Uri "${BINARY_URL}" -OutFile $env:TEMP\coderd.exe
 		break
 	} catch {
 		Write-Output "error: unhandled exception fetching coder agent:"
@@ -26,7 +26,7 @@ while ($true) {
 }
 
 # If the below fails, retrying probably will not help.
-Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
+Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\coderd.exe
 $env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
 $env:CODER_AGENT_URL = "${ACCESS_URL}"
-Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
+Start-Process -FilePath $env:TEMP\coderd.exe -ArgumentList "agent" -PassThru
