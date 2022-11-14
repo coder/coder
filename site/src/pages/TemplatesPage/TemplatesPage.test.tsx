@@ -46,7 +46,7 @@ describe("TemplatesPage", () => {
     render(<TemplatesPage />)
 
     // Then
-    await screen.findByText(MockTemplate.name)
+    await screen.findByText(MockTemplate.display_name)
   })
 
   it("shows empty view without permissions to create", async () => {

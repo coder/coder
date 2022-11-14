@@ -37,7 +37,7 @@ describe("TemplateSummaryPage", () => {
     mock.mockImplementation(() => "a minute ago")
 
     renderPage()
-    await screen.findByText(MockTemplate.name)
+    await screen.findByText(MockTemplate.display_name)
     screen.getByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
