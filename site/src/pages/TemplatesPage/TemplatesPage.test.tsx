@@ -24,7 +24,7 @@ describe("TemplatesPage", () => {
           return res(ctx.status(200), ctx.json([]))
         },
       ),
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({
@@ -57,7 +57,7 @@ describe("TemplatesPage", () => {
           return res(ctx.status(200), ctx.json([]))
         },
       ),
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({
