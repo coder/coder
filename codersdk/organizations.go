@@ -138,6 +138,25 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
 }
 
+func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organizationID uuid.UUID, name string) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/templateversions/%s", organizationID.String(), name),
+		nil,
+	)
+
+	if err != nil {
+		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return TemplateVersion{}, readBodyAsError(res)
+	}
+
+	var templateVersion TemplateVersion
+	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+}
+
 // CreateTemplate creates a new template inside an organization.
 func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, request CreateTemplateRequest) (Template, error) {
 	res, err := c.Request(ctx, http.MethodPost,

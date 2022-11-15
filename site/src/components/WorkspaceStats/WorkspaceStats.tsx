@@ -132,6 +132,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     fontWeight: 600,
   },
+
   outdatedLabel: {
     color: theme.palette.error.main,
     display: "flex",
