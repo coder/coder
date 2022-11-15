@@ -1,7 +1,6 @@
 import { getTemplateVersionByName } from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
 import {
-  filterTemplateFilesByExtension,
   getTemplateVersionFiles,
   TemplateVersionFiles,
 } from "util/templateVersion"
@@ -86,10 +85,7 @@ export const templateVersionMachine = createMachine(
         if (!version) {
           throw new Error("Version is not defined")
         }
-        return filterTemplateFilesByExtension(
-          await getTemplateVersionFiles(version),
-          ["tf", "md"],
-        )
+        return getTemplateVersionFiles(version, ["tf", "md"])
       },
     },
   },
