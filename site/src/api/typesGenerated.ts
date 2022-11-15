@@ -433,6 +433,7 @@ export interface OAuth2GithubConfig {
   readonly allowed_orgs: DeploymentConfigField<string[]>
   readonly allowed_teams: DeploymentConfigField<string[]>
   readonly allow_signups: DeploymentConfigField<boolean>
+  readonly allow_everyone: DeploymentConfigField<boolean>
   readonly enterprise_base_url: DeploymentConfigField<string>
 }
 
