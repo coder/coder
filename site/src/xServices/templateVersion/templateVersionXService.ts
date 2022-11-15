@@ -7,18 +7,20 @@ import {
 } from "util/templateVersion"
 import { assign, createMachine } from "xstate"
 
+export interface TemplateVersionMachineContext {
+  orgId: string
+  versionName: string
+  version?: TemplateVersion
+  files?: TemplateVersionFiles
+  error?: unknown
+}
+
 export const templateVersionMachine = createMachine(
   {
     predictableActionArguments: true,
     id: "templateVersion",
     schema: {
-      context: {} as {
-        orgId: string
-        versionName: string
-        version?: TemplateVersion
-        files?: TemplateVersionFiles
-        error?: unknown
-      },
+      context: {} as TemplateVersionMachineContext,
       services: {} as {
         loadVersion: {
           data: TemplateVersion
