@@ -26,22 +26,28 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
 }) => {
   const styles = useFooterStyles()
 
+  const buildURL = (label: string): URL => {
+    const githubURL = new URL("https://github.com/coder/coder/issues/new")
+    githubURL.searchParams.append("labels", label)
+    githubURL.searchParams.append(
+      "body",
+      `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`,
+    )
+    return githubURL
+  }
 
-  const githubUrl = 'https://github.com/coder/coder/issues/new?'
-  const body = encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`)
+  const reportBugUrl = buildURL("bug")
+  const enhancementUrl = buildURL("enhancement")
+  const shareFeedbackUrl = buildURL("feedback")
 
-  const reportBugUrl = githubUrl + `labels=bug&body=${body}`
-  const enhancementUrl = githubUrl + `labels=enhancement&body=${body}`
-  const shareFeedbackUrl = githubUrl + `labels=feedback&body=${body}`
-
-  const discordUrl = 'https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer'
+  const discordUrl =
+    "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer"
 
   return (
     <div className={styles.root}>
       <div className={styles.copyRight}>{Language.copyrightText}</div>
       {buildInfo && (
         <div className={styles.buildInfo}>
-
           <Link
             className={styles.link}
             variant="caption"
@@ -52,7 +58,6 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
             {Language.buildInfoText(buildInfo)}
           </Link>
           &nbsp;|&nbsp;
-
           <Link
             className={styles.link}
             variant="caption"
@@ -62,7 +67,6 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
             <AssistantIcon className={styles.icon} /> {Language.reportBugLink}
           </Link>
           &nbsp;|&nbsp;
-
           <Link
             className={styles.link}
             variant="caption"
@@ -72,17 +76,16 @@ export const Footer: React.FC<React.PropsWithChildren<FooterProps>> = ({
             <AssistantIcon className={styles.icon} /> {Language.enhancementLink}
           </Link>
           &nbsp;|&nbsp;
-
           <Link
             className={styles.link}
             variant="caption"
             target="_blank"
             href={shareFeedbackUrl}
           >
-            <AssistantIcon className={styles.icon} /> {Language.shareFeedbackLink}
+            <AssistantIcon className={styles.icon} />{" "}
+            {Language.shareFeedbackLink}
           </Link>
           &nbsp;|&nbsp;
-
           <Link
             className={styles.link}
             variant="caption"
