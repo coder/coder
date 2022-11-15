@@ -123,6 +123,9 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 			workspace.Name,
 			owner.Username,
 		))
+	if api.AccessURL.Port() != "" {
+		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentMetadata{
 		Apps:                 convertApps(dbApps),
