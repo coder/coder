@@ -36,7 +36,9 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 		api.entitlementsMu.RUnlock()
 
 		if !epd {
-			httpapi.Write(r.Context(), rw, http.Status)
+			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+				Message: "External provisioner daemons is an Enterprise feature. Contact sales!",
+			})
 			return
 		}
 
@@ -145,8 +147,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-
-	fmt.Printf("TAGS %+v\n", daemon.Tags)
 
 	rawTags, err := json.Marshal(daemon.Tags)
 	if err != nil {

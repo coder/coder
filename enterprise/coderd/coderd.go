@@ -92,6 +92,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
 			r.Use(
+				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)

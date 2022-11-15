@@ -18,10 +18,26 @@ import (
 
 func TestProvisionerDaemonServe(t *testing.T) {
 	t.Parallel()
+	t.Run("NoLicense", func(t *testing.T) {
+		t.Parallel()
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
+			codersdk.ProvisionerTypeEcho,
+		}, map[string]string{})
+		require.Error(t, err)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+
 	t.Run("Organization", func(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			ExternalProvisionerDaemons: true,
+		})
 		srv, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
 		}, map[string]string{})
@@ -33,6 +49,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			ExternalProvisionerDaemons: true,
+		})
 		another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, err := another.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
@@ -49,6 +68,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			ExternalProvisionerDaemons: true,
+		})
 		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
 			provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 		})
@@ -114,8 +136,4 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, another, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	})
-}
-
-func TestPostProvisionerDaemon(t *testing.T) {
-	t.Parallel()
 }

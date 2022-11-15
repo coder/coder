@@ -29,7 +29,7 @@ func gitssh() *cobra.Command {
 
 			// Catch interrupt signals to ensure the temporary private
 			// key file is cleaned up on most cases.
-			ctx, stop := signal.NotifyContext(ctx, interruptSignals...)
+			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
 			// Early check so errors are reported immediately.
