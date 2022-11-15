@@ -1011,20 +1011,21 @@ func convertWorkspace(
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	return codersdk.Workspace{
-		ID:                workspace.ID,
-		CreatedAt:         workspace.CreatedAt,
-		UpdatedAt:         workspace.UpdatedAt,
-		OwnerID:           workspace.OwnerID,
-		OwnerName:         owner.Username,
-		TemplateID:        workspace.TemplateID,
-		LatestBuild:       workspaceBuild,
-		TemplateName:      template.Name,
-		TemplateIcon:      template.Icon,
-		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
-		Name:              workspace.Name,
-		AutostartSchedule: autostartSchedule,
-		TTLMillis:         ttlMillis,
-		LastUsedAt:        workspace.LastUsedAt,
+		ID:                  workspace.ID,
+		CreatedAt:           workspace.CreatedAt,
+		UpdatedAt:           workspace.UpdatedAt,
+		OwnerID:             workspace.OwnerID,
+		OwnerName:           owner.Username,
+		TemplateID:          workspace.TemplateID,
+		LatestBuild:         workspaceBuild,
+		TemplateName:        template.Name,
+		TemplateIcon:        template.Icon,
+		TemplateDisplayName: template.DisplayName,
+		Outdated:            workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
+		Name:                workspace.Name,
+		AutostartSchedule:   autostartSchedule,
+		TTLMillis:           ttlMillis,
+		LastUsedAt:          workspace.LastUsedAt,
 	}
 }
 
