@@ -65,6 +65,10 @@ Flags:
                                                      production.
                                                      Consumes $CODER_EXPERIMENTAL
   -h, --help                                         help for server
+      --oauth2-github-allow-everyone                 Allow all logins, setting this option
+                                                     means allowed orgs must be empty and no
+                                                     org limits will be imposed.
+                                                     Consumes $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
       --oauth2-github-allow-signups                  Whether new users can sign up with
                                                      GitHub.
                                                      Consumes $CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
