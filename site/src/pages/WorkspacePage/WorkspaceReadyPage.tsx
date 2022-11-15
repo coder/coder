@@ -10,6 +10,7 @@ import {
   getMinDeadline,
 } from "util/schedule"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
+import { quotaMachine } from "xServices/quotas/quotasXService"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
 import {
@@ -26,11 +27,13 @@ import {
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
+  quotaState: StateFrom<typeof quotaMachine>
   workspaceSend: (event: WorkspaceEvent) => void
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
+  quotaState,
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [bannerState, bannerSend] = useActor(
@@ -124,6 +127,7 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfoState.context.buildInfo}
         applicationsHost={applicationsHost}
         template={template}
+        quota_budget={quotaState.context.quota?.budget}
       />
       <DeleteDialog
         entity="workspace"

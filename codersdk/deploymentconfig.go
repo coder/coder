@@ -37,7 +37,6 @@ type DeploymentConfig struct {
 	AuditLogging                *DeploymentConfigField[bool]            `json:"audit_logging" typescript:",notnull"`
 	BrowserOnly                 *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
-	UserWorkspaceQuota          *DeploymentConfigField[int]             `json:"user_workspace_quota" typescript:",notnull"`
 	Provisioner                 *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
 	APIRateLimit                *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
 	Experimental                *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
@@ -82,6 +81,7 @@ type OAuth2GithubConfig struct {
 	AllowedOrgs       *DeploymentConfigField[[]string] `json:"allowed_orgs" typescript:",notnull"`
 	AllowedTeams      *DeploymentConfigField[[]string] `json:"allowed_teams" typescript:",notnull"`
 	AllowSignups      *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     *DeploymentConfigField[bool]     `json:"allow_everyone" typescript:",notnull"`
 	EnterpriseBaseURL *DeploymentConfigField[string]   `json:"enterprise_base_url" typescript:",notnull"`
 }
 
@@ -101,12 +101,14 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable       *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	CertFiles    *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
-	ClientAuth   *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles     *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
-	MinVersion   *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
+	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
+	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
+	MinVersion     *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
+	ClientCertFile *DeploymentConfigField[string]   `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  *DeploymentConfigField[string]   `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {

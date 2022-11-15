@@ -52,7 +52,7 @@ type tableTest3 struct {
 func Test_DisplayTable(t *testing.T) {
 	t.Parallel()
 
-	someTime := time.Date(2022, 8, 2, 15, 49, 10, 0, time.Local)
+	someTime := time.Date(2022, 8, 2, 15, 49, 10, 0, time.UTC)
 	in := []tableTest1{
 		{
 			Name:  "foo",

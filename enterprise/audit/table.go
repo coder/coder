@@ -109,6 +109,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":            ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
+		"quota_allowance": ActionTrack,
 	},
 	// We don't show any diff for the WorkspaceBuild resource,
 	// save for the template_version_id
@@ -125,6 +126,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"job_id":              ActionIgnore,
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
+		"daily_cost":          ActionIgnore,
 	},
 })
 

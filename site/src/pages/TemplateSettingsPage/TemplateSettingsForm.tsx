@@ -12,8 +12,15 @@ import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC, useRef, useState } from "react"
 import { colors } from "theme/colors"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
+import {
+  getFormHelpers,
+  nameValidator,
+  templateDisplayNameValidator,
+  onChangeTrimmed,
+} from "util/formUtils"
 import * as Yup from "yup"
+import i18next from "i18next"
+import { useTranslation } from "react-i18next"
 
 export const Language = {
   nameLabel: "Name",
@@ -36,6 +43,11 @@ const MS_HOUR_CONVERSION = 3600000
 
 export const validationSchema = Yup.object({
   name: nameValidator(Language.nameLabel),
+  display_name: templateDisplayNameValidator(
+    i18next.t("displayNameLabel", {
+      ns: "templatePage",
+    }),
+  ),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
     Language.descriptionMaxError,
@@ -92,6 +104,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   const hasIcon = form.values.icon && form.values.icon !== ""
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
 
+  const { t } = useTranslation("templatePage")
+
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
       <Stack>
@@ -102,6 +116,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           autoFocus
           fullWidth
           label={Language.nameLabel}
+          variant="outlined"
+        />
+
+        <TextField
+          {...getFieldHelpers("display_name")}
+          disabled={isSubmitting}
+          fullWidth
+          label={t("displayNameLabel")}
           variant="outlined"
         />
 

@@ -4,7 +4,9 @@ import TableRow from "@material-ui/core/TableRow"
 import { TemplateVersion } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { useClickable } from "hooks/useClickable"
 import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router-dom"
 
 export interface VersionRowProps {
   version: TemplateVersion
@@ -13,11 +15,16 @@ export interface VersionRowProps {
 export const VersionRow: React.FC<VersionRowProps> = ({ version }) => {
   const styles = useStyles()
   const { t } = useTranslation("templatePage")
+  const navigate = useNavigate()
+  const clickableProps = useClickable(() => {
+    navigate(`versions/${version.name}`)
+  })
 
   return (
     <TableRow
       className={styles.versionRow}
       data-testid={`version-${version.id}`}
+      {...clickableProps}
     >
       <TableCell className={styles.versionCell}>
         <Stack
@@ -54,6 +61,12 @@ export const VersionRow: React.FC<VersionRowProps> = ({ version }) => {
 
 const useStyles = makeStyles((theme) => ({
   versionRow: {
+    cursor: "pointer",
+
+    "&:hover": {
+      backgroundColor: theme.palette.action.hover,
+    },
+
     "&:not(:last-child) td:before": {
       position: "absolute",
       top: 20,

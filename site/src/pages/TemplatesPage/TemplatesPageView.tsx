@@ -209,7 +209,11 @@ export const TemplatesPageView: FC<
                         >
                           <TableCellLink to={templatePageLink}>
                             <AvatarData
-                              title={template.name}
+                              title={
+                                template.display_name.length > 0
+                                  ? template.display_name
+                                  : template.name
+                              }
                               subtitle={template.description}
                               highlightTitle
                               avatar={

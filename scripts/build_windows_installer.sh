@@ -67,7 +67,9 @@ fi
 # Remove the "v" prefix and ensure the version is in the format X.X.X.X for
 # makensis.
 nsis_version="${version//-*/}"
-nsis_version+=".$(date -u +%Y%m%d%H%M)"
+# Each component of a version must be a 16 bit integer, so we can't store any
+# useful information like build date or commit SHA in the 4th component.
+nsis_version+=".0"
 
 # Check dependencies
 dependencies makensis

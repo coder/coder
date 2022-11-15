@@ -3,7 +3,7 @@ import { WorkspaceBuildTransition } from "../api/types"
 import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
 import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
-import { MockGroup } from "./entities"
+import { MockGroup, MockWorkspaceQuota } from "./entities"
 
 export const handlers = [
   rest.get("/api/v2/templates/:templateId/daus", async (req, res, ctx) => {
@@ -63,6 +63,12 @@ export const handlers = [
       )
     },
   ),
+  rest.get(
+    "api/v2/organizations/:organizationId/templateversions/:templateVersionName",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
+    },
+  ),
   rest.delete("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
@@ -71,11 +77,11 @@ export const handlers = [
   rest.get("/api/v2/users", async (req, res, ctx) => {
     return res(
       ctx.status(200),
-      ctx.json([M.MockUser, M.MockUser2, M.SuspendedMockUser]),
+      ctx.json({
+        users: [M.MockUser, M.MockUser2, M.SuspendedMockUser],
+        count: 26,
+      }),
     )
-  }),
-  rest.get("/api/v2/users/count", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockUserCountResponse))
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))
@@ -242,5 +248,9 @@ export const handlers = [
 
   rest.delete("/api/v2/groups/:groupId", (req, res, ctx) => {
     return res(ctx.status(204))
+  }),
+
+  rest.get("/api/v2/workspace-quota/:userId", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(MockWorkspaceQuota))
   }),
 ]

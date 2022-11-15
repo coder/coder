@@ -40,9 +40,9 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/tailnet"
 )
@@ -66,7 +66,6 @@ type Options struct {
 	CacheDir string
 
 	Auditor                        audit.Auditor
-	WorkspaceQuotaEnforcer         workspacequota.Enforcer
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -145,9 +144,6 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-	if options.WorkspaceQuotaEnforcer == nil {
-		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
-	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -174,12 +170,10 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache:           metricsCache,
-		Auditor:                atomic.Pointer[audit.Auditor]{},
-		WorkspaceQuotaEnforcer: atomic.Pointer[workspacequota.Enforcer]{},
+		metricsCache: metricsCache,
+		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
 	api.Auditor.Store(&options.Auditor)
-	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -346,7 +340,10 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
+				r.Route("/templateversions", func(r chi.Router) {
+					r.Post("/", api.postTemplateVersionsByOrganization)
+					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
+				})
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
@@ -437,7 +434,6 @@ func New(options *Options) *API {
 				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
-				r.Get("/count", api.userCount)
 				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
@@ -590,8 +586,8 @@ type API struct {
 	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
-	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"

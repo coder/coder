@@ -299,12 +299,14 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
+	client := codersdk.New(coderAPI.AccessURL)
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
+		client.HTTPClient.CloseIdleConnections()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	return client, provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -526,7 +528,8 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
-		workspaceBuild, err := client.WorkspaceBuild(context.Background(), build)
+		var err error
+		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild

@@ -135,6 +135,9 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 	}
 	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
+	})
 
 	return client, user, workspace, uint16(tcpAddr.Port)
 }
@@ -144,9 +147,9 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -540,6 +543,9 @@ func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 	}
 	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -579,6 +585,9 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
 		}
 		client.HTTPClient.Transport = transport
+		t.Cleanup(func() {
+			transport.CloseIdleConnections()
+		})
 
 		return client
 	}

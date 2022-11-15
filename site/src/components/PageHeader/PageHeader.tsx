@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { PropsWithChildren, FC } from "react"
 import { combineClasses } from "../../util/combineClasses"
 import { Stack } from "../Stack/Stack"
 
@@ -7,7 +8,7 @@ export interface PageHeaderProps {
   className?: string
 }
 
-export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({
+export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
   children,
   actions,
   className,
@@ -29,7 +30,7 @@ export const PageHeader: React.FC<React.PropsWithChildren<PageHeaderProps>> = ({
   )
 }
 
-export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({
+export const PageHeaderTitle: FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
   const styles = useStyles({})
@@ -37,14 +38,19 @@ export const PageHeaderTitle: React.FC<React.PropsWithChildren<unknown>> = ({
   return <h1 className={styles.title}>{children}</h1>
 }
 
-export const PageHeaderSubtitle: React.FC<
-  React.PropsWithChildren<{ condensed?: boolean }>
+export const PageHeaderSubtitle: FC<
+  PropsWithChildren<{ condensed?: boolean }>
 > = ({ children, condensed }) => {
   const styles = useStyles({
     condensed,
   })
 
   return <h2 className={styles.subtitle}>{children}</h2>
+}
+
+export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
+  const styles = useStyles({})
+  return <span className={styles.caption}>{children}</span>
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -87,5 +93,13 @@ const useStyles = makeStyles((theme) => ({
       marginLeft: "initial",
       width: "100%",
     },
+  },
+
+  caption: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.1em",
   },
 }))

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.1"
+      version = "0.6.3"
     }
   }
 }
@@ -18,6 +18,7 @@ resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id
   hide        = true
   icon        = "/icon/server.svg"
+  daily_cost  = 29
   item {
     key   = "hello"
     value = "world"

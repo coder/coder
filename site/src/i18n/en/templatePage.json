@@ -6,8 +6,9 @@
     "dangerZone": {
       "dangerZoneHeader": "Danger Zone",
       "deleteTemplateHeader": "Delete this template",
-      "deleteTemplateCaption": "Once you delete a template, there is no going back. Please be certain.",
+      "deleteTemplateCaption": "Do you want to permanently delete this template?",
       "deleteCta": "Delete Template"
     }
-  }
+  },
+  "displayNameLabel": "Display name"
 }

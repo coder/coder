@@ -65,6 +65,10 @@ Flags:
                                                      production.
                                                      Consumes $CODER_EXPERIMENTAL
   -h, --help                                         help for server
+      --oauth2-github-allow-everyone                 Allow all logins, setting this option
+                                                     means allowed orgs and teams must be
+                                                     empty.
+                                                     Consumes $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
       --oauth2-github-allow-signups                  Whether new users can sign up with
                                                      GitHub.
                                                      Consumes $CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
@@ -177,6 +181,14 @@ Flags:
                                                      used for checking the authenticity of
                                                      client
                                                      Consumes $CODER_TLS_CLIENT_CA_FILE
+      --tls-client-cert-file string                  Path to certificate for client TLS
+                                                     authentication. It requires a PEM-encoded
+                                                     file.
+                                                     Consumes $CODER_TLS_CLIENT_CERT_FILE
+      --tls-client-key-file string                   Path to key for client TLS
+                                                     authentication. It requires a PEM-encoded
+                                                     file.
+                                                     Consumes $CODER_TLS_CLIENT_KEY_FILE
       --tls-enable                                   Whether TLS will be enabled.
                                                      Consumes $CODER_TLS_ENABLE
       --tls-key-file strings                         Paths to the private keys for each of the

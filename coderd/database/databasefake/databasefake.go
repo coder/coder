@@ -121,7 +121,7 @@ func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
-func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
+func (q *fakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
@@ -538,7 +538,7 @@ func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
+func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -579,7 +579,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 		// If no users after the time, then we return an empty list.
 		if !found {
-			return nil, sql.ErrNoRows
+			return []database.GetUsersRow{}, nil
 		}
 	}
 
@@ -617,9 +617,11 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByRole
 	}
 
+	beforePageCount := len(users)
+
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
-			return nil, sql.ErrNoRows
+			return []database.GetUsersRow{}, nil
 		}
 		users = users[params.OffsetOpt:]
 	}
@@ -631,7 +633,30 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = users[:params.LimitOpt]
 	}
 
-	return users, nil
+	return convertUsers(users, int64(beforePageCount)), nil
+}
+
+func convertUsers(users []database.User, count int64) []database.GetUsersRow {
+	rows := make([]database.GetUsersRow, len(users))
+	for i, u := range users {
+		rows[i] = database.GetUsersRow{
+			ID:             u.ID,
+			Email:          u.Email,
+			Username:       u.Username,
+			HashedPassword: u.HashedPassword,
+			CreatedAt:      u.CreatedAt,
+			UpdatedAt:      u.UpdatedAt,
+			Status:         u.Status,
+			RBACRoles:      u.RBACRoles,
+			LoginType:      u.LoginType,
+			AvatarURL:      u.AvatarURL,
+			Deleted:        u.Deleted,
+			LastSeenAt:     u.LastSeenAt,
+			Count:          count,
+		}
+	}
+
+	return rows
 }
 
 func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {
@@ -1306,7 +1331,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
-		tpl.DefaultTtl = arg.DefaultTtl
+		tpl.DefaultTTL = arg.DefaultTTL
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
@@ -1436,6 +1461,22 @@ func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, a
 
 	for _, templateVersion := range q.templateVersions {
 		if templateVersion.TemplateID != arg.TemplateID {
+			continue
+		}
+		if !strings.EqualFold(templateVersion.Name, arg.Name) {
+			continue
+		}
+		return templateVersion, nil
+	}
+	return database.TemplateVersion{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplateVersionByOrganizationAndName(_ context.Context, arg database.GetTemplateVersionByOrganizationAndNameParams) (database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.OrganizationID != arg.OrganizationID {
 			continue
 		}
 		if !strings.EqualFold(templateVersion.Name, arg.Name) {
@@ -2087,10 +2128,12 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		Provisioner:     arg.Provisioner,
 		ActiveVersionID: arg.ActiveVersionID,
 		Description:     arg.Description,
-		DefaultTtl:      arg.DefaultTtl,
+		DefaultTTL:      arg.DefaultTTL,
 		CreatedBy:       arg.CreatedBy,
 		UserACL:         arg.UserACL,
 		GroupACL:        arg.GroupACL,
+		DisplayName:     arg.DisplayName,
+		Icon:            arg.Icon,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil
@@ -2244,6 +2287,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Name:       arg.Name,
 		Hide:       arg.Hide,
 		Icon:       arg.Icon,
+		DailyCost:  arg.DailyCost,
 	}
 	q.provisionerJobResources = append(q.provisionerJobResources, resource)
 	return resource, nil
@@ -2755,6 +2799,20 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
+func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID != arg.ID {
+			continue
+		}
+		workspaceBuild.DailyCost = arg.DailyCost
+		q.workspaceBuilds[index] = workspaceBuild
+		return workspaceBuild, nil
+	}
+	return database.WorkspaceBuild{}, sql.ErrNoRows
+}
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	q.mutex.Lock()
@@ -2856,6 +2914,7 @@ func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 		if group.ID == arg.ID {
 			group.Name = arg.Name
 			group.AvatarURL = arg.AvatarURL
+			group.QuotaAllowance = arg.QuotaAllowance
 			q.groups[i] = group
 			return group, nil
 		}
@@ -3228,6 +3287,7 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		Name:           arg.Name,
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
+		QuotaAllowance: arg.QuotaAllowance,
 	}
 
 	q.groups = append(q.groups, group)
@@ -3427,4 +3487,47 @@ func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 		q.gitAuthLinks[index] = gitAuthLink
 	}
 	return nil
+}
+
+func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	var sum int64
+	for _, member := range q.groupMembers {
+		if member.UserID != userID {
+			continue
+		}
+		for _, group := range q.groups {
+			if group.ID == member.GroupID {
+				sum += int64(group.QuotaAllowance)
+			}
+		}
+	}
+	return sum, nil
+}
+
+func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	var sum int64
+	for _, workspace := range q.workspaces {
+		if workspace.OwnerID != userID {
+			continue
+		}
+		if workspace.Deleted {
+			continue
+		}
+
+		var lastBuild database.WorkspaceBuild
+		for _, build := range q.workspaceBuilds {
+			if build.WorkspaceID != workspace.ID {
+				continue
+			}
+			if build.CreatedAt.After(lastBuild.CreatedAt) {
+				lastBuild = build
+			}
+		}
+		sum += int64(lastBuild.DailyCost)
+	}
+	return sum, nil
 }
