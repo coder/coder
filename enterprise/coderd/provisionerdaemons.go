@@ -29,6 +29,21 @@ import (
 	"github.com/coder/coder/provisionerd/proto"
 )
 
+func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		api.entitlementsMu.RLock()
+		epd := api.entitlements.Features[codersdk.FeatureExternalProvisionerDaemons].Enabled
+		api.entitlementsMu.RUnlock()
+
+		if !epd {
+			httpapi.Write(r.Context(), rw, http.Status)
+			return
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}
+
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -64,6 +79,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
+
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {
 		for _, tag := range r.URL.Query()["tag"] {

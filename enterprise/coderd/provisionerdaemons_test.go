@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -14,8 +13,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionerd"
-	provisionerdproto "github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -52,14 +49,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-			return client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
-				codersdk.ProvisionerTypeEcho,
-			}, map[string]string{
-				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
-			})
-		}, nil)
-		defer srv.Close()
+		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
+			provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+		})
+		defer closer.Close()
 
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
@@ -100,7 +93,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
 
-		_, err = client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "example",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			FileID:        file.ID,
@@ -110,9 +103,16 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		// coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		time.Sleep(time.Second)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_ = closer.Close()
+		closer = coderdtest.NewExternalProvisionerDaemon(t, another, user.OrganizationID, map[string]string{
+			provisionerdserver.TagScope: provisionerdserver.ScopeUser,
+		})
+		defer closer.Close()
+		workspace := coderdtest.CreateWorkspace(t, another, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	})
 }
 

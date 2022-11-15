@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
+	provisionerdproto "github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
@@ -321,6 +322,41 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 	}()
 
 	closer := provisionerd.New(coderAPI.CreateInMemoryProvisionerDaemon, &provisionerd.Options{
+		Filesystem:          fs,
+		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		PollInterval:        50 * time.Millisecond,
+		UpdateInterval:      250 * time.Millisecond,
+		ForceCancelInterval: time.Second,
+		Provisioners: provisionerd.Provisioners{
+			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
+		},
+		WorkDirectory: t.TempDir(),
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+	return closer
+}
+
+func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+	echoClient, echoServer := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		_ = echoClient.Close()
+		_ = echoServer.Close()
+		cancelFunc()
+	})
+	fs := afero.NewMemMapFs()
+	go func() {
+		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
+			Listener: echoServer,
+		})
+		assert.NoError(t, err)
+	}()
+
+	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		return client.ServeProvisionerDaemon(ctx, org, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, tags)
+	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,
