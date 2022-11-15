@@ -71,18 +71,9 @@ export interface AuditLog {
 }
 
 // From codersdk/audit.go
-export interface AuditLogCountRequest {
-  readonly q?: string
-}
-
-// From codersdk/audit.go
-export interface AuditLogCountResponse {
-  readonly count: number
-}
-
-// From codersdk/audit.go
 export interface AuditLogResponse {
   readonly audit_logs: AuditLog[]
+  readonly q: number
 }
 
 // From codersdk/audit.go
