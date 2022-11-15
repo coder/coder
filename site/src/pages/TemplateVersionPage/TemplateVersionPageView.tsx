@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { MarkdownIcon } from "components/Icons/MarkdownIcon"
 import { TerraformIcon } from "components/Icons/TerraformIcon"
 import { Loader } from "components/Loader/Loader"
@@ -38,19 +39,18 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   const { files, error, version } = context
 
   return (
-    <>
-      <Margins>
-        <PageHeader>
-          <PageHeaderCaption>Versions</PageHeaderCaption>
-          <PageHeaderTitle>{versionName}</PageHeaderTitle>
-        </PageHeader>
-      </Margins>
+    <Margins>
+      <PageHeader>
+        <PageHeaderCaption>Versions</PageHeaderCaption>
+        <PageHeaderTitle>{versionName}</PageHeaderTitle>
+      </PageHeader>
 
       {!files && !error && <Loader />}
 
-      {version && files && (
-        <Stack spacing={4}>
-          <Margins>
+      <Stack spacing={4}>
+        {Boolean(error) && <AlertBanner severity="error" error={error} />}
+        {version && files && (
+          <>
             <Stats>
               <StatsItem
                 label="Template"
@@ -67,9 +67,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
                 value={createDayString(version.created_at)}
               />
             </Stats>
-          </Margins>
 
-          <Margins>
             <div className={styles.files}>
               <div className={styles.tabs}>
                 {Object.keys(files).map((filename, index) => {
@@ -109,10 +107,10 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
                 {Object.values(files)[Number(tab.value)]}
               </SyntaxHighlighter>
             </div>
-          </Margins>
-        </Stack>
-      )}
-    </>
+          </>
+        )}
+      </Stack>
+    </Margins>
   )
 }
 

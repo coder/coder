@@ -12,7 +12,7 @@ export interface TemplateVersionMachineContext {
   versionName: string
   version?: TemplateVersion
   files?: TemplateVersionFiles
-  error?: unknown
+  error?: Error | unknown
 }
 
 export const templateVersionMachine = createMachine(

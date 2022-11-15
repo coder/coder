@@ -39,6 +39,10 @@ const useStyles = makeStyles((theme) => ({
       color: colors.turquoise[7],
     },
 
+    "& .url": {
+      color: colors.blue[6],
+    },
+
     "& .comment": {
       color: theme.palette.text.disabled,
     },
