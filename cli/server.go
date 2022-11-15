@@ -425,6 +425,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.Database = databasefake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
+				logger.Debug(ctx, "connecting to postgresql")
 				sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
@@ -448,6 +449,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if semver.Compare("v"+versionStr, "v13") < 0 {
 					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
 				}
+				logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
 
 				err = sqlDB.Ping()
 				if err != nil {
