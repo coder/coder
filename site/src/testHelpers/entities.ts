@@ -434,6 +434,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_id: MockTemplate.id,
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
+  template_display_name: MockTemplate.display_name,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
