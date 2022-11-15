@@ -63,6 +63,12 @@ export const handlers = [
       )
     },
   ),
+  rest.get(
+    "api/v2/organizations/:organizationId/templateversions/:templateVersionName",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
+    },
+  ),
   rest.delete("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),

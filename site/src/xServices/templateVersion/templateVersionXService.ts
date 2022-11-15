@@ -1,17 +1,11 @@
-import { getFile, getTemplateVersionByName } from "api/api"
+import { getTemplateVersionByName } from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
+import {
+  filterTemplateFilesByExtension,
+  getTemplateVersionFiles,
+  TemplateVersionFiles,
+} from "util/templateVersion"
 import { assign, createMachine } from "xstate"
-import untar from "js-untar"
-
-/**
- * Content by filename
- */
-export type TemplateVersionFiles = Record<string, string>
-
-/**
- * File extensions to be displayed
- */
-const allowedExtensions = ["tf", "md"]
 
 export const templateVersionMachine = createMachine(
   {
@@ -90,17 +84,10 @@ export const templateVersionMachine = createMachine(
         if (!version) {
           throw new Error("Version is not defined")
         }
-        const files: TemplateVersionFiles = {}
-        const tarFile = await getFile(version.job.file_id)
-        await untar(tarFile).then(undefined, undefined, async (file) => {
-          const paths = file.name.split("/")
-          const filename = paths[paths.length - 1]
-          const [_, extension] = filename.split(".")
-          if (allowedExtensions.includes(extension)) {
-            files[filename] = file.readAsString()
-          }
-        })
-        return files
+        return filterTemplateFilesByExtension(
+          await getTemplateVersionFiles(version),
+          ["tf", "md"],
+        )
       },
     },
   },
