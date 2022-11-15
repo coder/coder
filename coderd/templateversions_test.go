@@ -928,3 +928,36 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		})
 	}
 }
+
+func TestTemplateVersionByOrganizationAndName(t *testing.T) {
+	t.Parallel()
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, "nothing")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("Found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, version.Name)
+		require.NoError(t, err)
+	})
+}
