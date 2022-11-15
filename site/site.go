@@ -284,7 +284,7 @@ func cspHeaders(next http.Handler) http.Handler {
 			// Report all violations back to the server to log
 			CSPDirectiveReportURI: {"/api/v2/csp/reports"},
 			CSPFrameAncestors:     {"'none'"},
-			// worker for loading the .tar files
+			// worker for loading the .tar files on FE using js-untar
 			CSPDirectiveWorkerSrc: {"'self' blob:"},
 
 			// Only scripts can manipulate the dom. This prevents someone from
