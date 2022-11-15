@@ -107,7 +107,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeOrganization {
 		if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
-			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
+			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
 				Message: "You aren't allowed to create provisioner daemons for the organization.",
 			})
 			return
@@ -129,6 +129,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+
+	fmt.Printf("TAGS %+v\n", daemon.Tags)
 
 	rawTags, err := json.Marshal(daemon.Tags)
 	if err != nil {
