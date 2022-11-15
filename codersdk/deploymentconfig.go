@@ -125,6 +125,7 @@ type GitAuthConfig struct {
 	AuthURL      string   `json:"auth_url"`
 	TokenURL     string   `json:"token_url"`
 	Regex        string   `json:"regex"`
+	NoRefresh    bool     `json:"no_refresh"`
 	Scopes       []string `json:"scopes"`
 }
 

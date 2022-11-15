@@ -22,6 +22,12 @@ type Config struct {
 	Regex *regexp.Regexp
 	// Type is the type of provider.
 	Type codersdk.GitProvider
+	// NoRefresh stops Coder from using the refresh token
+	// to renew the access token.
+	//
+	// Some organizations have security policies that require
+	// re-authentication for every token.
+	NoRefresh bool
 }
 
 // ConvertConfig converts the YAML configuration entry to the
@@ -107,6 +113,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			ID:           entry.ID,
 			Regex:        regex,
 			Type:         typ,
+			NoRefresh:    entry.NoRefresh,
 		})
 	}
 	return configs, nil
