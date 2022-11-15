@@ -30,6 +30,9 @@ const useStyles = makeStyles((theme) => ({
     background: theme.palette.background.paperLight,
     borderRadius: theme.shape.borderRadius,
     padding: theme.spacing(2, 3),
+    // Line breaks are broken when used with line numbers on react-syntax-highlighter
+    // https://github.com/react-syntax-highlighter/react-syntax-highlighter/pull/483
+    overflowX: "auto",
 
     "& code": {
       color: theme.palette.text.secondary,
