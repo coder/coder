@@ -268,7 +268,7 @@ func readBodyAsError(res *http.Response) error {
 		return &Error{
 			statusCode: res.StatusCode,
 			Response: Response{
-				Message: "unexpected non-JSON response",
+				Message: fmt.Sprintf("unexpected non-JSON response %q", contentType),
 				Detail:  string(resp),
 			},
 			Helper: helper,
