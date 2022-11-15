@@ -375,6 +375,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					cfg.OAuth2.Github.ClientID.Value,
 					cfg.OAuth2.Github.ClientSecret.Value,
 					cfg.OAuth2.Github.AllowSignups.Value,
+					cfg.OAuth2.Github.AllowEveryone.Value,
 					cfg.OAuth2.Github.AllowedOrgs.Value,
 					cfg.OAuth2.Github.AllowedTeams.Value,
 					cfg.OAuth2.Github.EnterpriseBaseURL.Value,
@@ -390,6 +391,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				if cfg.OIDC.IssuerURL.Value == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
+				}
+
+				ctx, err := handleOauth2ClientCertificates(ctx, cfg)
+				if err != nil {
+					return xerrors.Errorf("configure oidc client certificates: %w", err)
 				}
 
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
@@ -420,6 +426,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.Database = databasefake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
+				logger.Debug(ctx, "connecting to postgresql")
 				sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
@@ -443,6 +450,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if semver.Compare("v"+versionStr, "v13") < 0 {
 					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
 				}
+				logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
 
 				err = sqlDB.Ping()
 				if err != nil {
@@ -504,18 +512,28 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("parse telemetry url: %w", err)
 				}
 
+				gitAuth := make([]telemetry.GitAuth, 0)
+				for _, cfg := range gitAuthConfigs {
+					gitAuth = append(gitAuth, telemetry.GitAuth{
+						Type: string(cfg.Type),
+					})
+				}
+
 				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres: builtinPostgres,
-					DeploymentID:    deploymentID,
-					Database:        options.Database,
-					Logger:          logger.Named("telemetry"),
-					URL:             telemetryURL,
-					GitHubOAuth:     cfg.OAuth2.Github.ClientID.Value != "",
-					OIDCAuth:        cfg.OIDC.ClientID.Value != "",
-					OIDCIssuerURL:   cfg.OIDC.IssuerURL.Value,
-					Prometheus:      cfg.Prometheus.Enable.Value,
-					STUN:            len(cfg.DERP.Server.STUNAddresses.Value) != 0,
-					Tunnel:          tunnel != nil,
+					BuiltinPostgres:    builtinPostgres,
+					DeploymentID:       deploymentID,
+					Database:           options.Database,
+					Logger:             logger.Named("telemetry"),
+					URL:                telemetryURL,
+					Wildcard:           cfg.WildcardAccessURL.Value != "",
+					DERPServerRelayURL: cfg.DERP.Server.RelayURL.Value,
+					GitAuth:            gitAuth,
+					GitHubOAuth:        cfg.OAuth2.Github.ClientID.Value != "",
+					OIDCAuth:           cfg.OIDC.ClientID.Value != "",
+					OIDCIssuerURL:      cfg.OIDC.IssuerURL.Value,
+					Prometheus:         cfg.Prometheus.Enable.Value,
+					STUN:               len(cfg.DERP.Server.STUNAddresses.Value) != 0,
+					Tunnel:             tunnel != nil,
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)
@@ -568,6 +586,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 						InsecureSkipVerify: true,
 					},
 				}
+				defer client.HTTPClient.CloseIdleConnections()
 			}
 
 			// Since errCh only has one buffered slot, all routines
@@ -1044,10 +1063,20 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	return tlsConfig, nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
+//nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups, allowEveryone bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+	}
+	if allowEveryone && len(allowOrgs) > 0 {
+		return nil, xerrors.New("allow everyone and allowed orgs cannot be used together")
+	}
+	if allowEveryone && len(rawTeams) > 0 {
+		return nil, xerrors.New("allow everyone and allowed teams cannot be used together")
+	}
+	if !allowEveryone && len(allowOrgs) == 0 {
+		return nil, xerrors.New("allowed orgs is empty: must specify at least one org or allow everyone")
 	}
 	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(rawTeams))
 	for _, rawTeam := range rawTeams {
@@ -1100,6 +1129,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			},
 		},
 		AllowSignups:       allowSignups,
+		AllowEveryone:      allowEveryone,
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
@@ -1247,4 +1277,22 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
 	}
 	return connectionURL, ep.Stop, nil
+}
+
+func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.DeploymentConfig) (context.Context, error) {
+	if cfg.TLS.ClientCertFile.Value != "" && cfg.TLS.ClientKeyFile.Value != "" {
+		certificates, err := loadCertificates([]string{cfg.TLS.ClientCertFile.Value}, []string{cfg.TLS.ClientKeyFile.Value})
+		if err != nil {
+			return nil, err
+		}
+
+		return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{ //nolint:gosec
+					Certificates: certificates,
+				},
+			},
+		}), nil
+	}
+	return ctx, nil
 }

@@ -20,12 +20,12 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
+	"github.com/coder/coder/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/tailnet"
 )
 
@@ -113,7 +113,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		})
 
 		r.Route("/workspace-quota", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+			)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
@@ -183,9 +185,8 @@ type Options struct {
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly        bool
-	SCIMAPIKey         []byte
-	UserWorkspaceQuota int
+	BrowserOnly bool
+	SCIMAPIKey  []byte
 
 	// Used for high availability.
 	DERPServerRelayAddress string
@@ -224,7 +225,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		codersdk.FeatureAuditLog:         api.AuditLogging,
 		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
 		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
 		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
 		codersdk.FeatureMultipleGitAuth:  len(api.GitAuthConfigs) > 1,
 		codersdk.FeatureTemplateRBAC:     api.RBAC,
@@ -262,12 +262,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
-		enforcer := workspacequota.NewNop()
+	if changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); changed {
 		if enabled {
-			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+			committer := committer{Database: api.Database}
+			ptr := proto.QuotaCommitter(&committer)
+			api.AGPL.QuotaCommitter.Store(&ptr)
+		} else {
+			api.AGPL.QuotaCommitter.Store(nil)
 		}
-		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {

@@ -425,6 +425,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
+		defer client.HTTPClient.CloseIdleConnections()
 
 		// Use the first certificate and hostname.
 		client.URL.Host = "alpaca.com:443"
@@ -607,6 +608,7 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--address", ":0",
 			"--access-url", "http://example.com",
+			"--oauth2-github-allow-everyone",
 			"--oauth2-github-client-id", "fake",
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,

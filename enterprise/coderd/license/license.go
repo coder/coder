@@ -99,12 +99,6 @@ func Entitlements(
 				Enabled:     enablements[codersdk.FeatureSCIM],
 			}
 		}
-		if claims.Features.WorkspaceQuota > 0 {
-			entitlements.Features[codersdk.FeatureWorkspaceQuota] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureWorkspaceQuota],
-			}
-		}
 		if claims.Features.HighAvailability > 0 {
 			entitlements.Features[codersdk.FeatureHighAvailability] = codersdk.Feature{
 				Entitlement: entitlement,
@@ -248,7 +242,6 @@ type Features struct {
 	AuditLog         int64 `json:"audit_log"`
 	BrowserOnly      int64 `json:"browser_only"`
 	SCIM             int64 `json:"scim"`
-	WorkspaceQuota   int64 `json:"workspace_quota"`
 	TemplateRBAC     int64 `json:"template_rbac"`
 	HighAvailability int64 `json:"high_availability"`
 	MultipleGitAuth  int64 `json:"multiple_git_auth"`

@@ -103,7 +103,7 @@ export type UsersEvent =
   | { type: "UPDATE_PAGE"; page: string }
 
 export const usersMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdAMYD2yAdjkTDjgJaVQDCF1AxBGZcUwG5kA1sToBVNOjZUcAbQAMAXUSgADmVgNGPFSAAeiAIwBWQ-KIBmABwAWCwHYrAJhcA2YwE4ANCACeiZ0Miew8LBxsrCw8Pe1MAXzifVAxsfEJSdho6RmZpTgx0MnQiVQAbAgAzIoBbWjAcCQw8uSVddU1tSl0DBEMneSDXC0MrQ2G3KysffwRo4yJjYxtlh1c1m2NXBKTJVIJichkOMQAFABEAQQAVAFEAfQAxAEkAGVuAJQVlJBB2rQYdD8en1DB4iE5NvYbCMokNvH5EK4NkRbI5XIYbE5DGNDPZtiBkphcPsiITYERYPh0DkoCc8FAmAQAZQOF82hp-oDQD0ALRQ8zyEIWYz2dwhJw2VzTRGOIiGdyjJwWSXyZV4xIE3bE9Jkur0JhQRqYLg8PiUQQiPVG2Bsn5-TrdRA84wuYLyVxWexRDy2Vz2ezShCRGwLRZ+0VOWzGT34sna4i67IG60cApFErlHBVdC1cS7W1qDkOoFOxxOSxK7HySKReSmQNWd0LEJ9L1OWLGeQeWNatIJ3ZEBgQUpgDhYMRYE43AByZzuE5un1adqLzMdCB5SNcKOhNdcddiHsDGJCKOjHjGStsZicPZS8dJA6HI44ZxuLxut3nWEXBd+q65fQnSReZrEcKwfSsJZNgsY9hkGNUIklRZBQsO8iT7R8UkHYdRwuFgrieAA1a57gXJdvkLDo1xLDcQKId1llcGIoUiJx4RmbEbDBP1QXFGIIVFdC9h1J9cI4d4bh-K5v0XO4TguLAsAAdQAeXeM4-3tGjuWAmx7Dlex2MlCEPCGGxjyGbcbEFDxBRskx7FxYSH11Z9R1OS4v3Iu53lUj8sC0gCulonkfW3eUsRiDEfWMaxjxGAy4rDD1wwxLYNTjTC3PEzzSPki4AHEbiC6jAN5DxJTlDEIOhD15TsQMPE7Bi1n9Vs7MbdUdnvbKB3ISgKgYHMjSwVBVDAShNB4DgWFU6dnneABZWT3jucdJxnLAnnm0rORC3SNzMCxgghCw1ja7ioUMY9uKsBiJU2aElVFDEXL67CBqGkbJDG2AJqm5lZouacWHfVb1onKdp223blyo-b1x5Gz7rsMZ3XkeQbLA49NnmDwJXdF1qz9DKeowkldS+4bqiNM4wBHTpZvmxaVp8t8P1uPbi0OnkuIWJEoQ2DY4vsQU4OFOUlXkFw4osLtIneyn+p4b7ackenGaBlgQbBl4IY5z8Svh-8yoOoCNwcAyYjssJG0lFiLIRXobPLaIImDOFFiV0TPtVmmjQuEhGH4JkZrmhanmWiH8MIkjCLhyjTcR0KQSIAmhlFRsBkjetnexIYiFcdsBn9OEZbJzVeuVv3BoDyQg5DsOWR10HwZ82PiOuHbp25nSLZ5ax7sbSYsRcUZroDfOlW3CVIzM1UK5dH3+2w2BxsmiBk0kE1eEHc1hGIdf-s3o0+-KxAy4WAnVUjEY62hW7C-YjHOyWUYYhXrDMApDfKC35gRpUzoEKMUMolQai-xPv-M+JttIXwQKYAyZYGqhCGC4G6+dzrzFMJEHE1ZpaVyyjXH+EAGb1G3hgXeZoLTEDIYzMAsCk7wPNj0RwJ1oyqkSo4aITg4LYiLohX0KFYhf11PQihgCd5pjAZmbMtQJGECYeyM2644puxGJMJYJkHAcSMFiEM1ZMaRCHpiSUYiBx4GDgwUONIgHcD3gIQ+RArFNyUZIc+rDL6ynOpVAYSIIJlmPF2csY8RieGatCMYFjsKuJsUyKRVCZEZggTmFx1jbGMI8XA4KailQLHlJ2L0LYInBPlBWVU3ExjCkqTEn+1MfoYDpLAWAAB3IoEB3hwHqMzSO0cfIKSUmpDSvkpKfk8UjSqRB9K1X8ZKdwMRLJehRFGOsfirDMTqeSBp6sml4Bae09AnTuk4GBm3fWAzFIqXUnOSS0kJmhUxAZQIWjJhmBdHo3osQTomNMJjGIEE1hbKIOgE5djJDNLaR06h+9aEgpOUaSFhyIAPMOi6E6VYx7u2LljY8IQQwXiMshYu78bDAtBWgfUiT0BIuhck8BWZIEUvqIi-ZUKjmootm-HcUYqx1kjBsSyfQUSxDFtozO1hgXIFUBABJhpJDvDICOWAMKnGWmlbK9xGBFXKs5byPo8si4j0KcsMVx4JSDGvPpSCfQzJSplXKo0Oq4DANASkxlaSNX7CdUquAeqnRjFCNMuyr02JO04r44IJ5+jy09C6dUGpKBkDIfAH4xD0iHGoDhEcKiU6HRMNESwywuwDEqh6eKztmpBFxFBFY8tzpDC-pmrI9QaTNFzTzC22J8lz2hO-Wy2JAw8LlOiT0VazK+ibZkDt-dgSCnmL2kwEQB2YJmGGHcaJkqRj9GhTKvYSHkkpHgakBo6QMkoM3GdCC+aYyCHWasFgXD9BcCEQMSIQzywhMXZw+lVREP3b7H+SZqWpoRp23kxdQkQQhJ6dsEYp4zDWPdAmEFGwE2hLw4F7kr1eLohecEazoxREFGLWC+csYhickhFD3p3TAp2aNP+01zYsKRudcs2dGINrhGEXGqoi1OU9PLfcOd6P+0aegTWFDAKsdCuxhifEnJ+icCBVdRgwjzANTLM68tYpibrhJxu8TO2yd5uda2HpYp+gcjLcNRh5QnWLmLDYlUoSxDJXu6ugHD1-wAfKjAOH1wjDBOh8z0Z0r+mMLdJyCwNhOS7EMdR3ZPMU280QRRlD0CBdosF8E98ohl0bH0KY08YhF2lpU5YUFJjAribYzL2X82nigg+5dthmrFwSpLNYMtlTth6xefTatWUHI6V0yljWB7YKLi6Eu8ozIuhK5xHdKzljcRFA4JUxhyVgsy7So5k22EhnYt+3ORlFgYjxcXQynCRZmGOvazVmXnWgeTuBgNjE5Sobiu6R6dnejCjvS2GW0QLxvRSyJVemBDsBuWEEbigpR2Pv+4sUCMtNj8o2VjZL5NIcw6OhEMECPQ3I8DPMyw6PPQLKhPubbCQ4hAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAnogCM3AJzciAZm4AmAKwAOAOwA2TQt0AWfQBoQAD0QBaWbIWyimzepPqtCpd1n6Avv6WqBjY+IREMDiUNACqaJjsEGzE1ABuLADWxFHxoTz8SCDCouJUkjIIsuoq+kRmmrreJtqertqWNgj2stoKRLq13upOspq+AUEgIZi4BDlg0dRQeYkY6CzoRIIANgQAZpsAtpGLq7AFkiVirOVFXT19A0MKIw7jfpaVDtra9YZNBQtNo6QLBBJheZECgQHZgdhYWJYWgAUQAcgARAD6SJRACVLkVrmVJA8HMYBkCFCptH4Rvp9CYvnI1P1qbJTL1DNx9NoVGDphC5hEYXD2BiUQAZFEAFRROKw+MJQhENwk9zs5N0lJM1Np+npjOZVRpKlUxl5HhMul+3G0ApmkJFsPhAEEAMIygCSADVXXKFUq+FdVSSNd0tTq9XSFAymdI5CZNHVtPpauoGWp9NT+VNHcLUi72HiUYqZYG8VjaK6sFgAOoAeTxGOVxVDt1Jmsc2qauppMbjxrGalUI2TSlkKnGoLzQvChbFsVoGP98txlbxDelWFbxI74Z6FN70YNsaNCaq+kcRDTThUfjPDnUDrnUNF8KXK4D1YA4ijd+26qgGS3ZRv2p6DheD5mvI4ymNwvY1LoL6hAW0JFp+q5YgAYl6kpygSwZEoBdzAV2R5UuBhrxt8Bh1I08h+GYnjpihszzkQADGbD7BQ6BHKsWCoIIYBUKIbDsO6DZorheIALIVliiLIuiWBetJAGlPuZERuo3AmEQfiaCoCipoMnj6UO2iuEQtqNE4SYqCYHJsU6xDcVQvH8YJwmieJHDuq6aLulKinKaiaJqRpREqlpQHWJqekGUZJlmSoFk0XISjqDeuieK81nNJOrloR5XkCQkGJgHCZSSdJskKeuWIStKcqaWqpEJbpHJEIoV5+LIznAkOVL-CY3A8o0SbOSVHFlXxFUYFVNW3JJQUhZKiktbK-4xW2cWdWS6g9X1DhXkNrQjbGRBaI0enqH0g3cJos1QvN3kJK6nGUGkzASVJMlevJiket6fretFhSxR1nbdcoagtBoxgTQomiZVUo1mONk2mGjsivRE72LegX0-X9AXraFTWg76-rqWi7Vhjp9jHfD+naEjugo2jV11LdeUaI940vbOqEcbAvlUBAyyrEkKTQlQGTZCQksQKsjPaVBPguKmg3UgyD0KJ0Xb6MovhDPZNRXgTxAS7AIlSzLCTsOsmzbHsOCHPxKv26JasJBr8UgabvWTtmlu1LIVluDr536wafQ20QEDVYsTsYHLVCpIrWTECnNVgOre17kHXa6JoN2xn4jKoy0Fha6YvVuIoHK6oxIvgmLUL52ncTO67Wy7AcxzJ6nhBF1D+0wweDjl5XV5xrXqbGkl2qaL03BOZOjiDUneDfRQv0xCszvJFnCtK8Q+9k+PAfFyRsM9IyN6DQ4NJ8r0k4jY3z16U4phOF8B3QUXcIjX0PswPuGcB7u2Ht7cBR9C530niXQ6JsDLnTfr8e8tIVAr30mvDeW97wOSTkTVY9BYCwAAO6bAgHiOAiw6qA2Bk1astZGzNixCWMsgc0ERl6P0deKNrSfw8OoFeYdbLqHLrGWkHwFBkJ4gtCheAqG0PQPQxhOA1rBSpoqSs7D6xNmxDw2UfDH4-CEfIRQojaTiMkXyF+7Jf5V0UaLdiUJ0DaOPqo9RdDM7Z0vkQbxaAcB+JoXQixRRKhaH0k3QYNonCowcPGECvQbz6AMA4bsaYTAmCTqExYviEiUMiZol26ANiDw9l7E4RTwmlLUeUiA0TmY5L+AybJWo8no3cMmBJKgkmOHXrvDxbkiDIEEBASBJ8MB4hYHCWAgSL650mdM+YqwFlLLaV1Ho94BhNF+MZLJrg0wr0aGvGo6VJwaHSgU8ZaEpkzJKfMxZcBKnVNgZ7EezzNkJG2XAXZIEDm6COdZWo5dkx4IvBmcYRBTKvDTLydetQHmd08YQdgmEAy4XwkGFBD8Yl2F0M4IYTkHqb1RuMDoXUzBmyaPpPJpyVCssCFMKgLAU7wCKPmcWZBj70EYFQcmIYDqWPyc4XUCErx8ncEORQbMtB6EMMYMwScoivMwGK6e7TJX1CUNkuV6Nqi1H+PZIErRbr2keRxd8OqmZ7MGs5A1Mrej3KHKlXq+UHrv2nDajFEzyEJCEr7MSmtUESpddKo1HqoJo2Srrcax127AL5W9ZRH0lpjwjUSvV0bDWyrjd8A2CLdbPXeBzBCSjPIqM+gfI+ubxUz31TGot8qoI2mcDaK8Mj3DyHyQGkBmLbaq3TugB1msyStsLe6jt3xtY6DjrUBO7jA1oR7lqydpcIwzrdca-BBpDImBuXlIZNItB7wbbM1Y27+H2D3bG+diBPA1AGBNB6wjtDWgNDW8qESNFaLCXeqNUrZ0HthTSCuWhOTjUGnlX9tqvE+PHWUwDIGW0Fv3cWl94wDLPUSY9FJYz10cT+VqwFPLoaOunVhp9fSGQV3OnBVojRzo2ww3qp4ba53o3sCHLeRhUWm0GKmdl-ggA */
   createMachine(
     {
       tsTypes: {} as import("./usersXService.typegen").Typegen0,
@@ -112,7 +112,7 @@ export const usersMachine =
         events: {} as UsersEvent,
         services: {} as {
           getUsers: {
-            data: TypesGen.User[]
+            data: TypesGen.GetUsersResponse
           }
           createUser: {
             data: TypesGen.User
@@ -132,261 +132,225 @@ export const usersMachine =
           updateUserRoles: {
             data: TypesGen.User
           }
-          getUserCount: {
-            data: TypesGen.UserCountResponse
-          }
         },
       },
       predictableActionArguments: true,
       id: "usersState",
-      type: "parallel",
+      on: {
+        UPDATE_FILTER: {
+          actions: ["assignFilter", "sendResetPage"],
+          internal: false,
+        },
+        UPDATE_PAGE: {
+          target: "gettingUsers",
+          actions: "updateURL",
+        },
+      },
+      initial: "startingPagination",
       states: {
-        count: {
-          initial: "gettingCount",
-          states: {
-            idle: {},
-            gettingCount: {
-              entry: "clearGetCountError",
-              invoke: {
-                src: "getUserCount",
-                id: "getUserCount",
-                onDone: [
-                  {
-                    target: "idle",
-                    actions: "assignCount",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: "assignGetCountError",
-                  },
+        startingPagination: {
+          entry: "assignPaginationRef",
+          always: {
+            target: "gettingUsers",
+          },
+        },
+        gettingUsers: {
+          entry: "clearGetUsersError",
+          invoke: {
+            src: "getUsers",
+            id: "getUsers",
+            onDone: [
+              {
+                target: "idle",
+                actions: "assignUsers",
+              },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: [
+                  "clearUsers",
+                  "assignGetUsersError",
+                  "displayGetUsersErrorMessage",
                 ],
               },
-            },
+            ],
           },
+          tags: "loading",
+        },
+        idle: {
+          entry: "clearSelectedUser",
           on: {
-            UPDATE_FILTER: {
-              target: ".gettingCount",
-              actions: ["assignFilter", "sendResetPage"],
+            SUSPEND_USER: {
+              target: "confirmUserSuspension",
+              actions: "assignUserToSuspend",
+            },
+            DELETE_USER: {
+              target: "confirmUserDeletion",
+              actions: "assignUserToDelete",
+            },
+            ACTIVATE_USER: {
+              target: "confirmUserActivation",
+              actions: "assignUserToActivate",
+            },
+            RESET_USER_PASSWORD: {
+              target: "confirmUserPasswordReset",
+              actions: [
+                "assignUserIdToResetPassword",
+                "generateRandomPassword",
+              ],
+            },
+            UPDATE_USER_ROLES: {
+              target: "updatingUserRoles",
+              actions: "assignUserIdToUpdateRoles",
             },
           },
         },
-        users: {
-          initial: "startingPagination",
-          states: {
-            startingPagination: {
-              entry: "assignPaginationRef",
-              always: {
+        confirmUserSuspension: {
+          on: {
+            CONFIRM_USER_SUSPENSION: {
+              target: "suspendingUser",
+            },
+            CANCEL_USER_SUSPENSION: {
+              target: "idle",
+            },
+          },
+        },
+        confirmUserDeletion: {
+          on: {
+            CONFIRM_USER_DELETE: {
+              target: "deletingUser",
+            },
+            CANCEL_USER_DELETE: {
+              target: "idle",
+            },
+          },
+        },
+        confirmUserActivation: {
+          on: {
+            CONFIRM_USER_ACTIVATION: {
+              target: "activatingUser",
+            },
+            CANCEL_USER_ACTIVATION: {
+              target: "idle",
+            },
+          },
+        },
+        suspendingUser: {
+          entry: "clearSuspendUserError",
+          invoke: {
+            src: "suspendUser",
+            id: "suspendUser",
+            onDone: [
+              {
                 target: "gettingUsers",
+                actions: "displaySuspendSuccess",
               },
-            },
-            gettingUsers: {
-              entry: "clearGetUsersError",
-              invoke: {
-                src: "getUsers",
-                id: "getUsers",
-                onDone: [
-                  {
-                    target: "idle",
-                    actions: "assignUsers",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: [
-                      "clearUsers",
-                      "assignGetUsersError",
-                      "displayGetUsersErrorMessage",
-                    ],
-                  },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: [
+                  "assignSuspendUserError",
+                  "displaySuspendedErrorMessage",
                 ],
               },
-              tags: "loading",
-            },
-            idle: {
-              entry: "clearSelectedUser",
-              on: {
-                SUSPEND_USER: {
-                  target: "confirmUserSuspension",
-                  actions: "assignUserToSuspend",
-                },
-                DELETE_USER: {
-                  target: "confirmUserDeletion",
-                  actions: "assignUserToDelete",
-                },
-                ACTIVATE_USER: {
-                  target: "confirmUserActivation",
-                  actions: "assignUserToActivate",
-                },
-                RESET_USER_PASSWORD: {
-                  target: "confirmUserPasswordReset",
-                  actions: [
-                    "assignUserIdToResetPassword",
-                    "generateRandomPassword",
-                  ],
-                },
-                UPDATE_USER_ROLES: {
-                  target: "updatingUserRoles",
-                  actions: "assignUserIdToUpdateRoles",
-                },
-                UPDATE_PAGE: {
-                  target: "gettingUsers",
-                  actions: "updateURL",
-                },
+            ],
+          },
+        },
+        deletingUser: {
+          entry: "clearDeleteUserError",
+          invoke: {
+            src: "deleteUser",
+            id: "deleteUser",
+            onDone: [
+              {
+                target: "gettingUsers",
+                actions: "displayDeleteSuccess",
               },
-            },
-            confirmUserSuspension: {
-              on: {
-                CONFIRM_USER_SUSPENSION: {
-                  target: "suspendingUser",
-                },
-                CANCEL_USER_SUSPENSION: {
-                  target: "idle",
-                },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: ["assignDeleteUserError", "displayDeleteErrorMessage"],
               },
-            },
-            confirmUserDeletion: {
-              on: {
-                CONFIRM_USER_DELETE: {
-                  target: "deletingUser",
-                },
-                CANCEL_USER_DELETE: {
-                  target: "idle",
-                },
+            ],
+          },
+        },
+        activatingUser: {
+          entry: "clearActivateUserError",
+          invoke: {
+            src: "activateUser",
+            id: "activateUser",
+            onDone: [
+              {
+                target: "gettingUsers",
+                actions: "displayActivateSuccess",
               },
-            },
-            confirmUserActivation: {
-              on: {
-                CONFIRM_USER_ACTIVATION: {
-                  target: "activatingUser",
-                },
-                CANCEL_USER_ACTIVATION: {
-                  target: "idle",
-                },
-              },
-            },
-            suspendingUser: {
-              entry: "clearSuspendUserError",
-              invoke: {
-                src: "suspendUser",
-                id: "suspendUser",
-                onDone: [
-                  {
-                    target: "gettingUsers",
-                    actions: "displaySuspendSuccess",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: [
-                      "assignSuspendUserError",
-                      "displaySuspendedErrorMessage",
-                    ],
-                  },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: [
+                  "assignActivateUserError",
+                  "displayActivatedErrorMessage",
                 ],
               },
+            ],
+          },
+        },
+        confirmUserPasswordReset: {
+          on: {
+            CONFIRM_USER_PASSWORD_RESET: {
+              target: "resettingUserPassword",
             },
-            deletingUser: {
-              entry: "clearDeleteUserError",
-              invoke: {
-                src: "deleteUser",
-                id: "deleteUser",
-                onDone: [
-                  {
-                    target: "gettingUsers",
-                    actions: "displayDeleteSuccess",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: [
-                      "assignDeleteUserError",
-                      "displayDeleteErrorMessage",
-                    ],
-                  },
+            CANCEL_USER_PASSWORD_RESET: {
+              target: "idle",
+            },
+          },
+        },
+        resettingUserPassword: {
+          entry: "clearResetUserPasswordError",
+          invoke: {
+            src: "resetUserPassword",
+            id: "resetUserPassword",
+            onDone: [
+              {
+                target: "idle",
+                actions: "displayResetPasswordSuccess",
+              },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: [
+                  "assignResetUserPasswordError",
+                  "displayResetPasswordErrorMessage",
                 ],
               },
-            },
-            activatingUser: {
-              entry: "clearActivateUserError",
-              invoke: {
-                src: "activateUser",
-                id: "activateUser",
-                onDone: [
-                  {
-                    target: "gettingUsers",
-                    actions: "displayActivateSuccess",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: [
-                      "assignActivateUserError",
-                      "displayActivatedErrorMessage",
-                    ],
-                  },
+            ],
+          },
+        },
+        updatingUserRoles: {
+          entry: "clearUpdateUserRolesError",
+          invoke: {
+            src: "updateUserRoles",
+            id: "updateUserRoles",
+            onDone: [
+              {
+                target: "idle",
+                actions: "updateUserRolesInTheList",
+              },
+            ],
+            onError: [
+              {
+                target: "idle",
+                actions: [
+                  "assignUpdateRolesError",
+                  "displayUpdateRolesErrorMessage",
                 ],
               },
-            },
-            confirmUserPasswordReset: {
-              on: {
-                CONFIRM_USER_PASSWORD_RESET: {
-                  target: "resettingUserPassword",
-                },
-                CANCEL_USER_PASSWORD_RESET: {
-                  target: "idle",
-                },
-              },
-            },
-            resettingUserPassword: {
-              entry: "clearResetUserPasswordError",
-              invoke: {
-                src: "resetUserPassword",
-                id: "resetUserPassword",
-                onDone: [
-                  {
-                    target: "idle",
-                    actions: "displayResetPasswordSuccess",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: [
-                      "assignResetUserPasswordError",
-                      "displayResetPasswordErrorMessage",
-                    ],
-                  },
-                ],
-              },
-            },
-            updatingUserRoles: {
-              entry: "clearUpdateUserRolesError",
-              invoke: {
-                src: "updateUserRoles",
-                id: "updateUserRoles",
-                onDone: [
-                  {
-                    target: "idle",
-                    actions: "updateUserRolesInTheList",
-                  },
-                ],
-                onError: [
-                  {
-                    target: "idle",
-                    actions: [
-                      "assignUpdateRolesError",
-                      "displayUpdateRolesErrorMessage",
-                    ],
-                  },
-                ],
-              },
-            },
+            ],
           },
         },
       },
@@ -403,9 +367,6 @@ export const usersMachine =
             offset,
             limit,
           })
-        },
-        getUserCount: (context) => {
-          return API.getUserCount(queryToFilter(context.filter))
         },
         suspendUser: (context) => {
           if (!context.userIdToSuspend) {
@@ -462,16 +423,8 @@ export const usersMachine =
           userIdToUpdateRoles: (_) => undefined,
         }),
         assignUsers: assign({
-          users: (_, event) => event.data,
-        }),
-        assignCount: assign({
+          users: (_, event) => event.data.users,
           count: (_, event) => event.data.count,
-        }),
-        assignGetCountError: assign({
-          getCountError: (_, event) => event.data,
-        }),
-        clearGetCountError: assign({
-          getCountError: (_) => undefined,
         }),
         assignFilter: assign({
           filter: (_, event) => event.query,

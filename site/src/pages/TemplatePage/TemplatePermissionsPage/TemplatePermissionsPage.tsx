@@ -13,7 +13,6 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { templateACLMachine } from "xServices/template/templateACLXService"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
-import { Loader } from "components/Loader/Loader"
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
@@ -26,14 +25,11 @@ export const TemplatePermissionsPage: FC<
     context: { templateId: template?.id },
   })
   const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
-  if (!template || !permissions) {
-    return <Loader />
-  }
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Permissions`)}</title>
+        <title>{pageTitle(`${template?.name} · Permissions`)}</title>
       </Helmet>
       <ChooseOne>
         <Cond condition={!isTemplateRBACEnabled}>
@@ -68,7 +64,7 @@ export const TemplatePermissionsPage: FC<
           <TemplatePermissionsPageView
             organizationId={organizationId}
             templateACL={templateACL}
-            canUpdatePermissions={permissions.canUpdateTemplate}
+            canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}
             onAddUser={(user, role, reset) => {
               send("ADD_USER", { user, role, onDone: reset })
             }}

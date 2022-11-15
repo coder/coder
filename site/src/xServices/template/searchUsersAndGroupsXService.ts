@@ -57,14 +57,17 @@ export const searchUsersAndGroupsMachine = createMachine(
   {
     services: {
       search: async ({ organizationId }, { query }) => {
-        const [users, groups] = await Promise.all([
+        const [userRes, groups] = await Promise.all([
           getUsers(queryToFilter(query)),
           getGroups(organizationId),
         ])
 
         // The Everyone groups is not returned by the API so we have to add it
         // manually
-        return { users, groups: [everyOneGroup(organizationId), ...groups] }
+        return {
+          users: userRes.users,
+          groups: [everyOneGroup(organizationId), ...groups],
+        }
       },
     },
     actions: {

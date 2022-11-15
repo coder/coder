@@ -32,7 +32,9 @@ describe("CreateWorkspacePage", () => {
   })
 
   it("succeeds with default owner", async () => {
-    jest.spyOn(API, "getUsers").mockResolvedValueOnce([MockUser])
+    jest
+      .spyOn(API, "getUsers")
+      .mockResolvedValueOnce({ users: [MockUser], count: 1 })
     jest
       .spyOn(API, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota)

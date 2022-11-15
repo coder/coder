@@ -1,12 +1,10 @@
-import { shallowEqual, useActor, useMachine, useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
+import { useActor, useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
-import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "xServices/StateContext"
 import {
   CreateWorkspaceErrors,
@@ -19,19 +17,12 @@ const CreateWorkspacePage: FC = () => {
   const { template } = useParams()
   const templateName = template ? template : ""
   const navigate = useNavigate()
-  const featureVisibility = useSelector(
-    xServices.entitlementsXService,
-    selectFeatureVisibility,
-    shallowEqual,
-  )
-  const workspaceQuotaEnabled = featureVisibility[FeatureNames.WorkspaceQuota]
   const [authState] = useActor(xServices.authXService)
   const { me } = authState.context
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
-      workspaceQuotaEnabled,
       owner: me ?? null,
     },
     actions: {
@@ -49,8 +40,6 @@ const CreateWorkspacePage: FC = () => {
     getTemplatesError,
     createWorkspaceError,
     permissions,
-    workspaceQuota,
-    getWorkspaceQuotaError,
     owner,
   } = createWorkspaceState.context
 
@@ -70,14 +59,11 @@ const CreateWorkspacePage: FC = () => {
         templates={templates}
         selectedTemplate={selectedTemplate}
         templateSchema={templateSchema}
-        workspaceQuota={workspaceQuota}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
           [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]:
             getTemplateSchemaError,
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
-          [CreateWorkspaceErrors.GET_WORKSPACE_QUOTA_ERROR]:
-            getWorkspaceQuotaError,
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
         owner={owner}

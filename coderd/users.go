@@ -198,7 +198,7 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
 		AfterID:   paginationParams.AfterID,
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
@@ -206,10 +206,6 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		Status:    params.Status,
 		RbacRole:  params.RbacRole,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.User{})
-		return
-	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -217,8 +213,17 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// GetUsers does not return ErrNoRows because it uses a window function to get the count.
+	// So we need to check if the userRows is empty and return an empty array if so.
+	if len(userRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
+			Users: []codersdk.User{},
+			Count: 0,
+		})
+		return
+	}
 
-	users, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, users)
+	users, err := AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, database.ConvertUserRows(userRows))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching users.",
@@ -248,42 +253,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUsers(users, organizationIDsByUserID))
-}
-
-func (api *API) userCount(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	query := r.URL.Query().Get("q")
-	params, errs := userSearchQuery(query)
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid user search query.",
-			Validations: errs,
-		})
-		return
-	}
-
-	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceUser.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	count, err := api.Database.GetAuthorizedUserCount(ctx, database.GetFilteredUserCountParams{
-		Search:   params.Search,
-		Status:   params.Status,
-		RbacRole: params.RbacRole,
-	}, sqlFilter)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserCountResponse{
-		Count: count,
+	render.JSON(rw, r, codersdk.GetUsersResponse{
+		Users: convertUsers(users, organizationIDsByUserID),
+		Count: int(userRows[0].Count),
 	})
 }
 
@@ -700,7 +672,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user's password.",
@@ -1147,7 +1119,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			return xerrors.Errorf("create organization member: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {

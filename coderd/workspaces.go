@@ -310,7 +310,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, template.DefaultTtl)
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, template.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -338,25 +338,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
 			Detail:  err.Error(),
-		})
-		return
-	}
-
-	workspaceCount, err := api.Database.GetWorkspaceCountByUserID(ctx, user.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace count.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// make sure the user has not hit their quota limit
-	e := *api.WorkspaceQuotaEnforcer.Load()
-	canCreate := e.CanCreateWorkspace(int(workspaceCount))
-	if !canCreate {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("User workspace limit of %d is already reached.", e.UserWorkspaceLimit()),
 		})
 		return
 	}
@@ -479,7 +460,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating workspace.",
@@ -698,7 +679,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("fetch workspace template: %w", err)
 		}
 
-		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTtl)
+		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTTL)
 		if err != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
@@ -710,7 +691,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		resp := codersdk.Response{
 			Message: "Error updating workspace time until shutdown.",
@@ -807,7 +788,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		resp.Message = "Deadline updated to " + newDeadline.Format(time.RFC3339) + "."
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		api.Logger.Info(ctx, "extending workspace", slog.Error(err))
 	}

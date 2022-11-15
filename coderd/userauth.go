@@ -38,6 +38,7 @@ type GithubOAuth2Config struct {
 	TeamMembership              func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error)
 
 	AllowSignups       bool
+	AllowEveryone      bool
 	AllowOrganizations []string
 	AllowTeams         []GithubOAuth2Team
 }
@@ -57,32 +58,38 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
-	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(ctx, oauthClient)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching authenticated Github user organizations.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	var selectedMembership *github.Membership
-	for _, membership := range memberships {
-		if membership.GetState() != "active" {
-			continue
+
+	var selectedMemberships []*github.Membership
+	var organizationNames []string
+	if !api.GithubOAuth2Config.AllowEveryone {
+		memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(ctx, oauthClient)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching authenticated Github user organizations.",
+				Detail:  err.Error(),
+			})
+			return
 		}
-		for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
-			if *membership.Organization.Login != allowed {
+
+		for _, membership := range memberships {
+			if membership.GetState() != "active" {
 				continue
 			}
-			selectedMembership = membership
-			break
+			for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
+				if *membership.Organization.Login != allowed {
+					continue
+				}
+				selectedMemberships = append(selectedMemberships, membership)
+				organizationNames = append(organizationNames, membership.Organization.GetLogin())
+				break
+			}
 		}
-	}
-	if selectedMembership == nil {
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "You aren't a member of the authorized Github organizations!",
-		})
-		return
+		if len(selectedMemberships) == 0 {
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+				Message: "You aren't a member of the authorized Github organizations!",
+			})
+			return
+		}
 	}
 
 	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(ctx, oauthClient)
@@ -95,24 +102,29 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The default if no teams are specified is to allow all.
-	if len(api.GithubOAuth2Config.AllowTeams) > 0 {
+	if !api.GithubOAuth2Config.AllowEveryone && len(api.GithubOAuth2Config.AllowTeams) > 0 {
 		var allowedTeam *github.Membership
 		for _, allowTeam := range api.GithubOAuth2Config.AllowTeams {
-			if allowTeam.Organization != *selectedMembership.Organization.Login {
-				// This needs to continue because multiple organizations
-				// could exist in the allow/team listings.
-				continue
+			if allowedTeam != nil {
+				break
 			}
+			for _, selectedMembership := range selectedMemberships {
+				if allowTeam.Organization != *selectedMembership.Organization.Login {
+					// This needs to continue because multiple organizations
+					// could exist in the allow/team listings.
+					continue
+				}
 
-			allowedTeam, err = api.GithubOAuth2Config.TeamMembership(ctx, oauthClient, allowTeam.Organization, allowTeam.Slug, *ghUser.Login)
-			// The calling user may not have permission to the requested team!
-			if err != nil {
-				continue
+				allowedTeam, err = api.GithubOAuth2Config.TeamMembership(ctx, oauthClient, allowTeam.Organization, allowTeam.Slug, *ghUser.Login)
+				// The calling user may not have permission to the requested team!
+				if err != nil {
+					continue
+				}
 			}
 		}
 		if allowedTeam == nil {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: fmt.Sprintf("You aren't a member of an authorized team in the %s Github organization!", *selectedMembership.Organization.Login),
+				Message: fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames),
 			})
 			return
 		}
@@ -520,7 +532,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("in tx: %w", err)
 	}

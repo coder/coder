@@ -78,14 +78,14 @@ func TestFirstUser(t *testing.T) {
 
 		_ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
 
-		allUsers, err := client.Users(ctx, codersdk.UsersRequest{})
+		allUsersRes, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
 
-		require.Len(t, allUsers, 2)
+		require.Len(t, allUsersRes.Users, 2)
 
 		// We sent the "GET Users" request with the first user, but the second user
 		// should be Never since they haven't performed a request.
-		for _, user := range allUsers {
+		for _, user := range allUsersRes.Users {
 			if user.ID == firstUser.ID {
 				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
 			} else {
@@ -1186,7 +1186,7 @@ func TestUsersFilter(t *testing.T) {
 					exp = append(exp, made)
 				}
 			}
-			require.ElementsMatch(t, exp, matched, "expected workspaces returned")
+			require.ElementsMatch(t, exp, matched.Users, "expected workspaces returned")
 		})
 	}
 }
@@ -1208,10 +1208,10 @@ func TestGetUsers(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 		})
 		// No params is all users
-		users, err := client.Users(ctx, codersdk.UsersRequest{})
+		res, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
-		require.Len(t, users, 2)
-		require.Len(t, users[0].OrganizationIDs, 1)
+		require.Len(t, res.Users, 2)
+		require.Len(t, res.Users[0].OrganizationIDs, 1)
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
@@ -1247,64 +1247,66 @@ func TestGetUsers(t *testing.T) {
 		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
-		users, err := client.Users(ctx, codersdk.UsersRequest{
+		res, err := client.Users(ctx, codersdk.UsersRequest{
 			Status: codersdk.UserStatusActive,
 		})
 		require.NoError(t, err)
-		require.ElementsMatch(t, active, users)
+		require.ElementsMatch(t, active, res.Users)
 	})
 }
 
-func TestGetFilteredUserCount(t *testing.T) {
+func TestGetUsersPagination(t *testing.T) {
 	t.Parallel()
-	t.Run("AllUsers", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "alice@email.com",
-			Username:       "alice",
-			Password:       "password",
-			OrganizationID: user.OrganizationID,
-		})
-		// No params is all users
-		response, err := client.UserCount(ctx, codersdk.UserCountRequest{})
-		require.NoError(t, err)
-		require.Equal(t, 2, int(response.Count))
+	_, err := client.User(ctx, first.UserID.String())
+	require.NoError(t, err, "")
+
+	_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "alice@email.com",
+		Username:       "alice",
+		Password:       "password",
+		OrganizationID: first.OrganizationID,
 	})
-	t.Run("ActiveUsers", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+	require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	res, err := client.Users(ctx, codersdk.UsersRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 2)
+	require.Equal(t, res.Count, 2)
 
-		_, err := client.User(ctx, first.UserID.String())
-		require.NoError(t, err, "")
-
-		// Alice will be suspended
-		alice, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "alice@email.com",
-			Username:       "alice",
-			Password:       "password",
-			OrganizationID: first.OrganizationID,
-		})
-		require.NoError(t, err)
-
-		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
-		require.NoError(t, err)
-
-		response, err := client.UserCount(ctx, codersdk.UserCountRequest{
-			Status: codersdk.UserStatusActive,
-		})
-		require.NoError(t, err)
-		require.Equal(t, 1, int(response.Count))
+	res, err = client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Limit: 1,
+		},
 	})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 1)
+	require.Equal(t, res.Count, 2)
+
+	res, err = client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Offset: 1,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 1)
+	require.Equal(t, res.Count, 2)
+
+	// if offset is higher than the count postgres returns an empty array
+	// and not an ErrNoRows error. This also means the count must be 0.
+	res, err = client.Users(ctx, codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			Offset: 3,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Users, 0)
+	require.Equal(t, res.Count, 0)
 }
 
 func TestPostTokens(t *testing.T) {
@@ -1420,7 +1422,7 @@ func TestSuspendedPagination(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, expected, page, "expected page")
+	require.Equal(t, expected, page.Users, "expected page")
 }
 
 // TestPaginatedUsers creates a list of users, then tries to paginate through
@@ -1546,15 +1548,15 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		},
 	}))
 	require.NoError(t, err, "first page")
-	require.Equalf(t, page, allUsers[:limit], "first page, limit=%d", limit)
-	count += len(page)
+	require.Equalf(t, page.Users, allUsers[:limit], "first page, limit=%d", limit)
+	count += len(page.Users)
 
 	for {
-		if len(page) == 0 {
+		if len(page.Users) == 0 {
 			break
 		}
 
-		afterCursor := page[len(page)-1].ID
+		afterCursor := page.Users[len(page.Users)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at
 		// is unique.
@@ -1581,8 +1583,8 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		} else {
 			expected = allUsers[count : count+limit]
 		}
-		require.Equalf(t, page, expected, "next users, after=%s, limit=%d", afterCursor, limit)
-		require.Equalf(t, offsetPage, expected, "offset users, offset=%d, limit=%d", count, limit)
+		require.Equalf(t, page.Users, expected, "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, offsetPage.Users, expected, "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
 		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
@@ -1592,8 +1594,8 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 			},
 		}))
 		require.NoError(t, err, "prev page")
-		require.Equal(t, allUsers[count-limit:count], prevPage, "prev users")
-		count += len(page)
+		require.Equal(t, allUsers[count-limit:count], prevPage.Users, "prev users")
+		count += len(page.Users)
 	}
 }
 

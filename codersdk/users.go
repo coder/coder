@@ -47,18 +47,9 @@ type User struct {
 	AvatarURL       string      `json:"avatar_url"`
 }
 
-type UserCountRequest struct {
-	Search string `json:"search,omitempty" typescript:"-"`
-	// Filter users by status.
-	Status UserStatus `json:"status,omitempty" typescript:"-"`
-	// Filter users that have the given role.
-	Role string `json:"role,omitempty" typescript:"-"`
-
-	SearchQuery string `json:"q,omitempty"`
-}
-
-type UserCountResponse struct {
-	Count int64 `json:"count"`
+type GetUsersResponse struct {
+	Users []User `json:"users"`
+	Count int    `json:"count"`
 }
 
 type CreateFirstUserRequest struct {
@@ -324,7 +315,7 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
-func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
+func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
 		func(r *http.Request) {
@@ -347,50 +338,16 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 		},
 	)
 	if err != nil {
-		return []User{}, err
+		return GetUsersResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return []User{}, readBodyAsError(res)
+		return GetUsersResponse{}, readBodyAsError(res)
 	}
 
-	var users []User
-	return users, json.NewDecoder(res.Body).Decode(&users)
-}
-
-func (c *Client) UserCount(ctx context.Context, req UserCountRequest) (UserCountResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/count", nil,
-		func(r *http.Request) {
-			q := r.URL.Query()
-			var params []string
-			if req.Search != "" {
-				params = append(params, req.Search)
-			}
-			if req.Status != "" {
-				params = append(params, "status:"+string(req.Status))
-			}
-			if req.Role != "" {
-				params = append(params, "role:"+req.Role)
-			}
-			if req.SearchQuery != "" {
-				params = append(params, req.SearchQuery)
-			}
-			q.Set("q", strings.Join(params, " "))
-			r.URL.RawQuery = q.Encode()
-		},
-	)
-	if err != nil {
-		return UserCountResponse{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return UserCountResponse{}, readBodyAsError(res)
-	}
-
-	var count UserCountResponse
-	return count, json.NewDecoder(res.Body).Decode(&count)
+	var usersRes GetUsersResponse
+	return usersRes, json.NewDecoder(res.Body).Decode(&usersRes)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.

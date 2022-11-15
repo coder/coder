@@ -29,6 +29,7 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
     initialValues: {
       name: "",
       avatar_url: "",
+      quota_allowance: 0,
     },
     validationSchema,
     onSubmit,

@@ -1,0 +1,51 @@
+name: Submit Packages
+on:
+  release:
+    types: [published]
+
+env:
+  CODER_VERSION: "${{ github.event.release.tag_name }}"
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    steps:
+      - name: Install wingetcreate
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+      # the package version is the same as the release tag without the leading
+      # "v", and with a trailing ".0" (e.g. "v1.2.3" -> "1.2.3.0")
+      - name: Calculate package version
+        id: version
+        run: |
+          $version = $env:CODER_VERSION -replace "^v", ""
+          $version += ".0"
+          echo "::set-output name=version::$version"
+
+      - name: Submit updated manifest to winget-pkgs
+        run: |
+          $release_assets = gh release view --repo coder/coder "$env:CODER_VERSION" --json assets | `
+            ConvertFrom-Json
+
+          $installer_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
+            Select -ExpandProperty url
+
+          echo "Installer URL: $installer_url"
+
+          # version should be extracted from the installer
+          wingetcreate update Coder.Coder `
+            --submit `
+            --version "${{ steps.version.outputs.version }}" `
+            --urls "$installer_url" `
+            --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
+
+      - name: Comment on PR
+        run: |
+          # find the PR that wingetcreate just made
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${{ steps.version.outputs.version }}" --limit 1 --json number | `
+            ConvertFrom-Json`
+          $pr_number = $pr_list[0].number
+
+          gh pr comment --repo microsoft/winget-pkgs "$pr_number" --body "🤖 cc: @deansheather"

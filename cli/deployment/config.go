@@ -185,6 +185,11 @@ func newConfig() *codersdk.DeploymentConfig {
 					Usage: "Whether new users can sign up with GitHub.",
 					Flag:  "oauth2-github-allow-signups",
 				},
+				AllowEveryone: &codersdk.DeploymentConfigField[bool]{
+					Name:  "OAuth2 GitHub Allow Everyone",
+					Usage: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+					Flag:  "oauth2-github-allow-everyone",
+				},
 				EnterpriseBaseURL: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Enterprise Base URL",
 					Usage: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
@@ -282,6 +287,16 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-min-version",
 				Default: "tls12",
 			},
+			ClientCertFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Cert File",
+				Usage: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-cert-file",
+			},
+			ClientKeyFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Key File",
+				Usage: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-key-file",
+			},
 		},
 		Trace: &codersdk.TraceConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{
@@ -351,12 +366,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:       "scim-auth-header",
 			Enterprise: true,
 			Secret:     true,
-		},
-		UserWorkspaceQuota: &codersdk.DeploymentConfigField[int]{
-			Name:       "User Workspace Quota",
-			Usage:      "Enables and sets a limit on how many workspaces each user can create.",
-			Flag:       "user-workspace-quota",
-			Enterprise: true,
 		},
 		Provisioner: &codersdk.ProvisionerConfig{
 			Daemons: &codersdk.DeploymentConfigField[int]{
