@@ -75,13 +75,15 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, daemons)
+	apiDaemons := make([]codersdk.ProvisionerDaemon, 0)
+	for _, daemon := range daemons {
+		apiDaemons = append(apiDaemons, convertProvisionerDaemon(daemon))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, apiDaemons)
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
-
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {
 		for _, tag := range r.URL.Query()["tag"] {
@@ -102,13 +104,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	provisioners := map[codersdk.ProvisionerType]struct{}{}
+	provisionersMap := map[codersdk.ProvisionerType]struct{}{}
 	for _, provisioner := range r.URL.Query()["provisioner"] {
 		switch provisioner {
 		case string(codersdk.ProvisionerTypeEcho):
-			provisioners[codersdk.ProvisionerTypeEcho] = struct{}{}
+			provisionersMap[codersdk.ProvisionerTypeEcho] = struct{}{}
 		case string(codersdk.ProvisionerTypeTerraform):
-			provisioners[codersdk.ProvisionerTypeTerraform] = struct{}{}
+			provisionersMap[codersdk.ProvisionerTypeTerraform] = struct{}{}
 		default:
 			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Unknown provisioner type %q", provisioner),
@@ -132,12 +134,22 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	provisioners := make([]database.ProvisionerType, 0)
+	for p := range provisionersMap {
+		switch p {
+		case codersdk.ProvisionerTypeTerraform:
+			provisioners = append(provisioners, database.ProvisionerTypeTerraform)
+		case codersdk.ProvisionerTypeEcho:
+			provisioners = append(provisioners, database.ProvisionerTypeEcho)
+		}
+	}
+
 	name := namesgenerator.GetRandomName(1)
 	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         name,
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
+		Provisioners: provisioners,
 		Tags:         tags,
 	})
 	if err != nil {

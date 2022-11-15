@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"cdr.dev/slog"
@@ -60,13 +59,9 @@ func provisionerDaemonStart() *cobra.Command {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
 
-			tags := map[string]string{}
-			for _, rawTag := range rawTags {
-				parts := strings.SplitN(rawTag, "=", 2)
-				if len(parts) < 2 {
-					return xerrors.Errorf("invalid tag format for %q. must be key=value", rawTag)
-				}
-				tags[parts[0]] = parts[1]
+			tags, err := agpl.ParseProvisionerTags(rawTags)
+			if err != nil {
+				return err
 			}
 
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -105,6 +100,8 @@ func provisionerDaemonStart() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
 			provisioners := provisionerd.Provisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),

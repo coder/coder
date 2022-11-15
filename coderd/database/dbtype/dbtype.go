@@ -9,13 +9,13 @@ import (
 
 type Map map[string]string
 
-func (m Map) Scan(src interface{}) error {
+func (m *Map) Scan(src interface{}) error {
 	if src == nil {
 		return nil
 	}
 	switch src := src.(type) {
 	case []byte:
-		err := json.Unmarshal(src, &m)
+		err := json.Unmarshal(src, m)
 		if err != nil {
 			return err
 		}
