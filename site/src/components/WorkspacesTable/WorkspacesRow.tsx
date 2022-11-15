@@ -61,7 +61,7 @@ export const WorkspacesRow: FC<
       </TableCellLink>
 
       <TableCellLink to={workspacePageLink}>
-        <TableCellDataPrimary>{workspace.template_name}</TableCellDataPrimary>
+        <TableCellDataPrimary>{workspace.template_display_name.length > 0 ? workspace.template_display_name : workspace.template_name}</TableCellDataPrimary>
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <TableCellData>

@@ -46,7 +46,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           to={`/templates/${workspace.template_name}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
-          {workspace.template_name}
+          {workspace.template_display_name.length > 0 ? workspace.template_display_name : workspace.template_name}
         </Link>
       </div>
       <div className={styles.statItem}>
