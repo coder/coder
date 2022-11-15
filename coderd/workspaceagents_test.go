@@ -17,11 +17,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -884,6 +886,72 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		resp = gitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
+
+	t.Run("ExpiredNoRefresh", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			GitAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &oauth2Config{
+					token: &oauth2.Token{
+						AccessToken:  "token",
+						RefreshToken: "something",
+						Expiry:       database.Now().Add(-time.Hour),
+					},
+				},
+				ID:        "github",
+				Regex:     regexp.MustCompile(`github\.com`),
+				Type:      codersdk.GitProviderGitHub,
+				NoRefresh: true,
+			}},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := codersdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		token, err := agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com/asd/asd", false)
+		require.NoError(t, err)
+		require.NotEmpty(t, token.URL)
+
+		// In the configuration, we set our OAuth provider
+		// to return an expired token. Coder consumes this
+		// and stores it.
+		resp := gitAuthCallback(t, "github", client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		// Because the token is expired and `NoRefresh` is specified,
+		// a redirect URL should be returned again.
+		token, err = agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com/asd/asd", false)
+		require.NoError(t, err)
+		require.NotEmpty(t, token.URL)
+	})
+
 	t.Run("FullFlow", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{

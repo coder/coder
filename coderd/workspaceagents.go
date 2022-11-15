@@ -1154,6 +1154,15 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// If the token is expired and refresh is disabled, we prompt
+	// the user to authenticate again.
+	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+			URL: redirectURL.String(),
+		})
+		return
+	}
+
 	token, err := gitAuthConfig.TokenSource(ctx, &oauth2.Token{
 		AccessToken:  gitAuthLink.OAuthAccessToken,
 		RefreshToken: gitAuthLink.OAuthRefreshToken,
