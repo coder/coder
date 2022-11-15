@@ -375,6 +375,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					cfg.OAuth2.Github.ClientID.Value,
 					cfg.OAuth2.Github.ClientSecret.Value,
 					cfg.OAuth2.Github.AllowSignups.Value,
+					cfg.OAuth2.Github.AllowEveryone.Value,
 					cfg.OAuth2.Github.AllowedOrgs.Value,
 					cfg.OAuth2.Github.AllowedTeams.Value,
 					cfg.OAuth2.Github.EnterpriseBaseURL.Value,
@@ -1062,10 +1063,20 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	return tlsConfig, nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
+//nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups, allowEveryone bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+	}
+	if allowEveryone && len(allowOrgs) > 0 {
+		return nil, xerrors.New("allow everyone and allowed orgs cannot be used together")
+	}
+	if allowEveryone && len(rawTeams) > 0 {
+		return nil, xerrors.New("allow everyone and allowed teams cannot be used together")
+	}
+	if !allowEveryone && len(allowOrgs) == 0 {
+		return nil, xerrors.New("allowed orgs is empty: must specify at least one org or allow everyone")
 	}
 	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(rawTeams))
 	for _, rawTeam := range rawTeams {
@@ -1118,6 +1129,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			},
 		},
 		AllowSignups:       allowSignups,
+		AllowEveryone:      allowEveryone,
 		AllowOrganizations: allowOrgs,
 		AllowTeams:         allowTeams,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {

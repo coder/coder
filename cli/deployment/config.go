@@ -185,6 +185,11 @@ func newConfig() *codersdk.DeploymentConfig {
 					Usage: "Whether new users can sign up with GitHub.",
 					Flag:  "oauth2-github-allow-signups",
 				},
+				AllowEveryone: &codersdk.DeploymentConfigField[bool]{
+					Name:  "OAuth2 GitHub Allow Everyone",
+					Usage: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+					Flag:  "oauth2-github-allow-everyone",
+				},
 				EnterpriseBaseURL: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Enterprise Base URL",
 					Usage: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",

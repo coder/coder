@@ -81,6 +81,7 @@ type OAuth2GithubConfig struct {
 	AllowedOrgs       *DeploymentConfigField[[]string] `json:"allowed_orgs" typescript:",notnull"`
 	AllowedTeams      *DeploymentConfigField[[]string] `json:"allowed_teams" typescript:",notnull"`
 	AllowSignups      *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     *DeploymentConfigField[bool]     `json:"allow_everyone" typescript:",notnull"`
 	EnterpriseBaseURL *DeploymentConfigField[string]   `json:"enterprise_base_url" typescript:",notnull"`
 }
 
