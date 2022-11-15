@@ -14,6 +14,7 @@ import { Stats, StatsItem } from "components/Stats/Stats"
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
@@ -37,11 +38,12 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 }) => {
   const styles = useStyles()
   const { files, error, version } = context
+  const { t } = useTranslation("templateVersionPage")
 
   return (
     <Margins>
       <PageHeader>
-        <PageHeaderCaption>Versions</PageHeaderCaption>
+        <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
 
@@ -53,17 +55,17 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
           <>
             <Stats>
               <StatsItem
-                label="Template"
+                label={t("stats.template")}
                 value={
                   <Link to={`/templates/${templateName}`}>{templateName}</Link>
                 }
               />
               <StatsItem
-                label="Created by"
+                label={t("stats.createdBy")}
                 value={version.created_by.username}
               />
               <StatsItem
-                label="Created"
+                label={t("stats.created")}
                 value={createDayString(version.created_at)}
               />
             </Stats>
