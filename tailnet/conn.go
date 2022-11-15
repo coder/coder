@@ -424,19 +424,22 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, error) {
 // address is reachable. It's the callers responsibility to provide
 // a timeout, otherwise this function will block forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
-	ticker := time.NewTicker(time.Millisecond * 100)
-	defer ticker.Stop()
-	completedCtx, completed := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // Cancel all pending pings on exit.
+
+	completedCtx, completed := context.WithCancel(context.Background())
+	defer completed()
+
 	run := func() {
-		ctx, cancelFunc := context.WithTimeout(completedCtx, time.Second)
-		defer cancelFunc()
 		_, err := c.Ping(ctx, ip)
 		if err == nil {
 			completed()
 		}
 	}
+
+	ticker := time.NewTicker(time.Millisecond * 100)
+	defer ticker.Stop()
 	go run()
-	defer completed()
 	for {
 		select {
 		case <-completedCtx.Done():
