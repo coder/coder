@@ -32,6 +32,7 @@ Software development on your infrastructure. Offload your team's development fro
 
 ## Recommended Reading
 
+- [Laptop development is dead: why remote development is the future](https://medium.com/@elliotgraebert/laptop-development-is-dead-why-remote-development-is-the-future-f92ce103fd13)
 - [Learn how Palantir improved build times by 78% with coder](https://blog.palantir.com/the-benefits-of-remote-ephemeral-workspaces-1a1251ed6e53).
 - [A software development environment is not just a container](https://coder.com/blog/not-a-container).
 - [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not).
