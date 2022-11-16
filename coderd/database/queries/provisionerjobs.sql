@@ -25,9 +25,9 @@ WHERE
 			-- Ensure the caller satisfies all job tags.
 			AND nested.tags <@ @tags :: jsonb 
 		ORDER BY
-			nested.created_at FOR
-		UPDATE
-			SKIP LOCKED
+			nested.created_at
+		FOR UPDATE
+		SKIP LOCKED
 		LIMIT
 			1
 	) RETURNING *;

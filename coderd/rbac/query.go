@@ -470,7 +470,7 @@ func (t opInternalMember2) SQLString(cfg SQLConfig) string {
 		}
 
 		if sqlType == VarTypeSkip {
-			return "true"
+			return "false"
 		}
 	}
 
