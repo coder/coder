@@ -130,7 +130,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 
   return (
     <>
-      <Welcome/>
+      <Welcome />
       {!authMethods?.password.hidden && (<form onSubmit={form.handleSubmit}>
         <Stack>
           {Object.keys(loginErrors).map(
