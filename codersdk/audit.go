@@ -113,7 +113,7 @@ type AuditLogsRequest struct {
 
 type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
-	Count     int64      `json:"count, omitempty"`
+	Count     int64      `json:"count,omitempty"`
 }
 
 type CreateTestAuditLogRequest struct {
