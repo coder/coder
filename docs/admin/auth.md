@@ -4,6 +4,10 @@ By default, Coder is accessible via password authentication.
 
 The following steps explain how to set up GitHub OAuth or OpenID Connect.
 
+If after configuring another authentication method you'd like to hide password authentication, you can configure that like so:
+```console
+CODER_PASSWORD_AUTH_HIDDEN=true
+```
 ## GitHub
 
 ### Step 1: Configure the OAuth application in GitHub
@@ -79,6 +83,12 @@ If your OpenID Connect provider requires client TLS certificates for authenticat
 ```console
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
+```
+
+If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
+```console
+CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
+CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
 ## SCIM (enterprise)
