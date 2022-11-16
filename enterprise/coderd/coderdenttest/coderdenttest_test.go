@@ -33,7 +33,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	ctx, _ := testutil.Context(t)
 	admin := coderdtest.CreateFirstUser(t, client)
 	license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		TemplateRBAC: true,
+		TemplateRBAC:               true,
+		ExternalProvisionerDaemons: true,
 	})
 	group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 		Name: "testgroup",
