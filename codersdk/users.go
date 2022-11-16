@@ -53,10 +53,10 @@ type GetUsersResponse struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email            string `json:"email" validate:"required,email"`
-	Username         string `json:"username" validate:"required,username"`
-	Password         string `json:"password" validate:"required"`
-	OrganizationName string `json:"organization" validate:"required,username"`
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,username"`
+	Password string `json:"password" validate:"required"`
+	Trial    bool   `json:"trial"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.

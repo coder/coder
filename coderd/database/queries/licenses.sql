@@ -3,10 +3,11 @@ INSERT INTO
 	licenses (
 	uploaded_at,
 	jwt,
-	exp
+	exp,
+	uuid
 )
 VALUES
-	($1, $2, $3) RETURNING *;
+	($1, $2, $3, $4) RETURNING *;
 
 -- name: GetLicenses :many
 SELECT *

@@ -9,6 +9,7 @@ MacOS = "macOS"
 doas = "doas"
 darcula = "darcula"
 Hashi = "Hashi"
+trialer = "trialer"
 
 [files]
 extend-exclude = [
