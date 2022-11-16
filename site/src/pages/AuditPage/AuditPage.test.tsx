@@ -31,7 +31,7 @@ describe("AuditPage", () => {
     it("filters by typing", async () => {
       const getAuditLogsSpy = jest
         .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog] })
+        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
 
       render(<AuditPage />)
       await waitForLoaderToBeRemoved()
@@ -55,7 +55,7 @@ describe("AuditPage", () => {
     it("filters by URL", async () => {
       const getAuditLogsSpy = jest
         .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog] })
+        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
 
       const query = "resource_type:workspace action:create"
       history.push(`/audit?filter=${encodeURIComponent(query)}`)
@@ -69,7 +69,7 @@ describe("AuditPage", () => {
     it("resets page to 1 when filter is changed", async () => {
       const getAuditLogsSpy = jest
         .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog] })
+        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
 
       history.push(`/audit?page=2`)
       render(<AuditPage />)

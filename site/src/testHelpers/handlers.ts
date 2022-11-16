@@ -213,12 +213,9 @@ export const handlers = [
       ctx.status(200),
       ctx.json({
         audit_logs: [M.MockAuditLog, M.MockAuditLog2],
+        count: 2
       }),
     )
-  }),
-
-  rest.get("/api/v2/audit/count", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json({ count: 1000 }))
   }),
 
   // Applications host
