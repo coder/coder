@@ -178,6 +178,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	require.NoError(t, err, "(first) fetch workspaces")
 
 	require.ElementsMatch(t, otherWorkspaces.Workspaces, firstWorkspaces.Workspaces)
+	require.Equal(t, len(firstWorkspaces.Workspaces), 1, "should be 1 workspace present")
 
 	memberView := coderdtest.CreateAnotherUser(t, client, otherOrg.ID)
 	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
