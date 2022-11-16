@@ -98,12 +98,22 @@ Flags:
       --oidc-email-domain string                     Email domain that clients logging in with
                                                      OIDC must match.
                                                      Consumes $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-icon-url string                         URL pointing to the icon to use on the
+                                                     OepnID Connect login button
+                                                     Consumes $CODER_OIDC_ICON_URL
       --oidc-issuer-url string                       Issuer URL to use for Login with OIDC.
                                                      Consumes $CODER_OIDC_ISSUER_URL
       --oidc-scopes strings                          Scopes to grant when authenticating with
                                                      OIDC.
                                                      Consumes $CODER_OIDC_SCOPES (default
                                                      [openid,profile,email])
+      --oidc-sign-in-text string                     The text to show on the OpenID Connect
+                                                     sign in button
+                                                     Consumes $CODER_OIDC_SIGN_IN_TEXT
+      --password-auth-hidden                         When this flag is set to true, the
+                                                     user/password form in the UI will be
+                                                     hidden
+                                                     Consumes $CODER_PASSWORD_AUTH_HIDDEN
       --postgres-url string                          URL of a PostgreSQL database. If empty,
                                                      PostgreSQL binaries will be downloaded
                                                      from Maven

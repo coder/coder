@@ -370,6 +370,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
+			options.PasswordAuthHidden = cfg.PasswordAuthHidden.Value
+
 			if cfg.OAuth2.Github.ClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
 					cfg.OAuth2.Github.ClientID.Value,
@@ -419,6 +421,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					}),
 					EmailDomain:  cfg.OIDC.EmailDomain.Value,
 					AllowSignups: cfg.OIDC.AllowSignups.Value,
+					SignInText:   cfg.OIDC.SignInText.Value,
+					IconURL:      cfg.OIDC.IconURL.Value,
 				}
 			}
 

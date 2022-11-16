@@ -157,6 +157,11 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:   "postgres-url",
 			Secret: true,
 		},
+		PasswordAuthHidden: &codersdk.DeploymentConfigField[bool]{
+			Name:  "Flag to hide password auth",
+			Usage: "When this flag is set to true, the user/password form in the UI will be hidden",
+			Flag:  "password-auth-hidden",
+		},
 		OAuth2: &codersdk.OAuth2Config{
 			Github: &codersdk.OAuth2GithubConfig{
 				ClientID: &codersdk.DeploymentConfigField[string]{
@@ -230,6 +235,16 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage:   "Scopes to grant when authenticating with OIDC.",
 				Flag:    "oidc-scopes",
 				Default: []string{oidc.ScopeOpenID, "profile", "email"},
+			},
+			SignInText: &codersdk.DeploymentConfigField[string]{
+				Name:  "OpenID Connect sign in text",
+				Usage: "The text to show on the OpenID Connect sign in button",
+				Flag:  "oidc-sign-in-text",
+			},
+			IconURL: &codersdk.DeploymentConfigField[string]{
+				Name:  "OpenID connect icon URL",
+				Usage: "URL pointing to the icon to use on the OepnID Connect login button",
+				Flag:  "oidc-icon-url",
 			},
 		},
 

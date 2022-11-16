@@ -24,6 +24,7 @@ type DeploymentConfig struct {
 	CacheDirectory              *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
 	InMemoryDatabase            *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
 	PostgresURL                 *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
+	PasswordAuthHidden          *DeploymentConfigField[bool]            `json:"password_auth_hidden" typescript:",notnull"`
 	OAuth2                      *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
 	OIDC                        *OIDCConfig                             `json:"oidc" typescript:",notnull"`
 	Telemetry                   *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
@@ -92,6 +93,8 @@ type OIDCConfig struct {
 	EmailDomain  *DeploymentConfigField[string]   `json:"email_domain" typescript:",notnull"`
 	IssuerURL    *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
 	Scopes       *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
+	SignInText   *DeploymentConfigField[string]   `json:"sign_in_text" typescript:",notnull"`
+	IconURL      *DeploymentConfigField[string]   `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {

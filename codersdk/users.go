@@ -105,11 +105,26 @@ type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }
 
-// AuthMethods contains whether authentication types are enabled or not.
+// AuthMethods contains authentication method information like whether they are enabled or not or hidden or not, etc.
 type AuthMethods struct {
-	Password bool `json:"password"`
-	Github   bool `json:"github"`
-	OIDC     bool `json:"oidc"`
+	Password PasswordMethod `json:"password"`
+	Github   AuthMethod     `json:"github"`
+	OIDC     OIDCMethod     `json:"oidc"`
+}
+
+type AuthMethod struct {
+	Enabled bool `json:"enabled"`
+}
+
+type PasswordMethod struct {
+	AuthMethod
+	Hidden bool `json:"hidden"`
+}
+
+type OIDCMethod struct {
+	AuthMethod
+	SignInText string `json:"signInText"`
+	IconURL    string `json:"iconUrl"`
 }
 
 // HasFirstUser returns whether the first user has been created.

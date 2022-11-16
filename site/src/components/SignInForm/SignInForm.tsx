@@ -130,8 +130,8 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 
   return (
     <>
-      <Welcome />
-      <form onSubmit={form.handleSubmit}>
+      <Welcome/>
+      {!authMethods?.password.hidden && (<form onSubmit={form.handleSubmit}>
         <Stack>
           {Object.keys(loginErrors).map(
             (errorKey: string) =>
@@ -174,55 +174,56 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
             </LoadingButton>
           </div>
         </Stack>
-      </form>
-      {(authMethods?.github || authMethods?.oidc) && (
-        <>
-          <div className={styles.divider}>
-            <div className={styles.dividerLine} />
-            <div className={styles.dividerLabel}>Or</div>
-            <div className={styles.dividerLine} />
-          </div>
-
-          <Box display="grid" gridGap="16px">
-            {authMethods.github && (
-              <Link
-                underline="none"
-                href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-                  redirectTo,
-                )}`}
+      </form>)}
+      {(!authMethods?.password.hidden && (authMethods?.github.enabled || authMethods?.oidc.enabled)) && (
+        <div className={styles.divider}>
+          <div className={styles.dividerLine}/>
+          <div className={styles.dividerLabel}>Or</div>
+          <div className={styles.dividerLine}/>
+        </div>
+      )}
+      {(authMethods?.github.enabled || authMethods?.oidc.enabled) && (
+        <Box display="grid" gridGap="16px">
+          {authMethods.github.enabled && (
+            <Link
+              underline="none"
+              href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+                redirectTo,
+              )}`}
+            >
+              <Button
+                startIcon={<GitHubIcon className={styles.buttonIcon} />}
+                disabled={isLoading}
+                fullWidth
+                type="submit"
+                variant="contained"
               >
-                <Button
-                  startIcon={<GitHubIcon className={styles.buttonIcon} />}
-                  disabled={isLoading}
-                  fullWidth
-                  type="submit"
-                  variant="contained"
-                >
-                  {Language.githubSignIn}
-                </Button>
-              </Link>
-            )}
+                {Language.githubSignIn}
+              </Button>
+            </Link>
+          )}
 
-            {authMethods.oidc && (
-              <Link
-                underline="none"
-                href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
-                  redirectTo,
-                )}`}
+          {authMethods.oidc.enabled && (
+            <Link
+              underline="none"
+              href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
+                redirectTo,
+              )}`}
+            >
+              <Button
+                startIcon={authMethods.oidc.iconUrl
+                  ? <img alt="Open ID Connect icon" src={authMethods.oidc.iconUrl} width="24" height="24"/>
+                  : <KeyIcon className={styles.buttonIcon} />}
+                disabled={isLoading}
+                fullWidth
+                type="submit"
+                variant="contained"
               >
-                <Button
-                  startIcon={<KeyIcon className={styles.buttonIcon} />}
-                  disabled={isLoading}
-                  fullWidth
-                  type="submit"
-                  variant="contained"
-                >
-                  {Language.oidcSignIn}
-                </Button>
-              </Link>
-            )}
-          </Box>
-        </>
+                {authMethods.oidc.signInText || Language.oidcSignIn}
+              </Button>
+            </Link>
+          )}
+        </Box>
       )}
     </>
   )

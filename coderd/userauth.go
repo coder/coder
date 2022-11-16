@@ -44,10 +44,27 @@ type GithubOAuth2Config struct {
 }
 
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
+	var signInText string
+	var iconURL string
+
+	if api.OIDCConfig != nil {
+		signInText = api.OIDCConfig.SignInText
+	}
+	if api.OIDCConfig != nil {
+		iconURL = api.OIDCConfig.IconURL
+	}
+
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		Password: true,
-		Github:   api.GithubOAuth2Config != nil,
-		OIDC:     api.OIDCConfig != nil,
+		Password: codersdk.PasswordMethod{
+			AuthMethod: codersdk.AuthMethod{Enabled: true},
+			Hidden:     api.PasswordAuthHidden,
+		},
+		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		OIDC: codersdk.OIDCMethod{
+			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
+			SignInText: signInText,
+			IconURL:    iconURL,
+		},
 	})
 }
 
@@ -195,6 +212,8 @@ type OIDCConfig struct {
 	// EmailDomain is the domain to enforce when a user authenticates.
 	EmailDomain  string
 	AllowSignups bool
+	SignInText   string
+	IconURL      string
 }
 
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {

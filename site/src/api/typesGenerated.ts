@@ -91,10 +91,15 @@ export interface AuditLogsRequest extends Pagination {
 }
 
 // From codersdk/users.go
+export interface AuthMethod {
+  readonly enabled: boolean
+}
+
+// From codersdk/users.go
 export interface AuthMethods {
-  readonly password: boolean
-  readonly github: boolean
-  readonly oidc: boolean
+  readonly password: PasswordMethod
+  readonly github: AuthMethod
+  readonly oidc: OIDCMethod
 }
 
 // From codersdk/authorization.go
@@ -289,6 +294,7 @@ export interface DeploymentConfig {
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
   readonly pg_connection_url: DeploymentConfigField<string>
+  readonly password_auth_hidden: DeploymentConfigField<boolean>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig
@@ -446,6 +452,14 @@ export interface OIDCConfig {
   readonly email_domain: DeploymentConfigField<string>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
+  readonly sign_in_text: DeploymentConfigField<string>
+  readonly icon_url: DeploymentConfigField<string>
+}
+
+// From codersdk/users.go
+export interface OIDCMethod extends AuthMethod {
+  readonly signInText: string
+  readonly iconUrl: string
 }
 
 // From codersdk/organizations.go
@@ -503,6 +517,11 @@ export interface ParameterSchema {
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains?: string[]
+}
+
+// From codersdk/users.go
+export interface PasswordMethod extends AuthMethod {
+  readonly hidden: boolean
 }
 
 // From codersdk/groups.go
