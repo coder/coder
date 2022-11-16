@@ -54,11 +54,12 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"organization_id":        ActionIgnore, /// Never changes.
 		"deleted":                ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                   ActionTrack,
+		"display_name":           ActionTrack,
 		"provisioner":            ActionTrack,
 		"active_version_id":      ActionTrack,
 		"description":            ActionTrack,
 		"icon":                   ActionTrack,
-		"max_ttl":                ActionTrack,
+		"default_ttl":            ActionTrack,
 		"min_autostart_interval": ActionTrack,
 		"created_by":             ActionTrack,
 		"is_private":             ActionTrack,
@@ -108,6 +109,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":            ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
+		"quota_allowance": ActionTrack,
 	},
 	// We don't show any diff for the WorkspaceBuild resource,
 	// save for the template_version_id
@@ -124,6 +126,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"job_id":              ActionIgnore,
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
+		"daily_cost":          ActionIgnore,
 	},
 })
 

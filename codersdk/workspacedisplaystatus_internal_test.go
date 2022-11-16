@@ -56,13 +56,13 @@ func TestWorkspaceDisplayStatus(t *testing.T) {
 			name:       "CancelingStatusWithStartTransition",
 			jobStatus:  ProvisionerJobCanceling,
 			transition: WorkspaceTransitionStart,
-			want:       "Canceling action",
+			want:       "Canceling",
 		},
 		{
 			name:       "CanceledStatusWithStartTransition",
 			jobStatus:  ProvisionerJobCanceled,
 			transition: WorkspaceTransitionStart,
-			want:       "Canceled action",
+			want:       "Canceled",
 		},
 		{
 			name:       "FailedStatusWithDeleteTransition",

@@ -24,7 +24,7 @@ describe("TemplatesPage", () => {
           return res(ctx.status(200), ctx.json([]))
         },
       ),
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({
@@ -46,7 +46,7 @@ describe("TemplatesPage", () => {
     render(<TemplatesPage />)
 
     // Then
-    await screen.findByText(MockTemplate.name)
+    await screen.findByText(MockTemplate.display_name)
   })
 
   it("shows empty view without permissions to create", async () => {
@@ -57,7 +57,7 @@ describe("TemplatesPage", () => {
           return res(ctx.status(200), ctx.json([]))
         },
       ),
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
+      rest.post("/api/v2/authcheck", (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({

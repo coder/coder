@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/coderd/azureidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/mitchellh/mapstructure"
@@ -130,7 +131,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	var jobData workspaceProvisionJob
+	var jobData provisionerdserver.WorkspaceProvisionJob
 	err = json.Unmarshal(job.Input, &jobData)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

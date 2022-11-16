@@ -40,7 +40,7 @@ export const ChooseOne = ({
   }
   if (conditionedOptions.some((cond) => cond.props.condition === undefined)) {
     throw new Error(
-      "A non-final Cond in a ChooseOne does not have a condition prop.",
+      "A non-final Cond in a ChooseOne does not have a condition prop or the prop is undefined.",
     )
   }
   const chosen = conditionedOptions.find((child) => child.props.condition)

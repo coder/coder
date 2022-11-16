@@ -68,6 +68,7 @@ type WorkspaceBuild struct {
 	Resources          []WorkspaceResource `json:"resources"`
 	Deadline           NullTime            `json:"deadline,omitempty"`
 	Status             WorkspaceStatus     `json:"status"`
+	DailyCost          int32               `json:"daily_cost"`
 }
 
 type WorkspaceResource struct {
@@ -81,6 +82,7 @@ type WorkspaceResource struct {
 	Icon       string                      `json:"icon"`
 	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
 	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
+	DailyCost  int32                       `json:"daily_cost"`
 }
 
 type WorkspaceResourceMetadata struct {

@@ -64,7 +64,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <DisabledButton label={t("disabledButton.deleted")} />
     ),
     [ButtonTypesEnum.pending]: (
-      <DisabledButton label={t("disabledButton.pending")} />
+      <ActionLoadingButton label={t("disabledButton.pending")} />
     ),
   }
 

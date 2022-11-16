@@ -5,6 +5,7 @@ import {
   defaultWorkspaceExtension,
   getDisplayVersionStatus,
   getDisplayWorkspaceBuildInitiatedBy,
+  getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
 } from "./workspace"
 
@@ -119,5 +120,23 @@ describe("util > workspace", () => {
         expect(expectedOutdated).toEqual(outdated)
       },
     )
+  })
+
+  describe("getDisplayWorkspaceTemplateName", () => {
+    it("display name is not set", async () => {
+      const workspace: TypesGen.Workspace = {
+        ...Mocks.MockWorkspace,
+        template_display_name: "",
+      }
+      const displayed = getDisplayWorkspaceTemplateName(workspace)
+      expect(displayed).toEqual(workspace.template_name)
+    })
+    it("display name is set", async () => {
+      const workspace: TypesGen.Workspace = {
+        ...Mocks.MockWorkspace,
+      }
+      const displayed = getDisplayWorkspaceTemplateName(workspace)
+      expect(displayed).toEqual(workspace.template_display_name)
+    })
   })
 })

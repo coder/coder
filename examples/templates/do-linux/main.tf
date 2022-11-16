@@ -100,10 +100,14 @@ resource "coder_agent" "main" {
 
 resource "digitalocean_volume" "home_volume" {
   region                   = var.region
-  name                     = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-home"
+  name                     = "coder-${data.coder_workspace.me.id}-home"
   size                     = var.home_volume_size
   initial_filesystem_type  = "ext4"
   initial_filesystem_label = "coder-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 resource "digitalocean_droplet" "workspace" {

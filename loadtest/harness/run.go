@@ -108,7 +108,7 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 	return
 }
 
-func (r *TestRun) Cleanup(ctx context.Context) error {
+func (r *TestRun) Cleanup(ctx context.Context) (err error) {
 	c, ok := r.runner.(Cleanable)
 	if !ok {
 		return nil
@@ -121,5 +121,14 @@ func (r *TestRun) Cleanup(ctx context.Context) error {
 		return nil
 	}
 
-	return c.Cleanup(ctx, r.id)
+	defer func() {
+		e := recover()
+		if e != nil {
+			err = xerrors.Errorf("panic: %v", e)
+		}
+	}()
+
+	err = c.Cleanup(ctx, r.id)
+	//nolint:revive // we use named returns because we mutate it in a defer
+	return
 }

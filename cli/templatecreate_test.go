@@ -43,8 +43,8 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:     echo.ParseComplete,
-			Provision: provisionCompleteWithAgent,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: provisionCompleteWithAgent,
 		})
 		args := []string{
 			"templates",
@@ -52,8 +52,7 @@ func TestTemplateCreate(t *testing.T) {
 			"my-template",
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
-			"--max-ttl", "24h",
-			"--min-autostart-interval", "2h",
+			"--default-ttl", "24h",
 		}
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
@@ -90,9 +89,9 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:           createTestParseResponse(),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponse(),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
@@ -126,9 +125,9 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:           createTestParseResponse(),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponse(),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 		tempDir := t.TempDir()
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
@@ -165,9 +164,9 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:           createTestParseResponse(),
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          createTestParseResponse(),
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 		tempDir := t.TempDir()
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
@@ -205,8 +204,8 @@ func TestTemplateCreate(t *testing.T) {
 
 		create := func() error {
 			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-				Parse:     echo.ParseComplete,
-				Provision: provisionCompleteWithAgent,
+				Parse:          echo.ParseComplete,
+				ProvisionApply: provisionCompleteWithAgent,
 			})
 			args := []string{
 				"templates",

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,11 +13,14 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
@@ -261,7 +265,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 
 	// Marshal template version dry-run job with the parameters from the
 	// request.
-	input, err := json.Marshal(templateVersionDryRunJob{
+	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
 		TemplateVersionID: templateVersion.ID,
 		WorkspaceName:     req.WorkspaceName,
 		ParameterValues:   parameterValues,
@@ -428,7 +432,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 
 	// Verify that the template version is the one used in the request.
-	var input templateVersionDryRunJob
+	var input provisionerdserver.TemplateVersionDryRunJob
 	err = json.Unmarshal(job.Input, &input)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -534,7 +538,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		return
 	}
@@ -557,6 +561,48 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 			Valid: true,
 		},
 		Name: templateVersionName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error on fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
+}
+
+func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersion, err := api.Database.GetTemplateVersionByOrganizationAndName(ctx, database.GetTemplateVersionByOrganizationAndNameParams{
+		OrganizationID: organization.ID,
+		Name:           templateVersionName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -647,7 +693,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("update active version: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating active template version.",
@@ -658,6 +704,8 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	newTemplate := template
 	newTemplate.ActiveVersionID = req.ID
 	aReq.New = newTemplate
+
+	api.publishTemplateUpdate(ctx, template.ID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Updated the active template version!",
@@ -846,7 +894,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			return xerrors.Errorf("insert template version: %w", err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: err.Error(),
@@ -943,5 +991,17 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Job:            job,
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
+	}
+}
+
+func watchTemplateChannel(id uuid.UUID) string {
+	return fmt.Sprintf("template:%s", id)
+}
+
+func (api *API) publishTemplateUpdate(ctx context.Context, templateID uuid.UUID) {
+	err := api.Pubsub.Publish(watchTemplateChannel(templateID), []byte{})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish template update",
+			slog.F("template_id", templateID), slog.Error(err))
 	}
 }

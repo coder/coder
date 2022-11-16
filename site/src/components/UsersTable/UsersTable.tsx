@@ -32,6 +32,7 @@ export interface UsersTableProps {
     user: TypesGen.User,
     roles: TypesGen.Role["name"][],
   ) => void
+  isNonInitialPage: boolean
 }
 
 export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
@@ -46,6 +47,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   isUpdatingUserRoles,
   canEditUsers,
   isLoading,
+  isNonInitialPage,
 }) => {
   return (
     <TableContainer>
@@ -78,6 +80,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             onResetUserPassword={onResetUserPassword}
             onSuspendUser={onSuspendUser}
             onUpdateUserRoles={onUpdateUserRoles}
+            isNonInitialPage={isNonInitialPage}
           />
         </TableBody>
       </Table>

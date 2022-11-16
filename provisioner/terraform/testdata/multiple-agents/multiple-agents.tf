@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.1"
     }
   }
 }
@@ -13,13 +13,15 @@ resource "coder_agent" "dev1" {
 }
 
 resource "coder_agent" "dev2" {
-  os   = "darwin"
-  arch = "amd64"
+  os                 = "darwin"
+  arch               = "amd64"
+  connection_timeout = 1
 }
 
 resource "coder_agent" "dev3" {
-  os   = "windows"
-  arch = "arm64"
+  os                  = "windows"
+  arch                = "arm64"
+  troubleshooting_url = "https://coder.com/troubleshoot"
 }
 
 resource "null_resource" "dev" {

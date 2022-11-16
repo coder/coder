@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { rest } from "msw"
 import { ResizeObserver } from "resize-observer"
@@ -37,17 +37,10 @@ describe("TemplateSummaryPage", () => {
     mock.mockImplementation(() => "a minute ago")
 
     renderPage()
-    await screen.findByText(MockTemplate.name)
-    screen.getByTestId("markdown")
+    await screen.findByText(MockTemplate.display_name)
+    await screen.findByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
-  })
-  it("allows an admin to delete a template", async () => {
-    renderPage()
-    const dropdownButton = await screen.findByLabelText("open-dropdown")
-    fireEvent.click(dropdownButton)
-    const deleteButton = await screen.findByText("Delete")
-    expect(deleteButton).toBeDefined()
   })
   it("does not allow a member to delete a template", () => {
     // get member-level permissions

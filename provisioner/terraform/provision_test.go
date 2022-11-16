@@ -63,6 +63,30 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	return ctx, api
 }
 
+func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_ProvisionClient) (
+	string,
+	*proto.Provision_Complete,
+) {
+	var (
+		logBuf strings.Builder
+		c      *proto.Provision_Complete
+	)
+	for {
+		msg, err := response.Recv()
+		require.NoError(t, err)
+
+		if log := msg.GetLog(); log != nil {
+			t.Log(log.Level.String(), log.Output)
+			logBuf.WriteString(log.Output)
+		}
+		if c = msg.GetComplete(); c != nil {
+			require.Empty(t, c.Error)
+			break
+		}
+	}
+	return logBuf.String(), c
+}
+
 func TestProvision_Cancel(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -113,16 +137,12 @@ func TestProvision_Cancel(t *testing.T) {
 			response, err := api.Provision(ctx)
 			require.NoError(t, err)
 			err = response.Send(&proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						Directory: dir,
-						DryRun:    false,
-						ParameterValues: []*proto.ParameterValue{{
-							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							Name:              "A",
-							Value:             "example",
-						}},
-						Metadata: &proto.Provision_Metadata{},
+				Type: &proto.Provision_Request_Apply{
+					Apply: &proto.Provision_Apply{
+						Config: &proto.Provision_Config{
+							Directory: dir,
+							Metadata:  &proto.Provision_Metadata{},
+						},
 					},
 				},
 			})
@@ -175,7 +195,7 @@ func TestProvision(t *testing.T) {
 	testCases := []struct {
 		Name    string
 		Files   map[string]string
-		Request *proto.Provision_Request
+		Request *proto.Provision_Plan
 		// Response may be nil to not check the response.
 		Response *proto.Provision_Response
 		// If ErrorContains is not empty, then response.Recv() should return an
@@ -183,7 +203,7 @@ func TestProvision(t *testing.T) {
 		ErrorContains string
 		// If ExpectLogContains is not empty, then the logs should contain it.
 		ExpectLogContains string
-		DryRun            bool
+		Apply             bool
 	}{
 		{
 			Name: "single-variable",
@@ -192,36 +212,26 @@ func TestProvision(t *testing.T) {
 				description = "Testing!"
 			}`,
 			},
-			Request: &proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						ParameterValues: []*proto.ParameterValue{{
-							DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							Name:              "A",
-							Value:             "example",
-						}},
-					},
-				},
+			Request: &proto.Provision_Plan{
+				ParameterValues: []*proto.ParameterValue{{
+					DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+					Name:              "A",
+					Value:             "example",
+				}},
 			},
 			Response: &proto.Provision_Response{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{},
 				},
 			},
+			Apply: true,
 		},
 		{
 			Name: "missing-variable",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
-			}`,
-			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Error: "terraform apply: exit status 1",
-					},
-				},
-			},
+			}`},
+			ErrorContains:     "terraform plan:",
 			ExpectLogContains: "No value for required variable",
 		},
 		{
@@ -232,7 +242,6 @@ func TestProvision(t *testing.T) {
 			},
 			ErrorContains:     "terraform plan:",
 			ExpectLogContains: "No value for required variable",
-			DryRun:            true,
 		},
 		{
 			Name: "single-resource-dry-run",
@@ -249,7 +258,6 @@ func TestProvision(t *testing.T) {
 					},
 				},
 			},
-			DryRun: true,
 		},
 		{
 			Name: "single-resource",
@@ -266,6 +274,7 @@ func TestProvision(t *testing.T) {
 					},
 				},
 			},
+			Apply: true,
 		},
 		{
 			Name: "bad-syntax-1",
@@ -288,13 +297,10 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `resource "null_resource" "A" {}`,
 			},
-			Request: &proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						State: nil,
-						Metadata: &proto.Provision_Metadata{
-							WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
-						},
+			Request: &proto.Provision_Plan{
+				Config: &proto.Provision_Config{
+					Metadata: &proto.Provision_Metadata{
+						WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
 					},
 				},
 			},
@@ -305,16 +311,12 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": "",
 			},
-			Request: &proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						ParameterValues: []*proto.ParameterValue{
-							{
-								DestinationScheme: 88,
-								Name:              "UNSUPPORTED",
-								Value:             "sadface",
-							},
-						},
+			Request: &proto.Provision_Plan{
+				ParameterValues: []*proto.ParameterValue{
+					{
+						DestinationScheme: 88,
+						Name:              "UNSUPPORTED",
+						Value:             "sadface",
 					},
 				},
 			},
@@ -333,79 +335,107 @@ func TestProvision(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			request := &proto.Provision_Request{
-				Type: &proto.Provision_Request_Start{
-					Start: &proto.Provision_Start{
-						Directory: directory,
-						DryRun:    testCase.DryRun,
+			planRequest := &proto.Provision_Request{
+				Type: &proto.Provision_Request_Plan{
+					Plan: &proto.Provision_Plan{
+						Config: &proto.Provision_Config{
+							Directory: directory,
+						},
 					},
 				},
 			}
 			if testCase.Request != nil {
-				request.GetStart().ParameterValues = testCase.Request.GetStart().ParameterValues
-				request.GetStart().State = testCase.Request.GetStart().State
-				request.GetStart().DryRun = testCase.Request.GetStart().DryRun
-				request.GetStart().Metadata = testCase.Request.GetStart().Metadata
+				if planRequest.GetPlan().GetConfig() == nil {
+					planRequest.GetPlan().Config = &proto.Provision_Config{}
+				}
+				planRequest.GetPlan().ParameterValues = testCase.Request.ParameterValues
+				if testCase.Request.Config != nil {
+					planRequest.GetPlan().Config.State = testCase.Request.Config.State
+					planRequest.GetPlan().Config.Metadata = testCase.Request.Config.Metadata
+				}
 			}
-			if request.GetStart().Metadata == nil {
-				request.GetStart().Metadata = &proto.Provision_Metadata{}
+			if planRequest.GetPlan().Config.Metadata == nil {
+				planRequest.GetPlan().Config.Metadata = &proto.Provision_Metadata{}
 			}
 
-			response, err := api.Provision(ctx)
-			require.NoError(t, err)
-			err = response.Send(request)
-			require.NoError(t, err)
+			var (
+				gotExpectedLog = testCase.ExpectLogContains == ""
+			)
 
-			gotExpectedLog := testCase.ExpectLogContains == ""
-			for {
-				msg, err := response.Recv()
-				if msg != nil && msg.GetLog() != nil {
-					if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
-						gotExpectedLog = true
+			provision := func(req *proto.Provision_Request) *proto.Provision_Complete {
+				response, err := api.Provision(ctx)
+				require.NoError(t, err)
+				err = response.Send(req)
+				require.NoError(t, err)
+
+				var complete *proto.Provision_Complete
+
+				for {
+					msg, err := response.Recv()
+					if msg != nil && msg.GetLog() != nil {
+						if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
+							gotExpectedLog = true
+						}
+
+						t.Logf("log: [%s] %s", msg.GetLog().Level, msg.GetLog().Output)
+						continue
+					}
+					if testCase.ErrorContains != "" {
+						require.ErrorContains(t, err, testCase.ErrorContains)
+						break
+					}
+					require.NoError(t, err)
+
+					if complete = msg.GetComplete(); complete == nil {
+						continue
 					}
 
-					t.Logf("log: [%s] %s", msg.GetLog().Level, msg.GetLog().Output)
-					continue
-				}
-				if testCase.ErrorContains != "" {
-					require.ErrorContains(t, err, testCase.ErrorContains)
+					require.NoError(t, err)
+
+					// Remove randomly generated data.
+					for _, resource := range msg.GetComplete().Resources {
+						sort.Slice(resource.Agents, func(i, j int) bool {
+							return resource.Agents[i].Name < resource.Agents[j].Name
+						})
+
+						for _, agent := range resource.Agents {
+							agent.Id = ""
+							if agent.GetToken() == "" {
+								continue
+							}
+							agent.Auth = &proto.Agent_Token{}
+						}
+					}
+
+					if testCase.Response != nil {
+						resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
+						require.NoError(t, err)
+
+						resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
+						require.NoError(t, err)
+
+						require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
+
+						require.Equal(t, string(resourcesWant), string(resourcesGot))
+					}
 					break
 				}
-				require.NoError(t, err)
 
-				if msg.GetComplete() == nil {
-					continue
-				}
+				return complete
+			}
 
-				require.NoError(t, err)
+			planComplete := provision(planRequest)
 
-				// Remove randomly generated data.
-				for _, resource := range msg.GetComplete().Resources {
-					sort.Slice(resource.Agents, func(i, j int) bool {
-						return resource.Agents[i].Name < resource.Agents[j].Name
-					})
-
-					for _, agent := range resource.Agents {
-						agent.Id = ""
-						if agent.GetToken() == "" {
-							continue
-						}
-						agent.Auth = &proto.Agent_Token{}
-					}
-				}
-
-				if testCase.Response != nil {
-					resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
-					require.NoError(t, err)
-
-					resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
-					require.NoError(t, err)
-
-					require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
-
-					require.Equal(t, string(resourcesWant), string(resourcesGot))
-				}
-				break
+			if testCase.Apply {
+				require.NotNil(t, planComplete.Plan)
+				provision(&proto.Provision_Request{
+					Type: &proto.Provision_Request_Apply{
+						Apply: &proto.Provision_Apply{
+							Config: planRequest.GetPlan().GetConfig(),
+							Plan:   planComplete.Plan,
+						},
+					},
+				})
 			}
 
 			if !gotExpectedLog {
@@ -430,11 +460,13 @@ func TestProvision_ExtraEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	request := &proto.Provision_Request{
-		Type: &proto.Provision_Request_Start{
-			Start: &proto.Provision_Start{
-				Directory: directory,
-				Metadata: &proto.Provision_Metadata{
-					WorkspaceTransition: proto.WorkspaceTransition_START,
+		Type: &proto.Provision_Request_Plan{
+			Plan: &proto.Provision_Plan{
+				Config: &proto.Provision_Config{
+					Directory: directory,
+					Metadata: &proto.Provision_Metadata{
+						WorkspaceTransition: proto.WorkspaceTransition_START,
+					},
 				},
 			},
 		},
@@ -493,45 +525,43 @@ func TestProvision_SafeEnv(t *testing.T) {
 	err := os.WriteFile(path, []byte(echoResource), 0o600)
 	require.NoError(t, err)
 
-	request := &proto.Provision_Request{
-		Type: &proto.Provision_Request_Start{
-			Start: &proto.Provision_Start{
-				Directory: directory,
-				Metadata: &proto.Provision_Metadata{
-					WorkspaceTransition: proto.WorkspaceTransition_START,
+	response, err := api.Provision(ctx)
+	require.NoError(t, err)
+	err = response.Send(&proto.Provision_Request{
+		Type: &proto.Provision_Request_Plan{
+			Plan: &proto.Provision_Plan{
+				Config: &proto.Provision_Config{
+					Directory: directory,
+					Metadata: &proto.Provision_Metadata{
+						WorkspaceTransition: proto.WorkspaceTransition_START,
+					},
 				},
 			},
 		},
-	}
-	response, err := api.Provision(ctx)
+	})
 	require.NoError(t, err)
-	err = response.Send(request)
-	require.NoError(t, err)
-	var (
-		foundUserEnv = false
-		// Some CODER_ environment variables used by our Terraform provider
-		// must make it through.
-		foundCoderEnv = false
-	)
-	for {
-		msg, err := response.Recv()
-		require.NoError(t, err)
 
-		if log := msg.GetLog(); log != nil {
-			t.Log(log.Level.String(), log.Output)
-			if strings.Contains(log.Output, passedValue) {
-				foundUserEnv = true
-			}
-			if strings.Contains(log.Output, "CODER_") {
-				foundCoderEnv = true
-			}
-			require.NotContains(t, log.Output, secretValue)
-		}
-		if c := msg.GetComplete(); c != nil {
-			require.Empty(t, c.Error)
-			break
-		}
-	}
-	require.True(t, foundUserEnv)
-	require.True(t, foundCoderEnv)
+	_, complete := readProvisionLog(t, response)
+
+	response, err = api.Provision(ctx)
+	require.NoError(t, err)
+	err = response.Send(&proto.Provision_Request{
+		Type: &proto.Provision_Request_Apply{
+			Apply: &proto.Provision_Apply{
+				Config: &proto.Provision_Config{
+					Directory: directory,
+					Metadata: &proto.Provision_Metadata{
+						WorkspaceTransition: proto.WorkspaceTransition_START,
+					},
+				},
+				Plan: complete.GetPlan(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	log, _ := readProvisionLog(t, response)
+	require.Contains(t, log, passedValue)
+	require.NotContains(t, log, secretValue)
+	require.Contains(t, log, "CODER_")
 }

@@ -14,14 +14,16 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth            string            `mapstructure:"auth"`
-	OperatingSystem string            `mapstructure:"os"`
-	Architecture    string            `mapstructure:"arch"`
-	Directory       string            `mapstructure:"dir"`
-	ID              string            `mapstructure:"id"`
-	Token           string            `mapstructure:"token"`
-	Env             map[string]string `mapstructure:"env"`
-	StartupScript   string            `mapstructure:"startup_script"`
+	Auth                     string            `mapstructure:"auth"`
+	OperatingSystem          string            `mapstructure:"os"`
+	Architecture             string            `mapstructure:"arch"`
+	Directory                string            `mapstructure:"dir"`
+	ID                       string            `mapstructure:"id"`
+	Token                    string            `mapstructure:"token"`
+	Env                      map[string]string `mapstructure:"env"`
+	StartupScript            string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -53,6 +55,7 @@ type metadataAttributes struct {
 	ResourceID string         `mapstructure:"resource_id"`
 	Hide       bool           `mapstructure:"hide"`
 	Icon       string         `mapstructure:"icon"`
+	DailyCost  int32          `mapstructure:"daily_cost"`
 	Items      []metadataItem `mapstructure:"item"`
 }
 
@@ -118,13 +121,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
 		agent := &proto.Agent{
-			Name:            tfResource.Name,
-			Id:              attrs.ID,
-			Env:             attrs.Env,
-			StartupScript:   attrs.StartupScript,
-			OperatingSystem: attrs.OperatingSystem,
-			Architecture:    attrs.Architecture,
-			Directory:       attrs.Directory,
+			Name:                     tfResource.Name,
+			Id:                       attrs.ID,
+			Env:                      attrs.Env,
+			StartupScript:            attrs.StartupScript,
+			OperatingSystem:          attrs.OperatingSystem,
+			Architecture:             attrs.Architecture,
+			Directory:                attrs.Directory,
+			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+			TroubleshootingUrl:       attrs.TroubleshootingURL,
 		}
 		switch attrs.Auth {
 		case "token":
@@ -297,6 +302,8 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}
 	resourceIcon := map[string]string{}
+	resourceCost := map[string]int32{}
+
 	for _, resource := range tfResourceByLabel {
 		if resource.Type != "coder_metadata" {
 			continue
@@ -356,6 +363,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 
 		resourceHidden[targetLabel] = attrs.Hide
 		resourceIcon[targetLabel] = attrs.Icon
+		resourceCost[targetLabel] = attrs.DailyCost
 		for _, item := range attrs.Items {
 			resourceMetadata[targetLabel] = append(resourceMetadata[targetLabel],
 				&proto.Resource_Metadata{
@@ -385,9 +393,10 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			Name:         resource.Name,
 			Type:         resource.Type,
 			Agents:       agents,
+			Metadata:     resourceMetadata[label],
 			Hide:         resourceHidden[label],
 			Icon:         resourceIcon[label],
-			Metadata:     resourceMetadata[label],
+			DailyCost:    resourceCost[label],
 			InstanceType: applyInstanceType(resource),
 		})
 	}

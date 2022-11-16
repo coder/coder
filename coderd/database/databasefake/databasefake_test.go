@@ -38,7 +38,7 @@ func TestInTx(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			return nil
-		})
+		}, nil)
 		assert.NoError(t, err)
 	}()
 	var nums []int

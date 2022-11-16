@@ -131,34 +131,14 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		defer cancel()
 
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-			Name:         "testing",
-			VersionID:    version.ID,
-			MaxTTLMillis: ptr.Ref(int64(-1)),
+			Name:             "testing",
+			VersionID:        version.ID,
+			DefaultTTLMillis: ptr.Ref(int64(-1)),
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "max_ttl_ms: Must be a positive integer")
-	})
-
-	t.Run("MaxTTLTooHigh", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-			Name:         "testing",
-			VersionID:    version.ID,
-			MaxTTLMillis: ptr.Ref(365 * 24 * time.Hour.Milliseconds()),
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "max_ttl_ms: Cannot be greater than")
+		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
 	})
 
 	t.Run("NoMaxTTL", func(t *testing.T) {
@@ -171,12 +151,12 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		defer cancel()
 
 		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-			Name:         "testing",
-			VersionID:    version.ID,
-			MaxTTLMillis: ptr.Ref(int64(0)),
+			Name:             "testing",
+			VersionID:        version.ID,
+			DefaultTTLMillis: ptr.Ref(int64(0)),
 		})
 		require.NoError(t, err)
-		require.Zero(t, got.MaxTTLMillis)
+		require.Zero(t, got.DefaultTTLMillis)
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
@@ -303,18 +283,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.Description = "original description"
-			ctr.Icon = "/icons/original-icon.png"
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
-		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateMeta{
-			Name:                       "new-template-name",
-			Description:                "lorem ipsum dolor sit amet et cetera",
-			Icon:                       "/icons/new-icon.png",
-			MaxTTLMillis:               12 * time.Hour.Milliseconds(),
-			MinAutostartIntervalMillis: time.Minute.Milliseconds(),
+			Name:             "new-template-name",
+			DisplayName:      "Displayed Name 456",
+			Description:      "lorem ipsum dolor sit amet et cetera",
+			Icon:             "/icons/new-icon.png",
+			DefaultTTLMillis: 12 * time.Hour.Milliseconds(),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -327,20 +302,20 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
+		assert.Equal(t, req.DisplayName, updated.DisplayName)
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
-		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 
 		// Extra paranoid: did it _really_ happen?
 		updated, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
+		assert.Equal(t, req.DisplayName, updated.DisplayName)
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
-		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, req.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 
 		require.Len(t, auditor.AuditLogs, 4)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
@@ -353,10 +328,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 		req := codersdk.UpdateTemplateMeta{
-			MaxTTLMillis: 0,
+			DefaultTTLMillis: 0,
 		}
 
 		// We're too fast! Sleep so we can be sure that updatedAt is greater
@@ -372,7 +347,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
-		assert.Equal(t, req.MaxTTLMillis, updated.MaxTTLMillis)
+		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 
 	t.Run("MaxTTLTooLow", func(t *testing.T) {
@@ -382,49 +357,23 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 		req := codersdk.UpdateTemplateMeta{
-			MaxTTLMillis: -1,
+			DefaultTTLMillis: -1,
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "max_ttl_ms: Must be a positive integer")
+		require.ErrorContains(t, err, "default_ttl_ms: Must be a positive integer")
 
 		// Ensure no update occurred
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
-		assert.Equal(t, updated.MaxTTLMillis, template.MaxTTLMillis)
-	})
-
-	t.Run("MaxTTLTooHigh", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-		})
-		req := codersdk.UpdateTemplateMeta{
-			MaxTTLMillis: 365 * 24 * time.Hour.Milliseconds(),
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
-		require.ErrorContains(t, err, "max_ttl_ms: Cannot be greater than")
-
-		// Ensure no update occurred
-		updated, err := client.Template(ctx, template.ID)
-		require.NoError(t, err)
-		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
-		assert.Equal(t, updated.MaxTTLMillis, template.MaxTTLMillis)
+		assert.Equal(t, updated.DefaultTTLMillis, template.DefaultTTLMillis)
 	})
 
 	t.Run("NotModified", func(t *testing.T) {
@@ -436,19 +385,17 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
 			ctr.Icon = "/icons/original-icon.png"
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
-			Name:                       template.Name,
-			Description:                template.Description,
-			Icon:                       template.Icon,
-			MaxTTLMillis:               template.MaxTTLMillis,
-			MinAutostartIntervalMillis: template.MinAutostartIntervalMillis,
+			Name:             template.Name,
+			Description:      template.Description,
+			Icon:             template.Icon,
+			DefaultTTLMillis: template.DefaultTTLMillis,
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "not modified")
@@ -458,8 +405,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
-		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
@@ -470,24 +416,21 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
-			ctr.MaxTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			ctr.MinAutostartIntervalMillis = ptr.Ref(time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
-			MaxTTLMillis:               -int64(time.Hour),
-			MinAutostartIntervalMillis: -int64(time.Hour),
+			DefaultTTLMillis: -int64(time.Hour),
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Contains(t, apiErr.Message, "Invalid request")
-		require.Len(t, apiErr.Validations, 2)
-		assert.Equal(t, apiErr.Validations[0].Field, "max_ttl_ms")
-		assert.Equal(t, apiErr.Validations[1].Field, "min_autostart_interval_ms")
+		require.Len(t, apiErr.Validations, 1)
+		assert.Equal(t, apiErr.Validations[0].Field, "default_ttl_ms")
 
 		updated, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
@@ -495,8 +438,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
-		assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		assert.Equal(t, template.MinAutostartIntervalMillis, updated.MinAutostartIntervalMillis)
+		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 
 	t.Run("RemoveIcon", func(t *testing.T) {
@@ -573,9 +515,9 @@ func TestTemplateMetrics(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -601,7 +543,7 @@ func TestTemplateMetrics(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Logger: slogtest.Make(t, nil),
 		Client: agentClient,
@@ -621,9 +563,9 @@ func TestTemplateMetrics(t *testing.T) {
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
-	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	assert.Zero(t, workspaces[0].LastUsedAt)
+	assert.Zero(t, res.Workspaces[0].LastUsedAt)
 
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: slogtest.Make(t, nil).Named("tailnet"),
@@ -633,7 +575,7 @@ func TestTemplateMetrics(t *testing.T) {
 		_ = conn.Close()
 	}()
 
-	sshConn, err := conn.SSHClient()
+	sshConn, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
@@ -672,9 +614,9 @@ func TestTemplateMetrics(t *testing.T) {
 		"BuildTimeStats never loaded",
 	)
 
-	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		database.Now(), workspaces[0].LastUsedAt, time.Minute,
+		database.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
 }

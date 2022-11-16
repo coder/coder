@@ -39,6 +39,9 @@ func TestLoadTest(t *testing.T) {
 			Strategy: cli.LoadTestStrategy{
 				Type: cli.LoadTestStrategyTypeLinear,
 			},
+			CleanupStrategy: cli.LoadTestStrategy{
+				Type: cli.LoadTestStrategyTypeLinear,
+			},
 			Tests: []cli.LoadTest{
 				{
 					Type:  cli.LoadTestTypePlacebo,
@@ -87,6 +90,10 @@ func TestLoadTest(t *testing.T) {
 
 		config := cli.LoadTestConfig{
 			Strategy: cli.LoadTestStrategy{
+				Type:             cli.LoadTestStrategyTypeConcurrent,
+				ConcurrencyLimit: 2,
+			},
+			CleanupStrategy: cli.LoadTestStrategy{
 				Type:             cli.LoadTestStrategyTypeConcurrent,
 				ConcurrencyLimit: 2,
 			},
@@ -139,6 +146,7 @@ func TestLoadTest(t *testing.T) {
 
 	t.Run("OutputFormats", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("This test is flakey. See: https://github.com/coder/coder/actions/runs/3415360091/jobs/5684401383")
 
 		type outputFlag struct {
 			format string
@@ -210,6 +218,9 @@ func TestLoadTest(t *testing.T) {
 					Strategy: cli.LoadTestStrategy{
 						Type: cli.LoadTestStrategyTypeLinear,
 					},
+					CleanupStrategy: cli.LoadTestStrategy{
+						Type: cli.LoadTestStrategyTypeLinear,
+					},
 					Tests: []cli.LoadTest{
 						{
 							Type:  cli.LoadTestTypePlacebo,
@@ -276,6 +287,8 @@ func TestLoadTest(t *testing.T) {
 						b, err = os.ReadFile(output.path)
 						require.NoError(t, err, msg)
 					}
+
+					t.Logf("output %d:\n\n%s", i, string(b))
 
 					switch output.format {
 					case "text":

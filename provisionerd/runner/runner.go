@@ -42,6 +42,7 @@ type Runner struct {
 	metrics             Metrics
 	job                 *proto.AcquiredJob
 	sender              JobUpdater
+	quotaCommitter      QuotaCommitter
 	logger              slog.Logger
 	filesystem          afero.Fs
 	workDirectory       string
@@ -85,20 +86,28 @@ type JobUpdater interface {
 	FailJob(ctx context.Context, in *proto.FailedJob) error
 	CompleteJob(ctx context.Context, in *proto.CompletedJob) error
 }
+type QuotaCommitter interface {
+	CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error)
+}
+
+type Options struct {
+	Updater             JobUpdater
+	QuotaCommitter      QuotaCommitter
+	Logger              slog.Logger
+	Filesystem          afero.Fs
+	WorkDirectory       string
+	Provisioner         sdkproto.DRPCProvisionerClient
+	UpdateInterval      time.Duration
+	ForceCancelInterval time.Duration
+	LogDebounceInterval time.Duration
+	Tracer              trace.Tracer
+	Metrics             Metrics
+}
 
 func New(
 	ctx context.Context,
 	job *proto.AcquiredJob,
-	updater JobUpdater,
-	logger slog.Logger,
-	filesystem afero.Fs,
-	workDirectory string,
-	provisioner sdkproto.DRPCProvisionerClient,
-	updateInterval time.Duration,
-	forceCancelInterval time.Duration,
-	logDebounceInterval time.Duration,
-	tracer trace.Tracer,
-	metrics Metrics,
+	opts Options,
 ) *Runner {
 	m := new(sync.Mutex)
 
@@ -107,17 +116,18 @@ func New(
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
 
 	return &Runner{
-		tracer:              tracer,
-		metrics:             metrics,
+		tracer:              opts.Tracer,
+		metrics:             opts.Metrics,
 		job:                 job,
-		sender:              updater,
-		logger:              logger.With(slog.F("job_id", job.JobId)),
-		filesystem:          filesystem,
-		workDirectory:       workDirectory,
-		provisioner:         provisioner,
-		updateInterval:      updateInterval,
-		forceCancelInterval: forceCancelInterval,
-		logBufferInterval:   logDebounceInterval,
+		sender:              opts.Updater,
+		quotaCommitter:      opts.QuotaCommitter,
+		logger:              opts.Logger.With(slog.F("job_id", job.JobId)),
+		filesystem:          opts.Filesystem,
+		workDirectory:       opts.WorkDirectory,
+		provisioner:         opts.Provisioner,
+		updateInterval:      opts.UpdateInterval,
+		forceCancelInterval: opts.ForceCancelInterval,
+		logBufferInterval:   opts.LogDebounceInterval,
 		queuedLogs:          make([]*proto.Log, 0),
 		mutex:               m,
 		cond:                sync.NewCond(m),
@@ -667,12 +677,13 @@ func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkpr
 		}
 	}()
 	err = stream.Send(&sdkproto.Provision_Request{
-		Type: &sdkproto.Provision_Request_Start{
-			Start: &sdkproto.Provision_Start{
-				Directory:       r.workDirectory,
+		Type: &sdkproto.Provision_Request_Plan{
+			Plan: &sdkproto.Provision_Plan{
+				Config: &sdkproto.Provision_Config{
+					Directory: r.workDirectory,
+					Metadata:  metadata,
+				},
 				ParameterValues: values,
-				DryRun:          true,
-				Metadata:        metadata,
 			},
 		},
 	})
@@ -772,29 +783,11 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}, nil
 }
 
-func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
-	ctx, span := r.startTrace(ctx, tracing.FuncName())
-	defer span.End()
-
-	var stage string
-	switch r.job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
-	case sdkproto.WorkspaceTransition_START:
-		stage = "Starting workspace"
-	case sdkproto.WorkspaceTransition_STOP:
-		stage = "Stopping workspace"
-	case sdkproto.WorkspaceTransition_DESTROY:
-		stage = "Destroying workspace"
-	}
-
-	r.queueLog(ctx, &proto.Log{
-		Source:    proto.LogSource_PROVISIONER_DAEMON,
-		Level:     sdkproto.LogLevel_INFO,
-		Stage:     stage,
-		CreatedAt: time.Now().UnixMilli(),
-	})
-
-	// use the notStopped so that if we attempt to gracefully cancel, the stream will still be available for us
-	// to send the cancel to the provisioner
+func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto.Provision_Request) (
+	*sdkproto.Provision_Complete, *proto.FailedJob,
+) {
+	// use the notStopped so that if we attempt to gracefully cancel, the stream
+	// will still be available for us to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
 		return nil, r.failedJobf("provision: %s", err)
@@ -812,16 +805,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			})
 		}
 	}()
-	err = stream.Send(&sdkproto.Provision_Request{
-		Type: &sdkproto.Provision_Request_Start{
-			Start: &sdkproto.Provision_Start{
-				Directory:       r.workDirectory,
-				ParameterValues: r.job.GetWorkspaceBuild().ParameterValues,
-				Metadata:        r.job.GetWorkspaceBuild().Metadata,
-				State:           r.job.GetWorkspaceBuild().State,
-			},
-		},
-	})
+
+	err = stream.Send(req)
 	if err != nil {
 		return nil, r.failedJobf("start provision: %s", err)
 	}
@@ -864,25 +849,142 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			}
 
 			r.logger.Debug(context.Background(), "provision complete no error")
-			r.logger.Info(context.Background(), "provision successful; marked job as complete",
+			r.logger.Info(context.Background(), "provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),
 			)
 			// Stop looping!
-			return &proto.CompletedJob{
-				JobId: r.job.JobId,
-				Type: &proto.CompletedJob_WorkspaceBuild_{
-					WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
-						State:     msgType.Complete.State,
-						Resources: msgType.Complete.Resources,
-					},
-				},
-			}, nil
+			return msgType.Complete, nil
 		default:
 			return nil, r.failedJobf("invalid message type %T received from provisioner", msg.Type)
 		}
 	}
+}
+
+func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
+	cost := sumDailyCost(resources)
+	if cost == 0 {
+		return nil
+	}
+
+	const stage = "Commit quota"
+
+	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
+		JobId:     r.job.JobId,
+		DailyCost: int32(cost),
+	})
+	if err != nil {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_ERROR,
+			CreatedAt: time.Now().UnixMilli(),
+			Output:    fmt.Sprintf("Failed to commit quota: %+v", err),
+			Stage:     stage,
+		})
+		return r.failedJobf("commit quota: %+v", err)
+	}
+	for _, line := range []string{
+		fmt.Sprintf("Build cost       —   %v", cost),
+		fmt.Sprintf("Budget           —   %v", resp.Budget),
+		fmt.Sprintf("Credits consumed —   %v", resp.CreditsConsumed),
+	} {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_INFO,
+			CreatedAt: time.Now().UnixMilli(),
+			Output:    line,
+			Stage:     stage,
+		})
+	}
+
+	if !resp.Ok {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER,
+			Level:     sdkproto.LogLevel_WARN,
+			CreatedAt: time.Now().UnixMilli(),
+			Output:    "This build would exceed your quota. Failing.",
+			Stage:     stage,
+		})
+		return r.failedJobf("insufficient quota")
+	}
+	return nil
+}
+
+func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob) {
+	ctx, span := r.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	var (
+		applyStage  string
+		commitQuota bool
+	)
+	switch r.job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
+	case sdkproto.WorkspaceTransition_START:
+		applyStage = "Starting workspace"
+		commitQuota = true
+	case sdkproto.WorkspaceTransition_STOP:
+		applyStage = "Stopping workspace"
+		commitQuota = true
+	case sdkproto.WorkspaceTransition_DESTROY:
+		applyStage = "Destroying workspace"
+	}
+
+	config := &sdkproto.Provision_Config{
+		Directory: r.workDirectory,
+		Metadata:  r.job.GetWorkspaceBuild().Metadata,
+		State:     r.job.GetWorkspaceBuild().State,
+	}
+
+	completedPlan, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Provision_Request{
+		Type: &sdkproto.Provision_Request_Plan{
+			Plan: &sdkproto.Provision_Plan{
+				Config:          config,
+				ParameterValues: r.job.GetWorkspaceBuild().ParameterValues,
+			},
+		},
+	})
+	if failed != nil {
+		return nil, failed
+	}
+	r.flushQueuedLogs(ctx)
+	if commitQuota {
+		failed = r.commitQuota(ctx, completedPlan.GetResources())
+		r.flushQueuedLogs(ctx)
+		if failed != nil {
+			return nil, failed
+		}
+	}
+
+	r.queueLog(ctx, &proto.Log{
+		Source:    proto.LogSource_PROVISIONER_DAEMON,
+		Level:     sdkproto.LogLevel_INFO,
+		Stage:     applyStage,
+		CreatedAt: time.Now().UnixMilli(),
+	})
+
+	completedApply, failed := r.buildWorkspace(ctx, applyStage, &sdkproto.Provision_Request{
+		Type: &sdkproto.Provision_Request_Apply{
+			Apply: &sdkproto.Provision_Apply{
+				Config: config,
+				Plan:   completedPlan.GetPlan(),
+			},
+		},
+	})
+	if failed != nil {
+		return nil, failed
+	}
+	r.flushQueuedLogs(ctx)
+
+	return &proto.CompletedJob{
+		JobId: r.job.JobId,
+		Type: &proto.CompletedJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+				State:     completedApply.GetState(),
+				Resources: completedApply.GetResources(),
+			},
+		},
+	}, nil
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {

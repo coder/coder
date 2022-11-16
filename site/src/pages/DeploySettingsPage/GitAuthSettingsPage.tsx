@@ -26,7 +26,7 @@ const GitAuthSettingsPage: React.FC = () => {
       <Header
         title="Git Authentication"
         description="Coder integrates with GitHub, GitLab, BitBucket, and Azure Repos to authenticate developers with your Git provider."
-        docsHref="https://coder.com/docs/coder-oss/latest/admin/git"
+        docsHref="https://coder.com/docs/coder-oss/latest/admin/git-providers"
       />
 
       <video

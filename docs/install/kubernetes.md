@@ -87,8 +87,6 @@ to log in and manage templates.
      # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
      # they are already set by the Helm chart and will cause conflicts.
      env:
-       - name: CODER_ACCESS_URL
-         value: "https://coder.example.com"
        - name: CODER_PG_CONNECTION_URL
          valueFrom:
            secretKeyRef:
@@ -97,6 +95,11 @@ to log in and manage templates.
              # postgres://coder:password@postgres:5432/coder?sslmode=disable
              name: coder-db-url
              key: url
+
+       # (Optional) For production deployments the access URL should be set.
+       # If you're just trying Coder, access the dashboard via the service IP.
+       - name: CODER_ACCESS_URL
+         value: "https://coder.example.com"
 
        # This env variable controls whether or not to auto-import the
        # "kubernetes" template on first startup. This will not work unless

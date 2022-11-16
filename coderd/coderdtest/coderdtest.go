@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/spf13/afero"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -49,6 +50,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
@@ -66,8 +69,9 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
@@ -159,6 +163,9 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
+	if options.DeploymentConfig == nil {
+		options.DeploymentConfig = DeploymentConfig(t)
+	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
@@ -236,7 +243,6 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
-			Experimental:                   options.Experimental,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
 			Auditor:              options.Auditor,
@@ -293,12 +299,14 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
+	client := codersdk.New(coderAPI.AccessURL)
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
+		client.HTTPClient.CloseIdleConnections()
 	})
-	return codersdk.New(coderAPI.AccessURL), provisionerCloser, coderAPI
+	return client, provisionerCloser, coderAPI
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -320,14 +328,16 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(coderAPI.ListenProvisionerDaemon, &provisionerd.Options{
+	closer := provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+		return coderAPI.ListenProvisionerDaemon(ctx, 0)
+	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
-			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
+			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},
 		WorkDirectory: t.TempDir(),
 	})
@@ -355,7 +365,7 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 		Password: FirstUserParams.Password,
 	})
 	require.NoError(t, err)
-	client.SessionToken = login.SessionToken
+	client.SetSessionToken(login.SessionToken)
 	return resp
 }
 
@@ -395,7 +405,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	other := codersdk.New(client.URL)
-	other.SessionToken = login.SessionToken
+	other.SetSessionToken(login.SessionToken)
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
@@ -518,7 +528,8 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
-		workspaceBuild, err := client.WorkspaceBuild(context.Background(), build)
+		var err error
+		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
 	return workspaceBuild
@@ -903,3 +914,13 @@ d8h4Ht09E+f3nhTEc87mODkl7WJZpHL6V2sORfeq/eIkds+H6CJ4hy5w/bSw8tjf
 sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
+
+func DeploymentConfig(t *testing.T) *codersdk.DeploymentConfig {
+	vip := deployment.NewViper()
+	fs := pflag.NewFlagSet(randomUsername(), pflag.ContinueOnError)
+	fs.String(config.FlagName, randomUsername(), randomUsername())
+	cfg, err := deployment.Config(fs, vip)
+	require.NoError(t, err)
+
+	return cfg
+}

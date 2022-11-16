@@ -133,9 +133,9 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 
 export const getUsers = async (
   options: TypesGen.UsersRequest,
-): Promise<TypesGen.User[]> => {
+): Promise<TypesGen.GetUsersResponse> => {
   const url = getURLWithSearchParams("/api/v2/users", options)
-  const response = await axios.get<TypesGen.User[]>(url.toString())
+  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString())
   return response.data
 }
 
@@ -219,6 +219,16 @@ export const getTemplateVersions = async (
   return response.data
 }
 
+export const getTemplateVersionByName = async (
+  organizationId: string,
+  versionName: string,
+): Promise<TypesGen.TemplateVersion> => {
+  const response = await axios.get<TypesGen.TemplateVersion>(
+    `/api/v2/organizations/${organizationId}/templateversions/${versionName}`,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
@@ -290,17 +300,9 @@ export const getURLWithSearchParams = (
 
 export const getWorkspaces = async (
   options: TypesGen.WorkspacesRequest,
-): Promise<TypesGen.Workspace[]> => {
+): Promise<TypesGen.WorkspacesResponse> => {
   const url = getURLWithSearchParams("/api/v2/workspaces", options)
-  const response = await axios.get<TypesGen.Workspace[]>(url)
-  return response.data
-}
-
-export const getWorkspacesCount = async (
-  options: TypesGen.WorkspaceCountRequest,
-): Promise<TypesGen.WorkspaceCountResponse> => {
-  const url = getURLWithSearchParams("/api/v2/workspaces/count", options)
-  const response = await axios.get(url)
+  const response = await axios.get<TypesGen.WorkspacesResponse>(url)
   return response.data
 }
 
@@ -652,5 +654,12 @@ export const getDeploymentConfig =
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
   const response = await axios.get(`/api/v2/replicas`)
+  return response.data
+}
+
+export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
+  const response = await axios.get<ArrayBuffer>(`/api/v2/files/${fileId}`, {
+    responseType: "arraybuffer",
+  })
   return response.data
 }

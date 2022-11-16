@@ -50,6 +50,8 @@ type CreateTemplateVersionRequest struct {
 type CreateTemplateRequest struct {
 	// Name is the name of the template.
 	Name string `json:"name" validate:"template_name,required"`
+	// DisplayName is the displayed name of the template.
+	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
 	// Description is a description of what the template contains. It must be
 	// less than 128 bytes.
 	Description string `json:"description,omitempty" validate:"lt=128"`
@@ -66,14 +68,9 @@ type CreateTemplateRequest struct {
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 
-	// MaxTTLMillis allows optionally specifying the maximum allowable TTL
+	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
-	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
-
-	// MinAutostartIntervalMillis allows optionally specifying the minimum
-	// allowable duration between autostarts for all workspaces created from
-	// this template.
-	MinAutostartIntervalMillis *int64 `json:"min_autostart_interval_ms,omitempty"`
+	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -134,6 +131,25 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
+		return TemplateVersion{}, readBodyAsError(res)
+	}
+
+	var templateVersion TemplateVersion
+	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+}
+
+func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organizationID uuid.UUID, name string) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/templateversions/%s", organizationID.String(), name),
+		nil,
+	)
+
+	if err != nil {
+		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
 		return TemplateVersion{}, readBodyAsError(res)
 	}
 

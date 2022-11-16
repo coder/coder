@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.2.8",
+  "terraform_version": "1.3.3",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -14,10 +14,12 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
             "os": "linux",
-            "startup_script": null
+            "startup_script": null,
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -70,7 +72,9 @@
             "url": null
           },
           "sensitive_values": {
-            "healthcheck": [{}]
+            "healthcheck": [
+              {}
+            ]
           }
         },
         {
@@ -119,15 +123,19 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
           "auth": "token",
+          "connection_timeout": 120,
           "dir": null,
           "env": null,
           "os": "linux",
-          "startup_script": null
+          "startup_script": null,
+          "troubleshooting_url": null
         },
         "after_unknown": {
           "id": true,
@@ -147,7 +155,9 @@
       "name": "app1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -179,7 +189,9 @@
       "name": "app2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -201,12 +213,16 @@
         },
         "after_unknown": {
           "agent_id": true,
-          "healthcheck": [{}],
+          "healthcheck": [
+            {}
+          ],
           "id": true
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "healthcheck": [{}]
+          "healthcheck": [
+            {}
+          ]
         }
       }
     },
@@ -217,7 +233,9 @@
       "name": "app3",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "command": null,
@@ -249,7 +267,9 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -267,7 +287,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.0"
+        "version_constraint": "0.6.1"
       },
       "null": {
         "name": "null",
@@ -300,7 +320,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             },
             "slug": {
               "constant_value": "app1"
@@ -316,7 +339,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             },
             "healthcheck": [
               {
@@ -348,7 +374,10 @@
           "provider_config_key": "coder",
           "expressions": {
             "agent_id": {
-              "references": ["coder_agent.dev1.id", "coder_agent.dev1"]
+              "references": [
+                "coder_agent.dev1.id",
+                "coder_agent.dev1"
+              ]
             },
             "slug": {
               "constant_value": "app3"
@@ -366,7 +395,9 @@
           "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         }
       ]
     }
@@ -374,7 +405,9 @@
   "relevant_attributes": [
     {
       "resource": "coder_agent.dev1",
-      "attribute": ["id"]
+      "attribute": [
+        "id"
+      ]
     }
   ]
 }

@@ -75,10 +75,11 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-	avatar_url
+	avatar_url,
+	quota_allowance
 )
 VALUES
-	( $1, $2, $3, $4) RETURNING *;
+	( $1, $2, $3, $4, $5) RETURNING *;
 
 -- We use the organization_id as the id
 -- for simplicity since all users is
@@ -97,9 +98,10 @@ UPDATE
 	groups
 SET
 	name = $1,
-	avatar_url = $2
+	avatar_url = $2,
+	quota_allowance = $3
 WHERE
-	id = $3
+	id = $4
 RETURNING *;
 
 -- name: InsertGroupMember :exec
