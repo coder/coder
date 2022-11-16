@@ -271,10 +271,6 @@ describe("WorkspacePage", () => {
       t("workspaceStatus.deleted", { ns: "common" }),
     )
   })
-  it("renders the template display name", async () => {
-    await renderWorkspacePage()
-    await screen.findByText(MockWorkspace.template_display_name)
-  })
 
   describe("Timeline", () => {
     it("shows the timeline build", async () => {
