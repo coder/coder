@@ -79,7 +79,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		authToken := uuid.NewString()
 		data, err := echo.Tar(&echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionDryRun: []*proto.Provision_Response{{
+			ProvisionPlan: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Resources: []*proto.Resource{{
@@ -93,7 +93,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					},
 				},
 			}},
-			Provision: []*proto.Provision_Response{{
+			ProvisionApply: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Resources: []*proto.Resource{{
