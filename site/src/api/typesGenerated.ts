@@ -788,6 +788,7 @@ export interface Workspace {
   readonly owner_name: string
   readonly template_id: string
   readonly template_name: string
+  readonly template_display_name: string
   readonly template_icon: string
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
