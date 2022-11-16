@@ -12,11 +12,9 @@ const TEMPLATE_NAME = "coder-ts"
 const VERSION_NAME = "12345"
 const TERRAFORM_FILENAME = "main.tf"
 const README_FILENAME = "readme.md"
-const GPG_FILENAME = "key.gpg"
 const TEMPLATE_VERSION_FILES = {
   [TERRAFORM_FILENAME]: "{}",
   [README_FILENAME]: "Readme",
-  [GPG_FILENAME]: "Some sensitive info",
 }
 
 const setup = async () => {
@@ -38,10 +36,9 @@ const setup = async () => {
 describe("TemplateVersionPage", () => {
   beforeEach(setup)
 
-  it("shows the tf and md files only", () => {
+  it("shows files", () => {
     expect(screen.queryByText(TERRAFORM_FILENAME)).toBeInTheDocument()
     expect(screen.queryByText(README_FILENAME)).toBeInTheDocument()
-    expect(screen.queryByText(GPG_FILENAME)).not.toBeInTheDocument()
   })
 
   it("shows the right content when click on the file name", async () => {

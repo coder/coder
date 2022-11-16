@@ -5,7 +5,10 @@ import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
-import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
+import {
+  getDisplayWorkspaceBuildInitiatedBy,
+  getDisplayWorkspaceTemplateName,
+} from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 
 const Language = {
@@ -36,6 +39,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
   )
+  const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
 
   return (
     <div className={styles.stats} aria-label={Language.workspaceDetails}>
@@ -46,7 +50,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           to={`/templates/${workspace.template_name}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
-          {workspace.template_name}
+          {displayTemplateName}
         </Link>
       </div>
       <div className={styles.statItem}>

@@ -7,6 +7,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
+import { getDisplayWorkspaceTemplateName } from "util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { LastUsed } from "../LastUsed/LastUsed"
 import {
@@ -32,6 +33,7 @@ export const WorkspacesRow: FC<
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
   const hasTemplateIcon =
     workspace.template_icon && workspace.template_icon !== ""
+  const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
 
   return (
     <TableRow
@@ -61,7 +63,7 @@ export const WorkspacesRow: FC<
       </TableCellLink>
 
       <TableCellLink to={workspacePageLink}>
-        <TableCellDataPrimary>{workspace.template_name}</TableCellDataPrimary>
+        <TableCellDataPrimary>{displayTemplateName}</TableCellDataPrimary>
       </TableCellLink>
       <TableCellLink to={workspacePageLink}>
         <TableCellData>

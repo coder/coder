@@ -216,7 +216,6 @@ interface WorkspacesContext {
   filter: string
   count?: number
   getWorkspacesError?: Error | unknown
-  getCountError?: Error | unknown
   paginationContext: PaginationContext
 }
 

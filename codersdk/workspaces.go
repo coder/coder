@@ -17,20 +17,21 @@ import (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID                uuid.UUID      `json:"id"`
-	CreatedAt         time.Time      `json:"created_at"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-	OwnerID           uuid.UUID      `json:"owner_id"`
-	OwnerName         string         `json:"owner_name"`
-	TemplateID        uuid.UUID      `json:"template_id"`
-	TemplateName      string         `json:"template_name"`
-	TemplateIcon      string         `json:"template_icon"`
-	LatestBuild       WorkspaceBuild `json:"latest_build"`
-	Outdated          bool           `json:"outdated"`
-	Name              string         `json:"name"`
-	AutostartSchedule *string        `json:"autostart_schedule,omitempty"`
-	TTLMillis         *int64         `json:"ttl_ms,omitempty"`
-	LastUsedAt        time.Time      `json:"last_used_at"`
+	ID                  uuid.UUID      `json:"id"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	OwnerID             uuid.UUID      `json:"owner_id"`
+	OwnerName           string         `json:"owner_name"`
+	TemplateID          uuid.UUID      `json:"template_id"`
+	TemplateName        string         `json:"template_name"`
+	TemplateDisplayName string         `json:"template_display_name"`
+	TemplateIcon        string         `json:"template_icon"`
+	LatestBuild         WorkspaceBuild `json:"latest_build"`
+	Outdated            bool           `json:"outdated"`
+	Name                string         `json:"name"`
+	AutostartSchedule   *string        `json:"autostart_schedule,omitempty"`
+	TTLMillis           *int64         `json:"ttl_ms,omitempty"`
+	LastUsedAt          time.Time      `json:"last_used_at"`
 }
 
 type WorkspacesRequest struct {

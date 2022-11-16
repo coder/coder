@@ -8,6 +8,7 @@ MacOS = "macOS"
 # do as sudo replacement
 doas = "doas"
 darcula = "darcula"
+Hashi = "Hashi"
 
 [files]
 extend-exclude = [

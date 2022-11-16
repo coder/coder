@@ -380,10 +380,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		workspaces, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
+		workspaceRows, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
 		if err != nil {
 			return xerrors.Errorf("get workspaces: %w", err)
 		}
+		workspaces := database.ConvertWorkspaceRows(workspaceRows)
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
 		for _, dbWorkspace := range workspaces {
 			snapshot.Workspaces = append(snapshot.Workspaces, ConvertWorkspace(dbWorkspace))

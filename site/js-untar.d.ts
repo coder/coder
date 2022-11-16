@@ -1,7 +1,7 @@
 declare module "js-untar" {
   interface File {
     name: string
-    readAsString: () => string
+    blob: Blob
   }
 
   const Untar: (buffer: ArrayBuffer) => {
