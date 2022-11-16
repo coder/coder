@@ -182,3 +182,11 @@ export const getFaviconByStatus = (
       return "favicon"
   }
 }
+
+export const getDisplayWorkspaceTemplateName = (
+  workspace: TypesGen.Workspace,
+): string => {
+  return workspace.template_display_name.length > 0
+    ? workspace.template_display_name
+    : workspace.template_name
+}
