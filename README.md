@@ -9,7 +9,7 @@ Follow](https://img.shields.io/twitter/follow/coderhq?label=%40coderhq&style=soc
 
 Software development on your infrastructure. Offload your team's development from local workstations to cloud servers. Onboard developers in minutes. Build, test and compile at the speed of the cloud. Keep your source code and data behind your firewall.
 
-> "By leveraging Terraform, Coder lets developers run any IDE on any compute platform including on-prem, AWS, Azure, GCP, DigitalOcean, Kubernetes, Docker, and more, with workspaces running on Linux, Windows, or Mac." - **[Kevin Fishner](https://www.linkedin.com/in/kevinfishner) Chief of Staff at [HashiCorp](https://hashicorp.com/)**
+> "By leveraging Terraform, Coder lets developers run any IDE on any compute platform including on-prem, AWS, Azure, GCP, DigitalOcean, Kubernetes, Docker, and more, with workspaces running on Linux, Windows, or Mac." - **Kevin Fishner Chief of Staff at [HashiCorp](https://hashicorp.com/)**
 
 
 <p align="center">
