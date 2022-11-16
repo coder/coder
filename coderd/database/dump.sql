@@ -269,7 +269,8 @@ CREATE TABLE provisioner_daemons (
     updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
-    replica_id uuid
+    replica_id uuid,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -306,7 +307,8 @@ CREATE TABLE provisioner_jobs (
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid,
-    file_id uuid NOT NULL
+    file_id uuid NOT NULL,
+    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL
 );
 
 CREATE TABLE replicas (

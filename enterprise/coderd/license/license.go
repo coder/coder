@@ -117,6 +117,12 @@ func Entitlements(
 				Enabled:     true,
 			}
 		}
+		if claims.Features.ExternalProvisionerDaemons > 0 {
+			entitlements.Features[codersdk.FeatureExternalProvisionerDaemons] = codersdk.Feature{
+				Entitlement: entitlement,
+				Enabled:     true,
+			}
+		}
 		if claims.AllFeatures {
 			allFeatures = true
 		}
@@ -238,13 +244,14 @@ var (
 )
 
 type Features struct {
-	UserLimit        int64 `json:"user_limit"`
-	AuditLog         int64 `json:"audit_log"`
-	BrowserOnly      int64 `json:"browser_only"`
-	SCIM             int64 `json:"scim"`
-	TemplateRBAC     int64 `json:"template_rbac"`
-	HighAvailability int64 `json:"high_availability"`
-	MultipleGitAuth  int64 `json:"multiple_git_auth"`
+	UserLimit                  int64 `json:"user_limit"`
+	AuditLog                   int64 `json:"audit_log"`
+	BrowserOnly                int64 `json:"browser_only"`
+	SCIM                       int64 `json:"scim"`
+	TemplateRBAC               int64 `json:"template_rbac"`
+	HighAvailability           int64 `json:"high_availability"`
+	MultipleGitAuth            int64 `json:"multiple_git_auth"`
+	ExternalProvisionerDaemons int64 `json:"external_provisioner_daemons"`
 }
 
 type Claims struct {

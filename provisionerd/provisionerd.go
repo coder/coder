@@ -58,6 +58,9 @@ type Options struct {
 
 // New creates and starts a provisioner daemon.
 func New(clientDialer Dialer, opts *Options) *Server {
+	if opts == nil {
+		opts = &Options{}
+	}
 	if opts.PollInterval == 0 {
 		opts.PollInterval = 5 * time.Second
 	}

@@ -197,6 +197,7 @@ export interface CreateTemplateVersionRequest {
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id: string
   readonly provisioner: ProvisionerType
+  readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -540,6 +541,7 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string
   readonly name: string
   readonly provisioners: ProvisionerType[]
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -553,6 +555,7 @@ export interface ProvisionerJob {
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
