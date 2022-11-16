@@ -131,57 +131,60 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   return (
     <>
       <Welcome />
-      {!authMethods?.password.hidden && (<form onSubmit={form.handleSubmit}>
-        <Stack>
-          {Object.keys(loginErrors).map(
-            (errorKey: string) =>
-              Boolean(loginErrors[errorKey as LoginErrors]) && (
-                <AlertBanner
-                  key={errorKey}
-                  severity="error"
-                  error={loginErrors[errorKey as LoginErrors]}
-                  text={Language.errorMessages[errorKey as LoginErrors]}
-                />
-              ),
-          )}
-          <TextField
-            {...getFieldHelpers("email")}
-            onChange={onChangeTrimmed(form)}
-            autoFocus
-            autoComplete="email"
-            fullWidth
-            label={Language.emailLabel}
-            type="email"
-            variant="outlined"
-          />
-          <TextField
-            {...getFieldHelpers("password")}
-            autoComplete="current-password"
-            fullWidth
-            id="password"
-            label={Language.passwordLabel}
-            type="password"
-            variant="outlined"
-          />
-          <div>
-            <LoadingButton
-              loading={isLoading}
+      {!authMethods?.password.hidden && (
+        <form onSubmit={form.handleSubmit}>
+          <Stack>
+            {Object.keys(loginErrors).map(
+              (errorKey: string) =>
+                Boolean(loginErrors[errorKey as LoginErrors]) && (
+                  <AlertBanner
+                    key={errorKey}
+                    severity="error"
+                    error={loginErrors[errorKey as LoginErrors]}
+                    text={Language.errorMessages[errorKey as LoginErrors]}
+                  />
+                ),
+            )}
+            <TextField
+              {...getFieldHelpers("email")}
+              onChange={onChangeTrimmed(form)}
+              autoFocus
+              autoComplete="email"
               fullWidth
-              type="submit"
-              variant="contained"
-            >
-              {isLoading ? "" : Language.passwordSignIn}
-            </LoadingButton>
-          </div>
-        </Stack>
-      </form>)}
-      {(!authMethods?.password.hidden && (authMethods?.github.enabled || authMethods?.oidc.enabled)) && (
-        <div className={styles.divider}>
-          <div className={styles.dividerLine}/>
-          <div className={styles.dividerLabel}>Or</div>
-          <div className={styles.dividerLine}/>
-        </div>
+              label={Language.emailLabel}
+              type="email"
+              variant="outlined"
+            />
+            <TextField
+              {...getFieldHelpers("password")}
+              autoComplete="current-password"
+              fullWidth
+              id="password"
+              label={Language.passwordLabel}
+              type="password"
+              variant="outlined"
+            />
+            <div>
+              <LoadingButton
+                loading={isLoading}
+                fullWidth
+                type="submit"
+                variant="contained"
+              >
+                {isLoading ? "" : Language.passwordSignIn}
+              </LoadingButton>
+            </div>
+          </Stack>
+        </form>
       )}
+      {!authMethods?.password.hidden &&
+        (authMethods?.github.enabled || authMethods?.oidc.enabled) && (
+          <div className={styles.divider}>
+            <div className={styles.dividerLine} />
+            <div className={styles.dividerLabel}>Or</div>
+            <div className={styles.dividerLine} />
+          </div>
+        )}
       {(authMethods?.github.enabled || authMethods?.oidc.enabled) && (
         <Box display="grid" gridGap="16px">
           {authMethods.github.enabled && (
@@ -211,9 +214,18 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
               )}`}
             >
               <Button
-                startIcon={authMethods.oidc.iconUrl
-                  ? <img alt="Open ID Connect icon" src={authMethods.oidc.iconUrl} width="24" height="24"/>
-                  : <KeyIcon className={styles.buttonIcon} />}
+                startIcon={
+                  authMethods.oidc.iconUrl ? (
+                    <img
+                      alt="Open ID Connect icon"
+                      src={authMethods.oidc.iconUrl}
+                      width="24"
+                      height="24"
+                    />
+                  ) : (
+                    <KeyIcon className={styles.buttonIcon} />
+                  )
+                }
                 disabled={isLoading}
                 fullWidth
                 type="submit"

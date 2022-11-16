@@ -77,8 +77,8 @@ func TestUserAuthMethods(t *testing.T) {
 
 		methods, err := client.AuthMethods(ctx)
 		require.NoError(t, err)
-		require.True(t, methods.Password)
-		require.False(t, methods.Github)
+		require.True(t, methods.Password.Enabled)
+		require.False(t, methods.Github.Enabled)
 	})
 	t.Run("Github", func(t *testing.T) {
 		t.Parallel()
@@ -91,8 +91,8 @@ func TestUserAuthMethods(t *testing.T) {
 
 		methods, err := client.AuthMethods(ctx)
 		require.NoError(t, err)
-		require.True(t, methods.Password)
-		require.True(t, methods.Github)
+		require.True(t, methods.Password.Enabled)
+		require.True(t, methods.Github.Enabled)
 	})
 }
 
