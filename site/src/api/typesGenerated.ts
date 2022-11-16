@@ -173,11 +173,6 @@ export interface CreateParameterRequest {
   readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/provisionerdaemons.go
-export interface CreateProvisionerDaemonRequest {
-  readonly name: string
-}
-
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string
@@ -560,6 +555,7 @@ export interface ProvisionerJob {
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
