@@ -2322,7 +2322,7 @@ type InsertProvisionerDaemonParams struct {
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
-	Tags         dbtype.Map        `db:"tags" json:"tags"`
+	Tags         dbtype.StringMap  `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -2495,7 +2495,7 @@ WHERE
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
-			AND $4 :: jsonb @> nested.tags
+			AND nested.tags <@ $4 :: jsonb 
 		ORDER BY
 			nested.created_at FOR
 		UPDATE
@@ -2703,7 +2703,7 @@ type InsertProvisionerJobParams struct {
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
-	Tags           dbtype.Map               `db:"tags" json:"tags"`
+	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {

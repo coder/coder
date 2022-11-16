@@ -656,7 +656,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		CreatedAt:    database.Now(),
 		Name:         name,
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
-		Tags: dbtype.Map{
+		Tags: dbtype.StringMap{
 			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
 		},
 	})

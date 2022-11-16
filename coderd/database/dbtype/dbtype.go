@@ -7,9 +7,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type Map map[string]string
+type StringMap map[string]string
 
-func (m *Map) Scan(src interface{}) error {
+func (m *StringMap) Scan(src interface{}) error {
 	if src == nil {
 		return nil
 	}
@@ -25,6 +25,6 @@ func (m *Map) Scan(src interface{}) error {
 	return nil
 }
 
-func (m Map) Value() (driver.Value, error) {
+func (m StringMap) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }

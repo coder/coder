@@ -23,7 +23,7 @@ WHERE
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
-			AND @tags :: jsonb @> nested.tags
+			AND nested.tags <@ @tags :: jsonb 
 		ORDER BY
 			nested.created_at FOR
 		UPDATE
