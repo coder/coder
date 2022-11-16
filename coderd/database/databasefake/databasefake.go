@@ -3013,7 +3013,9 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 	}
 
 	count := int64(len(logs))
-	// TODO set count
+	for i := range logs {
+		logs[i].Count = count
+	}
 
 	return logs, nil
 }
