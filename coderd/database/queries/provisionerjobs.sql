@@ -23,9 +23,9 @@ WHERE
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
 		ORDER BY
-			nested.created_at FOR
-		UPDATE
-			SKIP LOCKED
+			nested.created_at
+		FOR UPDATE
+		SKIP LOCKED
 		LIMIT
 			1
 	) RETURNING *;

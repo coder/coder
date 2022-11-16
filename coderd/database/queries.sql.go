@@ -2380,7 +2380,7 @@ WHERE
 	AND (
 		id > $2
 		OR id < $3
-	) ORDER BY id
+	) ORDER BY id ASC
 `
 
 type GetProvisionerLogsByIDBetweenParams struct {
@@ -2498,9 +2498,9 @@ WHERE
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
 		ORDER BY
-			nested.created_at FOR
-		UPDATE
-			SKIP LOCKED
+			nested.created_at
+		FOR UPDATE
+		SKIP LOCKED
 		LIMIT
 			1
 	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
