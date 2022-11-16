@@ -1,5 +1,8 @@
 import { useMachine } from "@xstate/react"
-import { getPaginationContext } from "components/PaginationWidget/utils"
+import {
+  getPaginationContext,
+  nonInitialPage,
+} from "components/PaginationWidget/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
@@ -38,6 +41,7 @@ const AuditPage: FC = () => {
           auditSend("FILTER", { filter })
         }}
         paginationRef={paginationRef}
+        isNonInitialPage={nonInitialPage(searchParams)}
       />
     </>
   )

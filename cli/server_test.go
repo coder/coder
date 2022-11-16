@@ -425,6 +425,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
+		defer client.HTTPClient.CloseIdleConnections()
 
 		// Use the first certificate and hostname.
 		client.URL.Host = "alpaca.com:443"
@@ -607,6 +608,7 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--address", ":0",
 			"--access-url", "http://example.com",
+			"--oauth2-github-allow-everyone",
 			"--oauth2-github-client-id", "fake",
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,
@@ -632,6 +634,94 @@ func TestServer(t *testing.T) {
 		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
 		cancelFunc()
 		<-serverErr
+	})
+
+	t.Run("RateLimit", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Default", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			root, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--address", ":0",
+				"--access-url", "http://example.com",
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "512", resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Changed", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			val := "100"
+			root, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--address", ":0",
+				"--access-url", "http://example.com",
+				"--api-rate-limit", val,
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, val, resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Disabled", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			root, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--address", ":0",
+				"--access-url", "http://example.com",
+				"--api-rate-limit", "-1",
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "", resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
 	})
 }
 

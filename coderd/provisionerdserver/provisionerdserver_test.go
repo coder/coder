@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,33 @@ import (
 
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
+	t.Run("Debounce", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		pubsub := database.NewPubsubInMemory()
+		srv := &provisionerdserver.Server{
+			ID:                 uuid.New(),
+			Logger:             slogtest.Make(t, nil),
+			AccessURL:          &url.URL{},
+			Provisioners:       []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Database:           db,
+			Pubsub:             pubsub,
+			Telemetry:          telemetry.NewNoop(),
+			AcquireJobDebounce: time.Hour,
+		}
+		job, err := srv.AcquireJob(context.Background(), nil)
+		require.NoError(t, err)
+		require.Equal(t, &proto.AcquiredJob{}, job)
+		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			ID:          uuid.New(),
+			InitiatorID: uuid.New(),
+			Provisioner: database.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
+		job, err = srv.AcquireJob(context.Background(), nil)
+		require.NoError(t, err)
+		require.Equal(t, &proto.AcquiredJob{}, job)
+	})
 	t.Run("NoJobs", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t)
@@ -717,8 +745,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		db := databasefake.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
-			Name: "something",
-			Type: "aws_instance",
+			Name:      "something",
+			Type:      "aws_instance",
+			DailyCost: 10,
 			Agents: []*sdkproto.Agent{{
 				Name: "dev",
 				Env: map[string]string{
@@ -739,6 +768,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
 		require.NoError(t, err)
 		require.Len(t, resources, 1)
+		require.EqualValues(t, 10, resources[0].DailyCost)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
 		require.NoError(t, err)
 		require.Len(t, agents, 1)

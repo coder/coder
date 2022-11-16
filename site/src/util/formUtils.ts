@@ -19,8 +19,11 @@ export const Language = {
   nameInvalidChars: (name: string): string => {
     return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`
   },
-  nameTooLong: (name: string): string => {
-    return `${name} cannot be longer than 32 characters`
+  nameTooLong: (name: string, len: number): string => {
+    return `${name} cannot be longer than ${len} characters`
+  },
+  templateDisplayNameInvalidChars: (name: string): string => {
+    return `${name} must start and end with non-whitespace character`
   },
 }
 
@@ -74,15 +77,28 @@ export const onChangeTrimmed =
     form.handleChange(event)
   }
 
-// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L40
+// REMARK: Keep these consts in sync with coderd/httpapi/httpapi.go
 const maxLenName = 32
-
-// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L18
+const templateDisplayNameMaxLength = 64
 const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/
+const templateDisplayNameRE = /^[^\s](.*[^\s])?$/
 
 // REMARK: see #1756 for name/username semantics
 export const nameValidator = (name: string): Yup.StringSchema =>
   Yup.string()
     .required(Language.nameRequired(name))
     .matches(usernameRE, Language.nameInvalidChars(name))
-    .max(maxLenName, Language.nameTooLong(name))
+    .max(maxLenName, Language.nameTooLong(name, maxLenName))
+
+export const templateDisplayNameValidator = (
+  displayName: string,
+): Yup.StringSchema =>
+  Yup.string()
+    .matches(
+      templateDisplayNameRE,
+      Language.templateDisplayNameInvalidChars(displayName),
+    )
+    .max(
+      templateDisplayNameMaxLength,
+      Language.nameTooLong(displayName, templateDisplayNameMaxLength),
+    )

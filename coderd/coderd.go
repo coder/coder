@@ -47,7 +47,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -75,7 +74,6 @@ type Options struct {
 	CacheDir string
 
 	Auditor                        audit.Auditor
-	WorkspaceQuotaEnforcer         workspacequota.Enforcer
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -154,9 +152,6 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-	if options.WorkspaceQuotaEnforcer == nil {
-		options.WorkspaceQuotaEnforcer = workspacequota.NewNop()
-	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -183,12 +178,10 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache:           metricsCache,
-		Auditor:                atomic.Pointer[audit.Auditor]{},
-		WorkspaceQuotaEnforcer: atomic.Pointer[workspacequota.Enforcer]{},
+		metricsCache: metricsCache,
+		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
 	api.Auditor.Store(&options.Auditor)
-	api.WorkspaceQuotaEnforcer.Store(&options.WorkspaceQuotaEnforcer)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -348,7 +341,10 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
+				r.Route("/templateversions", func(r chi.Router) {
+					r.Post("/", api.postTemplateVersionsByOrganization)
+					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
+				})
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
@@ -525,7 +521,6 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.workspaces)
-			r.Get("/count", api.workspaceCount)
 			r.Route("/{workspace}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractWorkspaceParam(options.Database),
@@ -592,8 +587,8 @@ type API struct {
 	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
-	WorkspaceQuotaEnforcer            atomic.Pointer[workspacequota.Enforcer]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	HTTPAuth                          *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
@@ -646,7 +641,7 @@ func compressHandler(h http.Handler) http.Handler {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
 // in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
 	clientSession, serverSession := provisionersdk.TransportPipe()
 	defer func() {
 		if err != nil {
@@ -676,14 +671,16 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:    api.AccessURL,
-		ID:           daemon.ID,
-		Database:     api.Database,
-		Pubsub:       api.Pubsub,
-		Provisioners: daemon.Provisioners,
-		Telemetry:    api.Telemetry,
-		Tags:         tags,
-		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		AccessURL:          api.AccessURL,
+		ID:                 daemon.ID,
+		Database:           api.Database,
+		Pubsub:             api.Pubsub,
+		Provisioners:       daemon.Provisioners,
+		Telemetry:          api.Telemetry,
+		Tags:               tags,
+		QuotaCommitter:     &api.QuotaCommitter,
+		AcquireJobDebounce: debounce,
+		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
 		return nil, err

@@ -25,11 +25,6 @@ const Template: Story<PaginationWidgetProps> = (
   args: PaginationWidgetProps,
 ) => <PaginationWidget {...args} />
 
-export const UnknownPageNumbers = Template.bind({})
-UnknownPageNumbers.args = {
-  numRecords: undefined,
-}
-
 export const LessThan8Pages = Template.bind({})
 LessThan8Pages.args = {
   numRecords: 84,

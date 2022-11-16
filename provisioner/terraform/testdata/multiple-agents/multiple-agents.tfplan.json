@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.2.8",
+  "terraform_version": "1.3.3",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -14,10 +14,12 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
             "os": "linux",
-            "startup_script": null
+            "startup_script": null,
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -31,10 +33,12 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 1,
             "dir": null,
             "env": null,
             "os": "darwin",
-            "startup_script": null
+            "startup_script": null,
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -48,10 +52,12 @@
           "values": {
             "arch": "arm64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
             "os": "windows",
-            "startup_script": null
+            "startup_script": null,
+            "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {}
         },
@@ -78,15 +84,19 @@
       "name": "dev1",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
           "auth": "token",
+          "connection_timeout": 120,
           "dir": null,
           "env": null,
           "os": "linux",
-          "startup_script": null
+          "startup_script": null,
+          "troubleshooting_url": null
         },
         "after_unknown": {
           "id": true,
@@ -106,15 +116,19 @@
       "name": "dev2",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "amd64",
           "auth": "token",
+          "connection_timeout": 1,
           "dir": null,
           "env": null,
           "os": "darwin",
-          "startup_script": null
+          "startup_script": null,
+          "troubleshooting_url": null
         },
         "after_unknown": {
           "id": true,
@@ -134,15 +148,19 @@
       "name": "dev3",
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "arch": "arm64",
           "auth": "token",
+          "connection_timeout": 120,
           "dir": null,
           "env": null,
           "os": "windows",
-          "startup_script": null
+          "startup_script": null,
+          "troubleshooting_url": "https://coder.com/troubleshoot"
         },
         "after_unknown": {
           "id": true,
@@ -162,7 +180,9 @@
       "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
-        "actions": ["create"],
+        "actions": [
+          "create"
+        ],
         "before": null,
         "after": {
           "triggers": null
@@ -180,7 +200,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.0"
+        "version_constraint": "0.6.1"
       },
       "null": {
         "name": "null",
@@ -215,6 +235,9 @@
             "arch": {
               "constant_value": "amd64"
             },
+            "connection_timeout": {
+              "constant_value": 1
+            },
             "os": {
               "constant_value": "darwin"
             }
@@ -233,6 +256,9 @@
             },
             "os": {
               "constant_value": "windows"
+            },
+            "troubleshooting_url": {
+              "constant_value": "https://coder.com/troubleshoot"
             }
           },
           "schema_version": 0

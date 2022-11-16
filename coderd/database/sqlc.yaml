@@ -51,3 +51,5 @@ rename:
   jwt: JWT
   user_acl: UserACL
   group_acl: GroupACL
+  troubleshooting_url: TroubleshootingURL
+  default_ttl: DefaultTTL

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"github.com/hashicorp/go-multierror"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -82,11 +83,23 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	otel.SetLogger(logr.Discard())
 
 	return tracerProvider, func(ctx context.Context) error {
-		for _, close := range closers {
-			_ = close(ctx)
+		var merr error
+		err := tracerProvider.ForceFlush(ctx)
+		if err != nil {
+			merr = multierror.Append(merr, xerrors.Errorf("tracerProvider.ForceFlush(): %w", err))
 		}
-		_ = tracerProvider.Shutdown(ctx)
-		return nil
+		for i, closer := range closers {
+			err = closer(ctx)
+			if err != nil {
+				merr = multierror.Append(merr, xerrors.Errorf("closer() %d: %w", i, err))
+			}
+		}
+		err = tracerProvider.Shutdown(ctx)
+		if err != nil {
+			merr = multierror.Append(merr, xerrors.Errorf("tracerProvider.Shutdown(): %w", err))
+		}
+
+		return merr
 	}, nil
 }
 

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/xerrors"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"

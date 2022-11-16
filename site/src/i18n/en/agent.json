@@ -9,5 +9,14 @@
     "os": "OS",
     "apps": "Apps",
     "noApps": "None"
-  }
+  },
+  "status": {
+    "timeout": "Timeout"
+  },
+  "timeoutTooltip": {
+    "title": "Agent is taking too long to connect",
+    "message": "We noticed this agent is taking longer than expected to connect. You can try troubleshooting the issue",
+    "link": "here"
+  },
+  "unableToConnect": "Unable to connect"
 }

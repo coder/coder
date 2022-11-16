@@ -15,6 +15,7 @@ describe("AuditPage", () => {
         onActivateUser={() => jest.fn()}
         onResetUserPassword={() => jest.fn()}
         onUpdateUserRoles={() => jest.fn()}
+        isNonInitialPage={false}
       />,
     )
 

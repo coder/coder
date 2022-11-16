@@ -44,9 +44,6 @@ Workspace Commands:
   update         Update a workspace
 
 Flags:
-      --experimental          Enable experimental features. Experimental features are not
-                              ready for production.
-                              Consumes $CODER_EXPERIMENTAL
       --global-config coder   Path to the global coder config directory.
                               Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
       --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".

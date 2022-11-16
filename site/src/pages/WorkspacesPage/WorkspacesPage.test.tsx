@@ -1,11 +1,13 @@
 import { screen, waitFor } from "@testing-library/react"
 import { rest } from "msw"
 import * as CreateDayString from "util/createDayString"
-import { Language as WorkspacesTableBodyLanguage } from "../../components/WorkspacesTable/WorkspacesTableBody"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import WorkspacesPage from "./WorkspacesPage"
+import { i18n } from "i18n"
+
+const { t } = i18n
 
 describe("WorkspacesPage", () => {
   beforeEach(() => {
@@ -19,7 +21,7 @@ describe("WorkspacesPage", () => {
     // Given
     server.use(
       rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json([]))
+        return res(ctx.status(200), ctx.json({ workspaces: [], count: 0 }))
       }),
     )
 
@@ -27,9 +29,8 @@ describe("WorkspacesPage", () => {
     render(<WorkspacesPage />)
 
     // Then
-    await screen.findByText(
-      WorkspacesTableBodyLanguage.emptyCreateWorkspaceMessage,
-    )
+    const text = t("emptyCreateWorkspaceMessage", { ns: "workspacesPage" })
+    await screen.findByText(text)
   })
 
   it("renders a filled workspaces page", async () => {
@@ -52,6 +53,6 @@ describe("WorkspacesPage", () => {
       },
       { timeout: 2000 },
     )
-    await screen.findByText(MockWorkspace.name)
+    await screen.findByText(`${MockWorkspace.name}1`)
   })
 })

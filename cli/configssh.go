@@ -70,7 +70,7 @@ type sshWorkspaceConfig struct {
 }
 
 func sshFetchWorkspaceConfigs(ctx context.Context, client *codersdk.Client) ([]sshWorkspaceConfig, error) {
-	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Owner: codersdk.Me,
 	})
 	if err != nil {
@@ -78,8 +78,8 @@ func sshFetchWorkspaceConfigs(ctx context.Context, client *codersdk.Client) ([]s
 	}
 
 	var errGroup errgroup.Group
-	workspaceConfigs := make([]sshWorkspaceConfig, len(workspaces))
-	for i, workspace := range workspaces {
+	workspaceConfigs := make([]sshWorkspaceConfig, len(res.Workspaces))
+	for i, workspace := range res.Workspaces {
 		i := i
 		workspace := workspace
 		errGroup.Go(func() error {

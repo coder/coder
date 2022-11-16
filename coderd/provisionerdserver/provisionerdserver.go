@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,19 +29,38 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
+var (
+	lastAcquire      time.Time
+	lastAcquireMutex sync.RWMutex
+)
+
 type Server struct {
-	AccessURL    *url.URL
-	ID           uuid.UUID
-	Logger       slog.Logger
-	Provisioners []database.ProvisionerType
-	Tags         json.RawMessage
-	Database     database.Store
-	Pubsub       database.Pubsub
-	Telemetry    telemetry.Reporter
+	AccessURL      *url.URL
+	ID             uuid.UUID
+	Logger         slog.Logger
+	Provisioners   []database.ProvisionerType
+	Tags           json.RawMessage
+	Database       database.Store
+	Pubsub         database.Pubsub
+	Telemetry      telemetry.Reporter
+	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
+
+	AcquireJobDebounce time.Duration
 }
 
 // AcquireJob queries the database to lock a job.
 func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+	// This prevents loads of provisioner daemons from consistently
+	// querying the database when no jobs are available.
+	//
+	// The debounce only occurs when no job is returned, so if loads of
+	// jobs are added at once, they will start after at most this duration.
+	lastAcquireMutex.RLock()
+	if !lastAcquire.IsZero() && time.Since(lastAcquire) < server.AcquireJobDebounce {
+		lastAcquireMutex.RUnlock()
+		return &proto.AcquiredJob{}, nil
+	}
+	lastAcquireMutex.RUnlock()
 	// This marks the job as locked in the database.
 	job, err := server.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 		StartedAt: sql.NullTime{
@@ -56,6 +77,9 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	if errors.Is(err, sql.ErrNoRows) {
 		// The provisioner daemon assumes no jobs are available if
 		// an empty struct is returned.
+		lastAcquireMutex.Lock()
+		lastAcquire = time.Now()
+		lastAcquireMutex.Unlock()
 		return &proto.AcquiredJob{}, nil
 	}
 	if err != nil {
@@ -232,6 +256,35 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	return protoJob, err
 }
 
+func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	jobID, err := uuid.Parse(request.JobId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse job id: %w", err)
+	}
+
+	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get job: %w", err)
+	}
+	if !job.WorkerID.Valid {
+		return nil, xerrors.New("job isn't running yet")
+	}
+
+	if job.WorkerID.UUID.String() != server.ID.String() {
+		return nil, xerrors.New("you don't own this job")
+	}
+
+	q := server.QuotaCommitter.Load()
+	if q == nil {
+		// We're probably in community edition or a test.
+		return &proto.CommitQuotaResponse{
+			Budget: -1,
+			Ok:     true,
+		}, nil
+	}
+	return (*q).CommitQuota(ctx, request)
+}
+
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
@@ -289,7 +342,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		lowestID := logs[0].ID
 		server.Logger.Debug(ctx, "inserted job logs", slog.F("job_id", parsedID))
 		data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{
-			CreatedAfter: lowestID,
+			CreatedAfter: lowestID - 1,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal: %w", err)
@@ -600,7 +653,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 
 			return nil
-		})
+		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
@@ -670,6 +723,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Name:       protoResource.Name,
 		Hide:       protoResource.Hide,
 		Icon:       protoResource.Icon,
+		DailyCost:  protoResource.DailyCost,
 		InstanceType: sql.NullString{
 			String: protoResource.InstanceType,
 			Valid:  protoResource.InstanceType != "",
@@ -680,7 +734,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
-	var appSlugs = make(map[string]struct{})
+	appSlugs := make(map[string]struct{})
 	for _, prAgent := range protoResource.Agents {
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
@@ -725,6 +779,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
+			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),
+			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

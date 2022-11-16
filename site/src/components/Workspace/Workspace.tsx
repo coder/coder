@@ -14,7 +14,6 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
@@ -33,10 +32,6 @@ export enum WorkspaceErrors {
 }
 
 export interface WorkspaceProps {
-  bannerProps: {
-    isLoading?: boolean
-    onExtend: () => void
-  }
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void
     onDeadlineMinus: (hours: number) => void
@@ -60,13 +55,13 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  quota_budget?: number
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
-  bannerProps,
   scheduleProps,
   handleStart,
   handleStop,
@@ -83,6 +78,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -188,18 +184,16 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         {cancellationError}
         {workspaceRefreshWarning}
 
-        <WorkspaceScheduleBanner
-          isLoading={bannerProps.isLoading}
-          onExtend={bannerProps.onExtend}
-          workspace={workspace}
-        />
-
         <WorkspaceDeletedBanner
           workspace={workspace}
           handleClick={() => navigate(`/templates`)}
         />
 
-        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+        <WorkspaceStats
+          workspace={workspace}
+          quota_budget={quota_budget}
+          handleUpdate={handleUpdate}
+        />
 
         {isTransitioning !== undefined && isTransitioning && (
           <WorkspaceBuildProgress

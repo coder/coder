@@ -12,7 +12,6 @@ export const TemplateSummaryPage: FC = () => {
     activeTemplateVersion,
     templateResources,
     templateVersions,
-    deleteTemplateError,
     templateDAUs,
   } = context
 
@@ -23,7 +22,15 @@ export const TemplateSummaryPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Template`)}</title>
+        <title>
+          {pageTitle(
+            `${
+              template.display_name.length > 0
+                ? template.display_name
+                : template.name
+            } · Template`,
+          )}
+        </title>
       </Helmet>
       <TemplateSummaryPageView
         template={template}
@@ -31,7 +38,6 @@ export const TemplateSummaryPage: FC = () => {
         templateResources={templateResources}
         templateVersions={templateVersions}
         templateDAUs={templateDAUs}
-        deleteTemplateError={deleteTemplateError}
       />
     </>
   )

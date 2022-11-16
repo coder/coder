@@ -15,8 +15,9 @@ import (
 
 // LoadTestConfig is the overall configuration for a call to `coder loadtest`.
 type LoadTestConfig struct {
-	Strategy LoadTestStrategy `json:"strategy"`
-	Tests    []LoadTest       `json:"tests"`
+	Strategy        LoadTestStrategy `json:"strategy"`
+	CleanupStrategy LoadTestStrategy `json:"cleanup_strategy"`
+	Tests           []LoadTest       `json:"tests"`
 	// Timeout sets a timeout for the entire test run, to control the timeout
 	// for each individual run use strategy.timeout.
 	Timeout httpapi.Duration `json:"timeout"`
@@ -133,6 +134,10 @@ func (c *LoadTestConfig) Validate() error {
 	err := c.Strategy.Validate()
 	if err != nil {
 		return xerrors.Errorf("validate strategy: %w", err)
+	}
+	err = c.CleanupStrategy.Validate()
+	if err != nil {
+		return xerrors.Errorf("validate cleanup_strategy: %w", err)
 	}
 
 	for i, test := range c.Tests {

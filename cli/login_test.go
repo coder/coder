@@ -148,7 +148,7 @@ func TestLogin(t *testing.T) {
 		}()
 
 		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken)
+		pty.WriteLine(client.SessionToken())
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
@@ -183,11 +183,11 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken)
+		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
 		err := root.Execute()
 		require.NoError(t, err)
 		sessionFile, err := cfg.Session().Read()
 		require.NoError(t, err)
-		require.Equal(t, client.SessionToken, sessionFile)
+		require.Equal(t, client.SessionToken(), sessionFile)
 	})
 }

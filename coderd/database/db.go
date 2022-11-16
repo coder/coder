@@ -26,7 +26,7 @@ type Store interface {
 	customQuerier
 
 	Ping(ctx context.Context) (time.Duration, error)
-	InTx(func(Store) error) error
+	InTx(func(Store) error, *sql.TxOptions) error
 }
 
 // DBTX represents a database connection or transaction.
@@ -42,25 +42,6 @@ type DBTX interface {
 // New creates a new database store using a SQL database connection.
 func New(sdb *sql.DB) Store {
 	dbx := sqlx.NewDb(sdb, "postgres")
-
-	// The default is 0 but the request will fail with a 500 if the DB
-	// cannot accept new connections, so we try to limit that here.
-	// Requests will wait for a new connection instead of a hard error
-	// if a limit is set.
-	dbx.SetMaxOpenConns(40)
-	// Allow a max of 3 idle connections at a time. Lower values end up
-	// creating a lot of connection churn. Since each connection uses about
-	// 10MB of memory, we're allocating 30MB to Postgres connections per
-	// replica, but is better than causing Postgres to spawn a thread 15-20
-	// times/sec. PGBouncer's transaction pooling is not the greatest so
-	// it's not optimal for us to deploy.
-	//
-	// This was set to 10 before we started doing HA deployments, but 3 was
-	// later determined to be a better middle ground as to not use up all
-	// of PGs default connection limit while simultaneously avoiding a lot
-	// of connection churn.
-	dbx.SetMaxIdleConns(3)
-
 	return &sqlQuerier{
 		db:  dbx,
 		sdb: dbx,
@@ -87,7 +68,7 @@ func (q *sqlQuerier) Ping(ctx context.Context) (time.Duration, error) {
 }
 
 // InTx performs database operations inside a transaction.
-func (q *sqlQuerier) InTx(function func(Store) error) error {
+func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) error {
 	if _, ok := q.db.(*sqlx.Tx); ok {
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle
@@ -99,7 +80,7 @@ func (q *sqlQuerier) InTx(function func(Store) error) error {
 		return nil
 	}
 
-	transaction, err := q.sdb.BeginTxx(context.Background(), nil)
+	transaction, err := q.sdb.BeginTxx(context.Background(), txOpts)
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}

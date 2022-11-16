@@ -1,5 +1,8 @@
 import { useMachine } from "@xstate/react"
-import { getPaginationContext } from "components/PaginationWidget/utils"
+import {
+  getPaginationContext,
+  nonInitialPage,
+} from "components/PaginationWidget/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
@@ -49,6 +52,7 @@ const WorkspacesPage: FC = () => {
           })
         }}
         paginationRef={paginationRef}
+        isNonInitialPage={nonInitialPage(searchParams)}
       />
     </>
   )

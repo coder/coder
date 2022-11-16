@@ -57,6 +57,8 @@ export interface UsersContext {
   updateUserRolesError?: Error | unknown
   paginationContext: PaginationContext
   paginationRef: PaginationMachineRef
+  count: number
+  getCountError: Error | unknown
 }
 
 export type UsersEvent =
@@ -101,7 +103,7 @@ export type UsersEvent =
   | { type: "UPDATE_PAGE"; page: string }
 
 export const usersMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAHogCMADiLcA7AFYVAFgCcW5bNkaAbACZDAGhABPOVsNEAzN1XGDhw92PduW+wF9fFqgY2PiERDA4lDQAqmiY7BBsxNQAbiwA1sQRscE8-EggwqLiVJIyCPKyRHryyk4m9lrGzfYW1ggaGqpERvaq9soasqrKfgEgQZi4BFlgkdRQOfEY6CzoRIIANgQAZmsAtuFzS7B5kkVirKUF5QC0ssrGRLV1rs2VyrptiJ3K1cbyHQaUyqSoDVT+QJxEIzIgUCCbMDsLDRLC0ACiADkACIAfVR6IASmcChcSmVEMZOkRDPpgYZ5J4NNx5PZWlY5A8qvZjH15Nx7IZVFp5KoNJCJtDpmF4Yj2Nj0QAZdEAFXR+KwRJJQhElwkN0phi0RAMqncjIZo0Z3wqtSIOgZGg+3HNsglkxhMoRSIAggBhFUASQAaj61RqtXxzrryQaEKZ7Pb7KLBQCTLJ3Kobe5E2adINjE1DE7jO6paFkt72IT0ZqVRHCbjaD6sFgAOoAeUJ2O1hRjVwp8dkxq6A2UFuTyhMWY5CFcdlkhbB8n5vNBZeC0srcuitGxYfVBMbhI7yqwvbJA7jtwBfwF3lG-WHPhtjO4NIZ7lk9Q0fI3UwrOEq13fdw2bABxdEL37fVQDuHk7BUTQnEcAEdGzLoaQtdQ+h8Ywp3-T1tyRECD1xAAxQNFTVYko1JGDrjgxB7m6LQjABfCtBUYduFkV9h2qAZv3w5wuIhcYPS3IgAGM2B2Ch0H2JYsFQQQwCoUQ2HYP0O0xSjCQAWQbXEUTRLEsEDXToOKK8mNtRMCyFXpPjcLQbX0FcTU+EtnFwhlCKk2SqHkxTlNU9TNI4P0fUxP0lWM0yMUxCyrLonUbNg6REFBbpmU+LiHipbhOnc-D3xXUURVpWlioCwCgpCpS4mxMBERKbTdP0oyj1xBVlTVay9UYrKKh8e1vHkbRgRUBobS0fQelFRc9F-Nj5EMOrYQahSmowFq2qubSYrixVjL61UoLSvsMuG8paSeYZ7AzNlDHHN65rcGliv5AVPjNExNrCbbQriH1pMoFJmC0nS9MDQzjP9INQyDVL8nSobBxeD8BnsTops6NzZ0MXHFrZKk2NUfQNok8strknaljBiGoai474p6xGQzDSzMUG2M7OFVjuMXQVeNUSmbTqRNlt-NwnuUR5xRpzdANgcKqAgBYlgSJI4SoNJMhIdWICWPnbJG4ZFxNcX+XHbxhzUOa6i8o1vBFdRaTdZWANhNXYDUjWtbidgVjWDZthwPZFKN-31JNuIzcy8oPPfEYXEm3R8NGPjZ1kRwNCUYU8-w2Xv3EqEVdhCBWrmIOMB1qhkn1jJiGrtqwFNq7LyTuRKeNAxmS0UENEeXjJZGapmRGEfVrTwHW5rqJFmD0P1i2XYDiINu5g7hOu4Ywd9CH6oWVFV4uItdzeONMU6TZWpFxH+eiDwcGKEhpftcSRu9YN4hX+ZoQTuaNroYzjJbRMPgeQujUOob85hZxmlTrSEYLpTAKDNM-AB79mAxBXugVYa8I5R0ONgj+u8MCJ1upyWwk9vwsmTMVAw48C7aAZFyMUU59DP2BrtdA9BYCwAAO5rAgISOAcwOqw3hj1ZsrZOzdlxDWOsVDMZimqPAgwxhKbixFO5HCX1ibaABJTV6ygeH0xBhgARwjRHiLQDgI6sV2aakbHI9sXY8TKNVKouMad7T9FsMTI0Csnr6LtAYUWahFxMnMd7IiRB0ASPmHg6xeBBEiPQBABuTc-6JOSUsGxmSIC+LsnndRecmjqD0KMfC7lxwLlMLofot5RTUwrj7MISSHGfziEU0RIcCFh3XpHTe3Tjh9PSbYrJpSLYPGNCoRwoJ3iihXO5IUTwRS6BqMWAYwJn7IEEBAXBy8MCEhYIiWAOTf4tyIIc45QC4jnMubMu4VoTTFSFG+SpGgPp-CnFA4SzhtDl0lJXMI9yTlLGeXAQZhDw4b2jpCx5ZyLlwFecxL8Dghi6FegoPogp+LGlGHoDwahCxOH8OMKgLBq7wAKJJVWZAl70EYFQFm0YbqDluM4E+nxPgsmLCKXkr5uiFktDob8zJXpKw6QkiIvTgicrAXZW47geiSqGHigEi4ZztBBEQfobIjWeBiVoZ+sowDKv5hbHkzwmiDB5M0NwYpfmzjUAXZwZ9OjfjYk9CxwUGZxBUrHDS5tu7UIQKCRQXEhgjzluUnO7Qj4F0qBgqBeF2lgs6cQXhSx9q10yhGwcJgnhGlpI8IeT5xZzQWk6dQ6h+QPHFmMOVgVLF8KZjgm1xa4zVUnkaZkuMvBDD1YgIxpMeRTUphmZ+fsA6a1Sega15tk4ZkUEXV2TgxTCnkO5YYfwnoKHFVSSccS22AW3oq5d9EuXgIUFUHQvFTCvAMHo2cK4C4eCEn0dwXQHhYLfh-OuN70Y2rXWNbRDribzSNUm8dngTTfkBLyFB8aA2NUKVM4p9i5grp7lG+ahq1AijzsCcl8G5wGPcEYpoS0zHP3GSk05-DsOiPw5GjyC5nBeFZOaDwY65xsI-GoWoDb1pqAOUcqFTy0X0rA6u5inR3xrlsCyOoAohhzSMPaGpr03C8TZPPDj3KGkfKMMswzbEbS3AcgKRcSEnArkGPIKlvggA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAnogCM3AJzciAZm4AmAKwAOAOwA2TQt0AWfQBoQAD0QBaWbIWyimzepPqtCpd1n6Avv6WqBjY+IREMDiUNACqaJjsEGzE1ABuLADWxFHxoTz8SCDCouJUkjIIsuoq+kRmmrreJtqertqWNgj2stoKRLq13upOspq+AUEgIZi4BDlg0dRQeYkY6CzoRIIANgQAZpsAtpGLq7AFkiVirOVFXT19A0MKIw7jfpaVDtra9YZNBQtNo6QLBBJheZECgQHZgdhYWJYWgAUQAcgARAD6SJRACVLkVrmVJA8HMYBkCFCptH4Rvp9CYvnI1P1qbJTL1DNx9NoVGDphC5hEYXD2BiUQAZFEAFRROKw+MJQhENwk9zs5N0lJM1Np+npjOZVRpKlUxl5HhMul+3G0ApmkJFsPhAEEAMIygCSADVXXKFUq+FdVSSNd0tTq9XSFAymdI5CZNHVtPpauoGWp9NT+VNHcLUi72HiUYqZYG8VjaK6sFgAOoAeTxGOVxVDt1Jmsc2qauppMbjxrGalUI2TSlkKnGoLzQvChbFsVoGP98txlbxDelWFbxI74Z6FN70YNsaNCaq+kcRDTThUfjPDnUDrnUNF8KXK4D1YA4ijd+26qgGS3ZRv2p6DheD5mvI4ymNwvY1LoL6hAW0JFp+q5YgAYl6kpygSwZEoBdzAV2R5UuBhrxt8Bh1I08h+GYnjpihszzkQADGbD7BQ6BHKsWCoIIYBUKIbDsO6DZorheIALIVliiLIuiWBetJAGlPuZERuo3AmEQfiaCoCipoMnj6UO2iuEQtqNE4SYqCYHJsU6xDcVQvH8YJwmieJHDuq6aLulKinKaiaJqRpREqlpQHWJqekGUZJlmSoFk0XISjqDeuieK81nNJOrloR5XkCQkGJgHCZSSdJskKeuWIStKcqaWqpEJbpHJEIoV5+LIznAkOVL-CY3A8o0SbOSVHFlXxFUYFVNW3JJQUhZKiktbK-4xW2cWdWS6g9X1DhXkNrQjbGRBaI0enqH0g3cJos1QvN3kJK6nGUGkzASVJMlevJiket6fretFhSxR1nbdcoagtBoxgTQomiZVUo1mONk2mGjsivRE72LegX0-X9AXraFTWg76-rqWi7Vhjp9jHfD+naEjugo2jV11LdeUaI940vbOqEcbAvlUBAyyrEkKTQlQGTZCQksQKsjPaVBPguKmg3UgyD0KJ0Xb6MovhDPZNRXgTxAS7AIlSzLCTsOsmzbHsOCHPxKv26JasJBr8UgabvWTtmlu1LIVluDr536wafQ20QEDVYsTsYHLVCpIrWTECnNVgOre17kHXa6JoN2xn4jKoy0Fha6YvVuIoHK6oxIvgmLUL52ncTO67Wy7AcxzJ6nhBF1D+0wweDjl5XV5xrXqbGkl2qaL03BOZOjiDUneDfRQv0xCszvJFnCtK8Q+9k+PAfFyRsM9IyN6DQ4NJ8r0k4jY3z16U4phOF8B3QUXcIjX0PswPuGcB7u2Ht7cBR9C530niXQ6JsDLnTfr8e8tIVAr30mvDeW97wOSTkTVY9BYCwAAO6bAgHiOAiw6qA2Bk1astZGzNixCWMsgc0ERl6P0deKNrSfw8OoFeYdbLqHLrGWkHwFBkJ4gtCheAqG0PQPQxhOA1rBSpoqSs7D6xNmxDw2UfDH4-CEfIRQojaTiMkXyF+7Jf5V0UaLdiUJ0DaOPqo9RdDM7Z0vkQbxaAcB+JoXQixRRKhaH0k3QYNonCowcPGECvQbz6AMA4bsaYTAmCTqExYviEiUMiZol26ANiDw9l7E4RTwmlLUeUiA0TmY5L+AybJWo8no3cMmBJKgkmOHXrvDxbkiDIEEBASBJ8MB4hYHCWAgSL650mdM+YqwFlLLaV1Ho94BhNF+MZLJrg0wr0aGvGo6VJwaHSgU8ZaEpkzJKfMxZcBKnVNgZ7EezzNkJG2XAXZIEDm6COdZWo5dkx4IvBmcYRBTKvDTLydetQHmd08YQdgmEAy4XwkGFBD8Yl2F0M4IYTkHqb1RuMDoXUzBmyaPpPJpyVCssCFMKgLAU7wCKPmcWZBj70EYFQcmIYDqWPyc4XUCErx8ncEORQbMtB6EMMYMwScoivMwGK6e7TJX1CUNkuV6Nqi1H+PZIErRbr2keRxd8OqmZ7MGs5A1Mrej3KHKlXq+UHrv2nDajFEzyEJCEr7MSmtUESpddKo1HqoJo2Srrcax127AL5W9ZRH0lpjwjUSvV0bDWyrjd8A2CLdbPXeBzBCSjPIqM+gfI+ubxUz31TGot8qoI2mcDaK8Mj3DyHyQGkBmLbaq3TugB1msyStsLe6jt3xtY6DjrUBO7jA1oR7lqydpcIwzrdca-BBpDImBuXlIZNItB7wbbM1Y27+H2D3bG+diBPA1AGBNB6wjtDWgNDW8qESNFaLCXeqNUrZ0HthTSCuWhOTjUGnlX9tqvE+PHWUwDIGW0Fv3cWl94wDLPUSY9FJYz10cT+VqwFPLoaOunVhp9fSGQV3OnBVojRzo2ww3qp4ba53o3sCHLeRhUWm0GKmdl-ggA */
   createMachine(
     {
       tsTypes: {} as import("./usersXService.typegen").Typegen0,
@@ -110,7 +112,7 @@ export const usersMachine =
         events: {} as UsersEvent,
         services: {} as {
           getUsers: {
-            data: TypesGen.User[]
+            data: TypesGen.GetUsersResponse
           }
           createUser: {
             data: TypesGen.User
@@ -134,6 +136,16 @@ export const usersMachine =
       },
       predictableActionArguments: true,
       id: "usersState",
+      on: {
+        UPDATE_FILTER: {
+          actions: ["assignFilter", "sendResetPage"],
+          internal: false,
+        },
+        UPDATE_PAGE: {
+          target: "gettingUsers",
+          actions: "updateURL",
+        },
+      },
       initial: "startingPagination",
       states: {
         startingPagination: {
@@ -191,13 +203,6 @@ export const usersMachine =
             UPDATE_USER_ROLES: {
               target: "updatingUserRoles",
               actions: "assignUserIdToUpdateRoles",
-            },
-            UPDATE_PAGE: {
-              target: "gettingUsers",
-              actions: "updateURL",
-            },
-            UPDATE_FILTER: {
-              actions: ["assignFilter", "sendResetPage"],
             },
           },
         },
@@ -418,7 +423,8 @@ export const usersMachine =
           userIdToUpdateRoles: (_) => undefined,
         }),
         assignUsers: assign({
-          users: (_, event) => event.data,
+          users: (_, event) => event.data.users,
+          count: (_, event) => event.data.count,
         }),
         assignFilter: assign({
           filter: (_, event) => event.query,

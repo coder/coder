@@ -20,9 +20,9 @@ func TestSpeedtest(t *testing.T) {
 	if testing.Short() {
 		t.Skip("This test takes a minimum of 5ms per a hardcoded value in Tailscale!")
 	}
-	client, workspace, agentToken := setupWorkspaceForAgent(t)
+	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = agentToken
+	agentClient.SetSessionToken(agentToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),

@@ -22,10 +22,12 @@ import * as Yup from "yup"
 type FormData = {
   name: string
   avatar_url: string
+  quota_allowance: number
 }
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
+  quota_allowance: Yup.number().required().positive().integer(),
 })
 
 const UpdateGroupForm: React.FC<{
@@ -40,6 +42,7 @@ const UpdateGroupForm: React.FC<{
     initialValues: {
       name: group.name,
       avatar_url: group.avatar_url,
+      quota_allowance: group.quota_allowance,
     },
     validationSchema,
     onSubmit,
@@ -120,6 +123,20 @@ const UpdateGroupForm: React.FC<{
             }}
           />
         </Popover>
+
+        <TextField
+          {...getFieldHelpers("quota_allowance")}
+          onChange={onChangeTrimmed(form)}
+          autoFocus
+          fullWidth
+          type="number"
+          label="Quota Allowance"
+          variant="outlined"
+        />
+        <span>
+          This group gives {form.values.quota_allowance} quota credits to each
+          of its members.
+        </span>
 
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>

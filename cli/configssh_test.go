@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func sshConfigFileName(t *testing.T) (sshConfig string) {
@@ -67,7 +68,7 @@ func TestConfigSSH(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionDryRun: []*proto.Provision_Response{{
+		ProvisionPlan: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -81,7 +82,7 @@ func TestConfigSSH(t *testing.T) {
 				},
 			},
 		}},
-		Provision: []*proto.Provision_Response{{
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -104,7 +105,7 @@ func TestConfigSSH(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),
@@ -131,7 +132,9 @@ func TestConfigSSH(t *testing.T) {
 			if err != nil {
 				break
 			}
-			ssh, err := agentConn.SSH()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ssh, err := agentConn.SSH(ctx)
+			cancel()
 			assert.NoError(t, err)
 			wg.Add(2)
 			go func() {
@@ -659,9 +662,9 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			// authToken := uuid.NewString()
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-				Parse:           echo.ParseComplete,
-				ProvisionDryRun: provisionResponse,
-				Provision:       provisionResponse,
+				Parse:          echo.ParseComplete,
+				ProvisionPlan:  provisionResponse,
+				ProvisionApply: provisionResponse,
 			})
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)

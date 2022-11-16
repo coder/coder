@@ -455,6 +455,7 @@ type Group struct {
 	Name           string    `db:"name" json:"name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
+	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 }
 
 type GroupMember struct {
@@ -577,21 +578,23 @@ type SiteConfig struct {
 }
 
 type Template struct {
-	ID                   uuid.UUID       `db:"id" json:"id"`
-	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted              bool            `db:"deleted" json:"deleted"`
-	Name                 string          `db:"name" json:"name"`
-	Provisioner          ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID      uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description          string          `db:"description" json:"description"`
-	MaxTtl               int64           `db:"max_ttl" json:"max_ttl"`
-	MinAutostartInterval int64           `db:"min_autostart_interval" json:"min_autostart_interval"`
-	CreatedBy            uuid.UUID       `db:"created_by" json:"created_by"`
-	Icon                 string          `db:"icon" json:"icon"`
-	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
-	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted         bool            `db:"deleted" json:"deleted"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description     string          `db:"description" json:"description"`
+	// The default duration for auto-stop for workspaces created from this template.
+	DefaultTTL int64       `db:"default_ttl" json:"default_ttl"`
+	CreatedBy  uuid.UUID   `db:"created_by" json:"created_by"`
+	Icon       string      `db:"icon" json:"icon"`
+	UserACL    TemplateACL `db:"user_acl" json:"user_acl"`
+	GroupACL   TemplateACL `db:"group_acl" json:"group_acl"`
+	// Display name is a custom, human-friendly template name that user can set.
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type TemplateVersion struct {
@@ -665,6 +668,10 @@ type WorkspaceAgent struct {
 	// Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.
 	Version                string        `db:"version" json:"version"`
 	LastConnectedReplicaID uuid.NullUUID `db:"last_connected_replica_id" json:"last_connected_replica_id"`
+	// Connection timeout in seconds, 0 means disabled.
+	ConnectionTimeoutSeconds int32 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
+	// URL for troubleshooting the agent.
+	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 }
 
 type WorkspaceApp struct {
@@ -697,6 +704,7 @@ type WorkspaceBuild struct {
 	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
+	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
 }
 
 type WorkspaceResource struct {
@@ -709,6 +717,7 @@ type WorkspaceResource struct {
 	Hide         bool                `db:"hide" json:"hide"`
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
+	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
 }
 
 type WorkspaceResourceMetadatum struct {

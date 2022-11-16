@@ -275,7 +275,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
@@ -309,6 +309,124 @@ func TestUserOAuth2Github(t *testing.T) {
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
 					return []*github.UserEmail{{
 						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:       true,
+				AllowOrganizations: []string{"coder", "nil"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"coder", "backend"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("coder"),
+							},
+						},
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("nil"),
+							},
+						},
+					}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return &github.Membership{}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("mathias"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:       true,
+				AllowOrganizations: []string{"coder", "nil"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"nil", "null"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("coder"),
+							},
+						},
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("nil"),
+							},
+						},
+					}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return &github.Membership{}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("mathias"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowEveryone", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:  true,
+				AllowEveryone: true,
+				OAuth2Config:  &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("mathias"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
 						Verified: github.Bool(true),
 						Primary:  github.Bool(true),
 					}}, nil
@@ -485,14 +603,14 @@ func TestUserOIDC(t *testing.T) {
 			ctx, _ := testutil.Context(t)
 
 			if tc.Username != "" {
-				client.SessionToken = authCookieValue(resp.Cookies())
+				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 			}
 
 			if tc.AvatarURL != "" {
-				client.SessionToken = authCookieValue(resp.Cookies())
+				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
@@ -520,7 +638,7 @@ func TestUserOIDC(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "jon", user.Username)
@@ -534,7 +652,7 @@ func TestUserOIDC(t *testing.T) {
 		resp = oidcCallback(t, client, code)
 		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")

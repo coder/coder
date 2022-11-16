@@ -38,6 +38,9 @@ func TestLoadTest(t *testing.T) {
 			Strategy: cli.LoadTestStrategy{
 				Type: cli.LoadTestStrategyTypeLinear,
 			},
+			CleanupStrategy: cli.LoadTestStrategy{
+				Type: cli.LoadTestStrategyTypeLinear,
+			},
 			Tests: []cli.LoadTest{
 				{
 					Type:  cli.LoadTestTypePlacebo,
@@ -86,6 +89,10 @@ func TestLoadTest(t *testing.T) {
 
 		config := cli.LoadTestConfig{
 			Strategy: cli.LoadTestStrategy{
+				Type:             cli.LoadTestStrategyTypeConcurrent,
+				ConcurrencyLimit: 2,
+			},
+			CleanupStrategy: cli.LoadTestStrategy{
 				Type:             cli.LoadTestStrategyTypeConcurrent,
 				ConcurrencyLimit: 2,
 			},
@@ -210,6 +217,9 @@ func TestLoadTest(t *testing.T) {
 					Strategy: cli.LoadTestStrategy{
 						Type: cli.LoadTestStrategyTypeLinear,
 					},
+					CleanupStrategy: cli.LoadTestStrategy{
+						Type: cli.LoadTestStrategyTypeLinear,
+					},
 					Tests: []cli.LoadTest{
 						{
 							Type:  cli.LoadTestTypePlacebo,
@@ -276,6 +286,8 @@ func TestLoadTest(t *testing.T) {
 						b, err = os.ReadFile(output.path)
 						require.NoError(t, err, msg)
 					}
+
+					t.Logf("output %d:\n\n%s", i, string(b))
 
 					switch output.format {
 					case "text":

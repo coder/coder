@@ -47,6 +47,11 @@ type User struct {
 	AvatarURL       string      `json:"avatar_url"`
 }
 
+type GetUsersResponse struct {
+	Users []User `json:"users"`
+	Count int    `json:"count"`
+}
+
 type CreateFirstUserRequest struct {
 	Email            string `json:"email" validate:"required,email"`
 	Username         string `json:"username" validate:"required,username"`
@@ -310,7 +315,7 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
-func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
+func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
 		func(r *http.Request) {
@@ -333,16 +338,16 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 		},
 	)
 	if err != nil {
-		return []User{}, err
+		return GetUsersResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return []User{}, readBodyAsError(res)
+		return GetUsersResponse{}, readBodyAsError(res)
 	}
 
-	var users []User
-	return users, json.NewDecoder(res.Body).Decode(&users)
+	var usersRes GetUsersResponse
+	return usersRes, json.NewDecoder(res.Body).Decode(&usersRes)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.

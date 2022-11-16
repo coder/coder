@@ -90,17 +90,17 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
+			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{})
 			if err != nil {
 				return err
 			}
 			defer conn.Close()
-
+			conn.AwaitReachable(ctx)
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
 			if stdio {
-				rawSSH, err := conn.SSH()
+				rawSSH, err := conn.SSH(ctx)
 				if err != nil {
 					return err
 				}
@@ -113,7 +113,7 @@ func ssh() *cobra.Command {
 				return nil
 			}
 
-			sshClient, err := conn.SSHClient()
+			sshClient, err := conn.SSHClient(ctx)
 			if err != nil {
 				return err
 			}
@@ -231,17 +231,17 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		err            error
 	)
 	if shuffle {
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Owner: codersdk.Me,
 		})
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
-		if len(workspaces) == 0 {
+		if len(res.Workspaces) == 0 {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
 		}
 
-		workspace, err = cryptorand.Element(workspaces)
+		workspace, err = cryptorand.Element(res.Workspaces)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

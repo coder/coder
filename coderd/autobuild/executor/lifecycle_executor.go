@@ -177,7 +177,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				}
 
 				return nil
-			})
+			}, nil)
 			if err != nil {
 				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
 			}
