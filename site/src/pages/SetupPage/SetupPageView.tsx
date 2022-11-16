@@ -100,7 +100,8 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             <Box display="flex">
               <div>
                 <Checkbox
-                  {...getFieldHelpers("trial")}
+                  id="trial"
+                  name="trial"
                   defaultChecked
                   value={form.values.trial}
                   onChange={form.handleChange}

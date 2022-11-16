@@ -13,20 +13,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+
+	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 )
 
 type LogSource string
 
-const (
-	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
-	LogSourceProvisioner       LogSource = "provisioner"
-)
-
 type LogLevel string
 
 const (
+	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
+	LogSourceProvisioner       LogSource = "provisioner"
+
 	LogLevelTrace LogLevel = "trace"
 	LogLevelDebug LogLevel = "debug"
 	LogLevelInfo  LogLevel = "info"
@@ -40,6 +42,7 @@ type ProvisionerDaemon struct {
 	UpdatedAt    sql.NullTime      `json:"updated_at"`
 	Name         string            `json:"name"`
 	Provisioners []ProvisionerType `json:"provisioners"`
+	Tags         map[string]string `json:"tags"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
@@ -73,6 +76,7 @@ type ProvisionerJob struct {
 	Status      ProvisionerJobStatus `json:"status"`
 	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
 	FileID      uuid.UUID            `json:"file_id"`
+	Tags        map[string]string    `json:"tags"`
 }
 
 type ProvisionerJobLog struct {
@@ -161,4 +165,52 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		<-closed
 		return nil
 	}), nil
+}
+
+// ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
+func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.UUID, provisioners []ProvisionerType, tags map[string]string) (proto.DRPCProvisionerDaemonClient, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", organization))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	query := serverURL.Query()
+	for _, provisioner := range provisioners {
+		query.Add("provisioner", string(provisioner))
+	}
+	for key, value := range tags {
+		query.Add("tag", fmt.Sprintf("%s=%s", key, value))
+	}
+	serverURL.RawQuery = query.Encode()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  SessionTokenKey,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: httpClient,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, readBodyAsError(res)
+	}
+	// Align with the frame size of yamux.
+	conn.SetReadLimit(256 * 1024)
+
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
+	if err != nil {
+		return nil, xerrors.Errorf("multiplex client: %w", err)
+	}
+	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
 }

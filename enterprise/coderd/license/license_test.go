@@ -20,12 +20,13 @@ import (
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	all := map[string]bool{
-		codersdk.FeatureAuditLog:         true,
-		codersdk.FeatureBrowserOnly:      true,
-		codersdk.FeatureSCIM:             true,
-		codersdk.FeatureHighAvailability: true,
-		codersdk.FeatureTemplateRBAC:     true,
-		codersdk.FeatureMultipleGitAuth:  true,
+		codersdk.FeatureAuditLog:                   true,
+		codersdk.FeatureBrowserOnly:                true,
+		codersdk.FeatureSCIM:                       true,
+		codersdk.FeatureHighAvailability:           true,
+		codersdk.FeatureTemplateRBAC:               true,
+		codersdk.FeatureMultipleGitAuth:            true,
+		codersdk.FeatureExternalProvisionerDaemons: true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -61,13 +62,14 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:        100,
-				AuditLog:         true,
-				BrowserOnly:      true,
-				SCIM:             true,
-				HighAvailability: true,
-				TemplateRBAC:     true,
-				MultipleGitAuth:  true,
+				UserLimit:                  100,
+				AuditLog:                   true,
+				BrowserOnly:                true,
+				SCIM:                       true,
+				HighAvailability:           true,
+				TemplateRBAC:               true,
+				MultipleGitAuth:            true,
+				ExternalProvisionerDaemons: true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -84,14 +86,15 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:        100,
-				AuditLog:         true,
-				BrowserOnly:      true,
-				SCIM:             true,
-				HighAvailability: true,
-				TemplateRBAC:     true,
-				GraceAt:          time.Now().Add(-time.Hour),
-				ExpiresAt:        time.Now().Add(time.Hour),
+				UserLimit:                  100,
+				AuditLog:                   true,
+				BrowserOnly:                true,
+				SCIM:                       true,
+				HighAvailability:           true,
+				TemplateRBAC:               true,
+				ExternalProvisionerDaemons: true,
+				GraceAt:                    time.Now().Add(-time.Hour),
+				ExpiresAt:                  time.Now().Add(time.Hour),
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})

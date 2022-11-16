@@ -6,4 +6,4 @@ import (
 	"os"
 )
 
-var interruptSignals = []os.Signal{os.Interrupt}
+var InterruptSignals = []os.Signal{os.Interrupt}
