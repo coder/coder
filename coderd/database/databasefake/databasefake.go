@@ -718,14 +718,14 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	// A nil auth filter means no auth filter.
-	workspaces, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
-	return workspaces, err
+	workspaceRows, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
+	return workspaceRows, err
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.GetWorkspacesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -866,20 +866,43 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		workspaces = append(workspaces, workspace)
 	}
 
+	beforePageCount := len(workspaces)
+
 	if arg.Offset > 0 {
 		if int(arg.Offset) > len(workspaces) {
-			return []database.Workspace{}, nil
+			return []database.GetWorkspacesRow{}, nil
 		}
 		workspaces = workspaces[arg.Offset:]
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return workspaces, nil
+			return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return workspaces, nil
+	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+}
+
+func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+	rows := make([]database.GetWorkspacesRow, len(workspaces))
+	for i, w := range workspaces {
+		rows[i] = database.GetWorkspacesRow{
+			ID:                w.ID,
+			CreatedAt:         w.CreatedAt,
+			UpdatedAt:         w.UpdatedAt,
+			OwnerID:           w.OwnerID,
+			OrganizationID:    w.OrganizationID,
+			TemplateID:        w.TemplateID,
+			Deleted:           w.Deleted,
+			Name:              w.Name,
+			AutostartSchedule: w.AutostartSchedule,
+			Ttl:               w.Ttl,
+			LastUsedAt:        w.LastUsedAt,
+			Count:             count,
+		}
+	}
+	return rows
 }
 
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {

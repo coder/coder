@@ -32,7 +32,6 @@ export interface WorkspacesPageViewProps {
   workspaceRefs?: WorkspaceItemMachineRef[]
   count?: number
   getWorkspacesError: Error | unknown
-  getCountError: Error | unknown
   filter?: string
   onFilter: (query: string) => void
   paginationRef: PaginationMachineRef
@@ -46,7 +45,6 @@ export const WorkspacesPageView: FC<
   workspaceRefs,
   count,
   getWorkspacesError,
-  getCountError,
   filter,
   onFilter,
   paginationRef,
@@ -90,10 +88,6 @@ export const WorkspacesPageView: FC<
                 : "error"
             }
           />
-        </Maybe>
-
-        <Maybe condition={getCountError !== undefined}>
-          <AlertBanner error={getCountError} severity="warning" />
         </Maybe>
 
         <SearchBarWithFilter

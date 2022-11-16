@@ -127,27 +127,23 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
+	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaceRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+			Workspaces: []codersdk.Workspace{},
+			Count:      0,
 		})
 		return
 	}
 
-	// run the query again to get the total count for frontend pagination
-	filter.Offset = 0
-	filter.Limit = 0
-	all, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	count := len(all)
+	workspaces := database.ConvertWorkspaceRows(workspaceRows)
 
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
@@ -169,7 +165,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 		Workspaces: wss,
-		Count:      count,
+		Count:      int(workspaceRows[0].Count),
 	})
 }
 
