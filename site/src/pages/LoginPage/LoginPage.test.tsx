@@ -10,6 +10,7 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
+import * as TypesGen from "../../api/typesGenerated";
 
 describe("LoginPage", () => {
   beforeEach(() => {
@@ -80,15 +81,18 @@ describe("LoginPage", () => {
   })
 
   it("shows github authentication when enabled", async () => {
+    const authMethods: TypesGen.AuthMethods = {
+      password: { enabled: true, hidden: false },
+      github: { enabled: true },
+      oidc: { enabled: true, signInText: "", iconUrl: "" }
+    };
+
     // Given
     server.use(
       rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
         return res(
           ctx.status(200),
-          ctx.json({
-            password: true,
-            github: true,
-          }),
+          ctx.json(authMethods),
         )
       }),
     )
