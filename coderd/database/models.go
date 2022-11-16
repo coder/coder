@@ -467,7 +467,8 @@ type License struct {
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 	JWT        string    `db:"jwt" json:"jwt"`
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
-	Exp time.Time `db:"exp" json:"exp"`
+	Exp  time.Time     `db:"exp" json:"exp"`
+	Uuid uuid.NullUUID `db:"uuid" json:"uuid"`
 }
 
 type Organization struct {

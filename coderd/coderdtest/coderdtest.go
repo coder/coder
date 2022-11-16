@@ -94,6 +94,7 @@ type Options struct {
 	Auditor              audit.Auditor
 	TLSCertificates      []tls.Certificate
 	GitAuthConfigs       []*gitauth.Config
+	TrialGenerator       func(context.Context, string) error
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
@@ -258,6 +259,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			Authorizer:           options.Authorizer,
 			Telemetry:            telemetry.NewNoop(),
 			TLSCertificates:      options.TLSCertificates,
+			TrialGenerator:       options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -348,10 +350,9 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 }
 
 var FirstUserParams = codersdk.CreateFirstUserRequest{
-	Email:            "testuser@coder.com",
-	Username:         "testuser",
-	Password:         "testpass",
-	OrganizationName: "testorg",
+	Email:    "testuser@coder.com",
+	Username: "testuser",
+	Password: "testpass",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates

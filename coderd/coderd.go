@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -86,7 +87,7 @@ type Options struct {
 	AutoImportTemplates  []AutoImportTemplate
 	GitAuthConfigs       []*gitauth.Config
 	RealIPConfig         *httpmw.RealIPConfig
-
+	TrialGenerator       func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator

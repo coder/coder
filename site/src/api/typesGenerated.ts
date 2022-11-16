@@ -143,7 +143,7 @@ export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
-  readonly organization: string
+  readonly trial: boolean
 }
 
 // From codersdk/users.go
@@ -395,6 +395,7 @@ export interface Healthcheck {
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
+  readonly uuid: string
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>

@@ -200,7 +200,8 @@ CREATE TABLE licenses (
     id integer NOT NULL,
     uploaded_at timestamp with time zone NOT NULL,
     jwt text NOT NULL,
-    exp timestamp with time zone NOT NULL
+    exp timestamp with time zone NOT NULL,
+    uuid uuid
 );
 
 COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';

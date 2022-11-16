@@ -56,6 +56,7 @@ func TestLogin(t *testing.T) {
 			"email", "user@coder.com",
 			"password", "password",
 			"password", "password", // Confirm.
+			"trial", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -127,6 +128,8 @@ func TestLogin(t *testing.T) {
 		pty.WriteLine("pass")
 		pty.ExpectMatch("Confirm")
 		pty.WriteLine("pass")
+		pty.ExpectMatch("trial")
+		pty.WriteLine("yes")
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})

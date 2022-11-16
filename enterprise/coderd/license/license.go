@@ -54,7 +54,7 @@ func Entitlements(
 
 	// Here we loop through licenses to detect enabled features.
 	for _, l := range licenses {
-		claims, err := validateDBLicense(l, keys)
+		claims, err := ParseClaims(l.JWT, keys)
 		if err != nil {
 			logger.Debug(ctx, "skipping invalid license",
 				slog.F("id", l.ID), slog.Error(err))
@@ -263,8 +263,8 @@ type Claims struct {
 	Features       Features         `json:"features"`
 }
 
-// Parse consumes a license and returns the claims.
-func Parse(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error) {
+// ParseRaw consumes a license and returns the claims.
+func ParseRaw(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error) {
 	tok, err := jwt.Parse(
 		l,
 		keyFunc(keys),
@@ -286,11 +286,11 @@ func Parse(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error) {
 	return nil, xerrors.New("unable to parse Claims")
 }
 
-// validateDBLicense validates a database.License record, and if valid, returns the claims.  If
+// ParseClaims validates a database.License record, and if valid, returns the claims.  If
 // unparsable or invalid, it returns an error
-func validateDBLicense(l database.License, keys map[string]ed25519.PublicKey) (*Claims, error) {
+func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, error) {
 	tok, err := jwt.ParseWithClaims(
-		l.JWT,
+		rawJWT,
 		&Claims{},
 		keyFunc(keys),
 		jwt.WithValidMethods(ValidMethods),
