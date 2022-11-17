@@ -34,8 +34,8 @@ type Template struct {
 }
 
 type TransitionStats struct {
-	Median *int64
-	Stddev *int64
+	P50 *int64
+	P95 *int64
 }
 
 type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats

@@ -270,16 +270,16 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 
 	return codersdk.TemplateBuildTimeStats{
 		codersdk.WorkspaceTransitionStart: {
-			Median: convertMillis(resp.StartMedian),
-			Stddev: convertMillis(resp.StartStddev),
+			P50: convertMillis(resp.Start50),
+			P95: convertMillis(resp.Start95),
 		},
 		codersdk.WorkspaceTransitionStop: {
-			Median: convertMillis(resp.StopMedian),
-			Stddev: convertMillis(resp.StopStddev),
+			P50: convertMillis(resp.Stop50),
+			P95: convertMillis(resp.Stop95),
 		},
 		codersdk.WorkspaceTransitionDelete: {
-			Median: convertMillis(resp.DeleteMedian),
-			Stddev: convertMillis(resp.DeleteStddev),
+			P50: convertMillis(resp.Delete50),
+			P95: convertMillis(resp.Delete95),
 		},
 	}
 }

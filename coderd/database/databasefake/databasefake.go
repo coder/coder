@@ -3,7 +3,6 @@ package databasefake
 import (
 	"context"
 	"database/sql"
-	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -277,38 +276,18 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 		}
 	}
 
-	tryMedian := func(fs []float64) float64 {
+	tryPercentile := func(fs []float64, p float64) float64 {
 		if len(fs) == 0 {
 			return -1
 		}
 		sort.Float64s(fs)
-		return fs[len(fs)/2]
-	}
-
-	tryStddev := func(fs []float64) float64 {
-		if len(fs) == 0 {
-			return -1
-		}
-		var sum float64
-		for _, f := range fs {
-			sum += f
-		}
-		mean := sum / float64(len(fs))
-
-		var sumSqDiff float64
-		for _, f := range fs {
-			sumSqDiff += math.Pow(mean-f, 2)
-		}
-		return sumSqDiff / float64(len(fs))
+		return fs[int(float64(len(fs))*p/100)]
 	}
 
 	var row database.GetTemplateAverageBuildTimeRow
-	row.DeleteMedian = tryMedian(deleteTimes)
-	row.DeleteStddev = tryStddev(deleteTimes)
-	row.StopMedian = tryMedian(stopTimes)
-	row.StopStddev = tryStddev(stopTimes)
-	row.StartMedian = tryMedian(startTimes)
-	row.StartStddev = tryStddev(startTimes)
+	row.Delete50, row.Delete95 = tryPercentile(deleteTimes, 50), tryPercentile(deleteTimes, 95)
+	row.Stop50, row.Stop95 = tryPercentile(stopTimes, 50), tryPercentile(stopTimes, 95)
+	row.Start50, row.Start95 = tryPercentile(startTimes, 50), tryPercentile(startTimes, 95)
 	return row, nil
 }
 

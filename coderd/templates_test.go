@@ -607,7 +607,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		startMs := template.BuildTimeStats[codersdk.WorkspaceTransitionStart].Median
+		startMs := template.BuildTimeStats[codersdk.WorkspaceTransitionStart].P50
 		return startMs != nil && *startMs > 1
 	},
 		testutil.WaitShort, testutil.IntervalFast,

@@ -344,18 +344,21 @@ func TestCache_BuildTime(t *testing.T) {
 				gotStats = cache.TemplateBuildTimeStats(template.ID)
 				for transition, stats := range gotStats {
 					if transition == wantTransition {
-						require.Equal(t, tt.want.buildTimeMs, *stats.Median)
+						require.Equal(t, tt.want.buildTimeMs, *stats.P50)
 					} else {
-						require.Empty(t, stats)
+						require.Empty(
+							t, stats, "%v", transition,
+						)
 					}
 				}
 			} else {
+				var stats codersdk.TemplateBuildTimeStats
 				require.Never(t, func() bool {
-					stats := cache.TemplateBuildTimeStats(template.ID)
+					stats = cache.TemplateBuildTimeStats(template.ID)
 					requireBuildTimeStatsEmpty(t, stats)
 					return t.Failed()
 				}, testutil.WaitShort/2, testutil.IntervalMedium,
-					"BuildTimeStats populated",
+					"BuildTimeStats populated", stats,
 				)
 			}
 		})
