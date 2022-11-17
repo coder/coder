@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -26,6 +25,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
@@ -181,10 +181,10 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 	workspace := httpmw.WorkspaceParam(r)
@@ -247,17 +247,13 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect.String(), uint16(height), uint16(width), r.URL.Query().Get("command"))
+	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
 	}
 	defer ptNetConn.Close()
-	// Pipe the ends together!
-	go func() {
-		_, _ = io.Copy(wsNetConn, ptNetConn)
-	}()
-	_, _ = io.Copy(ptNetConn, wsNetConn)
+	agent.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
@@ -442,10 +438,10 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
@@ -614,10 +610,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		}
 	}
 
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	conn, err := websocket.Accept(rw, r, nil)
@@ -759,10 +755,10 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)

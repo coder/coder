@@ -142,8 +142,11 @@ ORDER BY
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other
 	-- complexities.
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_median,
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_median,
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_median
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_50,
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_50,
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_50,
+	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_95,
+	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_95,
+	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_95
 FROM build_times
 ;

@@ -17,6 +17,10 @@ packages:
     output_db_file_name: db_tmp.go
 
 overrides:
+  - column: "provisioner_daemons.tags"
+    go_type: "github.com/coder/coder/coderd/database/dbtype.StringMap"
+  - column: "provisioner_jobs.tags"
+    go_type: "github.com/coder/coder/coderd/database/dbtype.StringMap"
   - column: "users.rbac_roles"
     go_type: "github.com/lib/pq.StringArray"
   - column: "templates.user_acl"

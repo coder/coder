@@ -99,19 +99,20 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType      string
-	AccountID        string
-	Trial            bool
-	AllFeatures      bool
-	GraceAt          time.Time
-	ExpiresAt        time.Time
-	UserLimit        int64
-	AuditLog         bool
-	BrowserOnly      bool
-	SCIM             bool
-	TemplateRBAC     bool
-	HighAvailability bool
-	MultipleGitAuth  bool
+	AccountType                string
+	AccountID                  string
+	Trial                      bool
+	AllFeatures                bool
+	GraceAt                    time.Time
+	ExpiresAt                  time.Time
+	UserLimit                  int64
+	AuditLog                   bool
+	BrowserOnly                bool
+	SCIM                       bool
+	TemplateRBAC               bool
+	HighAvailability           bool
+	MultipleGitAuth            bool
+	ExternalProvisionerDaemons bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -158,6 +159,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		multipleGitAuth = 1
 	}
 
+	externalProvisionerDaemons := int64(0)
+	if options.ExternalProvisionerDaemons {
+		externalProvisionerDaemons = 1
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -172,13 +178,14 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
 		Features: license.Features{
-			UserLimit:        options.UserLimit,
-			AuditLog:         auditLog,
-			BrowserOnly:      browserOnly,
-			SCIM:             scim,
-			HighAvailability: highAvailability,
-			TemplateRBAC:     rbacEnabled,
-			MultipleGitAuth:  multipleGitAuth,
+			UserLimit:                  options.UserLimit,
+			AuditLog:                   auditLog,
+			BrowserOnly:                browserOnly,
+			SCIM:                       scim,
+			HighAvailability:           highAvailability,
+			TemplateRBAC:               rbacEnabled,
+			MultipleGitAuth:            multipleGitAuth,
+			ExternalProvisionerDaemons: externalProvisionerDaemons,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

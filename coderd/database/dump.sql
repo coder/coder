@@ -200,7 +200,8 @@ CREATE TABLE licenses (
     id integer NOT NULL,
     uploaded_at timestamp with time zone NOT NULL,
     jwt text NOT NULL,
-    exp timestamp with time zone NOT NULL
+    exp timestamp with time zone NOT NULL,
+    uuid uuid
 );
 
 COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';
@@ -269,7 +270,8 @@ CREATE TABLE provisioner_daemons (
     updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
-    replica_id uuid
+    replica_id uuid,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -306,7 +308,8 @@ CREATE TABLE provisioner_jobs (
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid,
-    file_id uuid NOT NULL
+    file_id uuid NOT NULL,
+    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL
 );
 
 CREATE TABLE replicas (
@@ -624,11 +627,15 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted 
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
+CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
+
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+
+CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 

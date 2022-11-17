@@ -170,14 +170,20 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
-	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleOwner())
-	otherWorkspaces, err := other.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	otherOwner := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleOwner())
+	otherWorkspaces, err := otherOwner.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(other) fetch workspaces")
 
-	firstWorkspaces, err := other.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	firstWorkspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(first) fetch workspaces")
 
 	require.ElementsMatch(t, otherWorkspaces.Workspaces, firstWorkspaces.Workspaces)
+	require.Equal(t, len(firstWorkspaces.Workspaces), 1, "should be 1 workspace present")
+
+	memberView := coderdtest.CreateAnotherUser(t, client, otherOrg.ID)
+	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(member) fetch workspaces")
+	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {

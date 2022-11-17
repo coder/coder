@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -146,6 +147,29 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		if !found {
 			continue
 		}
+		tags := map[string]string{}
+		if arg.Tags != nil {
+			err := json.Unmarshal(arg.Tags, &tags)
+			if err != nil {
+				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
+			}
+		}
+
+		missing := false
+		for key, value := range provisionerJob.Tags {
+			provided, found := tags[key]
+			if !found {
+				missing = true
+				break
+			}
+			if provided != value {
+				missing = true
+				break
+			}
+		}
+		if missing {
+			continue
+		}
 		provisionerJob.StartedAt = arg.StartedAt
 		provisionerJob.UpdatedAt = arg.StartedAt.Time
 		provisionerJob.WorkerID = arg.WorkerID
@@ -276,17 +300,18 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 		}
 	}
 
-	tryMedian := func(fs []float64) float64 {
+	tryPercentile := func(fs []float64, p float64) float64 {
 		if len(fs) == 0 {
 			return -1
 		}
 		sort.Float64s(fs)
-		return fs[len(fs)/2]
+		return fs[int(float64(len(fs))*p/100)]
 	}
+
 	var row database.GetTemplateAverageBuildTimeRow
-	row.DeleteMedian = tryMedian(deleteTimes)
-	row.StopMedian = tryMedian(stopTimes)
-	row.StartMedian = tryMedian(startTimes)
+	row.Delete50, row.Delete95 = tryPercentile(deleteTimes, 50), tryPercentile(deleteTimes, 95)
+	row.Stop50, row.Stop95 = tryPercentile(stopTimes, 50), tryPercentile(stopTimes, 95)
+	row.Start50, row.Start95 = tryPercentile(startTimes, 50), tryPercentile(startTimes, 95)
 	return row, nil
 }
 
@@ -2244,6 +2269,7 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 		CreatedAt:    arg.CreatedAt,
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
+		Tags:         arg.Tags,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
@@ -2264,6 +2290,7 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		FileID:         arg.FileID,
 		Type:           arg.Type,
 		Input:          arg.Input,
+		Tags:           arg.Tags,
 	}
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil

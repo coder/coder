@@ -42,7 +42,7 @@ export const TemplateStats: FC<TemplateStatsProps> = ({
       />
       <StatsItem
         label={Language.buildTimeLabel}
-        value={formatTemplateBuildTime(template.build_time_stats.start_ms)}
+        value={formatTemplateBuildTime(template.build_time_stats.start.P50)}
       />
       <StatsItem
         label={Language.activeVersionLabel}

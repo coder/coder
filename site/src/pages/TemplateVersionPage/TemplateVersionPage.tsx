@@ -20,7 +20,7 @@ export const TemplateVersionPage: FC = () => {
   const [state] = useMachine(templateVersionMachine, {
     context: { versionName, orgId },
   })
-  const tab = useTab("file")
+  const tab = useTab("file", "0")
   const { t } = useTranslation("templateVersionPage")
 
   return (

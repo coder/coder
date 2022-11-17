@@ -131,6 +131,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
+  tags: {},
 }
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -139,6 +140,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   completed_at: "2022-05-17T17:39:01.382927298Z",
+  tags: {},
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -191,9 +193,18 @@ export const MockTemplate: TypesGen.Template = {
   workspace_owner_count: 2,
   active_user_count: 1,
   build_time_stats: {
-    start_ms: 1000,
-    stop_ms: 2000,
-    delete_ms: 3000,
+    start: {
+      P50: 1000,
+      P95: 1500,
+    },
+    stop: {
+      P50: 1000,
+      P95: 1500,
+    },
+    delete: {
+      P50: 1000,
+      P95: 1500,
+    },
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,

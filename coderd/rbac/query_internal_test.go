@@ -84,7 +84,7 @@ func TestCompileQuery(t *testing.T) {
 			`"*" in input.object.acl_group_list["4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75"]`,
 		))
 		require.NoError(t, err, "compile")
-		require.Equal(t, `true`,
+		require.Equal(t, `false`,
 			expression.SQLString(NoACLConfig()), "literal dereference")
 	})
 }

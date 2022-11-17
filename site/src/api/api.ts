@@ -69,12 +69,14 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     name: "Terraform",
     created_at: "",
     provisioners: [],
+    tags: {},
   },
   {
     id: "cdr-basic",
     name: "Basic",
     created_at: "",
     provisioners: [],
+    tags: {},
   },
 ]
 

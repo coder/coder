@@ -18,10 +18,11 @@ INSERT INTO
 		id,
 		created_at,
 		"name",
-		provisioners
+		provisioners,
+		tags
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING *;
+	($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: UpdateProvisionerDaemonByID :exec
 UPDATE
