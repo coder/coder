@@ -35,7 +35,7 @@ func Test_Runner(t *testing.T) {
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
 			Init: codersdk.ReconnectingPTYInit{
-				Command: "echo 'hello world'",
+				Command: "echo 'hello world' && sleep 1",
 			},
 			LogOutput: true,
 		})
@@ -160,7 +160,7 @@ func Test_Runner(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("Timeout", func(t *testing.T) {
+		t.Run("NoTimeout", func(t *testing.T) {
 			t.Parallel()
 
 			client, agentID := setupRunnerTest(t)
@@ -198,10 +198,10 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "echo 'hello world'",
+					Command: "echo 'hello world' && sleep 1",
 				},
 				ExpectOutput: "hello world",
-				LogOutput:    true,
+				LogOutput:    false,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -222,10 +222,10 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "echo 'hello world'",
+					Command: "echo 'hello world' && sleep 1",
 				},
 				ExpectOutput: "bello borld",
-				LogOutput:    true,
+				LogOutput:    false,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
