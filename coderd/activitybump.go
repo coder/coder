@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -14,14 +15,14 @@ import (
 
 // activityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon.
-func activityBumpWorkspace(log slog.Logger, db database.Store, workspace database.Workspace) {
+func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.UUID) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
 	err := db.InTx(func(s database.Store) error {
-		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		} else if err != nil {
@@ -65,15 +66,13 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspace databas
 		return nil
 	}, nil)
 	if err != nil {
-		log.Error(
-			ctx, "bump failed",
-			slog.Error(err),
-			slog.F("workspace_id", workspace.ID),
+		log.Error(ctx, "bump failed", slog.Error(err),
+			slog.F("workspace_id", workspaceID),
 		)
-	} else {
-		log.Debug(
-			ctx, "bumped deadline from activity",
-			slog.F("workspace_id", workspace.ID),
-		)
+		return
 	}
+
+	log.Debug(ctx, "bumped deadline from activity",
+		slog.F("workspace_id", workspaceID),
+	)
 }

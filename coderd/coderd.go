@@ -132,7 +132,7 @@ func New(options *Options) *API {
 		options.APIRateLimit = 512
 	}
 	if options.AgentStatsRefreshInterval == 0 {
-		options.AgentStatsRefreshInterval = 10 * time.Minute
+		options.AgentStatsRefreshInterval = 5 * time.Minute
 	}
 	if options.MetricsCacheRefreshInterval == 0 {
 		options.MetricsCacheRefreshInterval = time.Hour
@@ -493,7 +493,9 @@ func New(options *Options) *API {
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
-				r.Get("/report-stats", api.workspaceAgentReportStats)
+				r.Post("/report-stats", api.workspaceAgentReportStats)
+				// DEPRECATED
+				r.Get("/report-stats", api.workspaceAgentReportStatsWebsocket)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
