@@ -358,12 +358,15 @@ CREATE TABLE templates (
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    display_name character varying(64) DEFAULT ''::character varying NOT NULL
+    display_name character varying(64) DEFAULT ''::character varying NOT NULL,
+    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
 
 COMMENT ON COLUMN templates.display_name IS 'Display name is a custom, human-friendly template name that user can set.';
+
+COMMENT ON COLUMN templates.allow_user_cancel_workspace_jobs IS 'Allow users to cancel in-progress workspace jobs.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,

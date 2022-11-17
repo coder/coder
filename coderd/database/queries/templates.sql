@@ -70,10 +70,11 @@ INSERT INTO
 		icon,
 		user_acl,
 		group_acl,
-		display_name
+		display_name,
+		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *;
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -102,7 +103,8 @@ SET
 	default_ttl = $4,
 	name = $5,
 	icon = $6,
-	display_name = $7
+	display_name = $7,
+	allow_user_cancel_workspace_jobs = $8
 WHERE
 	id = $1
 RETURNING
