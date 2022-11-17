@@ -5,6 +5,7 @@ import (
 	"context"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/loadtest/reconnectingpty"
 	"github.com/coder/coder/provisioner/echo"
@@ -33,10 +35,9 @@ func Test_Runner(t *testing.T) {
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
 			Init: codersdk.ReconnectingPTYInit{
-				Command: "echo 'hello world' && exit 0",
+				Command: "echo 'hello world'",
 			},
-			LogOutput:    true,
-			ExpectOutput: "hello world",
+			LogOutput: true,
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -48,7 +49,195 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logStr)
 		require.NoError(t, err)
 
+		require.Contains(t, logStr, "Output:")
 		require.Contains(t, logStr, "\thello world")
+	})
+
+	t.Run("NoLogOutput", func(t *testing.T) {
+		t.Parallel()
+
+		client, agentID := setupRunnerTest(t)
+
+		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+			AgentID: agentID,
+			Init: codersdk.ReconnectingPTYInit{
+				Command: "echo 'hello world'",
+			},
+			LogOutput: false,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		logs := bytes.NewBuffer(nil)
+		err := runner.Run(ctx, "1", logs)
+		logStr := logs.String()
+		t.Log("Runner logs:\n\n" + logStr)
+		require.NoError(t, err)
+
+		require.NotContains(t, logStr, "Output:")
+		require.NotContains(t, logStr, "\thello world")
+	})
+
+	t.Run("Timeout", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("NoTimeout", func(t *testing.T) {
+			t.Parallel()
+
+			client, agentID := setupRunnerTest(t)
+
+			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+				AgentID: agentID,
+				Init: codersdk.ReconnectingPTYInit{
+					Command: "echo 'hello world'",
+				},
+				Timeout:   httpapi.Duration(5 * time.Second),
+				LogOutput: true,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			logs := bytes.NewBuffer(nil)
+			err := runner.Run(ctx, "1", logs)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+		})
+
+		t.Run("Timeout", func(t *testing.T) {
+			t.Parallel()
+
+			client, agentID := setupRunnerTest(t)
+
+			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+				AgentID: agentID,
+				Init: codersdk.ReconnectingPTYInit{
+					Command: "sleep 5",
+				},
+				Timeout:   httpapi.Duration(2 * time.Second),
+				LogOutput: true,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			logs := bytes.NewBuffer(nil)
+			err := runner.Run(ctx, "1", logs)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	})
+
+	t.Run("ExpectTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Timeout", func(t *testing.T) {
+			t.Parallel()
+
+			client, agentID := setupRunnerTest(t)
+
+			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+				AgentID: agentID,
+				Init: codersdk.ReconnectingPTYInit{
+					Command: "sleep 5",
+				},
+				Timeout:       httpapi.Duration(2 * time.Second),
+				ExpectTimeout: true,
+				LogOutput:     true,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			logs := bytes.NewBuffer(nil)
+			err := runner.Run(ctx, "1", logs)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+		})
+
+		t.Run("Timeout", func(t *testing.T) {
+			t.Parallel()
+
+			client, agentID := setupRunnerTest(t)
+
+			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+				AgentID: agentID,
+				Init: codersdk.ReconnectingPTYInit{
+					Command: "echo 'hello world'",
+				},
+				Timeout:       httpapi.Duration(5 * time.Second),
+				ExpectTimeout: true,
+				LogOutput:     true,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			logs := bytes.NewBuffer(nil)
+			err := runner.Run(ctx, "1", logs)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "expected timeout")
+		})
+	})
+
+	t.Run("ExpectOutput", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Matches", func(t *testing.T) {
+			t.Parallel()
+
+			client, agentID := setupRunnerTest(t)
+
+			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+				AgentID: agentID,
+				Init: codersdk.ReconnectingPTYInit{
+					Command: "echo 'hello world'",
+				},
+				ExpectOutput: "hello world",
+				LogOutput:    true,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			logs := bytes.NewBuffer(nil)
+			err := runner.Run(ctx, "1", logs)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+		})
+
+		t.Run("NotMatches", func(t *testing.T) {
+			t.Parallel()
+
+			client, agentID := setupRunnerTest(t)
+
+			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
+				AgentID: agentID,
+				Init: codersdk.ReconnectingPTYInit{
+					Command: "echo 'hello world'",
+				},
+				ExpectOutput: "bello borld",
+				LogOutput:    true,
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			logs := bytes.NewBuffer(nil)
+			err := runner.Run(ctx, "1", logs)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.Error(t, err)
+			require.ErrorContains(t, err, `expected string "bello borld" not found`)
+		})
 	})
 }
 

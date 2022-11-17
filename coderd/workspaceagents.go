@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -26,6 +25,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
@@ -253,11 +253,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ptNetConn.Close()
-	// Pipe the ends together!
-	go func() {
-		_, _ = io.Copy(wsNetConn, ptNetConn)
-	}()
-	_, _ = io.Copy(ptNetConn, wsNetConn)
+	agent.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
