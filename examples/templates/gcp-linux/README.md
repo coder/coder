@@ -49,3 +49,17 @@ a service account:
 `code-server` is installed via the `startup_script` argument in the `coder_agent`
 resource block. The `coder_app` resource is defined to access `code-server` through
 the dashboard UI over `localhost:13337`.
+
+## Troubleshooting
+
+### Agent is stuck "connecting" or "disconnected"
+
+This often occurs because the virtual machine cannot reach your Coder access URL. If you are not using Coder's [public tunnel](https://coder.com/docs/coder-oss/latest/admin/configure#tunnel), you must [configure your access URL](https://coder.com/docs/coder-oss/latest/admin/configure#access-url) as a public address or one within the same VPC as workspaces.
+
+You can also use the SSH console to log into the VM and check the agent logs.
+
+```sh
+cat /tmp/coder-agent.log
+```
+
+![GCP SSH](https://raw.githubusercontent.com/coder/coder/main/docs/images/quickstart/google-cloud-platform/gcp-example-debug.png)
