@@ -651,11 +651,10 @@ export interface TemplateACL {
 }
 
 // From codersdk/templates.go
-export interface TemplateBuildTimeStats {
-  readonly start_ms?: number
-  readonly stop_ms?: number
-  readonly delete_ms?: number
-}
+export type TemplateBuildTimeStats = Record<
+  WorkspaceTransition,
+  TransitionStats
+>
 
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
@@ -695,6 +694,12 @@ export interface TraceConfig {
   readonly enable: DeploymentConfigField<boolean>
   readonly honeycomb_api_key: DeploymentConfigField<string>
   readonly capture_logs: DeploymentConfigField<boolean>
+}
+
+// From codersdk/templates.go
+export interface TransitionStats {
+  readonly P50?: number
+  readonly P95?: number
 }
 
 // From codersdk/templates.go

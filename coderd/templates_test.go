@@ -536,7 +536,7 @@ func TestTemplateMetrics(t *testing.T) {
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Equal(t, -1, template.ActiveUserCount)
-	require.Empty(t, template.BuildTimeStats)
+	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -607,7 +607,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		startMs := template.BuildTimeStats.StartMillis
+		startMs := template.BuildTimeStats[codersdk.WorkspaceTransitionStart].P50
 		return startMs != nil && *startMs > 1
 	},
 		testutil.WaitShort, testutil.IntervalFast,
