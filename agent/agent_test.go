@@ -83,7 +83,7 @@ func TestAgent(t *testing.T) {
 
 			conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 
-			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.NewString(), 128, 128, "/bin/bash")
+			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
 			require.NoError(t, err)
 			defer ptyConn.Close()
 
@@ -405,7 +405,7 @@ func TestAgent(t *testing.T) {
 		defer cancel()
 
 		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		id := uuid.NewString()
+		id := uuid.New()
 		netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
 		bufRead := bufio.NewReader(netConn)

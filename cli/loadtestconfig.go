@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/loadtest/agentconn"
 	"github.com/coder/coder/loadtest/harness"
 	"github.com/coder/coder/loadtest/placebo"
+	"github.com/coder/coder/loadtest/reconnectingpty"
 	"github.com/coder/coder/loadtest/workspacebuild"
 )
 
@@ -88,9 +89,10 @@ func (s LoadTestStrategy) ExecutionStrategy() harness.ExecutionStrategy {
 type LoadTestType string
 
 const (
-	LoadTestTypeAgentConn      LoadTestType = "agentconn"
-	LoadTestTypePlacebo        LoadTestType = "placebo"
-	LoadTestTypeWorkspaceBuild LoadTestType = "workspacebuild"
+	LoadTestTypeAgentConn       LoadTestType = "agentconn"
+	LoadTestTypePlacebo         LoadTestType = "placebo"
+	LoadTestTypeReconnectingPTY LoadTestType = "reconnectingpty"
+	LoadTestTypeWorkspaceBuild  LoadTestType = "workspacebuild"
 )
 
 type LoadTest struct {
@@ -104,6 +106,8 @@ type LoadTest struct {
 	AgentConn *agentconn.Config `json:"agentconn,omitempty"`
 	// Placebo must be set if type == "placebo".
 	Placebo *placebo.Config `json:"placebo,omitempty"`
+	// ReconnectingPTY must be set if type == "reconnectingpty".
+	ReconnectingPTY *reconnectingpty.Config `json:"reconnectingpty,omitempty"`
 	// WorkspaceBuild must be set if type == "workspacebuild".
 	WorkspaceBuild *workspacebuild.Config `json:"workspacebuild,omitempty"`
 }
@@ -120,6 +124,11 @@ func (t LoadTest) NewRunner(client *codersdk.Client) (harness.Runnable, error) {
 			return nil, xerrors.New("placebo config must be set")
 		}
 		return placebo.NewRunner(*t.Placebo), nil
+	case LoadTestTypeReconnectingPTY:
+		if t.ReconnectingPTY == nil {
+			return nil, xerrors.New("reconnectingpty config must be set")
+		}
+		return reconnectingpty.NewRunner(client, *t.ReconnectingPTY), nil
 	case LoadTestTypeWorkspaceBuild:
 		if t.WorkspaceBuild == nil {
 			return nil, xerrors.Errorf("workspacebuild config must be set")
@@ -184,6 +193,15 @@ func (t *LoadTest) Validate() error {
 		err := t.Placebo.Validate()
 		if err != nil {
 			return xerrors.Errorf("validate placebo: %w", err)
+		}
+	case LoadTestTypeReconnectingPTY:
+		if t.ReconnectingPTY == nil {
+			return xerrors.Errorf("reconnectingpty test type must specify reconnectingpty")
+		}
+
+		err := t.ReconnectingPTY.Validate()
+		if err != nil {
+			return xerrors.Errorf("validate reconnectingpty: %w", err)
 		}
 	case LoadTestTypeWorkspaceBuild:
 		if t.WorkspaceBuild == nil {
