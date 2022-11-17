@@ -781,10 +781,18 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 			<-ctx.Done()
 			_ = process.Kill()
 		}()
+
+		lastRead := time.Now()
 		go func() {
-			// If the process dies randomly, we should
-			// close the pty.
+			// If the process exits, we should close the pty.
 			_ = process.Wait()
+			if time.Since(lastRead) < 2*time.Second {
+				// Wait a second to ensure the output has been flushed to all
+				// active conns. There's not really a better way of doing this
+				// since we can't guarantee the Read call on the pty won't
+				// block on all operating systems.
+				time.Sleep(time.Second)
+			}
 			rpty.Close()
 		}()
 		go func() {
@@ -795,6 +803,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 					// When the PTY is closed, this is triggered.
 					break
 				}
+
+				lastRead = time.Now()
 				part := buffer[:read]
 				rpty.circularBufferMutex.Lock()
 				_, err = rpty.circularBuffer.Write(part)
