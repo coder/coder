@@ -698,8 +698,8 @@ export interface TraceConfig {
 
 // From codersdk/templates.go
 export interface TransitionStats {
-  readonly Median?: number
-  readonly Stddev?: number
+  readonly P50?: number
+  readonly P95?: number
 }
 
 // From codersdk/templates.go

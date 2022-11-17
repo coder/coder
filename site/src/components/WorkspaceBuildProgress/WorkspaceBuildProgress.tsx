@@ -31,8 +31,8 @@ export const ActiveTransition = (
 
 const estimateFinish = (
   startedAt: Dayjs,
-  median: number,
-  stddev: number,
+  p50: number,
+  p95: number,
 ): [number | undefined, string] => {
   const sinceStart = dayjs().diff(startedAt)
   const secondsLeft = (est: number) =>
@@ -41,29 +41,24 @@ const estimateFinish = (
       0,
     )
 
-  const lowGuess = secondsLeft(median)
-  const highGuess = secondsLeft(median + stddev)
+  const lowGuess = secondsLeft(p50)
+  const highGuess = secondsLeft(p95)
 
   const anyMomentNow: [number | undefined, string] = [
     undefined,
     "Any moment now...",
   ]
 
-  // If variation is too high (and greater than second), don't show
-  // progress bar and give range.
-  const highVariation = stddev / median > 0.1 && highGuess - lowGuess > 1
-  if (highVariation) {
-    if (highGuess <= 0) {
-      return anyMomentNow
-    }
-    return [undefined, `${lowGuess} to ${highGuess} seconds remaining...`]
-  } else {
-    const realPercentage = sinceStart / median
-    if (realPercentage > 1) {
-      return anyMomentNow
-    }
-    return [realPercentage * 100, `${highGuess} seconds remaining...`]
+  const p50percent = (sinceStart * 100) / p50
+  if (highGuess <= 0) {
+    return anyMomentNow
   }
+  const diff = highGuess - lowGuess
+  if (diff < 3) {
+    // If there is sufficient consistency, keep display simple.
+    return [p50percent, `${highGuess} seconds remaining...`]
+  }
+  return [p50percent, `Up to ${highGuess} seconds remaining...`]
 }
 
 export interface WorkspaceBuildProgressProps {
@@ -89,8 +84,8 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
     const updateProgress = () => {
       if (
         job.status !== "running" ||
-        transitionStats.Median === undefined ||
-        transitionStats.Stddev === undefined
+        transitionStats.P50 === undefined ||
+        transitionStats.P95 === undefined
       ) {
         setProgressValue(undefined)
         setProgressText(undefined)
@@ -99,8 +94,8 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 
       const [est, text] = estimateFinish(
         dayjs(job.started_at),
-        transitionStats.Median,
-        transitionStats.Stddev,
+        transitionStats.P50,
+        transitionStats.P95,
       )
       setProgressValue(est)
       setProgressText(text)

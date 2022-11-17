@@ -22,8 +22,8 @@ const Template: Story<WorkspaceBuildProgressProps> = (args) => (
 export const Starting = Template.bind({})
 Starting.args = {
   transitionStats: {
-    Median: 10000,
-    Stddev: 10,
+    P50: 10000,
+    P95: 10010,
   },
   workspace: {
     ...MockStartingWorkspace,
@@ -48,11 +48,11 @@ StartingUnknown.args = {
 export const StartingPassedEstimate = Template.bind({})
 StartingPassedEstimate.args = {
   ...Starting.args,
-  transitionStats: { Median: 1000, Stddev: 10 },
+  transitionStats: { P50: 1000, P95: 1000 },
 }
 
-export const StartingHighStddev = Template.bind({})
-StartingHighStddev.args = {
+export const StartingHighVariaton = Template.bind({})
+StartingHighVariaton.args = {
   ...Starting.args,
-  transitionStats: { Median: 10000, Stddev: 3000 },
+  transitionStats: { P50: 10000, P95: 20000 },
 }
