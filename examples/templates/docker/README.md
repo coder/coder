@@ -54,7 +54,7 @@ add the following features to your Coder template:
 
 ### Agent is stuck "connecting" or "disconnected"
 
-This often occurs because the container cannot reach your [access URL](https://coder.com/docs/coder-oss/latest/admin/configure#access-url). The container may also be missing `curl` which is required to download the agent.
+This often occurs when the container cannot reach your [access URL](https://coder.com/docs/coder-oss/latest/admin/configure#access-url). The container may also be missing `curl` which is required to download the agent.
 
 First, check the logs of the container:
 

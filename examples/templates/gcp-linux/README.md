@@ -54,7 +54,7 @@ the dashboard UI over `localhost:13337`.
 
 ### Agent is stuck "connecting" or "disconnected"
 
-This often occurs because the virtual machine cannot reach your Coder access URL. If you are not using Coder's [public tunnel](https://coder.com/docs/coder-oss/latest/admin/configure#tunnel), you must [configure your access URL](https://coder.com/docs/coder-oss/latest/admin/configure#access-url) as a public address or one within the same VPC as workspaces.
+This often occurs when the virtual machine cannot reach your Coder access URL. If you are not using Coder's [public tunnel](https://coder.com/docs/coder-oss/latest/admin/configure#tunnel), you must [configure your access URL](https://coder.com/docs/coder-oss/latest/admin/configure#access-url) as a public address or one within the same VPC as workspaces.
 
 You can also use the SSH console to log into the VM and check the agent logs.
 

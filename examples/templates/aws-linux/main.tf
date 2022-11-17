@@ -124,6 +124,9 @@ users:
 - name: ${local.linux_user}
   sudo: ALL=(ALL) NOPASSWD:ALL
   shell: /bin/bash
+  # Uncomment to add SSH public key for debugging
+  # ssh-authorized-keys:
+  #   - ssh-rsa ...
 
 --//
 Content-Type: text/x-shellscript; charset="us-ascii"
@@ -176,6 +179,8 @@ resource "aws_instance" "dev" {
     # Required if you are using our example policy, see template README
     Coder_Provisioned = "true"
   }
+  # Uncomment to enable SSH access for debugging
+  # security_groups   = ["coder_debug"]
 }
 
 resource "coder_metadata" "workspace_info" {

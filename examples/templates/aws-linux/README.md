@@ -74,3 +74,13 @@ instances provisioned by Coder:
 `code-server` is installed via the `startup_script` argument in the `coder_agent`
 resource block. The `coder_app` resource is defined to access `code-server` through
 the dashboard UI over `localhost:13337`.
+
+### Agent is stuck "connecting" or "disconnected"
+
+This often occurs when the EC2 instance cannot reach your Coder access URL. If you are not using Coder's [public tunnel](https://coder.com/docs/coder-oss/latest/admin/configure#tunnel), you must [configure your access URL](https://coder.com/docs/coder-oss/latest/admin/configure#access-url) as a public address or one within the same VPC as workspaces.
+
+You can also troubleshoot by connecting directly into the instance and checking the agent logs. First, log in to the [AWS Console](https://console.aws.amazon.com) and create a security group that permits inbound SSH.
+
+```sh
+cat /tmp/coder-agent.log
+```

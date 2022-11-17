@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.3"
     }
     google = {
       source  = "hashicorp/google"
@@ -56,6 +56,9 @@ resource "coder_agent" "main" {
     curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log
     code-server --auth none --port 13337 | tee code-server-install.log &
   EOT
+
+  connection_timeout  = 20
+  troubleshooting_url = "https://github.com/coder/coder/tree/main/examples/templates/gcp-linux#troubleshooting"
 }
 
 # code-server
