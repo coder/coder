@@ -213,7 +213,7 @@ export const handlers = [
       ctx.status(200),
       ctx.json({
         audit_logs: [M.MockAuditLog, M.MockAuditLog2],
-        count: 2
+        count: 2,
       }),
     )
   }),

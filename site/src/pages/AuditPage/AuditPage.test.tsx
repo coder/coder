@@ -75,7 +75,9 @@ describe("AuditPage", () => {
       render(<AuditPage />)
 
       await waitForLoaderToBeRemoved()
-      getAuditLogsSpy.mockReset()
+      getAuditLogsSpy
+        .mockReset()
+        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
 
       const filterField = screen.getByLabelText("Filter")
       const query = "resource_type:workspace action:create"
