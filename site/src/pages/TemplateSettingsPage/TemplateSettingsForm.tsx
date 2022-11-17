@@ -86,6 +86,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         // on display, convert from ms => hours
         default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
         icon: template.icon,
+        allow_user_cancel_workspace_jobs: true,
       },
       validationSchema,
       onSubmit: (formData) => {

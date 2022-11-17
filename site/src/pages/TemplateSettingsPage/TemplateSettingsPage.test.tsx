@@ -28,6 +28,7 @@ const validFormValues = {
   description: "A description",
   icon: "A string",
   default_ttl_ms: 1,
+  allow_user_cancel_workspace_jobs: true,
 }
 
 const fillAndSubmitForm = async ({
