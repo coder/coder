@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -122,6 +123,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
+		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
@@ -927,4 +929,37 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTemplateVersionByOrganizationAndName(t *testing.T) {
+	t.Parallel()
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, "nothing")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("Found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, version.Name)
+		require.NoError(t, err)
+	})
 }

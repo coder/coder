@@ -27,7 +27,7 @@ type FormData = {
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
-  quota_allowance: Yup.number().required().positive().integer(),
+  quota_allowance: Yup.number().required().min(0).integer(),
 })
 
 const UpdateGroupForm: React.FC<{

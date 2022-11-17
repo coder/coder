@@ -137,6 +137,6 @@ func list() *cobra.Command {
 		"Specifies whether all workspaces will be listed or not.")
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", columnString))
-	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
+	cmd.Flags().StringVar(&searchQuery, "search", defaultQuery, "Search for a workspace with a query.")
 	return cmd
 }

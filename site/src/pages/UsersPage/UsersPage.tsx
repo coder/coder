@@ -1,5 +1,4 @@
 import { useActor, useMachine } from "@xstate/react"
-import { getErrorDetail } from "api/errors"
 import { User } from "api/typesGenerated"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import {
@@ -48,7 +47,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const {
     users,
     getUsersError,
-    getCountError,
     usernameToDelete,
     usernameToSuspend,
     usernameToActivate,
@@ -78,10 +76,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       })
     }
   }, [canEditUsers, rolesSend])
-
-  if (getCountError) {
-    console.error(getErrorDetail(getCountError))
-  }
 
   return (
     <>

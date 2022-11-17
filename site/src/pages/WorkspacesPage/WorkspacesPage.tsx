@@ -27,8 +27,7 @@ const WorkspacesPage: FC = () => {
     },
   })
 
-  const { workspaceRefs, count, getWorkspacesError, getCountError } =
-    workspacesState.context
+  const { workspaceRefs, count, getWorkspacesError } = workspacesState.context
   const paginationRef = workspacesState.context
     .paginationRef as PaginationMachineRef
 
@@ -44,7 +43,6 @@ const WorkspacesPage: FC = () => {
         workspaceRefs={workspaceRefs}
         count={count}
         getWorkspacesError={getWorkspacesError}
-        getCountError={getCountError}
         onFilter={(query) => {
           send({
             type: "UPDATE_FILTER",

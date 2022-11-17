@@ -143,7 +143,7 @@ export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
-  readonly organization: string
+  readonly trial: boolean
 }
 
 // From codersdk/users.go
@@ -197,6 +197,7 @@ export interface CreateTemplateVersionRequest {
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id: string
   readonly provisioner: ProvisionerType
+  readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -299,6 +300,7 @@ export interface DeploymentConfig {
   readonly auto_import_templates: DeploymentConfigField<string[]>
   readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
+  readonly agent_fallback_troubleshooting_url: DeploymentConfigField<string>
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
@@ -362,6 +364,7 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly regex: string
+  readonly no_refresh: boolean
   readonly scopes: string[]
 }
 
@@ -393,6 +396,7 @@ export interface Healthcheck {
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
+  readonly uuid: string
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
@@ -433,6 +437,7 @@ export interface OAuth2GithubConfig {
   readonly allowed_orgs: DeploymentConfigField<string[]>
   readonly allowed_teams: DeploymentConfigField<string[]>
   readonly allow_signups: DeploymentConfigField<boolean>
+  readonly allow_everyone: DeploymentConfigField<boolean>
   readonly enterprise_base_url: DeploymentConfigField<string>
 }
 
@@ -537,6 +542,7 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string
   readonly name: string
   readonly provisioners: ProvisionerType[]
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -550,6 +556,7 @@ export interface ProvisionerJob {
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -785,6 +792,7 @@ export interface Workspace {
   readonly owner_name: string
   readonly template_id: string
   readonly template_name: string
+  readonly template_display_name: string
   readonly template_icon: string
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
@@ -815,7 +823,7 @@ export interface WorkspaceAgent {
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
-  readonly troubleshooting_url?: string
+  readonly troubleshooting_url: string
 }
 
 // From codersdk/workspaceagents.go

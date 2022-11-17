@@ -24,10 +24,11 @@ import (
 
 func templateCreate() *cobra.Command {
 	var (
-		directory     string
-		provisioner   string
-		parameterFile string
-		defaultTTL    time.Duration
+		directory       string
+		provisioner     string
+		provisionerTags []string
+		parameterFile   string
+		defaultTTL      time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "create [name]",
@@ -87,12 +88,18 @@ func templateCreate() *cobra.Command {
 			}
 			spin.Stop()
 
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
 			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
-				Client:        client,
-				Organization:  organization,
-				Provisioner:   database.ProvisionerType(provisioner),
-				FileID:        resp.ID,
-				ParameterFile: parameterFile,
+				Client:          client,
+				Organization:    organization,
+				Provisioner:     database.ProvisionerType(provisioner),
+				FileID:          resp.ID,
+				ParameterFile:   parameterFile,
+				ProvisionerTags: tags,
 			})
 			if err != nil {
 				return err
@@ -131,6 +138,7 @@ func templateCreate() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
+	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
@@ -154,6 +162,7 @@ type createValidTemplateVersionArgs struct {
 	// before prompting the user. Set to false to always prompt for param
 	// values.
 	ReuseParameters bool
+	ProvisionerTags map[string]string
 }
 
 func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
@@ -165,6 +174,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		FileID:          args.FileID,
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
+		ProvisionerTags: args.ProvisionerTags,
 	}
 	if args.Template != nil {
 		req.TemplateID = args.Template.ID
@@ -333,4 +343,16 @@ func prettyDirectoryPath(dir string) string {
 		pretty = "~" + pretty
 	}
 	return pretty
+}
+
+func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
+	tags := map[string]string{}
+	for _, rawTag := range rawTags {
+		parts := strings.SplitN(rawTag, "=", 2)
+		if len(parts) < 2 {
+			return nil, xerrors.Errorf("invalid tag format for %q. must be key=value", rawTag)
+		}
+		tags[parts[0]] = parts[1]
+	}
+	return tags, nil
 }

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
@@ -1401,7 +1402,7 @@ func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error)
 }
 
 const getLicenses = `-- name: GetLicenses :many
-SELECT id, uploaded_at, jwt, exp
+SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
 ORDER BY (id)
 `
@@ -1420,6 +1421,7 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
+			&i.Uuid,
 		); err != nil {
 			return nil, err
 		}
@@ -1435,7 +1437,7 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 }
 
 const getUnexpiredLicenses = `-- name: GetUnexpiredLicenses :many
-SELECT id, uploaded_at, jwt, exp
+SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
 WHERE exp > NOW()
 ORDER BY (id)
@@ -1455,6 +1457,7 @@ func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
+			&i.Uuid,
 		); err != nil {
 			return nil, err
 		}
@@ -1474,26 +1477,34 @@ INSERT INTO
 	licenses (
 	uploaded_at,
 	jwt,
-	exp
+	exp,
+	uuid
 )
 VALUES
-	($1, $2, $3) RETURNING id, uploaded_at, jwt, exp
+	($1, $2, $3, $4) RETURNING id, uploaded_at, jwt, exp, uuid
 `
 
 type InsertLicenseParams struct {
-	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
-	JWT        string    `db:"jwt" json:"jwt"`
-	Exp        time.Time `db:"exp" json:"exp"`
+	UploadedAt time.Time     `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string        `db:"jwt" json:"jwt"`
+	Exp        time.Time     `db:"exp" json:"exp"`
+	Uuid       uuid.NullUUID `db:"uuid" json:"uuid"`
 }
 
 func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error) {
-	row := q.db.QueryRowContext(ctx, insertLicense, arg.UploadedAt, arg.JWT, arg.Exp)
+	row := q.db.QueryRowContext(ctx, insertLicense,
+		arg.UploadedAt,
+		arg.JWT,
+		arg.Exp,
+		arg.Uuid,
+	)
 	var i License
 	err := row.Scan(
 		&i.ID,
 		&i.UploadedAt,
 		&i.JWT,
 		&i.Exp,
+		&i.Uuid,
 	)
 	return i, err
 }
@@ -2243,7 +2254,7 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id
+	id, created_at, updated_at, name, provisioners, replica_id, tags
 FROM
 	provisioner_daemons
 WHERE
@@ -2260,13 +2271,14 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.Name,
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, updated_at, name, provisioners, replica_id
+	id, created_at, updated_at, name, provisioners, replica_id, tags
 FROM
 	provisioner_daemons
 `
@@ -2287,6 +2299,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.Name,
 			pq.Array(&i.Provisioners),
 			&i.ReplicaID,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}
@@ -2307,10 +2320,11 @@ INSERT INTO
 		id,
 		created_at,
 		"name",
-		provisioners
+		provisioners,
+		tags
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners, replica_id
+	($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, name, provisioners, replica_id, tags
 `
 
 type InsertProvisionerDaemonParams struct {
@@ -2318,6 +2332,7 @@ type InsertProvisionerDaemonParams struct {
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	Tags         dbtype.StringMap  `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -2326,6 +2341,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		arg.CreatedAt,
 		arg.Name,
 		pq.Array(arg.Provisioners),
+		arg.Tags,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -2335,6 +2351,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.Name,
 		pq.Array(&i.Provisioners),
 		&i.ReplicaID,
+		&i.Tags,
 	)
 	return i, err
 }
@@ -2370,7 +2387,7 @@ WHERE
 	AND (
 		id > $2
 		OR id < $3
-	) ORDER BY id
+	) ORDER BY id ASC
 `
 
 type GetProvisionerLogsByIDBetweenParams struct {
@@ -2487,19 +2504,22 @@ WHERE
 			AND nested.canceled_at IS NULL
 			AND nested.completed_at IS NULL
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
+			-- Ensure the caller satisfies all job tags.
+			AND nested.tags <@ $4 :: jsonb 
 		ORDER BY
-			nested.created_at FOR
-		UPDATE
-			SKIP LOCKED
+			nested.created_at
+		FOR UPDATE
+		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
 `
 
 type AcquireProvisionerJobParams struct {
 	StartedAt sql.NullTime      `db:"started_at" json:"started_at"`
 	WorkerID  uuid.NullUUID     `db:"worker_id" json:"worker_id"`
 	Types     []ProvisionerType `db:"types" json:"types"`
+	Tags      json.RawMessage   `db:"tags" json:"tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -2509,7 +2529,12 @@ type AcquireProvisionerJobParams struct {
 // multiple provisioners from acquiring the same jobs. See:
 // https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error) {
-	row := q.db.QueryRowContext(ctx, acquireProvisionerJob, arg.StartedAt, arg.WorkerID, pq.Array(arg.Types))
+	row := q.db.QueryRowContext(ctx, acquireProvisionerJob,
+		arg.StartedAt,
+		arg.WorkerID,
+		pq.Array(arg.Types),
+		arg.Tags,
+	)
 	var i ProvisionerJob
 	err := row.Scan(
 		&i.ID,
@@ -2527,13 +2552,14 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.Input,
 		&i.WorkerID,
 		&i.FileID,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
 FROM
 	provisioner_jobs
 WHERE
@@ -2559,13 +2585,14 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.Input,
 		&i.WorkerID,
 		&i.FileID,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
 FROM
 	provisioner_jobs
 WHERE
@@ -2597,6 +2624,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.Input,
 			&i.WorkerID,
 			&i.FileID,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}
@@ -2612,7 +2640,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -2640,6 +2668,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.Input,
 			&i.WorkerID,
 			&i.FileID,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}
@@ -2666,10 +2695,11 @@ INSERT INTO
 		storage_method,
 		file_id,
 		"type",
-		"input"
+		"input",
+		tags
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
 `
 
 type InsertProvisionerJobParams struct {
@@ -2683,6 +2713,7 @@ type InsertProvisionerJobParams struct {
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
 	Input          json.RawMessage          `db:"input" json:"input"`
+	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -2697,6 +2728,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.FileID,
 		arg.Type,
 		arg.Input,
+		arg.Tags,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -2715,6 +2747,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.Input,
 		&i.WorkerID,
 		&i.FileID,
+		&i.Tags,
 	)
 	return i, err
 }
@@ -3535,6 +3568,38 @@ WHERE
 
 func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateVersionByJobID, jobID)
+	var i TemplateVersion
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Readme,
+		&i.JobID,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getTemplateVersionByOrganizationAndName = `-- name: GetTemplateVersionByOrganizationAndName :one
+SELECT
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+FROM
+	template_versions
+WHERE
+	organization_id = $1
+	AND "name" = $2
+`
+
+type GetTemplateVersionByOrganizationAndNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetTemplateVersionByOrganizationAndName(ctx context.Context, arg GetTemplateVersionByOrganizationAndNameParams) (TemplateVersion, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateVersionByOrganizationAndName, arg.OrganizationID, arg.Name)
 	var i TemplateVersion
 	err := row.Scan(
 		&i.ID,
@@ -6196,7 +6261,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
 FROM
 	workspaces
 LEFT JOIN LATERAL (
@@ -6343,7 +6408,22 @@ type GetWorkspacesParams struct {
 	Limit         int32       `db:"limit_" json:"limit_"`
 }
 
-func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error) {
+type GetWorkspacesRow struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
+	Deleted           bool           `db:"deleted" json:"deleted"`
+	Name              string         `db:"name" json:"name"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
+	Count             int64          `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
 		arg.Deleted,
 		arg.Status,
@@ -6359,9 +6439,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Workspace
+	var items []GetWorkspacesRow
 	for rows.Next() {
-		var i Workspace
+		var i GetWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -6374,6 +6454,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

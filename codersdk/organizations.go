@@ -36,11 +36,12 @@ type Organization struct {
 type CreateTemplateVersionRequest struct {
 	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
 	// TemplateID optionally associates a version with a template.
-	TemplateID uuid.UUID `json:"template_id,omitempty"`
+	TemplateID      uuid.UUID                `json:"template_id,omitempty"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	FileID          uuid.UUID                `json:"file_id" validate:"required"`
+	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	ProvisionerTags map[string]string        `json:"tags"`
 
-	StorageMethod ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	FileID        uuid.UUID                `json:"file_id" validate:"required"`
-	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
@@ -131,6 +132,25 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
+		return TemplateVersion{}, readBodyAsError(res)
+	}
+
+	var templateVersion TemplateVersion
+	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+}
+
+func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organizationID uuid.UUID, name string) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/templateversions/%s", organizationID.String(), name),
+		nil,
+	)
+
+	if err != nil {
+		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
 		return TemplateVersion{}, readBodyAsError(res)
 	}
 

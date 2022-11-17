@@ -49,10 +49,9 @@ func TestFirstUser(t *testing.T) {
 		defer cancel()
 
 		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-			Email:            "some@email.com",
-			Username:         "exampleuser",
-			Password:         "password",
-			OrganizationName: "someorg",
+			Email:    "some@email.com",
+			Username: "exampleuser",
+			Password: "password",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -63,6 +62,30 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+	})
+
+	t.Run("Trial", func(t *testing.T) {
+		t.Parallel()
+		called := make(chan struct{})
+		client := coderdtest.New(t, &coderdtest.Options{
+			TrialGenerator: func(ctx context.Context, s string) error {
+				close(called)
+				return nil
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		req := codersdk.CreateFirstUserRequest{
+			Email:    "testuser@coder.com",
+			Username: "testuser",
+			Password: "testpass",
+			Trial:    true,
+		}
+		_, err := client.CreateFirstUser(ctx, req)
+		require.NoError(t, err)
+		<-called
 	})
 
 	t.Run("LastSeenAt", func(t *testing.T) {
@@ -192,10 +215,9 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.CreateFirstUserRequest{
-			Email:            "testuser@coder.com",
-			Username:         "testuser",
-			Password:         "testpass",
-			OrganizationName: "testorg",
+			Email:    "testuser@coder.com",
+			Username: "testuser",
+			Password: "testpass",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
@@ -249,10 +271,9 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.CreateFirstUserRequest{
-			Email:            "testuser@coder.com",
-			Username:         "testuser",
-			Password:         "testpass",
-			OrganizationName: "testorg",
+			Email:    "testuser@coder.com",
+			Username: "testuser",
+			Password: "testpass",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)

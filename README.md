@@ -7,7 +7,10 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 [![Twitter
 Follow](https://img.shields.io/twitter/follow/coderhq?label=%40coderhq&style=social)](https://twitter.com/coderhq)
 
-Coder creates remote development machines so your team can develop from anywhere.
+Software development on your infrastructure. Offload your team's development from local workstations to cloud servers. Onboard developers in minutes. Build, test and compile at the speed of the cloud. Keep your source code and data behind your firewall.
+
+> "By leveraging Terraform, Coder lets developers run any IDE on any compute platform including on-prem, AWS, Azure, GCP, DigitalOcean, Kubernetes, Docker, and more, with workspaces running on Linux, Windows, or Mac." - **Kevin Fishner Chief of Staff at [HashiCorp](https://hashicorp.com/)**
+
 
 <p align="center">
   <img src="./docs/images/hero-image.png">
@@ -27,10 +30,15 @@ Coder creates remote development machines so your team can develop from anywhere
 - Access your environment from any place on any client (even an iPad)
 - Onboard instantly then stay up to date continuously
 
-## Getting Started
+## Recommended Reading
 
-> **Note**:
-> Coder is in a beta state. [Report issues here](https://github.com/coder/coder/issues/new).
+- [How our development team shares one giant bare metal machine](https://coder.com/blog/how-our-development-team-shares-one-giant-bare-metal-machine?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md)
+- [Laptop development is dead: why remote development is the future](https://medium.com/@elliotgraebert/laptop-development-is-dead-why-remote-development-is-the-future-f92ce103fd13)
+- [Learn how Palantir improved build times by 78% with coder](https://blog.palantir.com/the-benefits-of-remote-ephemeral-workspaces-1a1251ed6e53).
+- [A software development environment is not just a container](https://coder.com/blog/not-a-container?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
+- [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
+
+## Getting Started
 
 The easiest way to install Coder is to use our
 [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
@@ -84,7 +92,7 @@ Please file [an issue](https://github.com/coder/coder/issues/new) if any informa
 | [Coder](https://github.com/coder/coder)                     | Platform | OSS + Self-Managed | Pay your cloud                | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
 | [code-server](https://github.com/cdr/code-server)           | Web IDE  | OSS + Self-Managed | Pay your cloud                | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
 | [Coder (Classic)](https://coder.com/docs)                   | Platform | Self-Managed       | Pay your cloud + license fees | Kubernetes Linux Containers                                                                                                                                |
-| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux containers                                                                                                                                           |
+| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux Virtual Machines                                                                                                                                           |
 
 ---
 

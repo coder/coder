@@ -45,7 +45,7 @@ export const AgentRow: FC<AgentRowProps> = ({
     >
       <Stack direction="row" alignItems="baseline">
         <div className={styles.agentStatusWrapper}>
-          <AgentStatus agent={agent} workspace={workspace} />
+          <AgentStatus agent={agent} />
         </div>
         <div>
           <div className={styles.agentName}>{agent.name}</div>

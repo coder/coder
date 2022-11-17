@@ -131,6 +131,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
+  tags: {},
 }
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -139,6 +140,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   completed_at: "2022-05-17T17:39:01.382927298Z",
+  tags: {},
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -434,6 +436,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_id: MockTemplate.id,
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
+  template_display_name: MockTemplate.display_name,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,

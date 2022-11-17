@@ -428,6 +428,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tags := provisionerdserver.MutateTags(workspace.OwnerID, templateVersionJob.Tags)
+
 	// Store prior build number to compute new build number
 	var priorBuildNum int32
 	priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
@@ -513,6 +515,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			StorageMethod:  templateVersionJob.StorageMethod,
 			FileID:         templateVersionJob.FileID,
 			Input:          input,
+			Tags:           tags,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -902,7 +905,7 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
 			}

@@ -37,6 +37,7 @@ export const darkPalette: PaletteOptions = {
   text: {
     primary: colors.gray[1],
     secondary: colors.gray[5],
+    disabled: colors.gray[7],
   },
   divider: colors.gray[13],
   warning: {

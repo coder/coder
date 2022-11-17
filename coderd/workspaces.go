@@ -127,27 +127,23 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
+	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaceRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+			Workspaces: []codersdk.Workspace{},
+			Count:      0,
 		})
 		return
 	}
 
-	// run the query again to get the total count for frontend pagination
-	filter.Offset = 0
-	filter.Limit = 0
-	all, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	count := len(all)
+	workspaces := database.ConvertWorkspaceRows(workspaceRows)
 
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
@@ -169,7 +165,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 		Workspaces: wss,
-		Count:      count,
+		Count:      int(workspaceRows[0].Count),
 	})
 }
 
@@ -377,6 +373,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
+
 	var (
 		provisionerJob database.ProvisionerJob
 		workspaceBuild database.WorkspaceBuild
@@ -439,6 +437,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			StorageMethod:  templateVersionJob.StorageMethod,
 			FileID:         templateVersionJob.FileID,
 			Input:          input,
+			Tags:           tags,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -1011,20 +1010,21 @@ func convertWorkspace(
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	return codersdk.Workspace{
-		ID:                workspace.ID,
-		CreatedAt:         workspace.CreatedAt,
-		UpdatedAt:         workspace.UpdatedAt,
-		OwnerID:           workspace.OwnerID,
-		OwnerName:         owner.Username,
-		TemplateID:        workspace.TemplateID,
-		LatestBuild:       workspaceBuild,
-		TemplateName:      template.Name,
-		TemplateIcon:      template.Icon,
-		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
-		Name:              workspace.Name,
-		AutostartSchedule: autostartSchedule,
-		TTLMillis:         ttlMillis,
-		LastUsedAt:        workspace.LastUsedAt,
+		ID:                  workspace.ID,
+		CreatedAt:           workspace.CreatedAt,
+		UpdatedAt:           workspace.UpdatedAt,
+		OwnerID:             workspace.OwnerID,
+		OwnerName:           owner.Username,
+		TemplateID:          workspace.TemplateID,
+		LatestBuild:         workspaceBuild,
+		TemplateName:        template.Name,
+		TemplateIcon:        template.Icon,
+		TemplateDisplayName: template.DisplayName,
+		Outdated:            workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
+		Name:                workspace.Name,
+		AutostartSchedule:   autostartSchedule,
+		TTLMillis:           ttlMillis,
+		LastUsedAt:          workspace.LastUsedAt,
 	}
 }
 

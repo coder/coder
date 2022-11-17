@@ -99,13 +99,14 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspaces(e.ctx, database.GetWorkspacesParams{
+	workspaceRows, err := e.db.GetWorkspaces(e.ctx, database.GetWorkspacesParams{
 		Deleted: false,
 	})
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
 	}
+	workspaces := database.ConvertWorkspaceRows(workspaceRows)
 
 	var eligibleWorkspaceIDs []uuid.UUID
 	for _, ws := range workspaces {
@@ -277,6 +278,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		StorageMethod:  priorJob.StorageMethod,
 		FileID:         priorJob.FileID,
+		Tags:           priorJob.Tags,
 		Input:          input,
 	})
 	if err != nil {

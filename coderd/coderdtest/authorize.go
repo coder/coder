@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
 )
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
@@ -204,11 +203,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
 		},
-		"GET:/api/v2/provisionerdaemons": {
-			StatusCode:   http.StatusOK,
-			AssertObject: rbac.ResourceProvisionerDaemon,
-		},
-
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
 			AssertObject: rbac.ResourceTemplate,
@@ -238,10 +232,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
-		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/users/{user}/roles":                                                  {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":                   {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":                                      {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions":                      {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
 		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
@@ -302,16 +297,6 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	if !ok {
 		t.Fail()
 	}
-	// The provisioner will call to coderd and register itself. This is async,
-	// so we wait for it to occur.
-	require.Eventually(t, func() bool {
-		provisionerds, err := client.ProvisionerDaemons(ctx)
-		return assert.NoError(t, err) && len(provisionerds) > 0
-	}, testutil.WaitLong, testutil.IntervalSlow)
-
-	provisionerds, err := client.ProvisionerDaemons(ctx)
-	require.NoError(t, err, "fetch provisioners")
-	require.Len(t, provisionerds, 1)
 
 	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")

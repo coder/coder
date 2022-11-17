@@ -80,6 +80,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if createUser.Trial && api.TrialGenerator != nil {
+		err = api.TrialGenerator(ctx, createUser.Email)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate trial",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	user, organizationID, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,

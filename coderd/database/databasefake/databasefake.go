@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"sort"
 	"strings"
 	"sync"
@@ -144,6 +145,29 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 			break
 		}
 		if !found {
+			continue
+		}
+		tags := map[string]string{}
+		if arg.Tags != nil {
+			err := json.Unmarshal(arg.Tags, &tags)
+			if err != nil {
+				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
+			}
+		}
+
+		missing := false
+		for key, value := range provisionerJob.Tags {
+			provided, found := tags[key]
+			if !found {
+				missing = true
+				break
+			}
+			if provided != value {
+				missing = true
+				break
+			}
+		}
+		if missing {
 			continue
 		}
 		provisionerJob.StartedAt = arg.StartedAt
@@ -718,14 +742,14 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	// A nil auth filter means no auth filter.
-	workspaces, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
-	return workspaces, err
+	workspaceRows, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
+	return workspaceRows, err
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.GetWorkspacesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -866,20 +890,43 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		workspaces = append(workspaces, workspace)
 	}
 
+	beforePageCount := len(workspaces)
+
 	if arg.Offset > 0 {
 		if int(arg.Offset) > len(workspaces) {
-			return []database.Workspace{}, nil
+			return []database.GetWorkspacesRow{}, nil
 		}
 		workspaces = workspaces[arg.Offset:]
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return workspaces, nil
+			return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return workspaces, nil
+	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+}
+
+func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+	rows := make([]database.GetWorkspacesRow, len(workspaces))
+	for i, w := range workspaces {
+		rows[i] = database.GetWorkspacesRow{
+			ID:                w.ID,
+			CreatedAt:         w.CreatedAt,
+			UpdatedAt:         w.UpdatedAt,
+			OwnerID:           w.OwnerID,
+			OrganizationID:    w.OrganizationID,
+			TemplateID:        w.TemplateID,
+			Deleted:           w.Deleted,
+			Name:              w.Name,
+			AutostartSchedule: w.AutostartSchedule,
+			Ttl:               w.Ttl,
+			LastUsedAt:        w.LastUsedAt,
+			Count:             count,
+		}
+	}
+	return rows
 }
 
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
@@ -1461,6 +1508,22 @@ func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, a
 
 	for _, templateVersion := range q.templateVersions {
 		if templateVersion.TemplateID != arg.TemplateID {
+			continue
+		}
+		if !strings.EqualFold(templateVersion.Name, arg.Name) {
+			continue
+		}
+		return templateVersion, nil
+	}
+	return database.TemplateVersion{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplateVersionByOrganizationAndName(_ context.Context, arg database.GetTemplateVersionByOrganizationAndNameParams) (database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.OrganizationID != arg.OrganizationID {
 			continue
 		}
 		if !strings.EqualFold(templateVersion.Name, arg.Name) {
@@ -2205,6 +2268,7 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 		CreatedAt:    arg.CreatedAt,
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
+		Tags:         arg.Tags,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil
@@ -2225,6 +2289,7 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		FileID:         arg.FileID,
 		Type:           arg.Type,
 		Input:          arg.Input,
+		Tags:           arg.Tags,
 	}
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil

@@ -112,13 +112,13 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 }
 
 type workspaceQuerier interface {
-	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error)
+	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]GetWorkspacesRow, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
-func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]Workspace, error) {
+func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]GetWorkspacesRow, error) {
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
 	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString(rbac.NoACLConfig())), 1)
@@ -139,9 +139,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
 	}
 	defer rows.Close()
-	var items []Workspace
+	var items []GetWorkspacesRow
 	for rows.Next() {
-		var i Workspace
+		var i GetWorkspacesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -154,6 +154,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

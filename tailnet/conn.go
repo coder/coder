@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"go4.org/netipx"
 	"golang.org/x/xerrors"
@@ -424,24 +425,43 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, error) {
 // address is reachable. It's the callers responsibility to provide
 // a timeout, otherwise this function will block forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
-	ticker := time.NewTicker(time.Millisecond * 100)
-	defer ticker.Stop()
-	completedCtx, completed := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // Cancel all pending pings on exit.
+
+	completedCtx, completed := context.WithCancel(context.Background())
+	defer completed()
+
 	run := func() {
-		ctx, cancelFunc := context.WithTimeout(completedCtx, time.Second)
-		defer cancelFunc()
+		// Safety timeout, initially we'll have around 10-20 goroutines
+		// running in parallel. The exponential backoff will converge
+		// around ~1 ping / 30s, this means we'll have around 10-20
+		// goroutines pending towards the end as well.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
 		_, err := c.Ping(ctx, ip)
 		if err == nil {
 			completed()
 		}
 	}
+
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = 0
+	eb.InitialInterval = 50 * time.Millisecond
+	eb.MaxInterval = 30 * time.Second
+	// Consume the first interval since
+	// we'll fire off a ping immediately.
+	_ = eb.NextBackOff()
+
+	t := backoff.NewTicker(eb)
+	defer t.Stop()
+
 	go run()
-	defer completed()
 	for {
 		select {
 		case <-completedCtx.Done():
 			return true
-		case <-ticker.C:
+		case <-t.C:
 			// Pings can take a while, so we can run multiple
 			// in parallel to return ASAP.
 			go run()
