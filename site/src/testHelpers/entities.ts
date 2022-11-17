@@ -438,7 +438,8 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
   template_display_name: MockTemplate.display_name,
-  template_allow_user_cancel_workspace_jobs: MockTemplate.allow_user_cancel_workspace_jobs,
+  template_allow_user_cancel_workspace_jobs:
+    MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
