@@ -291,6 +291,8 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		FileID:         job.FileID,
 		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
 		Input:          input,
+		// Copy tags from the previous run.
+		Tags: job.Tags,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -764,6 +766,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
+	// Ensures the "owner" is properly applied.
+	tags := provisionerdserver.MutateTags(apiKey.UserID, req.ProvisionerTags)
+
 	file, err := api.Database.GetFileByID(ctx, req.FileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -862,6 +867,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          []byte{'{', '}'},
+			Tags:           tags,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)

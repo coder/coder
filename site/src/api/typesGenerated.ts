@@ -143,7 +143,7 @@ export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
-  readonly organization: string
+  readonly trial: boolean
 }
 
 // From codersdk/users.go
@@ -197,6 +197,7 @@ export interface CreateTemplateVersionRequest {
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id: string
   readonly provisioner: ProvisionerType
+  readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -395,6 +396,7 @@ export interface Healthcheck {
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
+  readonly uuid: string
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
@@ -540,6 +542,7 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string
   readonly name: string
   readonly provisioners: ProvisionerType[]
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -553,6 +556,7 @@ export interface ProvisionerJob {
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go

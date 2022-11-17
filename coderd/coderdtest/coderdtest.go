@@ -69,7 +69,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionerd/proto"
+	provisionerdproto "github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
@@ -94,6 +94,7 @@ type Options struct {
 	Auditor              audit.Auditor
 	TLSCertificates      []tls.Certificate
 	GitAuthConfigs       []*gitauth.Config
+	TrialGenerator       func(context.Context, string) error
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
@@ -258,6 +259,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			Authorizer:           options.Authorizer,
 			Telemetry:            telemetry.NewNoop(),
 			TLSCertificates:      options.TLSCertificates,
+			TrialGenerator:       options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -328,8 +330,43 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 		assert.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.ListenProvisionerDaemon(ctx, 0)
+	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, 0)
+	}, &provisionerd.Options{
+		Filesystem:          fs,
+		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		PollInterval:        50 * time.Millisecond,
+		UpdateInterval:      250 * time.Millisecond,
+		ForceCancelInterval: time.Second,
+		Provisioners: provisionerd.Provisioners{
+			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
+		},
+		WorkDirectory: t.TempDir(),
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+	return closer
+}
+
+func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+	echoClient, echoServer := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		_ = echoClient.Close()
+		_ = echoServer.Close()
+		cancelFunc()
+	})
+	fs := afero.NewMemMapFs()
+	go func() {
+		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
+			Listener: echoServer,
+		})
+		assert.NoError(t, err)
+	}()
+
+	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+		return client.ServeProvisionerDaemon(ctx, org, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, tags)
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
@@ -348,10 +385,9 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 }
 
 var FirstUserParams = codersdk.CreateFirstUserRequest{
-	Email:            "testuser@coder.com",
-	Username:         "testuser",
-	Password:         "testpass",
-	OrganizationName: "testorg",
+	Email:    "testuser@coder.com",
+	Username: "testuser",
+	Password: "testpass",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates

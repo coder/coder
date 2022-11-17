@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
@@ -87,9 +88,20 @@ func TestTelemetry(t *testing.T) {
 			CreatedAt: database.Now(),
 		})
 		require.NoError(t, err)
+		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
+			UploadedAt: database.Now(),
+			JWT:        "",
+			Exp:        database.Now().Add(time.Hour),
+			Uuid: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
 		snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ParameterSchemas, 1)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
+		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 1)
 		require.Len(t, snapshot.TemplateVersions, 1)
 		require.Len(t, snapshot.Users, 1)

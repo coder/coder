@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,10 +20,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
@@ -32,17 +37,20 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/tailnet"
 )
@@ -86,7 +94,7 @@ type Options struct {
 	AutoImportTemplates  []AutoImportTemplate
 	GitAuthConfigs       []*gitauth.Config
 	RealIPConfig         *httpmw.RealIPConfig
-
+	TrialGenerator       func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -322,13 +330,6 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
-		})
-
-		r.Route("/provisionerdaemons", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.provisionerDaemons)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -595,18 +596,20 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	metricsCache        *metricscache.Cache
-	siteHandler         http.Handler
-	websocketWaitMutex  sync.Mutex
-	websocketWaitGroup  sync.WaitGroup
+	metricsCache *metricscache.Cache
+	siteHandler  http.Handler
+
+	WebsocketWaitMutex sync.Mutex
+	WebsocketWaitGroup sync.WaitGroup
+
 	workspaceAgentCache *wsconncache.Cache
 }
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Wait()
-	api.websocketWaitMutex.Unlock()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Wait()
+	api.WebsocketWaitMutex.Unlock()
 
 	api.metricsCache.Close()
 	coordinator := api.TailnetCoordinator.Load()
@@ -634,4 +637,71 @@ func compressHandler(h http.Handler) http.Handler {
 	})
 
 	return cmp.Handler(h)
+}
+
+// CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
+// in the same process.
+func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
+	clientSession, serverSession := provisionersdk.TransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
+
+	name := namesgenerator.GetRandomName(1)
+	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+		ID:           uuid.New(),
+		CreatedAt:    database.Now(),
+		Name:         name,
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
+		Tags: dbtype.StringMap{
+			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert provisioner daemon %q: %w", name, err)
+	}
+
+	tags, err := json.Marshal(daemon.Tags)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal tags: %w", err)
+	}
+
+	mux := drpcmux.New()
+	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
+		AccessURL:          api.AccessURL,
+		ID:                 daemon.ID,
+		Database:           api.Database,
+		Pubsub:             api.Pubsub,
+		Provisioners:       daemon.Provisioners,
+		Telemetry:          api.Telemetry,
+		Tags:               tags,
+		QuotaCommitter:     &api.QuotaCommitter,
+		AcquireJobDebounce: debounce,
+		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+		},
+	})
+	go func() {
+		err := server.Serve(ctx, serverSession)
+		if err != nil && !xerrors.Is(err, io.EOF) {
+			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
+		}
+		// close the sessions so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(clientSession)), nil
 }

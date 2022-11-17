@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type AddLicenseRequest struct {
@@ -14,6 +16,7 @@ type AddLicenseRequest struct {
 
 type License struct {
 	ID         int32     `json:"id"`
+	UUID       uuid.UUID `json:"uuid"`
 	UploadedAt time.Time `json:"uploaded_at"`
 	// Claims are the JWT claims asserted by the license.  Here we use
 	// a generic string map to ensure that all data from the server is

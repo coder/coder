@@ -8,7 +8,7 @@ WHERE
 	AND (
 		id > @created_after
 		OR id < @created_before
-	) ORDER BY id;
+	) ORDER BY id ASC;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO
