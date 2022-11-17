@@ -10,5 +10,7 @@
       "deleteCta": "Delete Template"
     }
   },
-  "displayNameLabel": "Display name"
+  "displayNameLabel": "Display name",
+  "allowUserCancelWorkspaceJobsLabel": "Allow users to cancel in-progress workspace jobs.",
+  "allowUserCancelWorkspaceJobsNotice": "It is advised to keep the option disabled when canceling a workspace job may leave the workspace in an unhealthy state, and extra permissions are required to manually repair its resources."
 }

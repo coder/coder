@@ -230,12 +230,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           </div>
           <Box>
             <Typography variant="h6" style={{ fontSize: 14 }}>
-              Allow users to cancel in-progress workspace jobs.
+              {t("allowUserCancelWorkspaceJobsLabel")}
             </Typography>
             <Typography variant="caption" color="textSecondary">
-              It is advised to keep the option disabled when canceling a
-              workspace job may leave the workspace in an unhealthy state, and
-              extra permissions are required to manually repair its resources.
+              {t("allowUserCancelWorkspaceJobsNotice")}
             </Typography>
           </Box>
         </Box>
