@@ -1,6 +1,10 @@
 # dogfood template
 
-Ammar is this template's admin.
+This template is [in GitHub](https://github.com/coder/coder) updated [via GitHub actions](https://github.com/coder/coder/tree/main/.github/workflows/dogfood.yaml).
+
+## Guide
+
+Refer to the [dogfooding guide](https://github.com/coder/coder/tree/main/dogfood/guide.md) to set up a and configure a workspace.
 
 ## Personalization
 
