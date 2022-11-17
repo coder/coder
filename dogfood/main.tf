@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -35,6 +35,7 @@ resource "coder_agent" "dev" {
     sudo service docker start
     if [ -f ~/personalize ]; then ~/personalize 2>&1 | tee  ~/.personalize.log; fi
     EOF
+  connection_timeout = 10
 }
 
 resource "coder_app" "code-server" {
@@ -118,7 +119,7 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  env     = ["CODER_AGENT_TOKEN=sss${coder_agent.dev.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

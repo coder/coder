@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -44,6 +44,9 @@ resource "coder_agent" "main" {
     GIT_AUTHOR_EMAIL    = "${data.coder_workspace.me.owner_email}"
     GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
   }
+
+  connection_timeout  = 10
+  troubleshooting_url = "https://github.com/coder/coder/tree/main/examples/templates/docker#troubleshooting"
 }
 
 resource "coder_app" "code-server" {
