@@ -203,6 +203,7 @@ func New(options *Options) *API {
 
 	r.Use(
 		httpmw.Recover(api.Logger),
+		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),

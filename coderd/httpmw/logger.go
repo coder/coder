@@ -2,6 +2,7 @@ package httpmw
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,9 +13,13 @@ import (
 
 func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			sw := &tracing.StatusWriter{ResponseWriter: w}
+
+			sw, ok := rw.(*tracing.StatusWriter)
+			if !ok {
+				panic(fmt.Sprintf("ResponseWriter not a *tracing.StatusWriter; got %T", rw))
+			}
 
 			httplog := log.With(
 				slog.F("host", httpapi.RequestHost(r)),

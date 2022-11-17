@@ -29,6 +29,7 @@ func (f *fakeTracer) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
 	return f
 }
 
+// Start implements trace.Tracer.
 func (f *fakeTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
 	atomic.AddInt64(&f.startCalled, 1)
 	return ctx, tracing.NoopSpan
