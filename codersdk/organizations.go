@@ -74,6 +74,7 @@ type CreateTemplateRequest struct {
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
+	// *bool as the default value is "true".
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 }
 

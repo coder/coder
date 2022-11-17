@@ -797,6 +797,7 @@ export interface Workspace {
   readonly template_name: string
   readonly template_display_name: string
   readonly template_icon: string
+  readonly template_allow_user_cancel_workspace_jobs: boolean
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
