@@ -312,11 +312,7 @@ describe("WorkspacePage", () => {
         ),
       )
 
-      renderWithAuth(<WorkspacePage />, {
-        route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-        path: "/@:username/:workspace",
-      })
-
+      await renderWorkspacePage()
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
       expect(agent1Names.length).toEqual(1)
       const agent2Names = await screen.findAllByText(
