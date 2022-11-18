@@ -87,6 +87,7 @@ func (api *API) ListenProvisionerDaemon(ctx context.Context, acquireJobDebounce 
 		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 		AcquireJobDebounce: acquireJobDebounce,
 		QuotaCommitter:     &api.QuotaCommitter,
+		Auditor:            &api.Auditor,
 	})
 	if err != nil {
 		return nil, err

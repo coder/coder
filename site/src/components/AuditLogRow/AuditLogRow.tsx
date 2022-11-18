@@ -20,7 +20,10 @@ export const readableActionMessage = (auditLog: AuditLog): string => {
   let target = auditLog.resource_target.trim()
 
   // audit logs with a resource_type of workspace build use workspace name as a target
-  if (auditLog.resource_type === "workspace_build") {
+  if (
+    auditLog.resource_type === "workspace_build" &&
+    auditLog.additional_fields.workspaceName
+  ) {
     target = auditLog.additional_fields.workspaceName.trim()
   }
 

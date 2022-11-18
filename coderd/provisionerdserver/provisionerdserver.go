@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/telemetry"
@@ -43,6 +44,7 @@ type Server struct {
 	Pubsub         database.Pubsub
 	Telemetry      telemetry.Reporter
 	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
+	Auditor        *atomic.Pointer[audit.Auditor]
 
 	AcquireJobDebounce time.Duration
 }
@@ -492,6 +494,51 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
 	})
 
+	// 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
+	// 		auditor := server.Auditor.Load()
+	// 		build, err := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+	// 		var auditAction database.AuditAction
+	// 		if build.Transition == database.WorkspaceTransitionStart {
+	// 			auditAction = database.AuditActionStart
+	// 		} else if build.Transition == database.WorkspaceTransitionStop {
+	// 			auditAction = database.AuditActionStop
+	// 		} else if build.Transition == database.WorkspaceTransitionDelete {
+	// 			auditAction = database.AuditActionDelete
+	// 		} else {
+	// 			auditAction = database.AuditActionWrite
+	// 		}
+	// 		if err != nil {
+	// 			server.Logger.Error(ctx, "failed to create audit log")
+	// 		} else {
+	// 			workspace, err := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	// 			if err != nil {
+	// 				server.Logger.Error(ctx, "failed to create audit log")
+	// 			} else {
+	// 				// We pass the workspace name to the Auditor so that it
+	// 				// can form a friendly string for the user.
+	// 				workspaceResourceInfo := map[string]string{
+	// 					"workspaceName": workspace.Name,
+	// 				}
+	//
+	// 				wriBytes, err := json.Marshal(workspaceResourceInfo)
+	// 				if err != nil {
+	// 					server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+	// 				}
+	// 				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+	// 					Audit:            *auditor,
+	// 					Log:              server.Logger,
+	// 					UserID:           job.InitiatorID,
+	// 					JobID:            job.ID,
+	// 					Action:           auditAction,
+	// 					New:              build,
+	// 					Status:           500,
+	// 					AdditionalFields: wriBytes,
+	// 				})
+	// 			}
+	//
+	// 		}
+	// 	}
+
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
 		if jobType.WorkspaceBuild.State == nil {
@@ -516,6 +563,51 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
 	case *proto.FailedJob_TemplateImport_:
+	}
+
+	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
+		auditor := server.Auditor.Load()
+		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if getBuildErr != nil {
+			server.Logger.Error(ctx, "failed to create audit log - get build err", slog.Error(err))
+		} else {
+			var auditAction database.AuditAction
+			if build.Transition == database.WorkspaceTransitionStart {
+				auditAction = database.AuditActionStart
+			} else if build.Transition == database.WorkspaceTransitionStop {
+				auditAction = database.AuditActionStop
+			} else if build.Transition == database.WorkspaceTransitionDelete {
+				auditAction = database.AuditActionDelete
+			} else {
+				auditAction = database.AuditActionWrite
+			}
+			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if getWorkspaceErr != nil {
+				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
+			} else {
+				// We pass the workspace name to the Auditor so that it
+				// can form a friendly string for the user.
+				workspaceResourceInfo := map[string]string{
+					"workspaceName": workspace.Name,
+				}
+
+				wriBytes, err := json.Marshal(workspaceResourceInfo)
+				if err != nil {
+					server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+				}
+
+				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+					Audit:            *auditor,
+					Log:              server.Logger,
+					UserID:           job.InitiatorID,
+					JobID:            job.ID,
+					Action:           auditAction,
+					New:              build,
+					Status:           500,
+					AdditionalFields: wriBytes,
+				})
+			}
+		}
 	}
 
 	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
