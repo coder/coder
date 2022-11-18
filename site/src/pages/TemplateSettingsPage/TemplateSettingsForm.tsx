@@ -59,6 +59,7 @@ export const validationSchema = Yup.object({
     .integer()
     .min(0)
     .max(24 * MAX_TTL_DAYS /* 7 days in hours */, Language.ttlMaxError),
+  allow_user_cancel_workspace_jobs: Yup.boolean(),
 })
 
 export interface TemplateSettingsForm {
@@ -220,6 +221,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 
         <Box display="flex">
           <div>
+            {/*"getFieldHelpers" can't be used as it requires "helperText" property to be present.*/}
             <Checkbox
               id="allow_user_cancel_workspace_jobs"
               name="allow_user_cancel_workspace_jobs"
