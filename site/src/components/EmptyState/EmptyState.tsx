@@ -9,9 +9,9 @@ export interface EmptyStateProps {
   message: string
   /** Longer optional description to display below the message */
   description?: string | React.ReactNode
-  descriptionClassName?: string
   cta?: ReactNode
   className?: string
+  image?: ReactNode
 }
 
 /**
@@ -25,14 +25,7 @@ export interface EmptyStateProps {
 export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
   props,
 ) => {
-  const {
-    message,
-    description,
-    cta,
-    descriptionClassName,
-    className,
-    ...boxProps
-  } = props
+  const { message, description, cta, className, image, ...boxProps } = props
   const styles = useStyles()
 
   return (
@@ -44,38 +37,42 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
         <Typography
           variant="body2"
           color="textSecondary"
-          className={combineClasses([styles.description, descriptionClassName])}
+          className={styles.description}
         >
           {description}
         </Typography>
       )}
       {cta && <div className={styles.cta}>{cta}</div>}
+      {image}
     </Box>
   )
 }
 
-const useStyles = makeStyles(
-  (theme) => ({
-    root: {
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-      alignItems: "center",
-      textAlign: "center",
-      minHeight: 300,
-      padding: theme.spacing(3),
-    },
+const useStyles = makeStyles((theme) => ({
+  root: {
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    textAlign: "center",
+    minHeight: 360,
+    padding: theme.spacing(10, 5),
+    position: "relative",
+  },
 
-    title: {
-      fontSize: theme.spacing(3),
-    },
-    description: {
-      marginTop: theme.spacing(1.5),
-      fontSize: theme.spacing(2),
-    },
-    cta: {
-      marginTop: theme.spacing(4),
-    },
-  }),
-  { name: "EmptyState" },
-)
+  title: {
+    fontSize: theme.spacing(3),
+  },
+
+  description: {
+    marginTop: theme.spacing(1.5),
+    fontSize: theme.spacing(2),
+    lineHeight: "140%",
+    maxWidth: theme.spacing(60),
+  },
+
+  cta: {
+    marginTop: theme.spacing(4),
+  },
+}))
