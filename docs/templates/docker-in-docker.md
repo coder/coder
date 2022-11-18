@@ -66,10 +66,10 @@ resource "k8s_core_v1_pod" "dev" {
     }
   }
 
-  # Use the Sysbox container runtime (required)
-  runtime_class_name = "sysbox-runc
 
   spec {
+  runtime_class_name = "sysbox-runc"
+  # Use the Sysbox container runtime (required)
     security_context {
       run_asuser = 1000
       fsgroup    = 1000
