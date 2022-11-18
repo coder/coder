@@ -275,7 +275,7 @@ func New(options *Options) *API {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig),
+					httpmw.ExtractOAuth2(gitAuthConfig, options.DeploymentConfig.TLS),
 					apiKeyMiddleware,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
@@ -421,12 +421,12 @@ func New(options *Options) *API {
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config))
+					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.DeploymentConfig.TLS))
 					r.Get("/callback", api.userOAuth2Github)
 				})
 			})
 			r.Route("/oidc/callback", func(r chi.Router) {
-				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig))
+				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.DeploymentConfig.TLS))
 				r.Get("/", api.userOIDC)
 			})
 			r.Group(func(r chi.Router) {

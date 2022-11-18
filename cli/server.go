@@ -393,7 +393,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				ctx, err := handleOauth2ClientCertificates(ctx, cfg)
+				ctx, err := codersdk.HandleOauth2ClientCertificates(ctx, cfg.TLS)
 				if err != nil {
 					return xerrors.Errorf("configure oidc client certificates: %w", err)
 				}
@@ -964,31 +964,6 @@ func printLogo(cmd *cobra.Command) {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
-func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
-	if len(tlsCertFiles) != len(tlsKeyFiles) {
-		return nil, xerrors.New("--tls-cert-file and --tls-key-file must be used the same amount of times")
-	}
-	if len(tlsCertFiles) == 0 {
-		return nil, xerrors.New("--tls-cert-file is required when tls is enabled")
-	}
-	if len(tlsKeyFiles) == 0 {
-		return nil, xerrors.New("--tls-key-file is required when tls is enabled")
-	}
-
-	certs := make([]tls.Certificate, len(tlsCertFiles))
-	for i := range tlsCertFiles {
-		certFile, keyFile := tlsCertFiles[i], tlsKeyFiles[i]
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			return nil, xerrors.Errorf("load TLS key pair %d (%q, %q): %w", i, certFile, keyFile, err)
-		}
-
-		certs[i] = cert
-	}
-
-	return certs, nil
-}
-
 func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -1021,7 +996,7 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 		return nil, xerrors.Errorf("unrecognized tls client auth: %q", tlsClientAuth)
 	}
 
-	certs, err := loadCertificates(tlsCertFiles, tlsKeyFiles)
+	certs, err := codersdk.LoadCertificates(tlsCertFiles, tlsKeyFiles)
 	if err != nil {
 		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
@@ -1277,22 +1252,4 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
 	}
 	return connectionURL, ep.Stop, nil
-}
-
-func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.DeploymentConfig) (context.Context, error) {
-	if cfg.TLS.ClientCertFile.Value != "" && cfg.TLS.ClientKeyFile.Value != "" {
-		certificates, err := loadCertificates([]string{cfg.TLS.ClientCertFile.Value}, []string{cfg.TLS.ClientKeyFile.Value})
-		if err != nil {
-			return nil, err
-		}
-
-		return context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{ //nolint:gosec
-					Certificates: certificates,
-				},
-			},
-		}), nil
-	}
-	return ctx, nil
 }
