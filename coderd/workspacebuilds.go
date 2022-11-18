@@ -25,6 +25,11 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+var (
+	errTemplateNotExists = xerrors.New("No template exists for this workspace")
+	errUserNotExists     = xerrors.New("User does not exist")
+)
+
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -599,6 +604,21 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error verifying permission to cancel workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !valid {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "User is not allowed cancel workspace builds. Owner role is required.",
+		})
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -644,6 +664,23 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
+}
+
+func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
+	template, err := api.Database.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return false, errTemplateNotExists
+	}
+
+	if template.AllowUserCancelWorkspaceJobs {
+		return true, nil // all users can cancel workspace builds
+	}
+
+	user, err := api.Database.GetUserByID(ctx, userID)
+	if err != nil {
+		return false, errUserNotExists
+	}
+	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
 
 func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
