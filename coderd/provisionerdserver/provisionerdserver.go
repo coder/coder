@@ -494,51 +494,6 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
 	})
 
-	// 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-	// 		auditor := server.Auditor.Load()
-	// 		build, err := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
-	// 		var auditAction database.AuditAction
-	// 		if build.Transition == database.WorkspaceTransitionStart {
-	// 			auditAction = database.AuditActionStart
-	// 		} else if build.Transition == database.WorkspaceTransitionStop {
-	// 			auditAction = database.AuditActionStop
-	// 		} else if build.Transition == database.WorkspaceTransitionDelete {
-	// 			auditAction = database.AuditActionDelete
-	// 		} else {
-	// 			auditAction = database.AuditActionWrite
-	// 		}
-	// 		if err != nil {
-	// 			server.Logger.Error(ctx, "failed to create audit log")
-	// 		} else {
-	// 			workspace, err := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-	// 			if err != nil {
-	// 				server.Logger.Error(ctx, "failed to create audit log")
-	// 			} else {
-	// 				// We pass the workspace name to the Auditor so that it
-	// 				// can form a friendly string for the user.
-	// 				workspaceResourceInfo := map[string]string{
-	// 					"workspaceName": workspace.Name,
-	// 				}
-	//
-	// 				wriBytes, err := json.Marshal(workspaceResourceInfo)
-	// 				if err != nil {
-	// 					server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
-	// 				}
-	// 				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
-	// 					Audit:            *auditor,
-	// 					Log:              server.Logger,
-	// 					UserID:           job.InitiatorID,
-	// 					JobID:            job.ID,
-	// 					Action:           auditAction,
-	// 					New:              build,
-	// 					Status:           500,
-	// 					AdditionalFields: wriBytes,
-	// 				})
-	// 			}
-	//
-	// 		}
-	// 	}
-
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
 		if jobType.WorkspaceBuild.State == nil {
@@ -571,16 +526,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		if getBuildErr != nil {
 			server.Logger.Error(ctx, "failed to create audit log - get build err", slog.Error(err))
 		} else {
-			var auditAction database.AuditAction
-			if build.Transition == database.WorkspaceTransitionStart {
-				auditAction = database.AuditActionStart
-			} else if build.Transition == database.WorkspaceTransitionStop {
-				auditAction = database.AuditActionStop
-			} else if build.Transition == database.WorkspaceTransitionDelete {
-				auditAction = database.AuditActionDelete
-			} else {
-				auditAction = database.AuditActionWrite
-			}
+			auditAction := determineAuditAction(build.Transition)
 			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 			if getWorkspaceErr != nil {
 				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
@@ -688,11 +634,12 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			return nil, xerrors.Errorf("get workspace build: %w", err)
 		}
 
+		workspace, getWorkspaceError := server.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+
 		err = server.Database.InTx(func(db database.Store) error {
 			now := database.Now()
 			var workspaceDeadline time.Time
-			workspace, err := db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-			if err == nil {
+			if getWorkspaceError == nil {
 				if workspace.Ttl.Valid {
 					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
 				}
@@ -746,6 +693,34 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
+		if getWorkspaceError == nil {
+			auditor := server.Auditor.Load()
+
+			auditAction := determineAuditAction(workspaceBuild.Transition)
+
+			// We pass the workspace name to the Auditor so that it
+			// can form a friendly string for the user.
+			workspaceResourceInfo := map[string]string{
+				"workspaceName": workspace.Name,
+			}
+
+			wriBytes, err := json.Marshal(workspaceResourceInfo)
+			if err != nil {
+				server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+			}
+
+			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+				Audit:            *auditor,
+				Log:              server.Logger,
+				UserID:           job.InitiatorID,
+				JobID:            job.ID,
+				Action:           auditAction,
+				New:              workspaceBuild,
+				Status:           200,
+				AdditionalFields: wriBytes,
+			})
 		}
 
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{})
@@ -1056,6 +1031,19 @@ func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkpro
 		return sdkproto.WorkspaceTransition_DESTROY, nil
 	default:
 		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
+	}
+}
+
+func determineAuditAction(transition database.WorkspaceTransition) database.AuditAction {
+	switch transition {
+	case database.WorkspaceTransitionStart:
+		return database.AuditActionStart
+	case database.WorkspaceTransitionStop:
+		return database.AuditActionStop
+	case database.WorkspaceTransitionDelete:
+		return database.AuditActionDelete
+	default:
+		return database.AuditActionWrite
 	}
 }
 
