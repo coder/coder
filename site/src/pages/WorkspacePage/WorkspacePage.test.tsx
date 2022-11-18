@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises -- TODO look into this */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
@@ -25,6 +24,7 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceResource2,
   renderWithAuth,
+  waitForLoaderToBeRemoved,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { WorkspacePage } from "./WorkspacePage"
@@ -33,15 +33,12 @@ const { t } = i18next
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  const getTemplateMock = jest
-    .spyOn(api, "getTemplate")
-    .mockResolvedValueOnce(MockTemplate)
+  jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
-  await screen.findByText(MockWorkspace.name)
-  expect(getTemplateMock).toBeCalled()
+  await waitForLoaderToBeRemoved()
 }
 
 /**
@@ -50,12 +47,9 @@ const renderWorkspacePage = async () => {
  * We don't need to test the UI exhaustively because Storybook does that; just enough to prove that the
  * workspaceStatus was calculated correctly.
  */
-
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   await renderWorkspacePage()
-  // REMARK: exact here because the "Start" button and "START" label for
-  //         workspace schedule could otherwise conflict.
-  const button = await screen.findByText(label, { exact: true })
+  const button = await screen.findByRole("button", { name: label })
   fireEvent.click(button)
   expect(actionMock).toBeCalled()
 }
@@ -318,11 +312,7 @@ describe("WorkspacePage", () => {
         ),
       )
 
-      renderWithAuth(<WorkspacePage />, {
-        route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-        path: "/@:username/:workspace",
-      })
-
+      await renderWorkspacePage()
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
       expect(agent1Names.length).toEqual(1)
       const agent2Names = await screen.findAllByText(
@@ -351,4 +341,3 @@ describe("WorkspacePage", () => {
     })
   })
 })
-/* eslint-enable @typescript-eslint/no-floating-promises -- TODO look into this */

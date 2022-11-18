@@ -2,7 +2,6 @@ import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { FC, ReactNode } from "react"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
 export interface EmptyStateProps {
@@ -38,24 +37,19 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
 
   return (
     <Box className={combineClasses([styles.root, className])} {...boxProps}>
-      <div className={styles.header}>
-        <Typography variant="h5" className={styles.title}>
-          {message}
+      <Typography variant="h5" className={styles.title}>
+        {message}
+      </Typography>
+      {description && (
+        <Typography
+          variant="body2"
+          color="textSecondary"
+          className={combineClasses([styles.description, descriptionClassName])}
+        >
+          {description}
         </Typography>
-        {description && (
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            className={combineClasses([
-              styles.description,
-              descriptionClassName,
-            ])}
-          >
-            {description}
-          </Typography>
-        )}
-      </div>
-      {cta}
+      )}
+      {cta && <div className={styles.cta}>{cta}</div>}
     </Box>
   )
 }
@@ -70,18 +64,17 @@ const useStyles = makeStyles(
       textAlign: "center",
       minHeight: 300,
       padding: theme.spacing(3),
-      fontFamily: MONOSPACE_FONT_FAMILY,
     },
-    header: {
-      marginBottom: theme.spacing(3),
-    },
+
     title: {
-      fontWeight: 600,
-      fontFamily: "inherit",
+      fontSize: theme.spacing(3),
     },
     description: {
-      marginTop: theme.spacing(1),
-      fontFamily: "inherit",
+      marginTop: theme.spacing(1.5),
+      fontSize: theme.spacing(2),
+    },
+    cta: {
+      marginTop: theme.spacing(4),
     },
   }),
   { name: "EmptyState" },
