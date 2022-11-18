@@ -1065,6 +1065,65 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentReportStats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := codersdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		_, err := agentClient.PostAgentStats(context.Background(), &codersdk.AgentStats{
+			ConnsByProto: map[string]int64{"TCP": 1},
+			NumConns:     1,
+			RxPackets:    1,
+			RxBytes:      1,
+			TxPackets:    1,
+			TxBytes:      1,
+		})
+		require.NoError(t, err)
+
+		newWorkspace, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+
+		assert.True(t,
+			newWorkspace.LastUsedAt.After(workspace.LastUsedAt),
+			"%s is not after %s", newWorkspace.LastUsedAt, workspace.LastUsedAt,
+		)
+	})
+}
+
 func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse

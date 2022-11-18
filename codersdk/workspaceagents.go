@@ -554,8 +554,6 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 // user-facing metrics and debugging.
 // @typescript-ignore AgentStats
 type AgentStats struct {
-	// Iteration is a serial counter for each time an agent sends stats.
-	Iteration int `json:"iteration"`
 	// ConnsByProto is a count of connections by protocol.
 	ConnsByProto map[string]int64 `json:"conns_by_proto"`
 	// NumConns is the number of connections received by an agent.
@@ -577,6 +575,25 @@ type AgentStatsResponse struct {
 	ReportInterval time.Duration `json:"report_interval"`
 }
 
+func (c *Client) PostAgentStats(ctx context.Context, stats *AgentStats) (AgentStatsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
+	if err != nil {
+		return AgentStatsResponse{}, xerrors.Errorf("send request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AgentStatsResponse{}, readBodyAsError(res)
+	}
+
+	var interval AgentStatsResponse
+	err = json.NewDecoder(res.Body).Decode(&interval)
+	if err != nil {
+		return AgentStatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
+	}
+
+	return interval, nil
+}
+
 // AgentReportStats begins a stat streaming connection with the Coder server.
 // It is resilient to network failures and intermittent coderd issues.
 func (c *Client) AgentReportStats(
@@ -585,30 +602,6 @@ func (c *Client) AgentReportStats(
 	getStats func() *AgentStats,
 ) (io.Closer, error) {
 	ctx, cancel := context.WithCancel(ctx)
-
-	iteration := 0
-	sendStats := func(ctx context.Context) (AgentStatsResponse, error) {
-		stats := getStats()
-		stats.Iteration = iteration
-		iteration++
-
-		res, err := c.Request(ctx, "POST", "/api/v2/workspaceagents/me/report-stats", stats)
-		if err != nil {
-			return AgentStatsResponse{}, xerrors.Errorf("send request: %w", err)
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			return AgentStatsResponse{}, readBodyAsError(res)
-		}
-
-		var interval AgentStatsResponse
-		err = json.NewDecoder(res.Body).Decode(&interval)
-		if err != nil {
-			return AgentStatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
-		}
-
-		return interval, nil
-	}
 
 	go func() {
 		// Immediately trigger a stats push to get the correct interval.
@@ -624,7 +617,7 @@ func (c *Client) AgentReportStats(
 
 			var nextInterval time.Duration
 			for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
-				resp, err := sendStats(ctx)
+				resp, err := c.PostAgentStats(ctx, getStats())
 				if err != nil {
 					if !xerrors.Is(err, context.Canceled) {
 						log.Error(ctx, "report stats", slog.Error(err))
