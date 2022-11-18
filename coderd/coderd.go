@@ -108,7 +108,7 @@ type Options struct {
 }
 
 // New constructs a Coder API handler.
-func New(options *Options) *API {
+func New(options *Options, agpl bool) *API {
 	if options == nil {
 		options = &Options{}
 	}
@@ -180,6 +180,8 @@ func New(options *Options) *API {
 		},
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
+		// Add a compatibility layer for the enterprise API
+		compatibility: NewCompatibility(options),
 	}
 	api.Auditor.Store(&options.Auditor)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -572,6 +574,11 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceApplicationAuth)
 			})
 		})
+		if agpl {
+			// Add a compatibility layer for the enterprise API
+			r.Get("/entitlements", api.serveEntitlementsEmpty)
+			r.Get("/workspace-quota/{user}", api.workspaceQuotaEmpty)
+		}
 	})
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
@@ -603,6 +610,9 @@ type API struct {
 	WebsocketWaitGroup sync.WaitGroup
 
 	workspaceAgentCache *wsconncache.Cache
+
+	// Add a compatibility layer for the enterprise API
+	compatibility *Compatibility
 }
 
 // Close waits for all WebSocket connections to drain before returning.

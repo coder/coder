@@ -295,7 +295,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	setHandler, cancelFunc, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
-	coderAPI := coderd.New(newOptions)
+	coderAPI := coderd.New(newOptions, true)
 	setHandler(coderAPI.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {

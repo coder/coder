@@ -102,7 +102,7 @@ func Core() []*cobra.Command {
 
 func AGPL() []*cobra.Command {
 	all := append(Core(), Server(deployment.NewViper(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
-		api := coderd.New(o)
+		api := coderd.New(o, true)
 		return api, api, nil
 	}))
 	return all

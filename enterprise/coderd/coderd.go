@@ -47,7 +47,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
-		AGPL:                   coderd.New(options.Options),
+		AGPL:                   coderd.New(options.Options, false),
 		Options:                options,
 		cancelEntitlementsLoop: cancelFunc,
 	}
