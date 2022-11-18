@@ -56,17 +56,17 @@ export const auditMachine = createMachine(
         invoke: {
           src: "loadAuditLogsAndCount",
           onDone: {
-            target: "success",
+            target: "idle",
             actions: ["assignAuditLogsAndCount"],
           },
           onError: {
-            target: "error",
+            target: "idle",
             actions: ["displayApiError"],
           },
         },
-        onDone: "success",
+        onDone: "idle",
       },
-      success: {
+      idle: {
         on: {
           UPDATE_PAGE: {
             actions: ["updateURL"],
@@ -76,9 +76,6 @@ export const auditMachine = createMachine(
             actions: ["assignFilter", "sendResetPage"],
           },
         },
-      },
-      error: {
-        type: "final",
       },
     },
   },
