@@ -29,27 +29,16 @@ describe("AuditPage", () => {
 
   describe("Filtering", () => {
     it("filters by typing", async () => {
-      const getAuditLogsSpy = jest
-        .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
-
       render(<AuditPage />)
       await waitForLoaderToBeRemoved()
-
-      // Reset spy so we can focus on the call with the filter
-      getAuditLogsSpy.mockReset()
+      await screen.findByText("updated", { exact: false })
 
       const filterField = screen.getByLabelText("Filter")
       const query = "resource_type:workspace action:create"
       await userEvent.type(filterField, query)
-
-      await waitFor(() =>
-        expect(getAuditLogsSpy).toBeCalledWith({
-          limit: 25,
-          offset: 0,
-          q: query,
-        }),
-      )
+      await screen.findByText("created", { exact: false })
+      const editWorkspace = screen.queryByText("updated", { exact: false })
+      expect(editWorkspace).not.toBeInTheDocument()
     })
 
     it("filters by URL", async () => {
@@ -67,17 +56,11 @@ describe("AuditPage", () => {
     })
 
     it("resets page to 1 when filter is changed", async () => {
-      const getAuditLogsSpy = jest
-        .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
-
       history.push(`/audit?page=2`)
       render(<AuditPage />)
 
       await waitForLoaderToBeRemoved()
-      getAuditLogsSpy
-        .mockReset()
-        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
+      const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs")
 
       const filterField = screen.getByLabelText("Filter")
       const query = "resource_type:workspace action:create"

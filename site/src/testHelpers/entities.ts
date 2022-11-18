@@ -956,7 +956,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   },
   status_code: 200,
   additional_fields: {},
-  description: "{user} updated workspace {target}",
+  description: "{user} created workspace {target}",
   user: MockUser,
 }
 
@@ -964,6 +964,8 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
+  time: "2022-05-20T16:45:57.122Z",
+  description: "{user} updated workspace {target}",
   diff: {
     workspace_name: {
       old: "old-workspace-name",
