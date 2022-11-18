@@ -614,7 +614,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	}
 	if !valid {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "User is not allowed cancel workspace builds. Owner role is required.",
+			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
 		})
 		return
 	}
