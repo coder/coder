@@ -1,5 +1,5 @@
 import Link from "@material-ui/core/Link"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
@@ -35,7 +35,6 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   handleUpdate,
 }) => {
   const styles = useStyles()
-  const theme = useTheme()
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
   )
@@ -65,9 +64,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               />
             </span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>
-              {Language.upToDate}
-            </span>
+            Language.upToDate
           )}
         </span>
       </div>
