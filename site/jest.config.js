@@ -39,7 +39,12 @@ module.exports = {
         "<rootDir>/**/*.ts",
         "<rootDir>/**/*.tsx",
       ],
-      testPathIgnorePatterns: ["/out/", "/_jest/", "jest.config.js"],
+      testPathIgnorePatterns: [
+        "/out/",
+        "/_jest/",
+        "jest.config.js",
+        "jest-runner.*.js",
+      ],
     },
   ],
   collectCoverageFrom: [
