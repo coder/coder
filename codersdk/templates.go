@@ -232,6 +232,6 @@ type AgentStatsReportResponse struct {
 	NumConns int64 `json:"num_comms"`
 	// RxBytes is the number of received bytes.
 	RxBytes int64 `json:"rx_bytes"`
-	// TxBytes is the number of received bytes.
+	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
 }

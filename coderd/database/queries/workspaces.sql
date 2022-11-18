@@ -8,6 +8,35 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspaceByAgentID :one
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+							workspace_agents.id = @agent_id
+					)
+			)
+	);
+
 -- name: GetWorkspaces :many
 SELECT
 	workspaces.*, COUNT(*) OVER () as count

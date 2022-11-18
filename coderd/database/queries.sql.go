@@ -17,7 +17,7 @@ import (
 )
 
 const deleteOldAgentStats = `-- name: DeleteOldAgentStats :exec
-DELETE FROM AGENT_STATS WHERE created_at  < now() - interval '30 days'
+DELETE FROM agent_stats WHERE created_at < NOW() - INTERVAL '30 days'
 `
 
 func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
@@ -45,16 +45,17 @@ func (q *sqlQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) 
 }
 
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-select
+SELECT 
 	(created_at at TIME ZONE 'UTC')::date as date,
 	user_id
-from
+FROM
 	agent_stats
-where template_id = $1
-group by
+WHERE
+	template_id = $1
+GROUP BY
 	date, user_id
-order by
-	date asc
+ORDER BY
+	date ASC
 `
 
 type GetTemplateDAUsRow struct {
@@ -6141,6 +6142,55 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 		&i.Key,
 		&i.Value,
 		&i.Sensitive,
+	)
+	return i, err
+}
+
+const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+FROM
+	workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+							workspace_agents.id = $1
+					)
+			)
+	)
+`
+
+func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByAgentID, agentID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
 	)
 	return i, err
 }

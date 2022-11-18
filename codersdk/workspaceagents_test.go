@@ -6,13 +6,17 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceAgentMetadata(t *testing.T) {
@@ -46,4 +50,31 @@ func TestWorkspaceAgentMetadata(t *testing.T) {
 	node := region.Nodes[0]
 	require.Equal(t, parsed.Hostname(), node.HostName)
 	require.Equal(t, parsed.Port(), strconv.Itoa(node.DERPPort))
+}
+
+func TestAgentReportStats(t *testing.T) {
+	t.Parallel()
+
+	var numReports atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		numReports.Add(1)
+		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.AgentStatsResponse{
+			ReportInterval: 5 * time.Millisecond,
+		})
+	}))
+	parsed, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client := codersdk.New(parsed)
+
+	ctx := context.Background()
+	closeStream, err := client.AgentReportStats(ctx, slogtest.Make(t, nil), func() *codersdk.AgentStats {
+		return &codersdk.AgentStats{}
+	})
+	require.NoError(t, err)
+	defer closeStream.Close()
+
+	require.Eventually(t,
+		func() bool { return numReports.Load() >= 3 },
+		testutil.WaitMedium, testutil.IntervalFast,
+	)
 }
