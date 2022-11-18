@@ -57,6 +57,15 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	// GetAuditLogsOffset does not return ErrNoRows because it uses a window function to get the count.
+	// So we need to check if the dblogs is empty and return an empty array if so.
+	if len(dblogs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
+			AuditLogs: []codersdk.AuditLog{},
+			Count:     0,
+		})
+		return
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
 		AuditLogs: convertAuditLogs(dblogs),
