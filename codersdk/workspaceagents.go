@@ -501,11 +501,18 @@ func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) 
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
 // It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
 // Responses are PTY output that can be rendered.
-func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, reconnect uuid.UUID, height, width int, command string) (net.Conn, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty?reconnect=%s&height=%d&width=%d&command=%s", agentID, reconnect, height, width, command))
+func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, reconnect uuid.UUID, height, width uint16, command string) (net.Conn, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	q := serverURL.Query()
+	q.Set("reconnect", reconnect.String())
+	q.Set("height", strconv.Itoa(int(height)))
+	q.Set("width", strconv.Itoa(int(width)))
+	q.Set("command", command)
+	serverURL.RawQuery = q.Encode()
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, xerrors.Errorf("create cookie jar: %w", err)

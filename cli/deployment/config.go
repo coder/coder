@@ -529,9 +529,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 				newType := reflect.Indirect(reflect.New(elementType))
 				instance = &newType
 			}
-			switch instance.Field(i).Type().String() {
+			switch v := instance.Field(i).Type().String(); v {
 			case "[]string":
 				value = vip.GetStringSlice(configKey)
+			case "bool":
+				value = vip.GetBool(configKey)
 			default:
 			}
 			instance.Field(i).Set(reflect.ValueOf(value))

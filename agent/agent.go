@@ -725,6 +725,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
+	connectionID := uuid.NewString()
 	var rpty *reconnectingPTY
 	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
 	if ok {
@@ -760,8 +761,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		a.closeMutex.Unlock()
 		ctx, cancelFunc := context.WithCancel(ctx)
 		rpty = &reconnectingPTY{
-			activeConns: make(map[string]net.Conn),
-			ptty:        ptty,
+			activeConns: map[string]net.Conn{
+				// We have to put the connection in the map instantly otherwise
+				// the connection won't be closed if the process instantly dies.
+				connectionID: conn,
+			},
+			ptty: ptty,
 			// Timeouts created with an after func can be reset!
 			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
 			circularBuffer: circularBuffer,
@@ -827,7 +832,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", msg.ID), slog.Error(err))
 		return
 	}
-	connectionID := uuid.NewString()
 	// Multiple connections to the same TTY are permitted.
 	// This could easily be used for terminal sharing, but
 	// we do it because it's a nice user experience to

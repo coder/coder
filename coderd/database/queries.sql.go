@@ -3090,9 +3090,12 @@ ORDER BY
 SELECT
 	-- Postgres offers no clear way to DRY this short of a function or other
 	-- complexities.
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_median,
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_median,
-	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_median
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_50,
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_50,
+	coalesce((PERCENTILE_DISC(0.5) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_50,
+	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'start')), -1)::FLOAT AS start_95,
+	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'stop')), -1)::FLOAT AS stop_95,
+	coalesce((PERCENTILE_DISC(0.95) WITHIN GROUP(ORDER BY exec_time_sec) FILTER (WHERE transition = 'delete')), -1)::FLOAT AS delete_95
 FROM build_times
 `
 
@@ -3102,15 +3105,25 @@ type GetTemplateAverageBuildTimeParams struct {
 }
 
 type GetTemplateAverageBuildTimeRow struct {
-	StartMedian  float64 `db:"start_median" json:"start_median"`
-	StopMedian   float64 `db:"stop_median" json:"stop_median"`
-	DeleteMedian float64 `db:"delete_median" json:"delete_median"`
+	Start50  float64 `db:"start_50" json:"start_50"`
+	Stop50   float64 `db:"stop_50" json:"stop_50"`
+	Delete50 float64 `db:"delete_50" json:"delete_50"`
+	Start95  float64 `db:"start_95" json:"start_95"`
+	Stop95   float64 `db:"stop_95" json:"stop_95"`
+	Delete95 float64 `db:"delete_95" json:"delete_95"`
 }
 
 func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateAverageBuildTime, arg.TemplateID, arg.StartTime)
 	var i GetTemplateAverageBuildTimeRow
-	err := row.Scan(&i.StartMedian, &i.StopMedian, &i.DeleteMedian)
+	err := row.Scan(
+		&i.Start50,
+		&i.Stop50,
+		&i.Delete50,
+		&i.Start95,
+		&i.Stop95,
+		&i.Delete95,
+	)
 	return i, err
 }
 

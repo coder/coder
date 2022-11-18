@@ -193,9 +193,18 @@ export const MockTemplate: TypesGen.Template = {
   workspace_owner_count: 2,
   active_user_count: 1,
   build_time_stats: {
-    start_ms: 1000,
-    stop_ms: 2000,
-    delete_ms: 3000,
+    start: {
+      P50: 1000,
+      P95: 1500,
+    },
+    stop: {
+      P50: 1000,
+      P95: 1500,
+    },
+    delete: {
+      P50: 1000,
+      P95: 1500,
+    },
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
