@@ -180,6 +180,7 @@ resource "aws_instance" "dev" {
     Coder_Provisioned = "true"
   }
   # Uncomment to enable SSH access for debugging
+  # This assumes you have a security group named "SSH"
   # security_groups   = ["coder_debug"]
 }
 

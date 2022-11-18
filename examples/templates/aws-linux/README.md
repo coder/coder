@@ -13,7 +13,7 @@ Follow the on-screen instructions to proceed.
 
 This template assumes that coderd is run in an environment that is authenticated
 with AWS. For example, run `aws configure import` to import credentials on the
-system and user running coderd.  For other ways to authenticate [consult the
+system and user running coderd. For other ways to authenticate [consult the
 Terraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).
 
 ## Required permissions / policy
@@ -23,49 +23,49 @@ instances provisioned by Coder:
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "VisualEditor0",
-            "Effect": "Allow",
-            "Action": [
-                "ec2:GetDefaultCreditSpecification",
-                "ec2:DescribeIamInstanceProfileAssociations",
-                "ec2:DescribeTags",
-                "ec2:CreateTags",
-                "ec2:RunInstances",
-                "ec2:DescribeInstanceCreditSpecifications",
-                "ec2:DescribeImages",
-                "ec2:ModifyDefaultCreditSpecification",
-                "ec2:DescribeVolumes"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Sid": "CoderResources",
-            "Effect": "Allow",
-            "Action": [
-                "ec2:DescribeInstances",
-                "ec2:DescribeInstanceAttribute",
-                "ec2:UnmonitorInstances",
-                "ec2:TerminateInstances",
-                "ec2:StartInstances",
-                "ec2:StopInstances",
-                "ec2:DeleteTags",
-                "ec2:MonitorInstances",
-                "ec2:CreateTags",
-                "ec2:RunInstances",
-                "ec2:ModifyInstanceAttribute",
-                "ec2:ModifyInstanceCreditSpecification"
-            ],
-            "Resource": "arn:aws:ec2:*:*:instance/*",
-            "Condition": {
-                "StringEquals": {
-                    "aws:ResourceTag/Coder_Provisioned": "true"
-                }
-            }
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VisualEditor0",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:GetDefaultCreditSpecification",
+        "ec2:DescribeIamInstanceProfileAssociations",
+        "ec2:DescribeTags",
+        "ec2:CreateTags",
+        "ec2:RunInstances",
+        "ec2:DescribeInstanceCreditSpecifications",
+        "ec2:DescribeImages",
+        "ec2:ModifyDefaultCreditSpecification",
+        "ec2:DescribeVolumes"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CoderResources",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceAttribute",
+        "ec2:UnmonitorInstances",
+        "ec2:TerminateInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:DeleteTags",
+        "ec2:MonitorInstances",
+        "ec2:CreateTags",
+        "ec2:RunInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifyInstanceCreditSpecification"
+      ],
+      "Resource": "arn:aws:ec2:*:*:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Coder_Provisioned": "true"
         }
-    ]
+      }
+    }
+  ]
 }
 ```
 
@@ -81,6 +81,53 @@ This often occurs when the EC2 instance cannot reach your Coder access URL. If y
 
 You can also troubleshoot by connecting directly into the instance and checking the agent logs. First, log in to the [AWS Console](https://console.aws.amazon.com) and create a security group that permits inbound SSH.
 
-```sh
-cat /tmp/coder-agent.log
+![AWS Security Groups](https://raw.githubusercontent.com/coder/coder/main/docs/images/quickstart/aws/security_group.png)
+
+Next, edit the template (`vim main.tf`) and to use the security group and add your public SSH key (often `~/.ssh/id_rsa.pub`).
+
+```yaml
+users:
+  - name: ${local.linux_user}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    # Uncomment to add SSH public key for debugging
+    ssh-authorized-keys:
+      - ssh-rsa AAA...
 ```
+
+```hcl
+resource "aws_instance" "dev" {
+  ami               = data.aws_ami.ubuntu.id
+  availability_zone = "${var.region}a"
+  instance_type     = var.instance_type
+
+  user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
+  tags = {
+    Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    # Required if you are using our example policy, see template README
+    Coder_Provisioned = "true"
+  }
+  # Uncomment to enable SSH access for debugging
+  # This assumes you have a security group named "SSH"
+  security_groups   = ["SSH"]
+}
+```
+
+Next, push a new template version and update your workspace:
+
+```sh
+coder templates push
+coder workspaces update <workspace-name>
+```
+
+Now that the instance has been rebuilt with SSH access, log in using public IP and check the logs:
+
+![AWS Security Groups](https://raw.githubusercontent.com/coder/coder/main/docs/images/quickstart/aws/public_ip.png)
+
+```sh
+ssh coder@<ec2-public-ip>
+cat /tmp/coder-agent.log
+
+```
+
+If you are still running into issues, see our [generic troubleshooting instructions](https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates) or reach out [on Discord](https://discord.gg/coder).
