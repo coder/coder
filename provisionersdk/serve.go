@@ -7,11 +7,10 @@ import (
 	"net"
 	"os"
 
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
-
-	"github.com/hashicorp/yamux"
 
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -58,18 +57,13 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	// short-lived processes that can be executed concurrently.
 	err = srv.Serve(ctx, options.Listener)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) ||
+			errors.Is(err, context.Canceled) ||
+			errors.Is(err, io.ErrClosedPipe) ||
+			errors.Is(err, yamux.ErrSessionShutdown) {
 			return nil
 		}
-		if errors.Is(err, context.Canceled) {
-			return nil
-		}
-		if errors.Is(err, io.ErrClosedPipe) {
-			return nil
-		}
-		if errors.Is(err, yamux.ErrSessionShutdown) {
-			return nil
-		}
+
 		return xerrors.Errorf("serve transport: %w", err)
 	}
 	return nil
