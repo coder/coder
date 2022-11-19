@@ -1,8 +1,9 @@
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
+import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
-import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import AddOutlined from "@material-ui/icons/AddOutlined"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -24,6 +25,7 @@ export const WorkspacesTableBody: FC<
   React.PropsWithChildren<TableBodyProps>
 > = ({ isLoading, workspaceRefs, filter, isNonInitialPage }) => {
   const { t } = useTranslation("workspacesPage")
+  const styles = useStyles()
 
   return (
     <ChooseOne>
@@ -32,7 +34,7 @@ export const WorkspacesTableBody: FC<
       </Cond>
       <Cond condition={!workspaceRefs || workspaceRefs.length === 0}>
         <TableRow>
-          <TableCell colSpan={999}>
+          <TableCell colSpan={999} className={styles.emptyTableCell}>
             <ChooseOne>
               <Cond condition={isNonInitialPage}>
                 <EmptyState message={t("emptyPageMessage")} />
@@ -44,6 +46,7 @@ export const WorkspacesTableBody: FC<
                 }
               >
                 <EmptyState
+                  className={styles.empty}
                   message={t("emptyCreateWorkspaceMessage")}
                   description={t("emptyCreateWorkspaceDescription")}
                   cta={
@@ -52,10 +55,15 @@ export const WorkspacesTableBody: FC<
                       component={RouterLink}
                       to="/templates"
                     >
-                      <Button startIcon={<AddCircleOutline />}>
+                      <Button startIcon={<AddOutlined />}>
                         {t("createFromTemplateButton")}
                       </Button>
                     </Link>
+                  }
+                  image={
+                    <div className={styles.emptyImage}>
+                      <img src="/empty/workspaces.webp" alt="" />
+                    </div>
                   }
                 />
               </Cond>
@@ -75,3 +83,25 @@ export const WorkspacesTableBody: FC<
     </ChooseOne>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  emptyTableCell: {
+    padding: "0 !important",
+  },
+
+  empty: {
+    paddingBottom: 0,
+  },
+
+  emptyImage: {
+    maxWidth: "50%",
+    height: theme.spacing(34),
+    overflow: "hidden",
+    marginTop: theme.spacing(6),
+    opacity: 0.85,
+
+    "& img": {
+      maxWidth: "100%",
+    },
+  },
+}))
