@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -37,12 +38,16 @@ func NewCompatibility(options *Options) *Compatibility {
 }
 
 // serveEntitlements return empty entitlements.
-func (api *API) serveEntitlementsEmpty(rw http.ResponseWriter, r *http.Request) {
+func (api *API) serveEntitlementsWithEmpty(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpapi.Write(ctx, rw, http.StatusOK, api.compatibility.Entitlements)
 }
 
 // workspaceQuota return empty quotas.
-func (api *API) workspaceQuotaEmpty(rw http.ResponseWriter, r *http.Request) {
+func (api *API) workspaceQuotaWithEmpty(rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	httpapi.Write(r.Context(), rw, http.StatusOK, api.compatibility.WorkspaceQuota)
 }

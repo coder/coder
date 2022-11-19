@@ -105,10 +105,11 @@ type Options struct {
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
+	NoAGPL                      bool
 }
 
 // New constructs a Coder API handler.
-func New(options *Options, agpl bool) *API {
+func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
@@ -574,10 +575,10 @@ func New(options *Options, agpl bool) *API {
 				r.Get("/", api.workspaceApplicationAuth)
 			})
 		})
-		if agpl {
-			// Add a compatibility layer for the enterprise API
-			r.Get("/entitlements", api.serveEntitlementsEmpty)
-			r.Get("/workspace-quota/{user}", api.workspaceQuotaEmpty)
+		// add compatibility routes for the enterprise API
+		if !options.NoAGPL {
+			r.With(apiKeyMiddleware).Get("/entitlements", api.serveEntitlementsWithEmpty)
+			r.With(apiKeyMiddleware).Get("/workspace-quota/{user}", api.workspaceQuotaWithEmpty)
 		}
 	})
 

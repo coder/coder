@@ -45,9 +45,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewAuthorizer()
 	}
+	// Disable the AGPL compatibility layer.
+	options.Options.NoAGPL = true
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
-		AGPL:                   coderd.New(options.Options, false),
+		AGPL:                   coderd.New(options.Options),
 		Options:                options,
 		cancelEntitlementsLoop: cancelFunc,
 	}
