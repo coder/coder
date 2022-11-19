@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"net"
+	"sync"
 
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -73,12 +74,13 @@ func MemTransportPipe() (drpc.Conn, net.Listener) {
 }
 
 type memDRPC struct {
-	closed chan struct{}
-	l      *fasthttputil.InmemoryListener
+	closeOnce sync.Once
+	closed    chan struct{}
+	l         *fasthttputil.InmemoryListener
 }
 
 func (m *memDRPC) Close() error {
-	close(m.closed)
+	m.closeOnce.Do(func() { close(m.closed) })
 	return m.l.Close()
 }
 
