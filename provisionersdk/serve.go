@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/yamux"
+	"github.com/valyala/fasthttp/fasthttputil"
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -60,7 +61,8 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		if errors.Is(err, io.EOF) ||
 			errors.Is(err, context.Canceled) ||
 			errors.Is(err, io.ErrClosedPipe) ||
-			errors.Is(err, yamux.ErrSessionShutdown) {
+			errors.Is(err, yamux.ErrSessionShutdown) ||
+			errors.Is(err, fasthttputil.ErrInmemoryListenerClosed) {
 			return nil
 		}
 
