@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -551,7 +553,7 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 
 // Compile returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
+func (f *fakePreparedAuthorizer) Compile(_ regosql.ConvertConfig) (rbac.AuthorizeFilter, error) {
 	return f, nil
 }
 
@@ -566,7 +568,7 @@ func (f fakePreparedAuthorizer) RegoString() string {
 	panic("not implemented")
 }
 
-func (f fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
+func (f fakePreparedAuthorizer) SQLString() string {
 	if f.HardCodedSQLString != "" {
 		return f.HardCodedSQLString
 	}

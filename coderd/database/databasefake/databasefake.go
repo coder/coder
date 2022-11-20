@@ -488,7 +488,7 @@ func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.Get
 	return count, err
 }
 
-func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -537,6 +537,15 @@ func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.
 		}
 
 		users = usersFilteredByRole
+	}
+
+	var authorizedFilter rbac.AuthorizeFilter
+	var err error
+	if prepared != nil {
+		authorizedFilter, err = prepared.Compile(rbac.ConfigWithoutACL())
+		if err != nil {
+			return -1, xerrors.Errorf("compile authorized filter: %w", err)
+		}
 	}
 
 	for _, user := range q.workspaces {
@@ -750,9 +759,14 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.GetWorkspacesRow, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
+	filter, err := prepared.Compile(rbac.ConfigWithoutACL())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
@@ -885,7 +899,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// If the filter exists, ensure the object is authorized.
-		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+		if filter != nil && !filter.Eval(workspace.RBACObject()) {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
