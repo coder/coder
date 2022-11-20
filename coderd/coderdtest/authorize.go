@@ -551,10 +551,10 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object)
 }
 
-// Compile returns a compiled version of the authorizer that will work for
+// CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (f *fakePreparedAuthorizer) Compile(_ regosql.ConvertConfig) (rbac.AuthorizeFilter, error) {
-	return f, nil
+func (f *fakePreparedAuthorizer) CompileToSQL(_ regosql.ConvertConfig) (string, error) {
+	return "", fmt.Errorf("not implemented")
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
@@ -564,13 +564,6 @@ func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
 func (f fakePreparedAuthorizer) RegoString() string {
 	if f.HardCodedRegoString != "" {
 		return f.HardCodedRegoString
-	}
-	panic("not implemented")
-}
-
-func (f fakePreparedAuthorizer) SQLString() string {
-	if f.HardCodedSQLString != "" {
-		return f.HardCodedSQLString
 	}
 	panic("not implemented")
 }

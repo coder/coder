@@ -14,9 +14,6 @@ import (
 
 type AuthorizeFilter interface {
 	SQLString() string
-	// Eval is required for the fake in memory database to work. The in memory
-	// database can use this function to filter the results.
-	Eval(object Object) bool
 }
 
 type authorizedSQLFilter struct {

@@ -29,12 +29,12 @@ type PartialAuthorizer struct {
 
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
-func (pa *PartialAuthorizer) Compile(cfg regosql.ConvertConfig) (AuthorizeFilter, error) {
+func (pa *PartialAuthorizer) CompileToSQL(cfg regosql.ConvertConfig) (string, error) {
 	filter, err := Compile(cfg, pa)
 	if err != nil {
-		return nil, xerrors.Errorf("compile: %w", err)
+		return "", xerrors.Errorf("compile: %w", err)
 	}
-	return filter, nil
+	return filter.SQLString(), nil
 }
 
 func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {

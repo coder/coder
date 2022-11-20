@@ -23,8 +23,61 @@ type customQuerier interface {
 }
 
 type templateQuerier interface {
+	GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error)
 	GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error)
 	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error) {
+	authorizedFilter, err := prepared.CompileToSQL(rbac.ConfigWithACL())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filter := strings.Replace(getTemplatesWithFilter, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter), 1)
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedTemplates :many\n%s", filter)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.Deleted,
+		arg.OrganizationID,
+		arg.ExactName,
+		pq.Array(arg.IDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Template
+	for rows.Next() {
+		var i Template
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Deleted,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
+			&i.Description,
+			&i.DefaultTTL,
+			&i.CreatedBy,
+			&i.Icon,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type TemplateUser struct {
@@ -119,14 +172,14 @@ type workspaceQuerier interface {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error) {
-	authorizedFilter, err := prepared.Compile(rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(rbac.ConfigWithoutACL())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
-	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString()), 1)
+	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter), 1)
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filter)
 	rows, err := q.db.QueryContext(ctx, query,
@@ -179,12 +232,12 @@ type userQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	authorizedFilter, err := prepared.Compile(rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(rbac.ConfigWithoutACL())
 	if err != nil {
 		return -1, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
-	filter := strings.Replace(getFilteredUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter.SQLString()), 1)
+	filter := strings.Replace(getFilteredUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter), 1)
 	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filter)
 	row := q.db.QueryRowContext(ctx, query,
 		arg.Deleted,

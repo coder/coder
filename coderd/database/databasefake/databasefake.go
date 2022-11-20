@@ -488,11 +488,20 @@ func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.Get
 	return count, err
 }
 
-func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	users := append([]database.User{}, q.users...)
+	users := make([]database.User, 0, len(q.users))
+
+	for _, user := range q.users {
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, user.RBACObject()) != nil {
+			continue
+		}
+
+		users = append(users, user)
+	}
 
 	if params.Deleted {
 		tmp := make([]database.User, 0, len(users))
@@ -537,22 +546,6 @@ func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.
 		}
 
 		users = usersFilteredByRole
-	}
-
-	var authorizedFilter rbac.AuthorizeFilter
-	var err error
-	if prepared != nil {
-		authorizedFilter, err = prepared.Compile(rbac.ConfigWithoutACL())
-		if err != nil {
-			return -1, xerrors.Errorf("compile authorized filter: %w", err)
-		}
-	}
-
-	for _, user := range q.workspaces {
-		// If the filter exists, ensure the object is authorized.
-		if authorizedFilter != nil && !authorizedFilter.Eval(user.RBACObject()) {
-			continue
-		}
 	}
 
 	return int64(len(users)), nil
@@ -763,11 +756,6 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	filter, err := prepared.Compile(rbac.ConfigWithoutACL())
-	if err != nil {
-		return nil, xerrors.Errorf("compile authorized filter: %w", err)
-	}
-
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
@@ -899,7 +887,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// If the filter exists, ensure the object is authorized.
-		if filter != nil && !filter.Eval(workspace.RBACObject()) {
+		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
@@ -1447,12 +1435,20 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (q *fakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+	return q.GetAuthorizedTemplates(ctx, arg, nil)
+}
+
+func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var templates []database.Template
 	for _, template := range q.templates {
+		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
+			continue
+		}
+
 		if template.Deleted != arg.Deleted {
 			continue
 		}
