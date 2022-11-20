@@ -19,75 +19,13 @@ type ConvertConfig struct {
 	VariableConverter sqltypes.VariableMatcher
 }
 
-// NoACLConverter should be used when the target SQL table does not contain
-// group or user ACL columns.
-func NoACLConverter() *sqltypes.VariableConverter {
-	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		// Basic strings
-		sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"}),
-		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
-	)
-	aclGroups := aclGroupMatchers(matcher)
-	for i := range aclGroups {
-		// Disable acl groups
-		matcher.RegisterMatcher(aclGroups[i].Disable())
-	}
-
-	return matcher
-}
-
-func DefaultVariableConverter() *sqltypes.VariableConverter {
-	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
-		// Basic strings
-		sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"}),
-		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
-	)
-	aclGroups := aclGroupMatchers(matcher)
-	for i := range aclGroups {
-		matcher.RegisterMatcher(aclGroups[i])
-	}
-
-	return matcher
-}
-
-func aclGroupMatchers(c *sqltypes.VariableConverter) []ACLGroupVar {
-	return []ACLGroupVar{
-		ACLGroupMatcher(c, "group_acl", []string{"input", "object", "acl_group_list"}),
-		ACLGroupMatcher(c, "user_acl", []string{"input", "object", "acl_user_list"}),
-	}
-}
-
-type AuthorizedSQLFilter struct {
-	root sqltypes.BooleanNode
-}
-
-func newFilter(root sqltypes.BooleanNode) *AuthorizedSQLFilter {
-	return &AuthorizedSQLFilter{
-		root: root,
-	}
-}
-
-func (a *AuthorizedSQLFilter) SQLString() (string, error) {
-	gen := sqltypes.NewSQLGenerator()
-	sqlString := a.root.SQLString(gen)
-	if len(gen.Errors()) > 0 {
-		var errStrings []string
-		for _, err := range gen.Errors() {
-			errStrings = append(errStrings, err.Error())
-		}
-		return "", fmt.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
-	}
-
-	return sqlString, nil
-}
-
 // ConvertRegoAst converts partial rego queries into a single SQL where
 // clause. If the query equates to "true" then the user should have access.
-func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (*AuthorizedSQLFilter, error) {
+func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.BooleanNode, error) {
 	if len(partial.Queries) == 0 {
 		// Always deny if there are no queries. This means there is no possible
 		// way this user can access these resources.
-		return newFilter(sqltypes.Bool(false)), nil
+		return sqltypes.Bool(false), nil
 	}
 
 	for _, q := range partial.Queries {
@@ -95,7 +33,7 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (*Authorize
 		// empty, then the user should have access.
 		if len(q) == 0 {
 			// Always allow
-			return newFilter(sqltypes.Bool(true)), nil
+			return sqltypes.Bool(true), nil
 		}
 	}
 
@@ -126,7 +64,7 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (*Authorize
 	sqlClause := sqltypes.Or(sqltypes.RegoSource(builder.String()), queries...)
 	// Always wrap in parens to ensure the correct precedence when combining with other
 	// SQL clauses.
-	return newFilter(sqltypes.BoolParenthesis(sqlClause)), nil
+	return sqltypes.BoolParenthesis(sqlClause), nil
 }
 
 func convertQuery(cfg ConvertConfig, q ast.Body) (sqltypes.BooleanNode, error) {

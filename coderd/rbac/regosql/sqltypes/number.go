@@ -22,7 +22,6 @@ func Number(source RegoSource, v json.Number) Node {
 func (AstNumber) UseAs() Node { return AstNumber{} }
 
 func (n AstNumber) SQLString(cfg *SQLGenerator) string {
-	// TODO: Verify that this is a valid AstNumber in sql
 	return n.Value.String()
 }
 

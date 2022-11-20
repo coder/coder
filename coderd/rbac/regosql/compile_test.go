@@ -299,6 +299,12 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.DefaultVariableConverter(),
 		},
 		{
+			Name:              "GroupWildcard",
+			Queries:           []string{`"*" in input.object.acl_group_list.allUsers`},
+			ExpectedSQL:       "(group_acl->'allUsers' ? '*')",
+			VariableConverter: regosql.DefaultVariableConverter(),
+		},
+		{
 			// Always return a constant string for all variables.
 			Name: "GroupACLWithVarField",
 			Queries: []string{
@@ -313,6 +319,18 @@ func TestRegoQueries(t *testing.T) {
 				`input.object.org_owner in {"a", "b", "c"}`,
 			},
 			ExpectedSQL:       "(organization_id :: text = ANY(ARRAY ['a','b','c']))",
+			VariableConverter: regosql.DefaultVariableConverter(),
+		},
+		{
+			Name:              "SetDereference",
+			Queries:           []string{`"*" in input.object.acl_group_list[input.object.org_owner]`},
+			ExpectedSQL:       "(group_acl->organization_id :: text ? '*')",
+			VariableConverter: regosql.DefaultVariableConverter(),
+		},
+		{
+			Name:              "JsonbLiteralDereference",
+			Queries:           []string{`"*" in input.object.acl_group_list["4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75"]`},
+			ExpectedSQL:       "(group_acl->'4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75' ? '*')",
 			VariableConverter: regosql.DefaultVariableConverter(),
 		},
 		{
@@ -335,9 +353,10 @@ func TestRegoQueries(t *testing.T) {
 			Name: "NoACLs",
 			Queries: []string{
 				`"read" in input.object.acl_group_list[input.object.org_owner]`,
+				`"*" in input.object.acl_group_list["4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75"]`,
 			},
 			// Special case where the bool is wrapped
-			ExpectedSQL:       "(false)",
+			ExpectedSQL:       "((false) OR (false))",
 			VariableConverter: regosql.NoACLConverter(),
 		},
 	}
@@ -382,15 +401,16 @@ func requireConvert(t *testing.T, tc convertTestCase) {
 		t.Logf("Support %d: %s", i, s.String())
 	}
 
-	sqltypes, err := regosql.ConvertRegoAst(tc.cfg, tc.part)
+	root, err := regosql.ConvertRegoAst(tc.cfg, tc.part)
 	if tc.expectConvertError {
 		require.Error(t, err)
 	} else {
 		require.NoError(t, err, "compile")
 
-		sqlString, err := sqltypes.SQLString()
+		gen := sqltypes.NewSQLGenerator()
+		sqlString := root.SQLString(gen)
 		if tc.expectSQLGenError {
-			require.Error(t, err, "sql gen")
+			require.True(t, len(gen.Errors()) > 0, "expected SQL generation error")
 		} else {
 			require.NoError(t, err, "sql gen")
 			require.Equal(t, tc.expectSQL, sqlString, "sql match")

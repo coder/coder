@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/ast"
@@ -28,8 +29,8 @@ type PartialAuthorizer struct {
 
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
-func (pa *PartialAuthorizer) Compile() (AuthorizeFilter, error) {
-	filter, err := Compile(pa)
+func (pa *PartialAuthorizer) Compile(cfg regosql.ConvertConfig) (AuthorizeFilter, error) {
+	filter, err := Compile(cfg, pa)
 	if err != nil {
 		return nil, xerrors.Errorf("compile: %w", err)
 	}

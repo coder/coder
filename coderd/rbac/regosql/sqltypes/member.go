@@ -32,7 +32,7 @@ func MemberOf(needle, haystack Node) BooleanNode {
 }
 
 func (memberOf) IsBooleanNode() {}
-func (memberOf) UseAs() Node    { return memberOf{} }
+func (memberOf) UseAs() Node    { return AstBoolean{} }
 
 func (e memberOf) SQLString(cfg *SQLGenerator) string {
 	// Equalities can be flipped without changing the result, so we can
@@ -46,4 +46,8 @@ func (e memberOf) SQLString(cfg *SQLGenerator) string {
 
 	cfg.AddError(fmt.Errorf("unsupported contains: %T contains %T", e.Haystack, e.Needle))
 	return "MemberOfError"
+}
+
+func (e memberOf) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
+	return boolEqualsSQLString(cfg, e, not, other)
 }

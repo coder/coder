@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	_ "embed"
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"sync"
 
 	"github.com/open-policy-agent/opa/rego"
@@ -20,7 +21,7 @@ type Authorizer interface {
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
-	Compile() (AuthorizeFilter, error)
+	Compile(cfg regosql.ConvertConfig) (AuthorizeFilter, error)
 }
 
 // Filter takes in a list of objects, and will filter the list removing all

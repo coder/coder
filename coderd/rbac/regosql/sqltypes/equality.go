@@ -61,6 +61,10 @@ func (e equality) SQLString(cfg *SQLGenerator) string {
 }
 
 func (e equality) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
+	return boolEqualsSQLString(cfg, e, not, other)
+}
+
+func boolEqualsSQLString(cfg *SQLGenerator, a BooleanNode, not bool, other Node) (string, error) {
 	switch other.UseAs().(type) {
 	case BooleanNode:
 		bn, ok := other.(BooleanNode)
@@ -70,13 +74,13 @@ func (e equality) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (stri
 
 		// Always wrap both sides in parens to ensure the correct precedence.
 		return fmt.Sprintf("%s %s %s",
-			BoolParenthesis(e).SQLString(cfg),
+			BoolParenthesis(a).SQLString(cfg),
 			equalsOp(not),
 			BoolParenthesis(bn).SQLString(cfg),
 		), nil
 	}
 
-	return "", fmt.Errorf("unsupported equality: %T %s %T", e, equalsOp(not), other)
+	return "", fmt.Errorf("unsupported equality: %T %s %T", a, equalsOp(not), other)
 }
 
 func equalsOp(not bool) string {

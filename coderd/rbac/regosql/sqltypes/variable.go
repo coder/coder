@@ -101,7 +101,7 @@ func (s astStringVar) SQLString(cfg *SQLGenerator) string {
 
 func (s astStringVar) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
 	switch other.UseAs().(type) {
-	case AstString, astStringVar:
+	case AstString:
 		return basicSQLEquality(cfg, not, s, other), nil
 	}
 

@@ -1,7 +1,6 @@
 package sqltypes
 
 import (
-	"fmt"
 	"strconv"
 )
 
@@ -23,20 +22,6 @@ func (b AstBoolean) SQLString(_ *SQLGenerator) string {
 }
 
 func (b AstBoolean) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
-	switch other.UseAs().(type) {
-	case BooleanNode:
-		bn, ok := other.(BooleanNode)
-		if !ok {
-			return "", fmt.Errorf("not a boolean node: %T", other)
-		}
-
-		return fmt.Sprintf("%s %s %s",
-			b.SQLString(cfg),
-			equalsOp(not),
-			BoolParenthesis(bn).SQLString(cfg),
-		), nil
-	}
-
-	return "", fmt.Errorf("unsupported equality: %T %s %T", b, equalsOp(not), other)
+	return boolEqualsSQLString(cfg, b, not, other)
 
 }

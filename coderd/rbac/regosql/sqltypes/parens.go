@@ -2,14 +2,6 @@ package sqltypes
 
 import "fmt"
 
-// WrapParens will add parens around the string if no parens are present.
-func WrapParens(v string) string {
-	if len(v) > 1 && v[0] == '(' && v[len(v)-1] == ')' {
-		return v
-	}
-	return "(" + v + ")"
-}
-
 type astParenthesis struct {
 	Value BooleanNode
 }
