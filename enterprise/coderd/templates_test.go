@@ -757,7 +757,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 // This is a full rbac test of many of the common role combinations.
 func TestTemplateAccess(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*5)
 	t.Cleanup(cancel)
 
 	ownerClient := coderdenttest.New(t, nil)

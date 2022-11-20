@@ -2,6 +2,20 @@ package regosql
 
 import "github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 
+// For the templates table
+func TemplateConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		// Basic strings
+		AlwaysFalse(sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"})),
+		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
+	)
+	matcher.RegisterMatcher(
+		ACLGroupMatcher(matcher, "group_acl", []string{"input", "object", "acl_group_list"}),
+		ACLGroupMatcher(matcher, "user_acl", []string{"input", "object", "acl_user_list"}),
+	)
+	return matcher
+}
+
 // NoACLConverter should be used when the target SQL table does not contain
 // group or user ACL columns.
 func NoACLConverter() *sqltypes.VariableConverter {
@@ -10,11 +24,10 @@ func NoACLConverter() *sqltypes.VariableConverter {
 		sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"}),
 		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
 	)
-	aclGroups := aclGroupMatchers(matcher)
-	for i := range aclGroups {
-		// Disable acl groups
-		matcher.RegisterMatcher(aclGroups[i].Disable())
-	}
+	matcher.RegisterMatcher(
+		AlwaysFalse(ACLGroupMatcher(matcher, "group_acl", []string{"input", "object", "acl_group_list"})),
+		AlwaysFalse(ACLGroupMatcher(matcher, "user_acl", []string{"input", "object", "acl_user_list"})),
+	)
 
 	return matcher
 }
@@ -25,17 +38,10 @@ func DefaultVariableConverter() *sqltypes.VariableConverter {
 		sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"}),
 		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
 	)
-	aclGroups := aclGroupMatchers(matcher)
-	for i := range aclGroups {
-		matcher.RegisterMatcher(aclGroups[i])
-	}
+	matcher.RegisterMatcher(
+		ACLGroupMatcher(matcher, "group_acl", []string{"input", "object", "acl_group_list"}),
+		ACLGroupMatcher(matcher, "user_acl", []string{"input", "object", "acl_user_list"}),
+	)
 
 	return matcher
-}
-
-func aclGroupMatchers(c *sqltypes.VariableConverter) []ACLGroupVar {
-	return []ACLGroupVar{
-		ACLGroupMatcher(c, "group_acl", []string{"input", "object", "acl_group_list"}),
-		ACLGroupMatcher(c, "user_acl", []string{"input", "object", "acl_user_list"}),
-	}
 }

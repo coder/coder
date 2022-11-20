@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
+
 	"github.com/lib/pq"
 
 	"github.com/coder/coder/coderd/rbac"
@@ -29,7 +31,9 @@ type templateQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error) {
-	authorizedFilter, err := prepared.CompileToSQL(rbac.ConfigWithACL())
+	authorizedFilter, err := prepared.CompileToSQL(regosql.ConvertConfig{
+		VariableConverter: regosql.TemplateConverter(),
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
