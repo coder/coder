@@ -48,6 +48,14 @@ func TestMembership(t *testing.T) {
 			),
 			ExpectedSQL: "true = ANY(ARRAY [false,true])",
 		},
+		{
+			Name: "EmptyArray",
+			Membership: sqltypes.MemberOf(
+				sqltypes.Bool(true),
+				must(sqltypes.Array("")),
+			),
+			ExpectedSQL: "false",
+		},
 
 		// Errors
 		{

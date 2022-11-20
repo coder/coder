@@ -29,6 +29,11 @@ func (a ASTArray) ContainsSQL(cfg *SQLGenerator, needle Node) (string, error) {
 	// TODO: Handle ASTArray.Contains(ASTArray). Must handle types correctly.
 	// 	Should implement as strict subset.
 
+	// If we have no elements in our set, then our needle is never in the set.
+	if len(a.Value) == 0 {
+		return "false", nil
+	}
+
 	// This condition supports any contains function if the needle type is
 	// the same as the ASTArray element type.
 	if reflect.TypeOf(a.MyType().UseAs()) != reflect.TypeOf(needle.UseAs()) {
