@@ -20,7 +20,7 @@ func (s AstString) SQLString(_ *SQLGenerator) string {
 }
 
 func (s AstString) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
-	//nolint:singleCaseSwitch
+	//nolint:gocritic
 	switch other.UseAs().(type) {
 	case AstString:
 		return basicSQLEquality(cfg, not, s, other), nil

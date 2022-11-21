@@ -127,5 +127,4 @@ func TestEquality(t *testing.T) {
 			}
 		})
 	}
-
 }

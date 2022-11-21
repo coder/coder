@@ -1,7 +1,6 @@
 package regosql_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/open-policy-agent/opa/ast"
@@ -15,6 +14,8 @@ import (
 // TestRegoQueriesNoVariables handles cases without variables. These should be
 // very simple and straight forward.
 func TestRegoQueries(t *testing.T) {
+	t.Parallel()
+
 	p := func(v string) string {
 		return "(" + v + ")"
 	}
@@ -299,22 +300,6 @@ func partialQueries(t *testing.T, queries ...string) *rego.PartialQueries {
 		astQueries = append(astQueries, ast.MustParseBodyWithOpts(q, opts))
 	}
 
-	prepareQueries := make([]rego.PreparedEvalQuery, 0, len(queries))
-	for _, q := range astQueries {
-		var prepped rego.PreparedEvalQuery
-		var err error
-		if q.String() == "" {
-			prepped, err = rego.New(
-				rego.Query("true"),
-			).PrepareForEval(context.Background())
-		} else {
-			prepped, err = rego.New(
-				rego.ParsedQuery(q),
-			).PrepareForEval(context.Background())
-		}
-		require.NoError(t, err, "prepare query")
-		prepareQueries = append(prepareQueries, prepped)
-	}
 	return &rego.PartialQueries{
 		Queries: astQueries,
 		Support: []*ast.Module{},

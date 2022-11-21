@@ -23,5 +23,4 @@ func (b AstBoolean) SQLString(_ *SQLGenerator) string {
 
 func (b AstBoolean) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
 	return boolEqualsSQLString(cfg, b, not, other)
-
 }

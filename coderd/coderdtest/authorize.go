@@ -552,7 +552,7 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (f *fakePreparedAuthorizer) CompileToSQL(_ regosql.ConvertConfig) (string, error) {
+func (_ fakePreparedAuthorizer) CompileToSQL(_ regosql.ConvertConfig) (string, error) {
 	return "", xerrors.New("not implemented")
 }
 

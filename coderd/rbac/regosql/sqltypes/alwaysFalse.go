@@ -29,7 +29,7 @@ func AlwaysFalseNode(n Node) Node {
 }
 
 // UseAs uses a type no one supports to always override with false.
-func (f alwaysFalse) UseAs() Node { return alwaysFalse{} }
+func (alwaysFalse) UseAs() Node { return alwaysFalse{} }
 func (f alwaysFalse) ConvertVariable(rego ast.Ref) (Node, bool) {
 	if f.Matcher != nil {
 		n, ok := f.Matcher.ConvertVariable(rego)
@@ -44,18 +44,18 @@ func (f alwaysFalse) ConvertVariable(rego ast.Ref) (Node, bool) {
 	return nil, false
 }
 
-func (f alwaysFalse) SQLString(_ *SQLGenerator) string {
+func (alwaysFalse) SQLString(_ *SQLGenerator) string {
 	return "false"
 }
 
-func (f alwaysFalse) ContainsSQL(_ *SQLGenerator, _ Node) (string, error) {
+func (alwaysFalse) ContainsSQL(_ *SQLGenerator, _ Node) (string, error) {
 	return "false", nil
 }
 
-func (f alwaysFalse) ContainedInSQL(_ *SQLGenerator, _ Node) (string, error) {
+func (alwaysFalse) ContainedInSQL(_ *SQLGenerator, _ Node) (string, error) {
 	return "false", nil
 }
 
-func (f alwaysFalse) EqualsSQLString(_ *SQLGenerator, not bool, _ Node) (string, error) {
+func (alwaysFalse) EqualsSQLString(_ *SQLGenerator, not bool, _ Node) (string, error) {
 	return "false", nil
 }

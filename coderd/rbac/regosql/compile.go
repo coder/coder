@@ -45,18 +45,11 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 			return nil, xerrors.Errorf("query %s: %w", q.String(), err)
 		}
 
-		// Each query should result in a boolean expression. If it is not,
-		// this cannot be converted to SQL.
-		boolConverted, ok := converted.(sqltypes.BooleanNode)
-		if !ok {
-			return nil, xerrors.Errorf("query %s: not a boolean expression", q.String())
-		}
-
 		if i != 0 {
 			builder.WriteString("\n")
 		}
 		builder.WriteString(q.String())
-		queries = append(queries, boolConverted)
+		queries = append(queries, converted)
 	}
 
 	// All queries are OR'd together. This means that if any query is true,

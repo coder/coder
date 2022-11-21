@@ -25,7 +25,7 @@ type invalidNode struct{}
 
 func (invalidNode) UseAs() Node { return invalidNode{} }
 
-func (i invalidNode) SQLString(cfg *SQLGenerator) string {
+func (invalidNode) SQLString(cfg *SQLGenerator) string {
 	cfg.AddError(xerrors.Errorf("invalid node called"))
 	return "invalid_type"
 }

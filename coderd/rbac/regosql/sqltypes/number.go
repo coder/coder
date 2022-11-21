@@ -27,7 +27,7 @@ func (n AstNumber) SQLString(_ *SQLGenerator) string {
 }
 
 func (n AstNumber) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
-	//nolint:singleCaseSwitch
+	//nolint:gocritic
 	switch other.UseAs().(type) {
 	case AstNumber:
 		return basicSQLEquality(cfg, not, n, other), nil
