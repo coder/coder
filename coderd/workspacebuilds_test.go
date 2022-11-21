@@ -560,6 +560,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
 
+	numLogs++ // add an audit log for workspace_build starting
+
 	// after successful stop is "stopped"
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
@@ -578,14 +580,14 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	err = client.CancelWorkspaceBuild(ctx, build.ID)
 	require.NoError(t, err)
 
-	numLogs++ // add an audit log for workspace build start
 	// assert an audit log has been created workspace starting
+	require.Equal(t, database.AuditActionStart, auditor.AuditLogs[numLogs-2].Action)
 	require.Len(t, auditor.AuditLogs, numLogs)
-	require.Equal(t, database.AuditActionStart, auditor.AuditLogs[numLogs-1].Action)
 
 	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusCanceled, workspace.LatestBuild.Status)
+	numLogs++ // add an audit log for workspace_build cancel
 
 	_ = coderdtest.NewProvisionerDaemon(t, api)
 	// after successful delete is "deleted"
@@ -594,7 +596,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
-	numLogs++ // add an audit log for workspace build deletion
+	numLogs++ // add an audit log for workspace_build deletion
 
 	// assert an audit log has been created for deletion
 	require.Len(t, auditor.AuditLogs, numLogs)
