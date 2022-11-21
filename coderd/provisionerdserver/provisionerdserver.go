@@ -675,7 +675,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 						// after this function has returned. The server also doesn't
 						// have a shutdown signal we can listen to.
 						<-wait
-						err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{})
+						err := server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{})
 						if err != nil {
 							server.Logger.Error(ctx, "workspace notification after agent timeout failed",
 								slog.F("workspace_build_id", workspaceBuild.ID),
