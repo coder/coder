@@ -843,6 +843,7 @@ func TestProvisionerd(t *testing.T) {
 					<-failChan
 					_ = client.DRPCConn().Close()
 					second.Store(true)
+					time.Sleep(50 * time.Millisecond)
 					failedOnce.Do(func() { close(failedChan) })
 				}()
 			}

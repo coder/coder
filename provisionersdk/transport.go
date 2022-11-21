@@ -80,8 +80,9 @@ type memDRPC struct {
 }
 
 func (m *memDRPC) Close() error {
+	err := m.l.Close()
 	m.closeOnce.Do(func() { close(m.closed) })
-	return m.l.Close()
+	return err
 }
 
 func (m *memDRPC) Closed() <-chan struct{} {
@@ -97,6 +98,7 @@ func (m *memDRPC) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, inM
 	dConn := drpcconn.New(conn)
 	defer func() {
 		_ = dConn.Close()
+		_ = conn.Close()
 	}()
 	return dConn.Invoke(ctx, rpc, enc, inMessage, outMessage)
 }
@@ -110,8 +112,12 @@ func (m *memDRPC) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) 
 	stream, err := dConn.NewStream(ctx, rpc, enc)
 	if err == nil {
 		go func() {
-			<-stream.Context().Done()
+			select {
+			case <-stream.Context().Done():
+			case <-m.closed:
+			}
 			_ = dConn.Close()
+			_ = conn.Close()
 		}()
 	}
 	return stream, err
