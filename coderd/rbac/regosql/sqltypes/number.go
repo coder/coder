@@ -21,11 +21,12 @@ func Number(source RegoSource, v json.Number) Node {
 
 func (AstNumber) UseAs() Node { return AstNumber{} }
 
-func (n AstNumber) SQLString(cfg *SQLGenerator) string {
+func (n AstNumber) SQLString(_ *SQLGenerator) string {
 	return n.Value.String()
 }
 
 func (n AstNumber) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
+	//nolint:singleCaseSwitch
 	switch other.UseAs().(type) {
 	case AstNumber:
 		return basicSQLEquality(cfg, not, n, other), nil

@@ -95,11 +95,12 @@ func (s astStringVar) ConvertVariable(rego ast.Ref) (Node, bool) {
 	return nil, false
 }
 
-func (s astStringVar) SQLString(cfg *SQLGenerator) string {
+func (s astStringVar) SQLString(_ *SQLGenerator) string {
 	return s.ColumnString
 }
 
 func (s astStringVar) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
+	//nolint:singleCaseSwitch
 	switch other.UseAs().(type) {
 	case AstString:
 		return basicSQLEquality(cfg, not, s, other), nil

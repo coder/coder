@@ -13,11 +13,12 @@ func String(v string) Node {
 
 func (AstString) UseAs() Node { return AstString{} }
 
-func (s AstString) SQLString(cfg *SQLGenerator) string {
+func (s AstString) SQLString(_ *SQLGenerator) string {
 	return "'" + s.Value + "'"
 }
 
 func (s AstString) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
+	//nolint:singleCaseSwitch
 	switch other.UseAs().(type) {
 	case AstString:
 		return basicSQLEquality(cfg, not, s, other), nil

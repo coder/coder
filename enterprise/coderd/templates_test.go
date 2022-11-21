@@ -5,16 +5,15 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/cryptorand"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
@@ -895,7 +894,7 @@ func TestTemplateAccess(t *testing.T) {
 		require.Len(t, exp, 0, "expected templates not found")
 	}
 
-	// Test
+	// nolint:paralleltest
 	t.Run("OwnerReadAll", func(t *testing.T) {
 		for _, o := range orgs {
 			// Owners can read all templates in all orgs
@@ -904,6 +903,7 @@ func TestTemplateAccess(t *testing.T) {
 		}
 	})
 
+	// nolint:paralleltest
 	t.Run("TemplateAdminReadAll", func(t *testing.T) {
 		for _, o := range orgs {
 			// Template Admins can read all templates in all orgs
@@ -912,6 +912,7 @@ func TestTemplateAccess(t *testing.T) {
 		}
 	})
 
+	// nolint:paralleltest
 	t.Run("OrgAdminReadAllTheirs", func(t *testing.T) {
 		for i, o := range orgs {
 			cli := o.Admin.Client
@@ -925,6 +926,7 @@ func TestTemplateAccess(t *testing.T) {
 		}
 	})
 
+	// nolint:paralleltest
 	t.Run("TestMemberNoGroup", func(t *testing.T) {
 		for i, o := range orgs {
 			cli := o.MemberNoGroup.Client
@@ -938,6 +940,7 @@ func TestTemplateAccess(t *testing.T) {
 		}
 	})
 
+	// nolint:paralleltest
 	t.Run("TestMemberInGroup", func(t *testing.T) {
 		for i, o := range orgs {
 			cli := o.MemberInGroup.Client

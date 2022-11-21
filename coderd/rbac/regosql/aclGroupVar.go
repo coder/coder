@@ -90,6 +90,7 @@ func (g ACLGroupVar) SQLString(cfg *sqltypes.SQLGenerator) string {
 }
 
 func (g ACLGroupVar) ContainsSQL(cfg *sqltypes.SQLGenerator, other sqltypes.Node) (string, error) {
+	//nolint:singleCaseSwitch
 	switch other.UseAs().(type) {
 	// Only supports containing other strings.
 	case sqltypes.AstString:

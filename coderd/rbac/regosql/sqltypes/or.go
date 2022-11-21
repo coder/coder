@@ -8,7 +8,7 @@ import (
 type binaryOperator int
 
 const (
-	binaryOpUnknown binaryOperator = iota
+	_ binaryOperator = iota
 	binaryOpOR
 	binaryOpAND
 )
@@ -68,8 +68,8 @@ func (b binaryOp) SQLString(cfg *SQLGenerator) string {
 
 	terms := make([]string, 0, len(b.Terms))
 	for _, term := range b.Terms {
-		termSql := term.SQLString(cfg)
-		terms = append(terms, termSql)
+		termSQL := term.SQLString(cfg)
+		terms = append(terms, termSQL)
 	}
 
 	return strings.Join(terms, " "+sqlOp+" ")

@@ -65,6 +65,7 @@ func (e equality) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (stri
 }
 
 func boolEqualsSQLString(cfg *SQLGenerator, a BooleanNode, not bool, other Node) (string, error) {
+	//nolint:singleCaseSwitch
 	switch other.UseAs().(type) {
 	case BooleanNode:
 		bn, ok := other.(BooleanNode)
