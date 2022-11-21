@@ -13,14 +13,15 @@ type alwaysFalse struct {
 	InnerNode Node
 }
 
-func AlwaysFalse(m VariableMatcher) alwaysFalse {
+// AlwaysFalse overrides the inner node with a constant "false".
+func AlwaysFalse(m VariableMatcher) VariableMatcher {
 	return alwaysFalse{
 		Matcher: m,
 	}
 }
 
 // AlwaysFalseNode is mainly used for unit testing to make a Node immediately.
-func AlwaysFalseNode(n Node) alwaysFalse {
+func AlwaysFalseNode(n Node) Node {
 	return alwaysFalse{
 		InnerNode: n,
 		Matcher:   nil,

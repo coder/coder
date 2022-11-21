@@ -26,9 +26,6 @@ func Array(source RegoSource, nodes ...Node) (Node, error) {
 func (ASTArray) UseAs() Node { return ASTArray{} }
 
 func (a ASTArray) ContainsSQL(cfg *SQLGenerator, needle Node) (string, error) {
-	// TODO: Handle ASTArray.Contains(ASTArray). Must handle types correctly.
-	// 	Should implement as strict subset.
-
 	// If we have no elements in our set, then our needle is never in the set.
 	if len(a.Value) == 0 {
 		return "false", nil

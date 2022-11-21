@@ -18,16 +18,11 @@ type SupportsContainedIn interface {
 
 var _ BooleanNode = memberOf{}
 var _ Node = memberOf{}
-
-//var _ SupportsMemberOf = memberOf{}
+var _ SupportsEquality = memberOf{}
 
 type memberOf struct {
 	Needle   Node
 	Haystack Node
-
-	// Not just inverses the result of the comparison. We could implement this
-	// as a Not node wrapping the equality, but this is more efficient.
-	Not bool
 }
 
 func MemberOf(needle, haystack Node) BooleanNode {
