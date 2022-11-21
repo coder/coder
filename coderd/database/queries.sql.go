@@ -365,89 +365,6 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAuditLogCount = `-- name: GetAuditLogCount :one
-SELECT
-  COUNT(*) as count
-FROM
-	audit_logs
-WHERE
-    -- Filter resource_type
-	CASE
-		WHEN $1 :: text != '' THEN
-			resource_type = $1 :: resource_type
-		ELSE true
-	END
-	-- Filter resource_id
-	AND CASE
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $2
-		ELSE true
-	END
-	-- Filter by resource_target
-	AND CASE
-		WHEN $3 :: text != '' THEN
-			resource_target = $3
-		ELSE true
-	END
-	-- Filter action
-	AND CASE
-		WHEN $4 :: text != '' THEN
-			action = $4 :: audit_action
-		ELSE true
-	END
-	-- Filter by username
-	AND CASE
-		WHEN $5 :: text != '' THEN
-			user_id = (SELECT id from users WHERE users.username = $5 )
-		ELSE true
-	END
-	-- Filter by user_email
-	AND CASE
-		WHEN $6 :: text != '' THEN
-			user_id = (SELECT id from users WHERE users.email = $6 )
-		ELSE true
-	END
-	-- Filter by date_from
-	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" >= $7
-		ELSE true
-	END
-	-- Filter by date_to
-	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" <= $8
-		ELSE true
-	END
-`
-
-type GetAuditLogCountParams struct {
-	ResourceType   string    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
-	ResourceTarget string    `db:"resource_target" json:"resource_target"`
-	Action         string    `db:"action" json:"action"`
-	Username       string    `db:"username" json:"username"`
-	Email          string    `db:"email" json:"email"`
-	DateFrom       time.Time `db:"date_from" json:"date_from"`
-	DateTo         time.Time `db:"date_to" json:"date_to"`
-}
-
-func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getAuditLogCount,
-		arg.ResourceType,
-		arg.ResourceID,
-		arg.ResourceTarget,
-		arg.Action,
-		arg.Username,
-		arg.Email,
-		arg.DateFrom,
-		arg.DateTo,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
 	audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
@@ -456,7 +373,8 @@ SELECT
     users.created_at AS user_created_at,
     users.status AS user_status,
     users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url
+    users.avatar_url AS user_avatar_url,
+		COUNT(audit_logs.*) OVER() AS count
 FROM
 	audit_logs
 LEFT JOIN
@@ -553,6 +471,7 @@ type GetAuditLogsOffsetRow struct {
 	UserStatus       UserStatus      `db:"user_status" json:"user_status"`
 	UserRoles        []string        `db:"user_roles" json:"user_roles"`
 	UserAvatarUrl    sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
+	Count            int64           `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -599,6 +518,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.UserStatus,
 			pq.Array(&i.UserRoles),
 			&i.UserAvatarUrl,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

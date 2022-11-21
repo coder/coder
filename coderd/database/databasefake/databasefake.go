@@ -3100,6 +3100,7 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			UserCreatedAt:    sql.NullTime{Time: user.CreatedAt, Valid: userValid},
 			UserStatus:       user.Status,
 			UserRoles:        user.RBACRoles,
+			Count:            0,
 		})
 
 		if len(logs) >= int(arg.Limit) {
@@ -3107,52 +3108,12 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 		}
 	}
 
-	return logs, nil
-}
-
-func (q *fakeQuerier) GetAuditLogCount(_ context.Context, arg database.GetAuditLogCountParams) (int64, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	logs := make([]database.AuditLog, 0)
-
-	for _, alog := range q.auditLogs {
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
-			continue
-		}
-		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
-			continue
-		}
-		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
-			continue
-		}
-		if arg.Username != "" {
-			user, err := q.GetUserByID(context.Background(), alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
-				continue
-			}
-		}
-		if arg.Email != "" {
-			user, err := q.GetUserByID(context.Background(), alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
-				continue
-			}
-		}
-		if !arg.DateFrom.IsZero() {
-			if alog.Time.Before(arg.DateFrom) {
-				continue
-			}
-		}
-		if !arg.DateTo.IsZero() {
-			if alog.Time.After(arg.DateTo) {
-				continue
-			}
-		}
-
-		logs = append(logs, alog)
+	count := int64(len(logs))
+	for i := range logs {
+		logs[i].Count = count
 	}
 
-	return int64(len(logs)), nil
+	return logs, nil
 }
 
 func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {

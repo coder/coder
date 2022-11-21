@@ -556,14 +556,6 @@ export const getAuditLogs = async (
   return response.data
 }
 
-export const getAuditLogsCount = async (
-  options: TypesGen.AuditLogCountRequest = {},
-): Promise<TypesGen.AuditLogCountResponse> => {
-  const url = getURLWithSearchParams("/api/v2/audit/count", options)
-  const response = await axios.get(url)
-  return response.data
-}
-
 export const getTemplateDAUs = async (
   templateId: string,
 ): Promise<TypesGen.TemplateDAUsResponse> => {

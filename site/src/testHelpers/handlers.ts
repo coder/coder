@@ -212,16 +212,18 @@ export const handlers = [
 
   // Audit
   rest.get("/api/v2/audit", (req, res, ctx) => {
+    const filter = req.url.searchParams.get("q") as string
+    const logs =
+      filter === "resource_type:workspace action:create"
+        ? [M.MockAuditLog]
+        : [M.MockAuditLog, M.MockAuditLog2]
     return res(
       ctx.status(200),
       ctx.json({
-        audit_logs: [M.MockAuditLog, M.MockAuditLog2],
+        audit_logs: logs,
+        count: logs.length,
       }),
     )
-  }),
-
-  rest.get("/api/v2/audit/count", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json({ count: 1000 }))
   }),
 
   // Applications host
