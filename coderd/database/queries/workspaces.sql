@@ -44,22 +44,36 @@ FROM
 	workspaces
 LEFT JOIN LATERAL (
 	SELECT
+	    build_number,
+	    workspace_builds.job_id,
 		workspace_builds.transition,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
-		provisioner_jobs.error
+		provisioner_jobs.error,
+		workspace_agents.first_connected_at,
+		workspace_agents.last_connected_at
 	FROM
 		workspace_builds
 	LEFT JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
+	LEFT JOIN
+	    workspace_resources
+	ON
+	    workspace_resources.job_id = provisioner_jobs.id
+	LEFT JOIN
+	    workspace_agents
+	ON
+	    workspace_agents.resource_id = workspace_resources.id
 	WHERE
-		workspace_builds.workspace_id = workspaces.id
+		workspace_builds.workspace_id = '14260b33-a677-4399-8276-39ba287ec119'
 	ORDER BY
-		build_number DESC
+		build_number DESC,
+		workspace_agents.last_connected_at ASC,
+		workspace_agents.first_connected_at ASC
 	LIMIT
 		1
 ) latest_build ON TRUE
@@ -159,6 +173,20 @@ WHERE
 	AND CASE
 		WHEN @name :: text != '' THEN
 			name ILIKE '%' || @name || '%'
+		ELSE true
+	END
+	-- Filter by agent status
+	AND CASE
+	    WHEN @has_agent :: text != '' THEN
+		    CASE
+			    -- TODO timeout
+			    WHEN @has_agent = 'connecting' THEN
+			        latest_build.first_connected_at IS NULL
+				-- TODO disconnected
+				WHEN @has_agent = 'connected' THEN
+			        latest_build.last_connected_at IS NOT NULL
+			    ELSE true
+			END
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces

@@ -1146,7 +1146,7 @@ func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetW
 	filter.TemplateName = parser.String(searchParams, "", "template")
 	filter.Name = parser.String(searchParams, "", "name")
 	filter.Status = parser.String(searchParams, "", "status")
-
+	filter.HasAgent = parser.String(searchParams, "", "has-agent")
 	return filter, parser.Errors
 }
 

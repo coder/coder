@@ -824,6 +824,26 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
+	t.Run("FilterQuery_HasAgent_Connecting", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// single workspace
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("has-agent:%s", "connected"),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 0)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
 }
 
 func TestOffsetLimit(t *testing.T) {

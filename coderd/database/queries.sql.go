@@ -6342,18 +6342,29 @@ FROM
 	workspaces
 LEFT JOIN LATERAL (
 	SELECT
+	    workspace_builds.job_id,
 		workspace_builds.transition,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
-		provisioner_jobs.error
+		provisioner_jobs.error,
+		workspace_agents.first_connected_at,
+		workspace_agents.last_connected_at
 	FROM
 		workspace_builds
 	LEFT JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
+	LEFT JOIN
+	    workspace_resources
+	ON
+	    workspace_resources.job_id = provisioner_jobs.id
+	LEFT JOIN
+	    workspace_agents
+	ON
+	    workspace_agents.resource_id = workspace_resources.id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -6459,17 +6470,31 @@ WHERE
 			name ILIKE '%' || $7 || '%'
 		ELSE true
 	END
+	-- Filter by agent status
+	AND CASE
+	    WHEN $8 :: text != '' THEN
+		    CASE
+			    -- TODO timeout
+			    WHEN $8 = 'connecting' THEN
+			        latest_build.first_connected_at IS NULL
+				-- TODO disconnected
+				WHEN $8 = 'connected' THEN
+			        latest_build.last_connected_at IS NOT NULL
+			    ELSE true
+			END
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
     last_used_at DESC
 LIMIT
     CASE
-        WHEN $9 :: integer > 0 THEN
-            $9
+        WHEN $10 :: integer > 0 THEN
+            $10
     END
 OFFSET
-    $8
+    $9
 `
 
 type GetWorkspacesParams struct {
@@ -6480,6 +6505,7 @@ type GetWorkspacesParams struct {
 	TemplateName  string      `db:"template_name" json:"template_name"`
 	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name          string      `db:"name" json:"name"`
+	HasAgent      string      `db:"has_agent" json:"has_agent"`
 	Offset        int32       `db:"offset_" json:"offset_"`
 	Limit         int32       `db:"limit_" json:"limit_"`
 }
@@ -6508,6 +6534,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
 		arg.Name,
+		arg.HasAgent,
 		arg.Offset,
 		arg.Limit,
 	)
