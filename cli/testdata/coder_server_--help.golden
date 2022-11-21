@@ -98,6 +98,9 @@ Flags:
       --oidc-email-domain string                     Email domain that clients logging in with
                                                      OIDC must match.
                                                      Consumes $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-ignore-email-verified                   Ignore the email_verified claim from the
+                                                     upstream provider.
+                                                     Consumes $CODER_OIDC_IGNORE_EMAIL_VERIFIED
       --oidc-issuer-url string                       Issuer URL to use for Login with OIDC.
                                                      Consumes $CODER_OIDC_ISSUER_URL
       --oidc-scopes strings                          Scopes to grant when authenticating with

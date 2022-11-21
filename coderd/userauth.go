@@ -195,6 +195,9 @@ type OIDCConfig struct {
 	// EmailDomain is the domain to enforce when a user authenticates.
 	EmailDomain  string
 	AllowSignups bool
+	// IgnoreEmailVerified allows ignoring the email_verified claim
+	// from an upstream OIDC provider. See #5065 for context.
+	IgnoreEmailVerified bool
 }
 
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
@@ -261,7 +264,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	verifiedRaw, ok := claims["email_verified"]
-	if ok {
+	if ok && !api.OIDCConfig.IgnoreEmailVerified {
 		verified, ok := verifiedRaw.(bool)
 		if ok && !verified {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
