@@ -56,6 +56,28 @@ func TestMembership(t *testing.T) {
 			),
 			ExpectedSQL: "false",
 		},
+		{
+			Name: "AlwaysFalseMember",
+			Membership: sqltypes.MemberOf(
+				sqltypes.AlwaysFalseNode(sqltypes.Bool(true)),
+				must(sqltypes.Array("",
+					sqltypes.Bool(false),
+					sqltypes.Bool(true),
+				)),
+			),
+			ExpectedSQL: "false",
+		},
+		{
+			Name: "AlwaysFalseArray",
+			Membership: sqltypes.MemberOf(
+				sqltypes.Bool(true),
+				sqltypes.AlwaysFalseNode(must(sqltypes.Array("",
+					sqltypes.Bool(false),
+					sqltypes.Bool(true),
+				))),
+			),
+			ExpectedSQL: "false",
+		},
 
 		// Errors
 		{
@@ -76,9 +98,10 @@ func TestMembership(t *testing.T) {
 			gen := sqltypes.NewSQLGenerator()
 			found := tc.Membership.SQLString(gen)
 			if tc.ExpectedErrors > 0 {
-				require.Equal(t, tc.ExpectedErrors, len(gen.Errors()), "expected AstNumber of errors")
+				require.Equal(t, tc.ExpectedErrors, len(gen.Errors()), "expected some errors")
 			} else {
 				require.Equal(t, tc.ExpectedSQL, found, "expected sql")
+				require.Equal(t, tc.ExpectedErrors, 0, "expected no errors")
 			}
 		})
 	}

@@ -196,7 +196,7 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.NoACLConverter(),
 		},
 		{
-			Name: "EmptyACLList",
+			Name: "EmptyACLListNoACLs",
 			Queries: []string{
 				`input.object.org_owner != "";
 				input.object.org_owner in set();
@@ -215,6 +215,20 @@ func TestRegoQueries(t *testing.T) {
 				p("user_acl->'me' ? 'create'") + " OR " +
 				p("user_acl->'me' ? '*'")),
 			VariableConverter: regosql.DefaultVariableConverter(),
+		},
+		{
+			Name: "TemplateOwner",
+			Queries: []string{
+				`neq(input.object.org_owner, "");
+internal.member_2(input.object.org_owner, {"3bf82434-e40b-44ae-b3d8-d0115bba9bad", "5630fda3-26ab-462c-9014-a88a62d7a415", "c304877a-bc0d-4e9b-9623-a38eae412929"});
+neq(input.object.owner, "");
+"806dd721-775f-4c85-9ce3-63fbbd975954" = input.object.owner`,
+			},
+			ExpectedSQL: p(p("organization_id :: text != ''") + " AND " +
+				p("organization_id :: text = ANY(ARRAY ['3bf82434-e40b-44ae-b3d8-d0115bba9bad','5630fda3-26ab-462c-9014-a88a62d7a415','c304877a-bc0d-4e9b-9623-a38eae412929'])") + " AND " +
+				p("false") + " AND " +
+				p("false")),
+			VariableConverter: regosql.TemplateConverter(),
 		},
 	}
 

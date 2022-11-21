@@ -6,8 +6,8 @@ import "github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		// Basic strings
-		AlwaysFalse(sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"})),
-		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
+		sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.AlwaysFalse(sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"})),
 	)
 	matcher.RegisterMatcher(
 		ACLGroupMatcher(matcher, "group_acl", []string{"input", "object", "acl_group_list"}),
@@ -25,8 +25,8 @@ func NoACLConverter() *sqltypes.VariableConverter {
 		sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"}),
 	)
 	matcher.RegisterMatcher(
-		AlwaysFalse(ACLGroupMatcher(matcher, "group_acl", []string{"input", "object", "acl_group_list"})),
-		AlwaysFalse(ACLGroupMatcher(matcher, "user_acl", []string{"input", "object", "acl_user_list"})),
+		sqltypes.AlwaysFalse(ACLGroupMatcher(matcher, "group_acl", []string{"input", "object", "acl_group_list"})),
+		sqltypes.AlwaysFalse(ACLGroupMatcher(matcher, "user_acl", []string{"input", "object", "acl_user_list"})),
 	)
 
 	return matcher

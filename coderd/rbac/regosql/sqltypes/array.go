@@ -37,8 +37,6 @@ func (a ASTArray) ContainsSQL(cfg *SQLGenerator, needle Node) (string, error) {
 	// This condition supports any contains function if the needle type is
 	// the same as the ASTArray element type.
 	if reflect.TypeOf(a.MyType().UseAs()) != reflect.TypeOf(needle.UseAs()) {
-		cfg.AddError(fmt.Errorf("array contains %q: type mismatch (%T, %T)",
-			a.Source, a.MyType(), needle))
 		return "ArrayContainsError", fmt.Errorf("array contains %q: type mismatch (%T, %T)",
 			a.Source, a.MyType(), needle)
 	}

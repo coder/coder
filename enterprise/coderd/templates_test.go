@@ -757,7 +757,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 // This is a full rbac test of many of the common role combinations.
 func TestTemplateAccess(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*5)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
 
 	ownerClient := coderdenttest.New(t, nil)
@@ -881,7 +881,18 @@ func TestTemplateAccess(t *testing.T) {
 		found, err := usr.TemplatesByOrganization(ctx, org.Org.ID)
 		require.NoError(t, err, "failed to get templates")
 
-		require.ElementsMatch(t, read, found, "my org")
+		exp := make(map[uuid.UUID]codersdk.Template)
+		for _, tmpl := range read {
+			exp[tmpl.ID] = tmpl
+		}
+
+		for _, f := range found {
+			if _, ok := exp[f.ID]; !ok {
+				t.Errorf("found unexpected template %q", f.Name)
+			}
+			delete(exp, f.ID)
+		}
+		require.Len(t, exp, 0, "expected templates not found")
 	}
 
 	// Test

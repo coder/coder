@@ -94,6 +94,22 @@ func TestEquality(t *testing.T) {
 			),
 			ExpectedSQL: "(('foo' = ANY(ARRAY ['foo','bar'])) != false) = (true = (2 = ANY(ARRAY [5,2])))",
 		},
+		{
+			Name: "AlwaysFalse=String",
+			Equality: sqltypes.Equality(false,
+				sqltypes.AlwaysFalseNode(sqltypes.String("foo")),
+				sqltypes.String("foo"),
+			),
+			ExpectedSQL: "false",
+		},
+		{
+			Name: "String=AlwaysFalse",
+			Equality: sqltypes.Equality(false,
+				sqltypes.String("foo"),
+				sqltypes.AlwaysFalseNode(sqltypes.String("foo")),
+			),
+			ExpectedSQL: "false",
+		},
 	}
 
 	for _, tc := range testCases {

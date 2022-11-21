@@ -10,6 +10,12 @@ type SupportsContains interface {
 	ContainsSQL(cfg *SQLGenerator, other Node) (string, error)
 }
 
+// SupportsContainedIn is the inverse of SupportsContains. It is implemented
+// from the "needle" rather than the haystack.
+type SupportsContainedIn interface {
+	ContainedInSQL(cfg *SQLGenerator, other Node) (string, error)
+}
+
 var _ BooleanNode = memberOf{}
 var _ Node = memberOf{}
 
@@ -39,6 +45,13 @@ func (e memberOf) SQLString(cfg *SQLGenerator) string {
 	// try both left = right and right = left.
 	if sc, ok := e.Haystack.(SupportsContains); ok {
 		v, err := sc.ContainsSQL(cfg, e.Needle)
+		if err == nil {
+			return v
+		}
+	}
+
+	if sc, ok := e.Needle.(SupportsContainedIn); ok {
+		v, err := sc.ContainedInSQL(cfg, e.Haystack)
 		if err == nil {
 			return v
 		}
