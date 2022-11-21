@@ -727,7 +727,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
-  readonly allow_user_cancel_workspace_jobs: boolean
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/users.go
