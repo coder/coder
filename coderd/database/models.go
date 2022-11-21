@@ -596,6 +596,8 @@ type Template struct {
 	GroupACL   TemplateACL `db:"group_acl" json:"group_acl"`
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Allow users to cancel in-progress workspace jobs.
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
 type TemplateVersion struct {

@@ -211,6 +211,7 @@ export const MockTemplate: TypesGen.Template = {
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
+  allow_user_cancel_workspace_jobs: true,
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
@@ -446,6 +447,8 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
   template_display_name: MockTemplate.display_name,
+  template_allow_user_cancel_workspace_jobs:
+    MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
@@ -956,7 +959,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   },
   status_code: 200,
   additional_fields: {},
-  description: "{user} updated workspace {target}",
+  description: "{user} created workspace {target}",
   user: MockUser,
 }
 
@@ -964,6 +967,8 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
+  time: "2022-05-20T16:45:57.122Z",
+  description: "{user} updated workspace {target}",
   diff: {
     workspace_name: {
       old: "old-workspace-name",

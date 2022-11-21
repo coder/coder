@@ -365,89 +365,6 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAuditLogCount = `-- name: GetAuditLogCount :one
-SELECT
-  COUNT(*) as count
-FROM
-	audit_logs
-WHERE
-    -- Filter resource_type
-	CASE
-		WHEN $1 :: text != '' THEN
-			resource_type = $1 :: resource_type
-		ELSE true
-	END
-	-- Filter resource_id
-	AND CASE
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $2
-		ELSE true
-	END
-	-- Filter by resource_target
-	AND CASE
-		WHEN $3 :: text != '' THEN
-			resource_target = $3
-		ELSE true
-	END
-	-- Filter action
-	AND CASE
-		WHEN $4 :: text != '' THEN
-			action = $4 :: audit_action
-		ELSE true
-	END
-	-- Filter by username
-	AND CASE
-		WHEN $5 :: text != '' THEN
-			user_id = (SELECT id from users WHERE users.username = $5 )
-		ELSE true
-	END
-	-- Filter by user_email
-	AND CASE
-		WHEN $6 :: text != '' THEN
-			user_id = (SELECT id from users WHERE users.email = $6 )
-		ELSE true
-	END
-	-- Filter by date_from
-	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" >= $7
-		ELSE true
-	END
-	-- Filter by date_to
-	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
-			"time" <= $8
-		ELSE true
-	END
-`
-
-type GetAuditLogCountParams struct {
-	ResourceType   string    `db:"resource_type" json:"resource_type"`
-	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
-	ResourceTarget string    `db:"resource_target" json:"resource_target"`
-	Action         string    `db:"action" json:"action"`
-	Username       string    `db:"username" json:"username"`
-	Email          string    `db:"email" json:"email"`
-	DateFrom       time.Time `db:"date_from" json:"date_from"`
-	DateTo         time.Time `db:"date_to" json:"date_to"`
-}
-
-func (q *sqlQuerier) GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getAuditLogCount,
-		arg.ResourceType,
-		arg.ResourceID,
-		arg.ResourceTarget,
-		arg.Action,
-		arg.Username,
-		arg.Email,
-		arg.DateFrom,
-		arg.DateTo,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
 	audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
@@ -456,7 +373,8 @@ SELECT
     users.created_at AS user_created_at,
     users.status AS user_status,
     users.rbac_roles AS user_roles,
-    users.avatar_url AS user_avatar_url
+    users.avatar_url AS user_avatar_url,
+		COUNT(audit_logs.*) OVER() AS count
 FROM
 	audit_logs
 LEFT JOIN
@@ -553,6 +471,7 @@ type GetAuditLogsOffsetRow struct {
 	UserStatus       UserStatus      `db:"user_status" json:"user_status"`
 	UserRoles        []string        `db:"user_roles" json:"user_roles"`
 	UserAvatarUrl    sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
+	Count            int64           `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -599,6 +518,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.UserStatus,
 			pq.Array(&i.UserRoles),
 			&i.UserAvatarUrl,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -3130,7 +3050,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs
 FROM
 	templates
 WHERE
@@ -3158,13 +3078,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.UserACL,
 		&i.GroupACL,
 		&i.DisplayName,
+		&i.AllowUserCancelWorkspaceJobs,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs
 FROM
 	templates
 WHERE
@@ -3200,12 +3121,13 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.UserACL,
 		&i.GroupACL,
 		&i.DisplayName,
+		&i.AllowUserCancelWorkspaceJobs,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -3234,6 +3156,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.UserACL,
 			&i.GroupACL,
 			&i.DisplayName,
+			&i.AllowUserCancelWorkspaceJobs,
 		); err != nil {
 			return nil, err
 		}
@@ -3250,7 +3173,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs
 FROM
 	templates
 WHERE
@@ -3316,6 +3239,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.UserACL,
 			&i.GroupACL,
 			&i.DisplayName,
+			&i.AllowUserCancelWorkspaceJobs,
 		); err != nil {
 			return nil, err
 		}
@@ -3346,27 +3270,29 @@ INSERT INTO
 		icon,
 		user_acl,
 		group_acl,
-		display_name
+		display_name,
+		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs
 `
 
 type InsertTemplateParams struct {
-	ID              uuid.UUID       `db:"id" json:"id"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Name            string          `db:"name" json:"name"`
-	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description     string          `db:"description" json:"description"`
-	DefaultTTL      int64           `db:"default_ttl" json:"default_ttl"`
-	CreatedBy       uuid.UUID       `db:"created_by" json:"created_by"`
-	Icon            string          `db:"icon" json:"icon"`
-	UserACL         TemplateACL     `db:"user_acl" json:"user_acl"`
-	GroupACL        TemplateACL     `db:"group_acl" json:"group_acl"`
-	DisplayName     string          `db:"display_name" json:"display_name"`
+	ID                           uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                    time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID               uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Name                         string          `db:"name" json:"name"`
+	Provisioner                  ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID              uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description                  string          `db:"description" json:"description"`
+	DefaultTTL                   int64           `db:"default_ttl" json:"default_ttl"`
+	CreatedBy                    uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                         string          `db:"icon" json:"icon"`
+	UserACL                      TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName                  string          `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
@@ -3385,6 +3311,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.UserACL,
 		arg.GroupACL,
 		arg.DisplayName,
+		arg.AllowUserCancelWorkspaceJobs,
 	)
 	var i Template
 	err := row.Scan(
@@ -3403,6 +3330,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.UserACL,
 		&i.GroupACL,
 		&i.DisplayName,
+		&i.AllowUserCancelWorkspaceJobs,
 	)
 	return i, err
 }
@@ -3416,7 +3344,7 @@ SET
 WHERE
 	id = $3
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3444,6 +3372,7 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.UserACL,
 		&i.GroupACL,
 		&i.DisplayName,
+		&i.AllowUserCancelWorkspaceJobs,
 	)
 	return i, err
 }
@@ -3499,21 +3428,23 @@ SET
 	default_ttl = $4,
 	name = $5,
 	icon = $6,
-	display_name = $7
+	display_name = $7,
+	allow_user_cancel_workspace_jobs = $8
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs
 `
 
 type UpdateTemplateMetaByIDParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Description string    `db:"description" json:"description"`
-	DefaultTTL  int64     `db:"default_ttl" json:"default_ttl"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	DisplayName string    `db:"display_name" json:"display_name"`
+	ID                           uuid.UUID `db:"id" json:"id"`
+	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
+	Description                  string    `db:"description" json:"description"`
+	DefaultTTL                   int64     `db:"default_ttl" json:"default_ttl"`
+	Name                         string    `db:"name" json:"name"`
+	Icon                         string    `db:"icon" json:"icon"`
+	DisplayName                  string    `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs bool      `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
@@ -3525,6 +3456,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.Name,
 		arg.Icon,
 		arg.DisplayName,
+		arg.AllowUserCancelWorkspaceJobs,
 	)
 	var i Template
 	err := row.Scan(
@@ -3543,6 +3475,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.UserACL,
 		&i.GroupACL,
 		&i.DisplayName,
+		&i.AllowUserCancelWorkspaceJobs,
 	)
 	return i, err
 }

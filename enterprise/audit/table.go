@@ -48,23 +48,24 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 	},
 	&database.Template{}: {
-		"id":                     ActionTrack,
-		"created_at":             ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":             ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"organization_id":        ActionIgnore, /// Never changes.
-		"deleted":                ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":                   ActionTrack,
-		"display_name":           ActionTrack,
-		"provisioner":            ActionTrack,
-		"active_version_id":      ActionTrack,
-		"description":            ActionTrack,
-		"icon":                   ActionTrack,
-		"default_ttl":            ActionTrack,
-		"min_autostart_interval": ActionTrack,
-		"created_by":             ActionTrack,
-		"is_private":             ActionTrack,
-		"group_acl":              ActionTrack,
-		"user_acl":               ActionTrack,
+		"id":                               ActionTrack,
+		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"organization_id":                  ActionIgnore, /// Never changes.
+		"deleted":                          ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":                             ActionTrack,
+		"display_name":                     ActionTrack,
+		"provisioner":                      ActionTrack,
+		"active_version_id":                ActionTrack,
+		"description":                      ActionTrack,
+		"icon":                             ActionTrack,
+		"default_ttl":                      ActionTrack,
+		"min_autostart_interval":           ActionTrack,
+		"created_by":                       ActionTrack,
+		"is_private":                       ActionTrack,
+		"group_acl":                        ActionTrack,
+		"user_acl":                         ActionTrack,
+		"allow_user_cancel_workspace_jobs": ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,

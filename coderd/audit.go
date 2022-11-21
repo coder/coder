@@ -57,45 +57,19 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-		AuditLogs: convertAuditLogs(dblogs),
-	})
-}
-
-func (api *API) auditLogCount(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	queryStr := r.URL.Query().Get("q")
-	filter, errs := auditSearchQuery(queryStr)
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid audit search query.",
-			Validations: errs,
+	// GetAuditLogsOffset does not return ErrNoRows because it uses a window function to get the count.
+	// So we need to check if the dblogs is empty and return an empty array if so.
+	if len(dblogs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
+			AuditLogs: []codersdk.AuditLog{},
+			Count:     0,
 		})
 		return
 	}
 
-	count, err := api.Database.GetAuditLogCount(ctx, database.GetAuditLogCountParams{
-		ResourceType: filter.ResourceType,
-		ResourceID:   filter.ResourceID,
-		Action:       filter.Action,
-		Username:     filter.Username,
-		Email:        filter.Email,
-		DateFrom:     filter.DateFrom,
-		DateTo:       filter.DateTo,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogCountResponse{
-		Count: count,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
+		AuditLogs: convertAuditLogs(dblogs),
+		Count:     dblogs[0].Count,
 	})
 }
 

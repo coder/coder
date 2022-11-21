@@ -125,13 +125,16 @@ func TestWorkspace(t *testing.T) {
 
 		const templateIcon = "/img/icon.svg"
 		const templateDisplayName = "This is template"
+		var templateAllowUserCancelWorkspaceJobs = false
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Icon = templateIcon
 			ctr.DisplayName = templateDisplayName
+			ctr.AllowUserCancelWorkspaceJobs = &templateAllowUserCancelWorkspaceJobs
 		})
 		require.NotEmpty(t, template.Name)
 		require.NotEmpty(t, template.DisplayName)
 		require.NotEmpty(t, template.Icon)
+		require.False(t, template.AllowUserCancelWorkspaceJobs)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -144,6 +147,7 @@ func TestWorkspace(t *testing.T) {
 		assert.Equal(t, template.Name, ws.TemplateName)
 		assert.Equal(t, templateIcon, ws.TemplateIcon)
 		assert.Equal(t, templateDisplayName, ws.TemplateDisplayName)
+		assert.Equal(t, templateAllowUserCancelWorkspaceJobs, ws.TemplateAllowUserCancelWorkspaceJobs)
 	})
 }
 

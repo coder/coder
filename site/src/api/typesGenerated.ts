@@ -71,18 +71,9 @@ export interface AuditLog {
 }
 
 // From codersdk/audit.go
-export interface AuditLogCountRequest {
-  readonly q?: string
-}
-
-// From codersdk/audit.go
-export interface AuditLogCountResponse {
-  readonly count: number
-}
-
-// From codersdk/audit.go
 export interface AuditLogResponse {
   readonly audit_logs: AuditLog[]
+  readonly count: number
 }
 
 // From codersdk/audit.go
@@ -182,6 +173,7 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -642,6 +634,7 @@ export interface Template {
   readonly default_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_cancel_workspace_jobs: boolean
 }
 
 // From codersdk/templates.go
@@ -725,6 +718,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/users.go
@@ -799,6 +793,7 @@ export interface Workspace {
   readonly template_name: string
   readonly template_display_name: string
   readonly template_icon: string
+  readonly template_allow_user_cancel_workspace_jobs: boolean
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
