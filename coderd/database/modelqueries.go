@@ -76,6 +76,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.UserACL,
 			&i.GroupACL,
 			&i.DisplayName,
+			&i.AllowUserCancelWorkspaceJobs,
 		); err != nil {
 			return nil, err
 		}
