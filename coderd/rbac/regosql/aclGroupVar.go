@@ -92,12 +92,11 @@ func (g ACLGroupVar) SQLString(cfg *sqltypes.SQLGenerator) string {
 }
 
 func (g ACLGroupVar) ContainsSQL(cfg *sqltypes.SQLGenerator, other sqltypes.Node) (string, error) {
-	//nolint:gocritic
 	switch other.UseAs().(type) {
 	// Only supports containing other strings.
 	case sqltypes.AstString:
 		return fmt.Sprintf("%s ? %s", g.SQLString(cfg), other.SQLString(cfg)), nil
+	default:
+		return "", xerrors.Errorf("unsupported acl group contains %T", other)
 	}
-
-	return "", xerrors.Errorf("unsupported acl group contains %T", other)
 }

@@ -67,7 +67,6 @@ func (e equality) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (stri
 }
 
 func boolEqualsSQLString(cfg *SQLGenerator, a BooleanNode, not bool, other Node) (string, error) {
-	//nolint:gocritic
 	switch other.UseAs().(type) {
 	case BooleanNode:
 		bn, ok := other.(BooleanNode)
@@ -81,9 +80,9 @@ func boolEqualsSQLString(cfg *SQLGenerator, a BooleanNode, not bool, other Node)
 			equalsOp(not),
 			BoolParenthesis(bn).SQLString(cfg),
 		), nil
+	default:
+		return "", xerrors.Errorf("unsupported equality: %T %s %T", a, equalsOp(not), other)
 	}
-
-	return "", xerrors.Errorf("unsupported equality: %T %s %T", a, equalsOp(not), other)
 }
 
 // nolint:revive

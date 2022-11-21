@@ -27,11 +27,10 @@ func (n AstNumber) SQLString(_ *SQLGenerator) string {
 }
 
 func (n AstNumber) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error) {
-	//nolint:gocritic
 	switch other.UseAs().(type) {
 	case AstNumber:
 		return basicSQLEquality(cfg, not, n, other), nil
+	default:
+		return "", xerrors.Errorf("unsupported equality: %T %s %T", n, equalsOp(not), other)
 	}
-
-	return "", xerrors.Errorf("unsupported equality: %T %s %T", n, equalsOp(not), other)
 }

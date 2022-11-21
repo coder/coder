@@ -237,7 +237,7 @@ neq(input.object.owner, "");
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			part := partialQueries(t, tc.Queries...)
+			part := partialQueries(tc.Queries...)
 
 			cfg := regosql.ConvertConfig{
 				VariableConverter: tc.VariableConverter,
@@ -290,7 +290,7 @@ func requireConvert(t *testing.T, tc convertTestCase) {
 	}
 }
 
-func partialQueries(t *testing.T, queries ...string) *rego.PartialQueries {
+func partialQueries(queries ...string) *rego.PartialQueries {
 	opts := ast.ParserOptions{
 		AllFutureKeywords: true,
 	}

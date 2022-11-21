@@ -56,6 +56,6 @@ func (alwaysFalse) ContainedInSQL(_ *SQLGenerator, _ Node) (string, error) {
 	return "false", nil
 }
 
-func (alwaysFalse) EqualsSQLString(_ *SQLGenerator, not bool, _ Node) (string, error) {
+func (alwaysFalse) EqualsSQLString(_ *SQLGenerator, _ bool, _ Node) (string, error) {
 	return "false", nil
 }

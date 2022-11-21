@@ -754,6 +754,8 @@ func TestUpdateTemplateACL(t *testing.T) {
 // this test on at least 1 table type to ensure that the conversion is correct.
 // The rbac tests only assert against static SQL queries.
 // This is a full rbac test of many of the common role combinations.
+//
+//nolint:tparallel
 func TestTemplateAccess(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
