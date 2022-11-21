@@ -3,8 +3,9 @@ package sqltypes_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 )
 
 func TestMembership(t *testing.T) {

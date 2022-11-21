@@ -2,11 +2,11 @@ package regosql
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 )
@@ -42,14 +42,14 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 	for i, q := range partial.Queries {
 		converted, err := convertQuery(cfg, q)
 		if err != nil {
-			return nil, fmt.Errorf("query %s: %w", q.String(), err)
+			return nil, xerrors.Errorf("query %s: %w", q.String(), err)
 		}
 
 		// Each query should result in a boolean expression. If it is not,
 		// this cannot be converted to SQL.
 		boolConverted, ok := converted.(sqltypes.BooleanNode)
 		if !ok {
-			return nil, fmt.Errorf("query %s: not a boolean expression", q.String())
+			return nil, xerrors.Errorf("query %s: not a boolean expression", q.String())
 		}
 
 		if i != 0 {
@@ -72,7 +72,7 @@ func convertQuery(cfg ConvertConfig, q ast.Body) (sqltypes.BooleanNode, error) {
 	for _, e := range q {
 		exp, err := convertExpression(cfg, e)
 		if err != nil {
-			return nil, fmt.Errorf("expression %s: %w", e.String(), err)
+			return nil, xerrors.Errorf("expression %s: %w", e.String(), err)
 		}
 
 		expressions = append(expressions, exp)
@@ -87,12 +87,12 @@ func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, er
 	if e.IsCall() {
 		n, err := convertCall(cfg, e.Terms.([]*ast.Term))
 		if err != nil {
-			return nil, fmt.Errorf("call: %w", err)
+			return nil, xerrors.Errorf("call: %w", err)
 		}
 
 		boolN, ok := n.(sqltypes.BooleanNode)
 		if !ok {
-			return nil, fmt.Errorf("call %q: not a boolean expression", e.String())
+			return nil, xerrors.Errorf("call %q: not a boolean expression", e.String())
 		}
 		return boolN, nil
 	}
@@ -101,18 +101,18 @@ func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, er
 	if term, ok := e.Terms.(*ast.Term); ok {
 		ty, err := convertTerm(cfg, term)
 		if err != nil {
-			return nil, fmt.Errorf("convert term %s: %w", term.String(), err)
+			return nil, xerrors.Errorf("convert term %s: %w", term.String(), err)
 		}
 
 		tyBool, ok := ty.(sqltypes.BooleanNode)
 		if !ok {
-			return nil, fmt.Errorf("convert term %s is not a boolean: %w", term.String(), err)
+			return nil, xerrors.Errorf("convert term %s is not a boolean: %w", term.String(), err)
 		}
 
 		return tyBool, nil
 	}
 
-	return nil, fmt.Errorf("expression %s not supported", e.String())
+	return nil, xerrors.Errorf("expression %s not supported", e.String())
 }
 
 // convertCall converts a function call to a SQL expression.
@@ -130,7 +130,7 @@ func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
 	case "neq", "eq", "equals", "equal":
 		args, err := convertTerms(cfg, args, 2)
 		if err != nil {
-			return nil, fmt.Errorf("arguments: %w", err)
+			return nil, xerrors.Errorf("arguments: %w", err)
 		}
 
 		not := false
@@ -143,26 +143,26 @@ func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
 	case "internal.member_2":
 		args, err := convertTerms(cfg, args, 2)
 		if err != nil {
-			return nil, fmt.Errorf("arguments: %w", err)
+			return nil, xerrors.Errorf("arguments: %w", err)
 		}
 
 		member := sqltypes.MemberOf(args[0], args[1])
 		return sqltypes.BoolParenthesis(member), nil
 	default:
-		return nil, fmt.Errorf("operator %s not supported", op)
+		return nil, xerrors.Errorf("operator %s not supported", op)
 	}
 }
 
 func convertTerms(cfg ConvertConfig, terms []*ast.Term, expected int) ([]sqltypes.Node, error) {
 	if len(terms) != expected {
-		return nil, fmt.Errorf("expected %d terms, got %d", expected, len(terms))
+		return nil, xerrors.Errorf("expected %d terms, got %d", expected, len(terms))
 	}
 
 	result := make([]sqltypes.Node, 0, len(terms))
 	for _, t := range terms {
 		term, err := convertTerm(cfg, t)
 		if err != nil {
-			return nil, fmt.Errorf("term: %w", err)
+			return nil, xerrors.Errorf("term: %w", err)
 		}
 		result = append(result, term)
 	}
@@ -175,16 +175,16 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 	switch t := term.Value.(type) {
 	case ast.Var:
 		// All vars should be contained in ast.Ref's.
-		return nil, fmt.Errorf("var not yet supported")
+		return nil, xerrors.New("var not yet supported")
 	case ast.Ref:
 		if len(t) == 0 {
 			// A reference with no text is a variable with no name?
 			// This makes no sense.
-			return nil, fmt.Errorf("empty ref not supported")
+			return nil, xerrors.New("empty ref not supported")
 		}
 
 		if cfg.VariableConverter == nil {
-			return nil, fmt.Errorf("no variable converter provided to handle variables")
+			return nil, xerrors.New("no variable converter provided to handle variables")
 		}
 
 		// The structure of references is as follows:
@@ -196,7 +196,7 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 		// 3. Repeat 1-2 until the end of the reference.
 		node, ok := cfg.VariableConverter.ConvertVariable(t)
 		if !ok {
-			return nil, fmt.Errorf("variable %q cannot be converted", t.String())
+			return nil, xerrors.Errorf("variable %q cannot be converted", t.String())
 		}
 		return node, nil
 	case ast.String:
@@ -210,13 +210,13 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 		for i := 0; i < t.Len(); i++ {
 			value, err := convertTerm(cfg, t.Elem(i))
 			if err != nil {
-				return nil, fmt.Errorf("array element %d in %q: %w", i, t.String(), err)
+				return nil, xerrors.Errorf("array element %d in %q: %w", i, t.String(), err)
 			}
 			elems = append(elems, value)
 		}
 		return sqltypes.Array(source, elems...)
 	case ast.Object:
-		return nil, fmt.Errorf("object not yet supported")
+		return nil, xerrors.New("object not yet supported")
 	case ast.Set:
 		// Just treat a set like an array for now.
 		arr := t.Sorted()
@@ -228,6 +228,6 @@ func convertTerm(cfg ConvertConfig, term *ast.Term) (sqltypes.Node, error) {
 		// This is a function call
 		return convertCall(cfg, t)
 	default:
-		return nil, fmt.Errorf("%T not yet supported", t)
+		return nil, xerrors.Errorf("%T not yet supported", t)
 	}
 }

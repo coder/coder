@@ -1,8 +1,9 @@
 package sqltypes
 
 import (
-	"fmt"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 type binaryOperator int
@@ -62,7 +63,7 @@ func (b binaryOp) SQLString(cfg *SQLGenerator) string {
 	case binaryOpAND:
 		sqlOp = "AND"
 	default:
-		cfg.AddError(fmt.Errorf("unsupported binary operator: %s (%d)", b.source, b.op))
+		cfg.AddError(xerrors.Errorf("unsupported binary operator: %s (%d)", b.source, b.op))
 		return "BinaryOpError"
 	}
 

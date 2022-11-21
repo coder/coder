@@ -3,6 +3,8 @@ package regosql
 import (
 	"fmt"
 
+	"golang.org/x/xerrors"
+
 	"github.com/open-policy-agent/opa/ast"
 
 	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
@@ -34,8 +36,8 @@ type ACLGroupVar struct {
 	GroupNode sqltypes.Node
 }
 
-func ACLGroupMatcher(fieldRefernce sqltypes.VariableMatcher, structSQL string, structPath []string) ACLGroupVar {
-	return ACLGroupVar{StructSQL: structSQL, StructPath: structPath, FieldReference: fieldRefernce}
+func ACLGroupMatcher(fieldReference sqltypes.VariableMatcher, structSQL string, structPath []string) ACLGroupVar {
+	return ACLGroupVar{StructSQL: structSQL, StructPath: structPath, FieldReference: fieldReference}
 }
 
 func (ACLGroupVar) UseAs() sqltypes.Node { return ACLGroupVar{} }
@@ -97,5 +99,5 @@ func (g ACLGroupVar) ContainsSQL(cfg *sqltypes.SQLGenerator, other sqltypes.Node
 		return fmt.Sprintf("%s ? %s", g.SQLString(cfg), other.SQLString(cfg)), nil
 	}
 
-	return "", fmt.Errorf("unsupported acl group contains %T", other)
+	return "", xerrors.Errorf("unsupported acl group contains %T", other)
 }

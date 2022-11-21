@@ -2,7 +2,8 @@ package sqltypes
 
 import (
 	"encoding/json"
-	"fmt"
+
+	"golang.org/x/xerrors"
 )
 
 type AstNumber struct {
@@ -32,5 +33,5 @@ func (n AstNumber) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (str
 		return basicSQLEquality(cfg, not, n, other), nil
 	}
 
-	return "", fmt.Errorf("unsupported equality: %T %s %T", n, equalsOp(not), other)
+	return "", xerrors.Errorf("unsupported equality: %T %s %T", n, equalsOp(not), other)
 }

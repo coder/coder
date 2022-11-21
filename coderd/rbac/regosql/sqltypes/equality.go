@@ -2,6 +2,8 @@ package sqltypes
 
 import (
 	"fmt"
+
+	"golang.org/x/xerrors"
 )
 
 // SupportsEquality is an interface that can be implemented by types that
@@ -56,7 +58,7 @@ func (e equality) SQLString(cfg *SQLGenerator) string {
 		}
 	}
 
-	cfg.AddError(fmt.Errorf("unsupported equality: %T %s %T", e.Left, equalsOp(e.Not), e.Right))
+	cfg.AddError(xerrors.Errorf("unsupported equality: %T %s %T", e.Left, equalsOp(e.Not), e.Right))
 	return "EqualityError"
 }
 
@@ -70,7 +72,7 @@ func boolEqualsSQLString(cfg *SQLGenerator, a BooleanNode, not bool, other Node)
 	case BooleanNode:
 		bn, ok := other.(BooleanNode)
 		if !ok {
-			return "", fmt.Errorf("not a boolean node: %T", other)
+			return "", xerrors.Errorf("not a boolean node: %T", other)
 		}
 
 		// Always wrap both sides in parens to ensure the correct precedence.
@@ -81,7 +83,7 @@ func boolEqualsSQLString(cfg *SQLGenerator, a BooleanNode, not bool, other Node)
 		), nil
 	}
 
-	return "", fmt.Errorf("unsupported equality: %T %s %T", a, equalsOp(not), other)
+	return "", xerrors.Errorf("unsupported equality: %T %s %T", a, equalsOp(not), other)
 }
 
 func equalsOp(not bool) string {

@@ -2,7 +2,6 @@ package rbac
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
@@ -47,7 +46,7 @@ func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter,
 		for _, err := range gen.Errors() {
 			errStrings = append(errStrings, err.Error())
 		}
-		return nil, fmt.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
+		return nil, xerrors.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
 	}
 
 	return &authorizedSQLFilter{

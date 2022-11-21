@@ -1,7 +1,7 @@
 package sqltypes
 
 import (
-	"fmt"
+	"golang.org/x/xerrors"
 )
 
 // SupportsContains is an interface that can be implemented by types that
@@ -52,7 +52,7 @@ func (e memberOf) SQLString(cfg *SQLGenerator) string {
 		}
 	}
 
-	cfg.AddError(fmt.Errorf("unsupported contains: %T contains %T", e.Haystack, e.Needle))
+	cfg.AddError(xerrors.Errorf("unsupported contains: %T contains %T", e.Haystack, e.Needle))
 	return "MemberOfError"
 }
 

@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 )
 
 func TestEquality(t *testing.T) {
