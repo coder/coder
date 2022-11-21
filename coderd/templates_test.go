@@ -285,11 +285,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		req := codersdk.UpdateTemplateMeta{
-			Name:             "new-template-name",
-			DisplayName:      "Displayed Name 456",
-			Description:      "lorem ipsum dolor sit amet et cetera",
-			Icon:             "/icons/new-icon.png",
-			DefaultTTLMillis: 12 * time.Hour.Milliseconds(),
+			Name:                         "new-template-name",
+			DisplayName:                  "Displayed Name 456",
+			Description:                  "lorem ipsum dolor sit amet et cetera",
+			Icon:                         "/icons/new-icon.png",
+			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
+			AllowUserCancelWorkspaceJobs: false,
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -306,6 +307,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
 		// Extra paranoid: did it _really_ happen?
 		updated, err = client.Template(ctx, template.ID)
@@ -316,6 +318,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.Description, updated.Description)
 		assert.Equal(t, req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
 		require.Len(t, auditor.AuditLogs, 4)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
