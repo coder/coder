@@ -21,7 +21,8 @@ import (
 )
 
 // FakeDatabase is helpful for knowing if the underlying db is an in memory fake
-// database.
+// database. This is only in the databasefake package, so will only be used
+// by unit tests.
 type FakeDatabase interface {
 	IsFakeDB()
 }

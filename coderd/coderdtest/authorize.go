@@ -25,7 +25,12 @@ import (
 )
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
+	// For any route using SQL filters, we need to know if the database is an
+	// in memory fake. This is because the in memory fake does not use SQL, and
+	// still uses rego. So this boolean indicates how to assert the expected
+	// behavior.
 	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
+
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
