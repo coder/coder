@@ -190,11 +190,7 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	_ = json.Unmarshal(dblog.Diff, &diff)
 
 	var user *codersdk.User
-	var agent string
 
-	if dblog.UserAgent.Valid {
-		agent = dblog.UserAgent.String
-	}
 	if dblog.UserUsername.Valid {
 		user = &codersdk.User{
 			ID:        dblog.UserID,
@@ -218,7 +214,7 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		Time:             dblog.Time,
 		OrganizationID:   dblog.OrganizationID,
 		IP:               ip,
-		UserAgent:        agent,
+		UserAgent:        dblog.UserAgent.String,
 		ResourceType:     codersdk.ResourceType(dblog.ResourceType),
 		ResourceID:       dblog.ResourceID,
 		ResourceTarget:   dblog.ResourceTarget,

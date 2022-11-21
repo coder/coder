@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"reflect"
 	"sync"
@@ -527,7 +528,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		if getBuildErr != nil {
 			server.Logger.Error(ctx, "failed to create audit log - get build err", slog.Error(err))
 		} else {
-			auditAction := determineAuditAction(build.Transition)
+			auditAction := auditActionFromTransition(build.Transition)
 			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 			if getWorkspaceErr != nil {
 				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
@@ -550,7 +551,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 					JobID:            job.ID,
 					Action:           auditAction,
 					New:              build,
-					Status:           500,
+					Status:           http.StatusInternalServerError,
 					AdditionalFields: wriBytes,
 				})
 			}
@@ -635,11 +636,13 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			return nil, xerrors.Errorf("get workspace build: %w", err)
 		}
 
-		workspace, getWorkspaceError := server.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+		var workspace database.Workspace
+		var getWorkspaceError error
 
 		err = server.Database.InTx(func(db database.Store) error {
 			now := database.Now()
 			var workspaceDeadline time.Time
+			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 			if getWorkspaceError == nil {
 				if workspace.Ttl.Valid {
 					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
@@ -699,7 +702,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
 			auditor := server.Auditor.Load()
-			auditAction := determineAuditAction(workspaceBuild.Transition)
+			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
 			// We pass the workspace name to the Auditor so that it
 			// can form a friendly string for the user.
@@ -709,7 +712,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 			wriBytes, err := json.Marshal(workspaceResourceInfo)
 			if err != nil {
-				server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+				server.Logger.Error(ctx, "marshal resource info", slog.Error(err))
 			}
 
 			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
@@ -719,7 +722,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				JobID:            job.ID,
 				Action:           auditAction,
 				New:              workspaceBuild,
-				Status:           200,
+				Status:           http.StatusOK,
 				AdditionalFields: wriBytes,
 			})
 		}
@@ -1035,7 +1038,7 @@ func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkpro
 	}
 }
 
-func determineAuditAction(transition database.WorkspaceTransition) database.AuditAction {
+func auditActionFromTransition(transition database.WorkspaceTransition) database.AuditAction {
 	switch transition {
 	case database.WorkspaceTransitionStart:
 		return database.AuditActionStart
