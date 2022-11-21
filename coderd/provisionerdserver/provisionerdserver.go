@@ -520,6 +520,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	case *proto.FailedJob_TemplateImport_:
 	}
 
+	// if failed job is a workspace build, audit the outcome
 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
 		auditor := server.Auditor.Load()
 		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
@@ -695,9 +696,9 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
 
+		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
 			auditor := server.Auditor.Load()
-
 			auditAction := determineAuditAction(workspaceBuild.Transition)
 
 			// We pass the workspace name to the Auditor so that it
