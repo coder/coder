@@ -67,9 +67,8 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.action.hover,
     },
 
-    "&:not(:last-child) td:before": {
+    "& td:before": {
       position: "absolute",
-      top: 20,
       left: 50,
       display: "block",
       content: "''",
