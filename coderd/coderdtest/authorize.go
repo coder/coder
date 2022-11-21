@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coder/coder/coderd/database/databasefake"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +25,7 @@ import (
 )
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
+	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -125,11 +128,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/coordinate": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
-		},
-		"GET:/api/v2/organizations/{organization}/templates": {
-			StatusCode:   http.StatusOK,
-			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/organizations/{organization}/templates": {
 			AssertAction: rbac.ActionCreate,
@@ -241,7 +239,18 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
-		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/": {
+			StatusCode:   http.StatusOK,
+			NoAuthorize:  !isMemoryDB,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceWorkspace,
+		},
+		"GET:/api/v2/organizations/{organization}/templates": {
+			StatusCode:   http.StatusOK,
+			NoAuthorize:  !isMemoryDB,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate,
+		},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand

@@ -20,6 +20,12 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
+// FakeDatabase is helpful for knowing if the underlying db is an in memory fake
+// database.
+type FakeDatabase interface {
+	IsFakeDB()
+}
+
 var errDuplicateKey = &pq.Error{
 	Code:    "23505",
 	Message: "duplicate key value violates unique constraint",
@@ -117,6 +123,7 @@ type data struct {
 	lastLicenseID int32
 }
 
+func (fakeQuerier) IsFakeDB() {}
 func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
