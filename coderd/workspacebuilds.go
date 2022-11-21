@@ -25,11 +25,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var (
-	errTemplateNotExists = xerrors.New("No template exists for this workspace")
-	errUserNotExists     = xerrors.New("User does not exist")
-)
-
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -669,7 +664,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
 	template, err := api.Database.GetTemplateByID(ctx, templateID)
 	if err != nil {
-		return false, errTemplateNotExists
+		return false, xerrors.New("no template exists for this workspace")
 	}
 
 	if template.AllowUserCancelWorkspaceJobs {
@@ -678,7 +673,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 
 	user, err := api.Database.GetUserByID(ctx, userID)
 	if err != nil {
-		return false, errUserNotExists
+		return false, xerrors.New("user does not exist")
 	}
 	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }

@@ -79,7 +79,7 @@ type UpdateTemplateMeta struct {
 	Description                  string `json:"description,omitempty"`
 	Icon                         string `json:"icon,omitempty"`
 	DefaultTTLMillis             int64  `json:"default_ttl_ms,omitempty"`
-	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs"`
+	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
 // Template returns a single template.
