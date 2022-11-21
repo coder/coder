@@ -131,6 +131,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
+  tags: {},
 }
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -139,6 +140,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   completed_at: "2022-05-17T17:39:01.382927298Z",
+  tags: {},
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -191,15 +193,25 @@ export const MockTemplate: TypesGen.Template = {
   workspace_owner_count: 2,
   active_user_count: 1,
   build_time_stats: {
-    start_ms: 1000,
-    stop_ms: 2000,
-    delete_ms: 3000,
+    start: {
+      P50: 1000,
+      P95: 1500,
+    },
+    stop: {
+      P50: 1000,
+      P95: 1500,
+    },
+    delete: {
+      P50: 1000,
+      P95: 1500,
+    },
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
+  allow_user_cancel_workspace_jobs: true,
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
@@ -434,6 +446,9 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_id: MockTemplate.id,
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
+  template_display_name: MockTemplate.display_name,
+  template_allow_user_cancel_workspace_jobs:
+    MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
@@ -944,7 +959,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   },
   status_code: 200,
   additional_fields: {},
-  description: "{user} updated workspace {target}",
+  description: "{user} created workspace {target}",
   user: MockUser,
 }
 
@@ -952,6 +967,8 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
+  time: "2022-05-20T16:45:57.122Z",
+  description: "{user} updated workspace {target}",
   diff: {
     workspace_name: {
       old: "old-workspace-name",

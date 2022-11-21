@@ -36,8 +36,11 @@ not support custom VPCs). You can add these features by editing the Terraform
 code once you run `coder templates init` (new) or `coder templates pull`
 (existing).
 
-- See [Creating and troubleshooting templates](#creating--troubleshooting-templates) for
-  more info
+Refer to the following resources to build your own templates:
+
+- Terraform: [Documentation](https://developer.hashicorp.com/terraform/docs) and [Registry](https://registry.terraform.io)
+- Common [concepts in templates](#concepts-in-templates) and [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs)
+- [Coder example templates](https://github.com/coder/coder/tree/main/examples/templates) code
 
 ## Concepts in templates
 
@@ -316,18 +319,9 @@ resource "coder_agent" "main" {
 You can add these environment variable definitions to your own templates, or customize them however
 you like.
 
-## Creating & troubleshooting templates
+## Troubleshooting templates
 
-You can use any Terraform resources or modules with Coder! When working on
-templates, we recommend you refer to the following resources:
-
-- this document
-- [example templates](https://github.com/coder/coder/tree/main/examples/templates) code
-- [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs)
-  documentation
-
-Occasionally, you may run into scenarios where the agent is not able to connect.
-This means the start script has failed.
+Occasionally, you may run into scenarios where a workspace is created, but the agent is not connected. This means the agent or [init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts) has failed on the resource.
 
 ```sh
 $ coder ssh myworkspace
@@ -338,8 +332,8 @@ While troubleshooting steps vary by resource, here are some general best
 practices:
 
 - Ensure the resource has `curl` installed
-- Ensure the resource can reach your Coder URL
-- Manually connect to the resource (e.g., `docker exec` or AWS console)
+- Ensure the resource can `curl` your Coder [access URL](./admin/configure.md#access-url)
+- Manually connect to the resource and check the agent logs (e.g., `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
 

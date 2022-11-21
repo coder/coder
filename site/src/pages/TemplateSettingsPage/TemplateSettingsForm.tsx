@@ -1,3 +1,6 @@
+import Box from "@material-ui/core/Box"
+import Checkbox from "@material-ui/core/Checkbox"
+import Typography from "@material-ui/core/Typography"
 import data from "@emoji-mart/data/sets/14/twitter.json"
 import Picker from "@emoji-mart/react"
 import Button from "@material-ui/core/Button"
@@ -56,6 +59,7 @@ export const validationSchema = Yup.object({
     .integer()
     .min(0)
     .max(24 * MAX_TTL_DAYS /* 7 days in hours */, Language.ttlMaxError),
+  allow_user_cancel_workspace_jobs: Yup.boolean(),
 })
 
 export interface TemplateSettingsForm {
@@ -86,6 +90,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         // on display, convert from ms => hours
         default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
         icon: template.icon,
+        allow_user_cancel_workspace_jobs:
+          template.allow_user_cancel_workspace_jobs,
       },
       validationSchema,
       onSubmit: (formData) => {
@@ -212,6 +218,27 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         {form.values.default_ttl_ms && !form.errors.default_ttl_ms && (
           <span>{Language.ttlHelperText(form.values.default_ttl_ms)}</span>
         )}
+
+        <Box display="flex">
+          <div>
+            {/*"getFieldHelpers" can't be used as it requires "helperText" property to be present.*/}
+            <Checkbox
+              id="allow_user_cancel_workspace_jobs"
+              name="allow_user_cancel_workspace_jobs"
+              disabled={isSubmitting}
+              checked={form.values.allow_user_cancel_workspace_jobs}
+              onChange={form.handleChange}
+            />
+          </div>
+          <Box>
+            <Typography variant="h6" style={{ fontSize: 14 }}>
+              {t("allowUserCancelWorkspaceJobsLabel")}
+            </Typography>
+            <Typography variant="caption" color="textSecondary">
+              {t("allowUserCancelWorkspaceJobsNotice")}
+            </Typography>
+          </Box>
+        </Box>
       </Stack>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />

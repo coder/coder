@@ -33,7 +33,6 @@ type sqlcQuerier interface {
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
 	GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]User, error)
-	GetAuditLogCount(ctx context.Context, arg GetAuditLogCountParams) (int64, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
@@ -81,6 +80,7 @@ type sqlcQuerier interface {
 	GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
+	GetTemplateVersionByOrganizationAndName(ctx context.Context, arg GetTemplateVersionByOrganizationAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error)
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
@@ -112,6 +112,7 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
+	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (Workspace, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error)
@@ -123,7 +124,7 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
-	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]Workspace, error)
+	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error)
 	// We use the organization_id as the id

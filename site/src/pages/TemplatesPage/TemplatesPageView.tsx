@@ -11,6 +11,7 @@ import useTheme from "@material-ui/styles/useTheme"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
+import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -22,7 +23,6 @@ import {
 import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
-import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -174,20 +174,21 @@ export const TemplatesPageView: FC<
 
                 <ChooseOne>
                   <Cond condition={empty}>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState
-                          message={Language.emptyMessage}
-                          description={
-                            props.canCreateTemplate
-                              ? Language.emptyDescription
-                              : Language.emptyViewNoPerms
-                          }
-                          descriptionClassName={styles.emptyDescription}
-                          cta={<CodeExample code="coder templates init" />}
-                        />
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty
+                      className={styles.empty}
+                      message={Language.emptyMessage}
+                      description={
+                        props.canCreateTemplate
+                          ? Language.emptyDescription
+                          : Language.emptyViewNoPerms
+                      }
+                      cta={<CodeExample code="coder templates init" />}
+                      image={
+                        <div className={styles.emptyImage}>
+                          <img src="/empty/templates.webp" alt="" />
+                        </div>
+                      }
+                    />
                   </Cond>
                   <Cond>
                     {props.templates?.map((template) => {
@@ -241,7 +242,7 @@ export const TemplatesPageView: FC<
                               style={{ color: theme.palette.text.secondary }}
                             >
                               {formatTemplateBuildTime(
-                                template.build_time_stats.start_ms,
+                                template.build_time_stats.start.P50,
                               )}
                             </span>
                           </TableCellLink>
@@ -287,9 +288,6 @@ export const TemplatesPageView: FC<
 }
 
 const useStyles = makeStyles((theme) => ({
-  emptyDescription: {
-    maxWidth: theme.spacing(62),
-  },
   clickableTableRow: {
     "&:hover td": {
       backgroundColor: theme.palette.action.hover,
@@ -319,6 +317,20 @@ const useStyles = makeStyles((theme) => ({
 
     "& img": {
       width: "100%",
+    },
+  },
+  empty: {
+    paddingBottom: 0,
+  },
+
+  emptyImage: {
+    maxWidth: "50%",
+    height: theme.spacing(40),
+    overflow: "hidden",
+    opacity: 0.85,
+
+    "& img": {
+      maxWidth: "100%",
     },
   },
 }))

@@ -376,6 +376,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tags := provisionerdserver.MutateTags(workspace.OwnerID, templateVersionJob.Tags)
+
 	// Store prior build number to compute new build number
 	var priorBuildNum int32
 	priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
@@ -461,6 +463,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			StorageMethod:  templateVersionJob.StorageMethod,
 			FileID:         templateVersionJob.FileID,
 			Input:          input,
+			Tags:           tags,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -544,6 +547,21 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error verifying permission to cancel workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !valid {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
+		})
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(ctx, workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -589,6 +607,23 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
+}
+
+func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
+	template, err := api.Database.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return false, xerrors.New("no template exists for this workspace")
+	}
+
+	if template.AllowUserCancelWorkspaceJobs {
+		return true, nil // all users can cancel workspace builds
+	}
+
+	user, err := api.Database.GetUserByID(ctx, userID)
+	if err != nil {
+		return false, xerrors.New("user does not exist")
+	}
+	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
 
 func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
@@ -850,7 +885,7 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
 			}

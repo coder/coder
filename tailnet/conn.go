@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"go4.org/netipx"
 	"golang.org/x/xerrors"
@@ -25,6 +26,7 @@ import (
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
+	"tailscale.com/types/netlogtype"
 	"tailscale.com/types/netmap"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
@@ -34,15 +36,14 @@ import (
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/cryptorand"
-
-	"cdr.dev/slog"
 )
 
 func init() {
-	// Globally disable network namespacing.
-	// All networking happens in userspace.
+	// Globally disable network namespacing. All networking happens in
+	// userspace.
 	netns.SetEnabled(false)
 }
 
@@ -54,6 +55,11 @@ type Options struct {
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
+
+	// EnableTrafficStats enables per-connection traffic statistics.
+	// ExtractTrafficStats must be called to reset the counters and be
+	// periodically called while enabled to avoid unbounded memory use.
+	EnableTrafficStats bool
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -142,8 +148,9 @@ func NewConn(options *Options) (*Conn, error) {
 	}
 	tunDevice, magicConn, dnsManager, ok := wireguardInternals.GetInternals()
 	if !ok {
-		return nil, xerrors.New("failed to get wireguard internals")
+		return nil, xerrors.New("get wireguard internals")
 	}
+	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
 
 	// Update the keys for the magic connection!
 	err = magicConn.SetPrivateKey(nodePrivateKey)
@@ -424,24 +431,43 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, error) {
 // address is reachable. It's the callers responsibility to provide
 // a timeout, otherwise this function will block forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
-	ticker := time.NewTicker(time.Millisecond * 100)
-	defer ticker.Stop()
-	completedCtx, completed := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // Cancel all pending pings on exit.
+
+	completedCtx, completed := context.WithCancel(context.Background())
+	defer completed()
+
 	run := func() {
-		ctx, cancelFunc := context.WithTimeout(completedCtx, time.Second)
-		defer cancelFunc()
+		// Safety timeout, initially we'll have around 10-20 goroutines
+		// running in parallel. The exponential backoff will converge
+		// around ~1 ping / 30s, this means we'll have around 10-20
+		// goroutines pending towards the end as well.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
 		_, err := c.Ping(ctx, ip)
 		if err == nil {
 			completed()
 		}
 	}
+
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = 0
+	eb.InitialInterval = 50 * time.Millisecond
+	eb.MaxInterval = 30 * time.Second
+	// Consume the first interval since
+	// we'll fire off a ping immediately.
+	_ = eb.NextBackOff()
+
+	t := backoff.NewTicker(eb)
+	defer t.Stop()
+
 	go run()
-	defer completed()
 	for {
 		select {
 		case <-completedCtx.Done():
 			return true
-		case <-ticker.C:
+		case <-t.C:
 			// Pings can take a while, so we can run multiple
 			// in parallel to return ASAP.
 			go run()
@@ -627,6 +653,13 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 		c.logger.Debug(c.dialContext, "proxy connection closed with error", slog.Error(err))
 	}
 	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
+}
+
+// ExtractTrafficStats extracts and resets the counters for all active
+// connections. It must be called periodically otherwise the memory used is
+// unbounded. EnableTrafficStats must be true when calling NewConn.
+func (c *Conn) ExtractTrafficStats() map[netlogtype.Connection]netlogtype.Counts {
+	return c.tunDevice.ExtractStatistics()
 }
 
 type listenKey struct {

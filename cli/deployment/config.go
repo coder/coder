@@ -143,7 +143,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:    "Cache Directory",
 			Usage:   "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
 			Flag:    "cache-dir",
-			Default: defaultCacheDir(),
+			Default: DefaultCacheDir(),
 		},
 		InMemoryDatabase: &codersdk.DeploymentConfigField[bool]{
 			Name:   "In Memory Database",
@@ -184,6 +184,11 @@ func newConfig() *codersdk.DeploymentConfig {
 					Name:  "OAuth2 GitHub Allow Signups",
 					Usage: "Whether new users can sign up with GitHub.",
 					Flag:  "oauth2-github-allow-signups",
+				},
+				AllowEveryone: &codersdk.DeploymentConfigField[bool]{
+					Name:  "OAuth2 GitHub Allow Everyone",
+					Usage: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+					Flag:  "oauth2-github-allow-everyone",
 				},
 				EnterpriseBaseURL: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Enterprise Base URL",
@@ -341,6 +346,13 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "agent-stats-refresh-interval",
 			Hidden:  true,
 			Default: 10 * time.Minute,
+		},
+		AgentFallbackTroubleshootingURL: &codersdk.DeploymentConfigField[string]{
+			Name:    "Agent Fallback Troubleshooting URL",
+			Usage:   "URL to use for agent troubleshooting when not set in the template",
+			Flag:    "agent-fallback-troubleshooting-url",
+			Hidden:  true,
+			Default: "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
 		},
 		AuditLogging: &codersdk.DeploymentConfigField[bool]{
 			Name:       "Audit Logging",
@@ -517,9 +529,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 				newType := reflect.Indirect(reflect.New(elementType))
 				instance = &newType
 			}
-			switch instance.Field(i).Type().String() {
+			switch v := instance.Field(i).Type().String(); v {
 			case "[]string":
 				value = vip.GetStringSlice(configKey)
+			case "bool":
+				value = vip.GetBool(configKey)
 			default:
 			}
 			instance.Field(i).Set(reflect.ValueOf(value))
@@ -660,7 +674,7 @@ func formatEnv(key string) string {
 	return "CODER_" + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(key))
 }
 
-func defaultCacheDir() string {
+func DefaultCacheDir() string {
 	defaultCacheDir, err := os.UserCacheDir()
 	if err != nil {
 		defaultCacheDir = os.TempDir()

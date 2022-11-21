@@ -32,6 +32,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
@@ -98,7 +99,6 @@ func New(options Options) io.Closer {
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
 		tempDir:                options.TempDir,
-		stats:                  &Stats{},
 	}
 	server.init(ctx)
 	return server
@@ -126,7 +126,6 @@ type agent struct {
 	sshServer    *ssh.Server
 
 	network *tailnet.Conn
-	stats   *Stats
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -238,22 +237,16 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		return nil, xerrors.New("closed")
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
-		DERPMap:   derpMap,
-		Logger:    a.logger.Named("tailnet"),
+		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
+		DERPMap:            derpMap,
+		Logger:             a.logger.Named("tailnet"),
+		EnableTrafficStats: true,
 	})
 	if err != nil {
 		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	a.network = network
-	network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
-		if listenerExists {
-			// If a listener already exists, we would double-wrap the conn.
-			return conn
-		}
-		return a.stats.wrapConn(conn)
-	})
 	a.connCloseWait.Add(4)
 	a.closeMutex.Unlock()
 
@@ -268,7 +261,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
+			go a.sshServer.HandleConn(conn)
 		}
 	}()
 
@@ -284,7 +277,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 				a.logger.Debug(ctx, "accept pty failed", slog.Error(err))
 				return
 			}
-			conn = a.stats.wrapConn(conn)
 			// This cannot use a JSON decoder, since that can
 			// buffer additional data that is required for the PTY.
 			rawLen := make([]byte, 2)
@@ -523,7 +515,13 @@ func (a *agent) init(ctx context.Context) {
 
 	go a.runLoop(ctx)
 	cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
-		return a.stats.Copy()
+		stats := map[netlogtype.Connection]netlogtype.Counts{}
+		a.closeMutex.Lock()
+		if a.network != nil {
+			stats = a.network.ExtractTrafficStats()
+		}
+		a.closeMutex.Unlock()
+		return convertAgentStats(stats)
 	})
 	if err != nil {
 		a.logger.Error(ctx, "report stats", slog.Error(err))
@@ -535,6 +533,23 @@ func (a *agent) init(ctx context.Context) {
 		<-a.closed
 		cl.Close()
 	}()
+}
+
+func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
+	stats := &codersdk.AgentStats{
+		ConnsByProto: map[string]int64{},
+		NumConns:     int64(len(counts)),
+	}
+
+	for conn, count := range counts {
+		stats.ConnsByProto[conn.Proto.String()]++
+		stats.RxPackets += int64(count.RxPackets)
+		stats.RxBytes += int64(count.RxBytes)
+		stats.TxPackets += int64(count.TxPackets)
+		stats.TxBytes += int64(count.TxBytes)
+	}
+
+	return stats
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
@@ -725,6 +740,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
+	connectionID := uuid.NewString()
 	var rpty *reconnectingPTY
 	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
 	if ok {
@@ -760,8 +776,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		a.closeMutex.Unlock()
 		ctx, cancelFunc := context.WithCancel(ctx)
 		rpty = &reconnectingPTY{
-			activeConns: make(map[string]net.Conn),
-			ptty:        ptty,
+			activeConns: map[string]net.Conn{
+				// We have to put the connection in the map instantly otherwise
+				// the connection won't be closed if the process instantly dies.
+				connectionID: conn,
+			},
+			ptty: ptty,
 			// Timeouts created with an after func can be reset!
 			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
 			circularBuffer: circularBuffer,
@@ -827,7 +847,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", msg.ID), slog.Error(err))
 		return
 	}
-	connectionID := uuid.NewString()
 	// Multiple connections to the same TTY are permitted.
 	// This could easily be used for terminal sharing, but
 	// we do it because it's a nice user experience to

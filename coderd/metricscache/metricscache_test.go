@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -204,6 +203,12 @@ func clockTime(t time.Time, hour, minute, sec int) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), hour, minute, sec, t.Nanosecond(), t.Location())
 }
 
+func requireBuildTimeStatsEmpty(t *testing.T, stats codersdk.TemplateBuildTimeStats) {
+	require.Empty(t, stats[codersdk.WorkspaceTransitionStart])
+	require.Empty(t, stats[codersdk.WorkspaceTransitionStop])
+	require.Empty(t, stats[codersdk.WorkspaceTransitionDelete])
+}
+
 func TestCache_BuildTime(t *testing.T) {
 	t.Parallel()
 
@@ -296,7 +301,7 @@ func TestCache_BuildTime(t *testing.T) {
 			require.NoError(t, err)
 
 			gotStats := cache.TemplateBuildTimeStats(template.ID)
-			require.Empty(t, gotStats, "should not have loaded yet")
+			requireBuildTimeStatsEmpty(t, gotStats)
 
 			for _, row := range tt.args.rows {
 				_, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -328,36 +333,32 @@ func TestCache_BuildTime(t *testing.T) {
 			}
 
 			if tt.want.loads {
+				wantTransition := codersdk.WorkspaceTransition(tt.args.transition)
 				require.Eventuallyf(t, func() bool {
 					stats := cache.TemplateBuildTimeStats(template.ID)
-					return stats != codersdk.TemplateBuildTimeStats{}
+					return stats[wantTransition] != codersdk.TransitionStats{}
 				}, testutil.WaitLong, testutil.IntervalMedium,
 					"BuildTime never populated",
 				)
 
 				gotStats = cache.TemplateBuildTimeStats(template.ID)
-
-				if tt.args.transition == database.WorkspaceTransitionDelete {
-					require.Nil(t, gotStats.StopMillis)
-					require.Nil(t, gotStats.StartMillis)
-					require.Equal(t, tt.want.buildTimeMs, *gotStats.DeleteMillis)
-				}
-				if tt.args.transition == database.WorkspaceTransitionStart {
-					require.Nil(t, gotStats.StopMillis)
-					require.Nil(t, gotStats.DeleteMillis)
-					require.Equal(t, tt.want.buildTimeMs, *gotStats.StartMillis)
-				}
-				if tt.args.transition == database.WorkspaceTransitionStop {
-					require.Nil(t, gotStats.StartMillis)
-					require.Nil(t, gotStats.DeleteMillis)
-					require.Equal(t, tt.want.buildTimeMs, *gotStats.StopMillis)
+				for transition, stats := range gotStats {
+					if transition == wantTransition {
+						require.Equal(t, tt.want.buildTimeMs, *stats.P50)
+					} else {
+						require.Empty(
+							t, stats, "%v", transition,
+						)
+					}
 				}
 			} else {
+				var stats codersdk.TemplateBuildTimeStats
 				require.Never(t, func() bool {
-					stats := cache.TemplateBuildTimeStats(template.ID)
-					return !assert.Empty(t, stats)
+					stats = cache.TemplateBuildTimeStats(template.ID)
+					requireBuildTimeStatsEmpty(t, stats)
+					return t.Failed()
 				}, testutil.WaitShort/2, testutil.IntervalMedium,
-					"BuildTimeStats populated",
+					"BuildTimeStats populated", stats,
 				)
 			}
 		})

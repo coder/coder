@@ -380,10 +380,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		workspaces, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
+		workspaceRows, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
 		if err != nil {
 			return xerrors.Errorf("get workspaces: %w", err)
 		}
+		workspaces := database.ConvertWorkspaceRows(workspaceRows)
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
 		for _, dbWorkspace := range workspaces {
 			snapshot.Workspaces = append(snapshot.Workspaces, ConvertWorkspace(dbWorkspace))
@@ -442,6 +443,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.WorkspaceResourceMetadata = make([]WorkspaceResourceMetadata, 0, len(workspaceMetadata))
 		for _, metadata := range workspaceMetadata {
 			snapshot.WorkspaceResourceMetadata = append(snapshot.WorkspaceResourceMetadata, ConvertWorkspaceResourceMetadata(metadata))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		licenses, err := r.options.Database.GetUnexpiredLicenses(ctx)
+		if err != nil {
+			return xerrors.Errorf("get licenses: %w", err)
+		}
+		snapshot.Licenses = make([]License, 0, len(licenses))
+		for _, license := range licenses {
+			snapshot.Licenses = append(snapshot.Licenses, ConvertLicense(license))
 		}
 		return nil
 	})
@@ -621,6 +633,14 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	return snapVersion
 }
 
+// ConvertLicense anonymizes a license.
+func ConvertLicense(license database.License) License {
+	return License{
+		UploadedAt: license.UploadedAt,
+		UUID:       license.Uuid.UUID,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -630,6 +650,7 @@ type Snapshot struct {
 	APIKeys                   []APIKey                    `json:"api_keys"`
 	ParameterSchemas          []ParameterSchema           `json:"parameter_schemas"`
 	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
+	Licenses                  []License                   `json:"licenses"`
 	Templates                 []Template                  `json:"templates"`
 	TemplateVersions          []TemplateVersion           `json:"template_versions"`
 	Users                     []User                      `json:"users"`
@@ -788,6 +809,11 @@ type ParameterSchema struct {
 	JobID               uuid.UUID `json:"job_id"`
 	Name                string    `json:"name"`
 	ValidationCondition string    `json:"validation_condition"`
+}
+
+type License struct {
+	UploadedAt time.Time `json:"uploaded_at"`
+	UUID       uuid.UUID `json:"uuid"`
 }
 
 type noopReporter struct{}

@@ -71,10 +71,9 @@ func TestServer(t *testing.T) {
 		client := codersdk.New(accessURL)
 
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-			Email:            "some@one.com",
-			Username:         "example",
-			Password:         "password",
-			OrganizationName: "example",
+			Email:    "some@one.com",
+			Username: "example",
+			Password: "password",
 		})
 		require.NoError(t, err)
 		cancelFunc()
@@ -608,6 +607,7 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--address", ":0",
 			"--access-url", "http://example.com",
+			"--oauth2-github-allow-everyone",
 			"--oauth2-github-client-id", "fake",
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,

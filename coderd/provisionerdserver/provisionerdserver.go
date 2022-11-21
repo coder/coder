@@ -41,6 +41,7 @@ type Server struct {
 	ID             uuid.UUID
 	Logger         slog.Logger
 	Provisioners   []database.ProvisionerType
+	Tags           json.RawMessage
 	Database       database.Store
 	Pubsub         database.Pubsub
 	Telemetry      telemetry.Reporter
@@ -74,6 +75,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			Valid: true,
 		},
 		Types: server.Provisioners,
+		Tags:  server.Tags,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		// The provisioner daemon assumes no jobs are available if

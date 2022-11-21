@@ -93,3 +93,24 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 
 	return users
 }
+
+func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
+	workspaces := make([]Workspace, len(rows))
+	for i, r := range rows {
+		workspaces[i] = Workspace{
+			ID:                r.ID,
+			CreatedAt:         r.CreatedAt,
+			UpdatedAt:         r.UpdatedAt,
+			OwnerID:           r.OwnerID,
+			OrganizationID:    r.OrganizationID,
+			TemplateID:        r.TemplateID,
+			Deleted:           r.Deleted,
+			Name:              r.Name,
+			AutostartSchedule: r.AutostartSchedule,
+			Ttl:               r.Ttl,
+			LastUsedAt:        r.LastUsedAt,
+		}
+	}
+
+	return workspaces
+}

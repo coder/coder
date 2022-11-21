@@ -69,12 +69,14 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     name: "Terraform",
     created_at: "",
     provisioners: [],
+    tags: {},
   },
   {
     id: "cdr-basic",
     name: "Basic",
     created_at: "",
     provisioners: [],
+    tags: {},
   },
 ]
 
@@ -215,6 +217,16 @@ export const getTemplateVersions = async (
 ): Promise<TypesGen.TemplateVersion[]> => {
   const response = await axios.get<TypesGen.TemplateVersion[]>(
     `/api/v2/templates/${templateId}/versions`,
+  )
+  return response.data
+}
+
+export const getTemplateVersionByName = async (
+  organizationId: string,
+  versionName: string,
+): Promise<TypesGen.TemplateVersion> => {
+  const response = await axios.get<TypesGen.TemplateVersion>(
+    `/api/v2/organizations/${organizationId}/templateversions/${versionName}`,
   )
   return response.data
 }
@@ -544,14 +556,6 @@ export const getAuditLogs = async (
   return response.data
 }
 
-export const getAuditLogsCount = async (
-  options: TypesGen.AuditLogCountRequest = {},
-): Promise<TypesGen.AuditLogCountResponse> => {
-  const url = getURLWithSearchParams("/api/v2/audit/count", options)
-  const response = await axios.get(url)
-  return response.data
-}
-
 export const getTemplateDAUs = async (
   templateId: string,
 ): Promise<TypesGen.TemplateDAUsResponse> => {
@@ -644,5 +648,12 @@ export const getDeploymentConfig =
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
   const response = await axios.get(`/api/v2/replicas`)
+  return response.data
+}
+
+export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
+  const response = await axios.get<ArrayBuffer>(`/api/v2/files/${fileId}`, {
+    responseType: "arraybuffer",
+  })
   return response.data
 }

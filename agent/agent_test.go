@@ -69,10 +69,16 @@ func TestAgent(t *testing.T) {
 			session, err := sshClient.NewSession()
 			require.NoError(t, err)
 			defer session.Close()
+			require.NoError(t, session.Run("echo test"))
 
-			assert.EqualValues(t, 1, (<-stats).NumConns)
-			assert.Greater(t, (<-stats).RxBytes, int64(0))
-			assert.Greater(t, (<-stats).TxBytes, int64(0))
+			var s *codersdk.AgentStats
+			require.Eventuallyf(t, func() bool {
+				var ok bool
+				s, ok = <-stats
+				return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+			}, testutil.WaitLong, testutil.IntervalFast,
+				"never saw stats: %+v", s,
+			)
 		})
 
 		t.Run("ReconnectingPTY", func(t *testing.T) {
@@ -83,7 +89,7 @@ func TestAgent(t *testing.T) {
 
 			conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 
-			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.NewString(), 128, 128, "/bin/bash")
+			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
 			require.NoError(t, err)
 			defer ptyConn.Close()
 
@@ -97,7 +103,7 @@ func TestAgent(t *testing.T) {
 			var s *codersdk.AgentStats
 			require.Eventuallyf(t, func() bool {
 				var ok bool
-				s, ok = (<-stats)
+				s, ok = <-stats
 				return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
 			}, testutil.WaitLong, testutil.IntervalFast,
 				"never saw stats: %+v", s,
@@ -405,7 +411,7 @@ func TestAgent(t *testing.T) {
 		defer cancel()
 
 		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		id := uuid.NewString()
+		id := uuid.New()
 		netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
 		bufRead := bufio.NewReader(netConn)
@@ -675,7 +681,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	}
 	coordinator := tailnet.NewCoordinator()
 	agentID := uuid.New()
-	statsCh := make(chan *codersdk.AgentStats)
+	statsCh := make(chan *codersdk.AgentStats, 50)
 	fs := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
 		Client: &client{
@@ -693,9 +699,10 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 		_ = closer.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   metadata.DERPMap,
-		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		Addresses:          []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:            metadata.DERPMap,
+		Logger:             slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		EnableTrafficStats: true,
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
@@ -781,7 +788,7 @@ func (c *client) AgentReportStats(ctx context.Context, _ slog.Logger, stats func
 	go func() {
 		defer close(doneCh)
 
-		t := time.NewTicker(time.Millisecond * 100)
+		t := time.NewTicker(500 * time.Millisecond)
 		defer t.Stop()
 		for {
 			select {

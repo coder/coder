@@ -1,11 +1,14 @@
 import Link from "@material-ui/core/Link"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
-import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
+import {
+  getDisplayWorkspaceBuildInitiatedBy,
+  getDisplayWorkspaceTemplateName,
+} from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
 
 const Language = {
@@ -32,10 +35,10 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   handleUpdate,
 }) => {
   const styles = useStyles()
-  const theme = useTheme()
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
   )
+  const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
 
   return (
     <div className={styles.stats} aria-label={Language.workspaceDetails}>
@@ -46,7 +49,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
           to={`/templates/${workspace.template_name}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
-          {workspace.template_name}
+          {displayTemplateName}
         </Link>
       </div>
       <div className={styles.statItem}>
@@ -61,9 +64,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               />
             </span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>
-              {Language.upToDate}
-            </span>
+            Language.upToDate
           )}
         </span>
       </div>
@@ -132,6 +133,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     fontWeight: 600,
   },
+
   outdatedLabel: {
     color: theme.palette.error.main,
     display: "flex",
