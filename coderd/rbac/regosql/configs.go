@@ -7,6 +7,7 @@ func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		// Basic strings
 		sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"}),
+		// Templates have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(sqltypes.StringVarMatcher("owner_id :: text", []string{"input", "object", "owner"})),
 	)
 	matcher.RegisterMatcher(
