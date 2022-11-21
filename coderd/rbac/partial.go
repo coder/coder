@@ -3,12 +3,11 @@ package rbac
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/rbac/regosql"
-	"golang.org/x/xerrors"
-
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
 )
 

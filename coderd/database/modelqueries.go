@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/coderd/rbac/regosql"
-
+	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/rbac/regosql"
+)
 
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
+const (
+	authorizedQueryPlaceholder = "-- @authorize_filter"
 )
 
 // customQuerier encompasses all non-generated queries.
@@ -38,9 +40,13 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
-	filter := strings.Replace(getTemplatesWithFilter, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter), 1)
+	filtered, err := insertAuthorizedFilter(getTemplatesWithFilter, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedTemplates :many\n%s", filter)
+	query := fmt.Sprintf("-- name: GetAuthorizedTemplates :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.OrganizationID,
@@ -183,9 +189,13 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
-	filter := strings.Replace(getWorkspaces, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter), 1)
+	filtered, err := insertAuthorizedFilter(getWorkspaces, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filter)
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.Status,
@@ -241,8 +251,12 @@ func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFiltered
 		return -1, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
-	filter := strings.Replace(getFilteredUserCount, "-- @authorize_filter", fmt.Sprintf(" AND %s", authorizedFilter), 1)
-	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filter)
+	filtered, err := insertAuthorizedFilter(getFilteredUserCount, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return -1, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filtered)
 	row := q.db.QueryRowContext(ctx, query,
 		arg.Deleted,
 		arg.Search,
@@ -252,4 +266,12 @@ func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFiltered
 	var count int64
 	err = row.Scan(&count)
 	return count, err
+}
+
+func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
+	if !strings.Contains(query, authorizedQueryPlaceholder) {
+		return "", xerrors.Errorf("query does not contain authorized replace string, this is not an authorized query")
+	}
+	filtered := strings.Replace(query, authorizedQueryPlaceholder, replaceWith, 1)
+	return filtered, nil
 }

@@ -3,7 +3,6 @@ package rbac
 import (
 	"context"
 	_ "embed"
-	"github.com/coder/coder/coderd/rbac/regosql"
 	"sync"
 
 	"github.com/open-policy-agent/opa/rego"
@@ -11,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
 )
 

@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac/regosql"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
