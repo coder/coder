@@ -670,15 +670,8 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
-		template, err := s.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error fetching workspace template!",
-			})
-			return xerrors.Errorf("fetch workspace template: %w", err)
-		}
-
-		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTTL)
+		// don't override 0 ttl with template default here because it indicates disabled auto-stop
+		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, 0)
 		if err != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
