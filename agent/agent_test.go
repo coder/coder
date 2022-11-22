@@ -221,10 +221,10 @@ func TestAgent(t *testing.T) {
 		session.Stdout = &stdout
 		session.Stderr = ptty.Output()
 		session.Stdin = ptty.Input()
-		err = session.Start("")
+		err = session.Shell()
 		require.NoError(t, err)
 
-		ptty.WriteLine("exit")
+		ptty.WriteLine("exit 0")
 		err = session.Wait()
 		require.NoError(t, err)
 
@@ -264,10 +264,10 @@ func TestAgent(t *testing.T) {
 		session.Stdout = &stdout
 		session.Stderr = ptty.Output()
 		session.Stdin = ptty.Input()
-		err = session.Start("")
+		err = session.Shell()
 		require.NoError(t, err)
 
-		ptty.WriteLine("exit")
+		ptty.WriteLine("exit 0")
 		err = session.Wait()
 		require.NoError(t, err)
 
