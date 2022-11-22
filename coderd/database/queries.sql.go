@@ -6367,7 +6367,7 @@ LEFT JOIN LATERAL (
 	ON
 	    workspace_agents.resource_id = workspace_resources.id
 	WHERE
-		workspace_builds.workspace_id = workspace.id
+		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
 		build_number DESC,
 		workspace_agents.last_connected_at ASC,
