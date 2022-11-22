@@ -44,8 +44,8 @@ FROM
 	workspaces
 LEFT JOIN LATERAL (
 	SELECT
-	    build_number,
-	    workspace_builds.job_id,
+		build_number,
+		workspace_builds.job_id,
 		workspace_builds.transition,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -64,13 +64,13 @@ LEFT JOIN LATERAL (
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
 	LEFT JOIN
-	    workspace_resources
+		workspace_resources
 	ON
-	    workspace_resources.job_id = provisioner_jobs.id
+		workspace_resources.job_id = provisioner_jobs.id
 	LEFT JOIN
-	    workspace_agents
+		workspace_agents
 	ON
-	    workspace_agents.resource_id = workspace_resources.id
+		workspace_agents.resource_id = workspace_resources.id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -163,7 +163,7 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name)  AND deleted = false)
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -187,7 +187,7 @@ WHERE
 				WHEN @has_agent = 'timeout' THEN
 					latest_build.first_connected_at IS NULL AND (latest_build.created_at + latest_build.connection_timeout_seconds * INTERVAL '1 second' < NOW())
 				WHEN @has_agent = 'connecting' THEN
-			    	latest_build.first_connected_at IS NULL
+					latest_build.first_connected_at IS NULL
 				WHEN @has_agent = 'disconnected' THEN
 					(
 						latest_build.disconnected_at IS NOT NULL AND
@@ -197,7 +197,7 @@ WHERE
 						latest_build.last_connected_at + 6 * INTERVAL '1 second' < NOW() -- FIXME agentInactiveDisconnectTimeout = 6
 					)
 				WHEN @has_agent = 'connected' THEN
-			    	latest_build.last_connected_at IS NOT NULL
+					latest_build.last_connected_at IS NOT NULL
 				ELSE true
 			END
 		ELSE true
@@ -205,14 +205,14 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-    last_used_at DESC
+	last_used_at DESC
 LIMIT
-    CASE
-        WHEN @limit_ :: integer > 0 THEN
-            @limit_
-    END
+	CASE
+		WHEN @limit_ :: integer > 0 THEN
+			@limit_
+	END
 OFFSET
-    @offset_
+	@offset_
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one

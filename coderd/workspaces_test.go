@@ -963,9 +963,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 				FilterQuery: fmt.Sprintf("has-agent:%s", "timeout"),
 			})
-			if !assert.NoError(t, err) {
-				return false
-			}
+			require.NoError(t, err)
 			return workspaces.Count == 1
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
