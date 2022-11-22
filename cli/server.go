@@ -890,7 +890,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cfg.CacheDirectory.Value, err)
 	}
 
-	terraformClient, terraformServer := provisionersdk.TransportPipe()
+	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 	go func() {
 		<-ctx.Done()
 		_ = terraformClient.Close()
@@ -920,11 +920,11 @@ func newProvisionerDaemon(
 	}
 
 	provisioners := provisionerd.Provisioners{
-		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(terraformClient),
 	}
 	// include echo provisioner when in dev mode
 	if dev {
-		echoClient, echoServer := provisionersdk.TransportPipe()
+		echoClient, echoServer := provisionersdk.MemTransportPipe()
 		go func() {
 			<-ctx.Done()
 			_ = echoClient.Close()
@@ -941,7 +941,7 @@ func newProvisionerDaemon(
 				}
 			}
 		}()
-		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
+		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
 	}
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
