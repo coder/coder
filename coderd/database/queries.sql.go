@@ -6350,8 +6350,11 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
 		provisioner_jobs.error,
+		workspace_agents.created_at,
+		workspace_agents.disconnected_at,
 		workspace_agents.first_connected_at,
-		workspace_agents.last_connected_at
+		workspace_agents.last_connected_at,
+		workspace_agents.connection_timeout_seconds
 	FROM
 		workspace_builds
 	LEFT JOIN
@@ -6477,10 +6480,13 @@ WHERE
 	AND CASE
 	    WHEN $8 :: text != '' THEN
 		    CASE
-			    -- TODO timeout
+				WHEN $8 = 'timeout' THEN
+				    latest_build.first_connected_at IS NULL AND (latest_build.created_at + latest_build.connection_timeout_seconds * interval '1 second' < NOW())
 			    WHEN $8 = 'connecting' THEN
 			        latest_build.first_connected_at IS NULL
-				-- TODO disconnected
+				WHEN $8 = 'disconnected' THEN
+				    latest_build.disconnected_at IS NOT NULL AND
+			        latest_build.disconnected_at > workspace_agents.last_connected_at
 				WHEN $8 = 'connected' THEN
 			        latest_build.last_connected_at IS NOT NULL
 			    ELSE true
