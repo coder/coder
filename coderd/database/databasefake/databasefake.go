@@ -905,6 +905,8 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				case "connecting":
 					hasAgentValid = !wa.FirstConnectedAt.Valid
 				}
+				// TODO disconnected
+				// TODO timeout
 				break // only 1 agent is expected
 			}
 
