@@ -16,6 +16,7 @@ resource "coder_agent" "dev2" {
   os                 = "darwin"
   arch               = "amd64"
   connection_timeout = 1
+  motd_file          = "/etc/motd"
 }
 
 resource "coder_agent" "dev3" {
