@@ -194,7 +194,7 @@ WHERE
 						latest_build.disconnected_at > latest_build.last_connected_at
 					) OR (
 						latest_build.last_connected_at IS NOT NULL AND
-						latest_build.last_connected_at + 6 * INTERVAL '1 second' < NOW() -- agentInactiveDisconnectTimeout = 6
+						latest_build.last_connected_at + 6 * INTERVAL '1 second' < NOW() -- FIXME agentInactiveDisconnectTimeout = 6
 					)
 				WHEN @has_agent = 'connected' THEN
 			    	latest_build.last_connected_at IS NOT NULL
