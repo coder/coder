@@ -189,8 +189,13 @@ WHERE
 				WHEN @has_agent = 'connecting' THEN
 			    	latest_build.first_connected_at IS NULL
 				WHEN @has_agent = 'disconnected' THEN
-					latest_build.disconnected_at IS NOT NULL AND
-			    	latest_build.disconnected_at > latest_build.last_connected_at
+					(
+						latest_build.disconnected_at IS NOT NULL AND
+						latest_build.disconnected_at > latest_build.last_connected_at
+					) OR (
+						latest_build.last_connected_at IS NOT NULL AND
+						latest_build.last_connected_at + 6 * INTERVAL '1 second' < NOW() -- agentInactiveDisconnectTimeout = 6
+					)
 				WHEN @has_agent = 'connected' THEN
 			    	latest_build.last_connected_at IS NOT NULL
 				ELSE true

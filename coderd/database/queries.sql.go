@@ -6487,8 +6487,13 @@ WHERE
 				WHEN $8 = 'connecting' THEN
 			    	latest_build.first_connected_at IS NULL
 				WHEN $8 = 'disconnected' THEN
-					latest_build.disconnected_at IS NOT NULL AND
-			    	latest_build.disconnected_at > latest_build.last_connected_at
+					(
+						latest_build.disconnected_at IS NOT NULL AND
+						latest_build.disconnected_at > latest_build.last_connected_at
+					) OR (
+						latest_build.last_connected_at IS NOT NULL AND
+						latest_build.last_connected_at + 6 * INTERVAL '1 second' < NOW() -- agentInactiveDisconnectTimeout = 6
+					)
 				WHEN $8 = 'connected' THEN
 			    	latest_build.last_connected_at IS NOT NULL
 				ELSE true
