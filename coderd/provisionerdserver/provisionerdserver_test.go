@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/provisionerdserver"
@@ -20,6 +22,13 @@ import (
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
+
+func mockAuditor() *atomic.Pointer[audit.Auditor] {
+	ptr := &atomic.Pointer[audit.Auditor]{}
+	mock := audit.Auditor(audit.NewMock())
+	ptr.Store(&mock)
+	return ptr
+}
 
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
@@ -36,6 +45,7 @@ func TestAcquireJob(t *testing.T) {
 			Pubsub:             pubsub,
 			Telemetry:          telemetry.NewNoop(),
 			AcquireJobDebounce: time.Hour,
+			Auditor:            mockAuditor(),
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -799,5 +809,6 @@ func setup(t *testing.T) *provisionerdserver.Server {
 		Database:     db,
 		Pubsub:       pubsub,
 		Telemetry:    telemetry.NewNoop(),
+		Auditor:      mockAuditor(),
 	}
 }

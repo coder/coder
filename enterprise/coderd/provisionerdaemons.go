@@ -206,6 +206,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Pubsub:       api.Pubsub,
 		Provisioners: daemon.Provisioners,
 		Telemetry:    api.Telemetry,
+		Auditor:      &api.AGPL.Auditor,
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 		Tags:         rawTags,
 	})
