@@ -33,6 +33,7 @@
     "enablements",
     "errgroup",
     "eventsourcemock",
+    "Failf",
     "fatih",
     "Formik",
     "gitauth",
@@ -160,10 +161,7 @@
     "xstate",
     "yamux"
   ],
-  "cSpell.ignorePaths": [
-    "site/package.json",
-    ".vscode/settings.json"
-  ],
+  "cSpell.ignorePaths": ["site/package.json", ".vscode/settings.json"],
   "emeraldwalk.runonsave": {
     "commands": [
       {
@@ -195,10 +193,7 @@
   // To reduce redundancy in tests, it's covered by other packages.
   // Since package coverage pairing can't be defined, all packages cover
   // all other packages.
-  "go.testFlags": [
-    "-short",
-    "-coverpkg=./..."
-  ],
+  "go.testFlags": ["-short", "-coverpkg=./..."],
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
   "typescript.tsdk": "./site/node_modules/typescript/lib"

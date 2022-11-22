@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -631,12 +633,56 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return xerrors.Errorf("update workspace build: %w", err)
 			}
+
+			agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 			// This could be a bulk insert to improve performance.
 			for _, protoResource := range jobType.WorkspaceBuild.Resources {
+				for _, protoAgent := range protoResource.Agents {
+					dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
+					agentTimeouts[dur] = true
+				}
 				err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
+			}
+
+			// On start, we want to ensure that workspace agents timeout statuses
+			// are propagated. This method is simple and does not protect against
+			// notifying in edge cases like when a workspace is stopped soon
+			// after being started.
+			//
+			// Agent timeouts could be minutes apart, resulting in an unresponsive
+			// experience, so we'll notify after every unique timeout seconds.
+			if !input.DryRun && workspaceBuild.Transition == database.WorkspaceTransitionStart && len(agentTimeouts) > 0 {
+				timeouts := maps.Keys(agentTimeouts)
+				slices.Sort(timeouts)
+
+				var updates []<-chan time.Time
+				for _, d := range timeouts {
+					server.Logger.Debug(ctx, "triggering workspace notification after agent timeout",
+						slog.F("workspace_build_id", workspaceBuild.ID),
+						slog.F("timeout", d),
+					)
+					// Agents are inserted with `database.Now()`, this triggers a
+					// workspace event approximately after created + timeout seconds.
+					updates = append(updates, time.After(d))
+				}
+				go func() {
+					for _, wait := range updates {
+						// Wait for the next potential timeout to occur. Note that we
+						// can't listen on the context here because we will hang around
+						// after this function has returned. The server also doesn't
+						// have a shutdown signal we can listen to.
+						<-wait
+						if err := server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
+							server.Logger.Error(ctx, "workspace notification after agent timeout failed",
+								slog.F("workspace_build_id", workspaceBuild.ID),
+								slog.Error(err),
+							)
+						}
+					}
+				}()
 			}
 
 			if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
