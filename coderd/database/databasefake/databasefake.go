@@ -904,9 +904,12 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					hasAgentValid = wa.LastConnectedAt.Valid
 				case "connecting":
 					hasAgentValid = !wa.FirstConnectedAt.Valid
+				case "disconnected":
+					hasAgentValid = wa.DisconnectedAt.Valid && wa.DisconnectedAt.Time.After(wa.LastConnectedAt.Time)
+				case "timeout":
+					hasAgentValid = !wa.FirstConnectedAt.Valid &&
+						wa.CreatedAt.Add(time.Duration(wa.ConnectionTimeoutSeconds)*time.Second).Before(database.Now())
 				}
-				// TODO disconnected
-				// TODO timeout
 				break // only 1 agent is expected
 			}
 
