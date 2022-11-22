@@ -1101,6 +1101,9 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 				})
 			)
 
+			// await job to ensure audit logs for workspace_build start are created
+			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
 			// ensure test invariant: new workspaces have no autostart schedule.
 			require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
 
@@ -1136,8 +1139,8 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			interval := next.Sub(testCase.at)
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
-			require.Len(t, auditor.AuditLogs, 5)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
+			require.Len(t, auditor.AuditLogs, 6)
+			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[5].Action)
 		})
 	}
 
@@ -1245,8 +1248,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
-			require.Len(t, auditor.AuditLogs, 5)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
+			require.Len(t, auditor.AuditLogs, 6)
+			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[5].Action)
 		})
 	}
 

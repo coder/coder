@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"reflect"
 	"sync"
@@ -21,6 +22,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/telemetry"
@@ -46,6 +48,7 @@ type Server struct {
 	Pubsub         database.Pubsub
 	Telemetry      telemetry.Reporter
 	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
+	Auditor        *atomic.Pointer[audit.Auditor]
 
 	AcquireJobDebounce time.Duration
 }
@@ -522,6 +525,43 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	case *proto.FailedJob_TemplateImport_:
 	}
 
+	// if failed job is a workspace build, audit the outcome
+	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
+		auditor := server.Auditor.Load()
+		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if getBuildErr != nil {
+			server.Logger.Error(ctx, "failed to create audit log - get build err", slog.Error(err))
+		} else {
+			auditAction := auditActionFromTransition(build.Transition)
+			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if getWorkspaceErr != nil {
+				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
+			} else {
+				// We pass the workspace name to the Auditor so that it
+				// can form a friendly string for the user.
+				workspaceResourceInfo := map[string]string{
+					"workspaceName": workspace.Name,
+				}
+
+				wriBytes, err := json.Marshal(workspaceResourceInfo)
+				if err != nil {
+					server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+				}
+
+				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+					Audit:            *auditor,
+					Log:              server.Logger,
+					UserID:           job.InitiatorID,
+					JobID:            job.ID,
+					Action:           auditAction,
+					New:              build,
+					Status:           http.StatusInternalServerError,
+					AdditionalFields: wriBytes,
+				})
+			}
+		}
+	}
+
 	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal job log: %w", err)
@@ -600,11 +640,14 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			return nil, xerrors.Errorf("get workspace build: %w", err)
 		}
 
+		var workspace database.Workspace
+		var getWorkspaceError error
+
 		err = server.Database.InTx(func(db database.Store) error {
 			now := database.Now()
 			var workspaceDeadline time.Time
-			workspace, err := db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-			if err == nil {
+			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+			if getWorkspaceError == nil {
 				if workspace.Ttl.Valid {
 					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
 				}
@@ -702,6 +745,34 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+
+		// audit the outcome of the workspace build
+		if getWorkspaceError == nil {
+			auditor := server.Auditor.Load()
+			auditAction := auditActionFromTransition(workspaceBuild.Transition)
+
+			// We pass the workspace name to the Auditor so that it
+			// can form a friendly string for the user.
+			workspaceResourceInfo := map[string]string{
+				"workspaceName": workspace.Name,
+			}
+
+			wriBytes, err := json.Marshal(workspaceResourceInfo)
+			if err != nil {
+				server.Logger.Error(ctx, "marshal resource info", slog.Error(err))
+			}
+
+			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+				Audit:            *auditor,
+				Log:              server.Logger,
+				UserID:           job.InitiatorID,
+				JobID:            job.ID,
+				Action:           auditAction,
+				New:              workspaceBuild,
+				Status:           http.StatusOK,
+				AdditionalFields: wriBytes,
+			})
 		}
 
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{})
@@ -1012,6 +1083,19 @@ func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkpro
 		return sdkproto.WorkspaceTransition_DESTROY, nil
 	default:
 		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
+	}
+}
+
+func auditActionFromTransition(transition database.WorkspaceTransition) database.AuditAction {
+	switch transition {
+	case database.WorkspaceTransitionStart:
+		return database.AuditActionStart
+	case database.WorkspaceTransitionStop:
+		return database.AuditActionStop
+	case database.WorkspaceTransitionDelete:
+		return database.AuditActionDelete
+	default:
+		return database.AuditActionWrite
 	}
 }
 

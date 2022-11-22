@@ -681,6 +681,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Telemetry:          api.Telemetry,
 		Tags:               tags,
 		QuotaCommitter:     &api.QuotaCommitter,
+		Auditor:            &api.Auditor,
 		AcquireJobDebounce: debounce,
 		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})

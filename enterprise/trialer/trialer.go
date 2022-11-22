@@ -11,9 +11,10 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/google/uuid"
 )
 
 type request struct {
