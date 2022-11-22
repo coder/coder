@@ -897,23 +897,23 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return nil, xerrors.Errorf("get workspace agents: %w", err)
 			}
 
-			var hasAgentValid bool
+			var hasAgentMatched bool
 			for _, wa := range workspaceAgents {
 				switch arg.HasAgent {
 				case "connected":
-					hasAgentValid = wa.LastConnectedAt.Valid
+					hasAgentMatched = wa.LastConnectedAt.Valid
 				case "connecting":
-					hasAgentValid = !wa.FirstConnectedAt.Valid
+					hasAgentMatched = !wa.FirstConnectedAt.Valid
 				case "disconnected":
-					hasAgentValid = wa.DisconnectedAt.Valid && wa.DisconnectedAt.Time.After(wa.LastConnectedAt.Time)
+					hasAgentMatched = wa.DisconnectedAt.Valid && wa.DisconnectedAt.Time.After(wa.LastConnectedAt.Time)
 				case "timeout":
-					hasAgentValid = !wa.FirstConnectedAt.Valid &&
+					hasAgentMatched = !wa.FirstConnectedAt.Valid &&
 						wa.CreatedAt.Add(time.Duration(wa.ConnectionTimeoutSeconds)*time.Second).Before(database.Now())
 				}
 				break // only 1 agent is expected
 			}
 
-			if !hasAgentValid {
+			if !hasAgentMatched {
 				continue
 			}
 		}
