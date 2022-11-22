@@ -480,12 +480,11 @@ func (a *agent) init(ctx context.Context) {
 				var opts []sftp.ServerOption
 				// Change current working directory to the users home
 				// directory so that SFTP connections land there.
-				// https://github.com/coder/coder/issues/3620
-				u, err := user.Current()
+				homedir, err := getHomeDir()
 				if err != nil {
-					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
 				} else {
-					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
+					opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
@@ -599,8 +598,12 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
-		// Default to $HOME if a directory is not set!
-		cmd.Dir = os.Getenv("HOME")
+		// Default to user home if a directory is not set.
+		homedir, err := getHomeDir()
+		if err != nil {
+			return nil, xerrors.Errorf("get home dir: %w", err)
+		}
+		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
