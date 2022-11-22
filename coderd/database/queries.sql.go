@@ -6342,6 +6342,7 @@ FROM
 	workspaces
 LEFT JOIN LATERAL (
 	SELECT
+	    build_number,
 	    workspace_builds.job_id,
 		workspace_builds.transition,
 		provisioner_jobs.started_at,
@@ -6366,9 +6367,11 @@ LEFT JOIN LATERAL (
 	ON
 	    workspace_agents.resource_id = workspace_resources.id
 	WHERE
-		workspace_builds.workspace_id = workspaces.id
+		workspace_builds.workspace_id = workspace.id--'14260b33-a677-4399-8276-39ba287ec119'
 	ORDER BY
-		build_number DESC
+		build_number DESC,
+		workspace_agents.last_connected_at ASC,
+		workspace_agents.first_connected_at ASC
 	LIMIT
 		1
 ) latest_build ON TRUE

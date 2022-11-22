@@ -871,6 +871,48 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if arg.HasAgent != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			workspaceResources, err := q.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace resources: %w", err)
+			}
+
+			var workspaceResourceIDs []uuid.UUID
+			for _, wr := range workspaceResources {
+				workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
+			}
+
+			workspaceAgents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, workspaceResourceIDs)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agents: %w", err)
+			}
+
+			var hasAgentValid bool
+			for _, wa := range workspaceAgents {
+				switch arg.HasAgent {
+				case "connected":
+					hasAgentValid = wa.LastConnectedAt.Valid
+				case "connecting":
+					hasAgentValid = !wa.FirstConnectedAt.Valid
+				}
+				break // only 1 agent is expected
+			}
+
+			if !hasAgentValid {
+				continue
+			}
+		}
+
 		if len(arg.TemplateIds) > 0 {
 			match := false
 			for _, id := range arg.TemplateIds {
