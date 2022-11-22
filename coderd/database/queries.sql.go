@@ -6477,11 +6477,13 @@ WHERE
 		ELSE true
 	END
 	-- Filter by agent status
+	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
 		WHEN $8 :: text != '' THEN
-			CASE
+			latest_build.transition = 'start'::workspace_transition
+			AND CASE
 				WHEN $8 = 'timeout' THEN
-					latest_build.first_connected_at IS NULL AND (latest_build.created_at + latest_build.connection_timeout_seconds * interval '1 second' < NOW())
+					latest_build.first_connected_at IS NULL AND (latest_build.created_at + latest_build.connection_timeout_seconds * INTERVAL '1 second' < NOW())
 				WHEN $8 = 'connecting' THEN
 			    	latest_build.first_connected_at IS NULL
 				WHEN $8 = 'disconnected' THEN
