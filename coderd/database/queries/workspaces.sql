@@ -180,6 +180,7 @@ WHERE
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
+	-- The following CASE statement reflects the conditional logic in coderd/workspaceagents.go
 	AND CASE
 		WHEN @has_agent :: text != '' THEN
 			latest_build.transition = 'start'::workspace_transition
