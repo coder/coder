@@ -52,11 +52,11 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
 		provisioner_jobs.error,
-		workspace_agents.created_at,
-		workspace_agents.disconnected_at,
-		workspace_agents.first_connected_at,
-		workspace_agents.last_connected_at,
-		workspace_agents.connection_timeout_seconds
+		workspace_agents.created_at AS agent_created_at,
+		workspace_agents.disconnected_at AS agent_disconnected_at,
+		workspace_agents.first_connected_at AS agent_first_connected_at,
+		workspace_agents.last_connected_at AS agent_last_connected_at,
+		workspace_agents.connection_timeout_seconds AS agent_connection_timeout_seconds
 	FROM
 		workspace_builds
 	LEFT JOIN
@@ -75,8 +75,8 @@ LEFT JOIN LATERAL (
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
 		build_number DESC,
-		workspace_agents.last_connected_at ASC,
-		workspace_agents.first_connected_at ASC
+		agent_last_connected_at ASC,
+		agent_first_connected_at ASC
 	LIMIT
 		1
 ) latest_build ON TRUE
@@ -185,19 +185,19 @@ WHERE
 			latest_build.transition = 'start'::workspace_transition
 			AND CASE
 				WHEN @has_agent = 'timeout' THEN
-					latest_build.first_connected_at IS NULL AND (latest_build.created_at + latest_build.connection_timeout_seconds * INTERVAL '1 second' < NOW())
+					latest_build.agent_first_connected_at IS NULL AND (latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
 				WHEN @has_agent = 'connecting' THEN
-					latest_build.first_connected_at IS NULL
+					latest_build.agent_first_connected_at IS NULL
 				WHEN @has_agent = 'disconnected' THEN
 					(
-						latest_build.disconnected_at IS NOT NULL AND
-						latest_build.disconnected_at > latest_build.last_connected_at
+						latest_build.agent_disconnected_at IS NOT NULL AND
+						latest_build.agent_disconnected_at > latest_build.agent_last_connected_at
 					) OR (
-						latest_build.last_connected_at IS NOT NULL AND
-						latest_build.last_connected_at + INTERVAL '1 second' * @agent_inactive_disconnect_timeout :: bigint < NOW()
+						latest_build.agent_last_connected_at IS NOT NULL AND
+						latest_build.agent_last_connected_at + INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint < NOW()
 					)
 				WHEN @has_agent = 'connected' THEN
-					latest_build.last_connected_at IS NOT NULL
+					latest_build.agent_last_connected_at IS NOT NULL
 				ELSE true
 			END
 		ELSE true

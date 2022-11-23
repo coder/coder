@@ -1100,7 +1100,7 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 // It also can return the list of validation errors to return to the api.
 func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
-		AgentInactiveDisconnectTimeout: int64(agentInactiveDisconnectTimeout.Seconds()),
+		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
 		Offset: int32(page.Offset),
 		Limit:  int32(page.Limit),

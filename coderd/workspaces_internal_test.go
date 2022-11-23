@@ -158,6 +158,6 @@ func TestSearchWorkspace(t *testing.T) {
 		timeout := 1337 * time.Second
 		values, errs := workspaceSearchQuery(query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
-		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeout)
+		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
 }

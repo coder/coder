@@ -6350,11 +6350,11 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
 		provisioner_jobs.error,
-		workspace_agents.created_at,
-		workspace_agents.disconnected_at,
-		workspace_agents.first_connected_at,
-		workspace_agents.last_connected_at,
-		workspace_agents.connection_timeout_seconds
+		workspace_agents.created_at AS agent_created_at,
+		workspace_agents.disconnected_at AS agent_disconnected_at,
+		workspace_agents.first_connected_at AS agent_first_connected_at,
+		workspace_agents.last_connected_at AS agent_last_connected_at,
+		workspace_agents.connection_timeout_seconds AS agent_connection_timeout_seconds
 	FROM
 		workspace_builds
 	LEFT JOIN
@@ -6373,8 +6373,8 @@ LEFT JOIN LATERAL (
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
 		build_number DESC,
-		workspace_agents.last_connected_at ASC,
-		workspace_agents.first_connected_at ASC
+		agent_last_connected_at ASC,
+		agent_first_connected_at ASC
 	LIMIT
 		1
 ) latest_build ON TRUE
@@ -6483,19 +6483,19 @@ WHERE
 			latest_build.transition = 'start'::workspace_transition
 			AND CASE
 				WHEN $8 = 'timeout' THEN
-					latest_build.first_connected_at IS NULL AND (latest_build.created_at + latest_build.connection_timeout_seconds * INTERVAL '1 second' < NOW())
+					latest_build.agent_first_connected_at IS NULL AND (latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
 				WHEN $8 = 'connecting' THEN
-					latest_build.first_connected_at IS NULL
+					latest_build.agent_first_connected_at IS NULL
 				WHEN $8 = 'disconnected' THEN
 					(
-						latest_build.disconnected_at IS NOT NULL AND
-						latest_build.disconnected_at > latest_build.last_connected_at
+						latest_build.agent_disconnected_at IS NOT NULL AND
+						latest_build.agent_disconnected_at > latest_build.agent_last_connected_at
 					) OR (
-						latest_build.last_connected_at IS NOT NULL AND
-						latest_build.last_connected_at + INTERVAL '1 second' * $9 :: bigint < NOW()
+						latest_build.agent_last_connected_at IS NOT NULL AND
+						latest_build.agent_last_connected_at + INTERVAL '1 second' * $9 :: bigint < NOW()
 					)
 				WHEN $8 = 'connected' THEN
-					latest_build.last_connected_at IS NOT NULL
+					latest_build.agent_last_connected_at IS NOT NULL
 				ELSE true
 			END
 		ELSE true
@@ -6514,17 +6514,17 @@ OFFSET
 `
 
 type GetWorkspacesParams struct {
-	Deleted                        bool        `db:"deleted" json:"deleted"`
-	Status                         string      `db:"status" json:"status"`
-	OwnerID                        uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername                  string      `db:"owner_username" json:"owner_username"`
-	TemplateName                   string      `db:"template_name" json:"template_name"`
-	TemplateIds                    []uuid.UUID `db:"template_ids" json:"template_ids"`
-	Name                           string      `db:"name" json:"name"`
-	HasAgent                       string      `db:"has_agent" json:"has_agent"`
-	AgentInactiveDisconnectTimeout int64       `db:"agent_inactive_disconnect_timeout" json:"agent_inactive_disconnect_timeout"`
-	Offset                         int32       `db:"offset_" json:"offset_"`
-	Limit                          int32       `db:"limit_" json:"limit_"`
+	Deleted                               bool        `db:"deleted" json:"deleted"`
+	Status                                string      `db:"status" json:"status"`
+	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
+	TemplateName                          string      `db:"template_name" json:"template_name"`
+	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Name                                  string      `db:"name" json:"name"`
+	HasAgent                              string      `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	Offset                                int32       `db:"offset_" json:"offset_"`
+	Limit                                 int32       `db:"limit_" json:"limit_"`
 }
 
 type GetWorkspacesRow struct {
@@ -6552,7 +6552,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 		arg.HasAgent,
-		arg.AgentInactiveDisconnectTimeout,
+		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Offset,
 		arg.Limit,
 	)
