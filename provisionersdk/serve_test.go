@@ -21,7 +21,7 @@ func TestProvisionerSDK(t *testing.T) {
 	t.Parallel()
 	t.Run("Serve", func(t *testing.T) {
 		t.Parallel()
-		client, server := provisionersdk.TransportPipe()
+		client, server := provisionersdk.MemTransportPipe()
 		defer client.Close()
 		defer server.Close()
 
@@ -34,7 +34,7 @@ func TestProvisionerSDK(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+		api := proto.NewDRPCProvisionerClient(client)
 		stream, err := api.Parse(context.Background(), &proto.Parse_Request{})
 		require.NoError(t, err)
 		_, err = stream.Recv()
@@ -43,7 +43,7 @@ func TestProvisionerSDK(t *testing.T) {
 
 	t.Run("ServeClosedPipe", func(t *testing.T) {
 		t.Parallel()
-		client, server := provisionersdk.TransportPipe()
+		client, server := provisionersdk.MemTransportPipe()
 		_ = client.Close()
 		_ = server.Close()
 

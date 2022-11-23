@@ -69,7 +69,7 @@ func provisionerDaemonStart() *cobra.Command {
 				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 			}
 
-			terraformClient, terraformServer := provisionersdk.TransportPipe()
+			terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
 				_ = terraformClient.Close()
@@ -104,7 +104,7 @@ func provisionerDaemonStart() *cobra.Command {
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
 			provisioners := provisionerd.Provisioners{
-				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, org.ID, []codersdk.ProvisionerType{

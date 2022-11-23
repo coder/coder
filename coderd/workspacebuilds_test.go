@@ -576,9 +576,9 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	numLogs := len(auditor.AuditLogs)
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
-	numLogs++ // add an audit log for user
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	numLogs++ // add an audit log for template version
+	numLogs++ // add an audit log for template version creation
+	numLogs++ // add an audit log for template version update
 
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	closeDaemon.Close()
@@ -598,6 +598,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
 
+	numLogs++ // add an audit log for workspace_build starting
+
 	// after successful stop is "stopped"
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
@@ -616,11 +618,6 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	err = client.CancelWorkspaceBuild(ctx, build.ID)
 	require.NoError(t, err)
 
-	numLogs++ // add an audit log for workspace build start
-	// assert an audit log has been created workspace starting
-	require.Len(t, auditor.AuditLogs, numLogs)
-	require.Equal(t, database.AuditActionStart, auditor.AuditLogs[numLogs-1].Action)
-
 	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusCanceled, workspace.LatestBuild.Status)
@@ -632,9 +629,4 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
-	numLogs++ // add an audit log for workspace build deletion
-
-	// assert an audit log has been created for deletion
-	require.Len(t, auditor.AuditLogs, numLogs)
-	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs[numLogs-1].Action)
 }

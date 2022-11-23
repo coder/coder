@@ -62,7 +62,7 @@ export const WorkspacesTableBody: FC<
                   }
                   image={
                     <div className={styles.emptyImage}>
-                      <img src="/empty/workspaces.webp" alt="" />
+                      <img src="/featured/workspaces.webp" alt="" />
                     </div>
                   }
                 />

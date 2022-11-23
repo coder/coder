@@ -843,6 +843,7 @@ func TestProvisionerd(t *testing.T) {
 					<-failChan
 					_ = client.DRPCConn().Close()
 					second.Store(true)
+					time.Sleep(50 * time.Millisecond)
 					failedOnce.Do(func() { close(failedChan) })
 				}()
 			}
@@ -1075,7 +1076,7 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 			return &proto.Empty{}, nil
 		}
 	}
-	clientPipe, serverPipe := provisionersdk.TransportPipe()
+	clientPipe, serverPipe := provisionersdk.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
@@ -1089,14 +1090,14 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 	go func() {
 		_ = srv.Serve(ctx, serverPipe)
 	}()
-	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(clientPipe))
+	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
 }
 
 // Creates a provisioner protobuf client that's connected
 // to the server implementation provided.
 func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkproto.DRPCProvisionerClient {
 	t.Helper()
-	clientPipe, serverPipe := provisionersdk.TransportPipe()
+	clientPipe, serverPipe := provisionersdk.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
@@ -1110,7 +1111,7 @@ func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkprot
 	go func() {
 		_ = srv.Serve(ctx, serverPipe)
 	}()
-	return sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(clientPipe))
+	return sdkproto.NewDRPCProvisionerClient(clientPipe)
 }
 
 type provisionerTestServer struct {

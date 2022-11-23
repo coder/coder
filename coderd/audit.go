@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -129,7 +130,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Time:             params.Time,
 		UserID:           user.ID,
 		Ip:               ipNet,
-		UserAgent:        r.UserAgent(),
+		UserAgent:        sql.NullString{String: r.UserAgent(), Valid: true},
 		ResourceType:     database.ResourceType(params.ResourceType),
 		ResourceID:       params.ResourceID,
 		ResourceTarget:   user.Username,
@@ -163,6 +164,7 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	_ = json.Unmarshal(dblog.Diff, &diff)
 
 	var user *codersdk.User
+
 	if dblog.UserUsername.Valid {
 		user = &codersdk.User{
 			ID:        dblog.UserID,
@@ -186,7 +188,7 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		Time:             dblog.Time,
 		OrganizationID:   dblog.OrganizationID,
 		IP:               ip,
-		UserAgent:        dblog.UserAgent,
+		UserAgent:        dblog.UserAgent.String,
 		ResourceType:     codersdk.ResourceType(dblog.ResourceType),
 		ResourceID:       dblog.ResourceID,
 		ResourceTarget:   dblog.ResourceTarget,
