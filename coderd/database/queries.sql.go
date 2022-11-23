@@ -6483,9 +6483,11 @@ WHERE
 			latest_build.transition = 'start'::workspace_transition
 			AND CASE
 				WHEN $8 = 'timeout' THEN
-					latest_build.agent_first_connected_at IS NULL AND (latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
+					latest_build.agent_first_connected_at IS NULL AND
+					(latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
 				WHEN $8 = 'connecting' THEN
-					latest_build.agent_first_connected_at IS NULL AND (latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' >= NOW())
+					latest_build.agent_first_connected_at IS NULL AND
+					(latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' >= NOW())
 				WHEN $8 = 'disconnected' THEN
 					(
 						latest_build.agent_disconnected_at IS NOT NULL AND
