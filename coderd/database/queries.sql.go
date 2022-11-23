@@ -6336,25 +6336,30 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
-SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
-FROM
-	workspaces
-LEFT JOIN LATERAL (
+WITH workspace_builds_agents AS (
 	SELECT
-		build_number,
-		workspace_builds.job_id,
-		workspace_builds.transition,
-		provisioner_jobs.started_at,
-		provisioner_jobs.updated_at,
-		provisioner_jobs.canceled_at,
-		provisioner_jobs.completed_at,
-		provisioner_jobs.error,
-		workspace_agents.created_at AS agent_created_at,
-		workspace_agents.disconnected_at AS agent_disconnected_at,
-		workspace_agents.first_connected_at AS agent_first_connected_at,
-		workspace_agents.last_connected_at AS agent_last_connected_at,
-		workspace_agents.connection_timeout_seconds AS agent_connection_timeout_seconds
+		workspace_builds.workspace_id AS workspace_id,
+		workspace_builds.build_number AS build_number,
+		workspace_agents.id AS agent_id,
+		(
+			CASE
+				WHEN workspace_agents.first_connected_at IS NULL THEN
+					CASE
+						WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+							'timeout'
+						ELSE
+							'connecting'
+					END
+				WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
+					'disconnected'
+				WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $11 :: bigint THEN
+					'disconnected'
+				WHEN workspace_agents.last_connected_at IS NOT NULL THEN
+					'connected'
+				ELSE
+					NULL
+			END
+		) AS agent_status
 	FROM
 		workspace_builds
 	LEFT JOIN
@@ -6370,13 +6375,33 @@ LEFT JOIN LATERAL (
 	ON
 		workspace_agents.resource_id = workspace_resources.id
 	WHERE
+		workspace_builds.transition = 'start'::workspace_transition AND
+		workspace_agents.id IS NOT NULL
+)
+SELECT
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
+FROM
+	workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_builds.build_number,
+		workspace_builds.transition,
+		provisioner_jobs.started_at,
+		provisioner_jobs.updated_at,
+		provisioner_jobs.canceled_at,
+		provisioner_jobs.completed_at,
+		provisioner_jobs.error
+	FROM
+		workspace_builds
+	LEFT JOIN
+		provisioner_jobs
+	ON
+		provisioner_jobs.id = workspace_builds.job_id
+	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
-		build_number DESC,
-		agent_last_connected_at ASC,
-		agent_first_connected_at ASC
-	LIMIT
-		1
+		build_number DESC
+	LIMIT 1
 ) latest_build ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
@@ -6478,27 +6503,15 @@ WHERE
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
-	-- The following CASE statement reflects the conditional logic in coderd/workspaceagents.go
 	AND CASE
 		WHEN $8 :: text != '' THEN
-			latest_build.transition = 'start'::workspace_transition
-			AND CASE
-				WHEN latest_build.agent_first_connected_at IS NULL THEN
-					CASE
-						WHEN latest_build.agent_connection_timeout_seconds > 0 AND NOW() - latest_build.agent_created_at > latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' THEN
-							CASE WHEN $8 :: text = 'timeout' THEN true ELSE false END
-						ELSE
-							CASE WHEN $8 :: text = 'connecting' THEN true ELSE false END
-					END
-				WHEN latest_build.agent_disconnected_at > latest_build.agent_last_connected_at THEN
-					CASE WHEN $8 :: text = 'disconnected' THEN true ELSE false END
-				WHEN NOW() - latest_build.agent_last_connected_at > INTERVAL '1 second' * $9 :: bigint THEN
-					CASE WHEN $8 :: text = 'disconnected' THEN true ELSE false END
-				WHEN latest_build.agent_last_connected_at IS NOT NULL THEN
-					CASE WHEN $8 :: text = 'connected' THEN true ELSE false END
-				ELSE
-					false
-			END
+			(
+				SELECT COUNT(*) FROM workspace_builds_agents
+				WHERE
+					workspace_builds_agents.workspace_id = workspaces.id AND
+					workspace_builds_agents.build_number = latest_build.build_number AND
+					agent_status = $8
+			) > 0
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
@@ -6507,11 +6520,11 @@ ORDER BY
 	last_used_at DESC
 LIMIT
 	CASE
-		WHEN $11 :: integer > 0 THEN
-			$11
+		WHEN $10 :: integer > 0 THEN
+			$10
 	END
 OFFSET
-	$10
+	$9
 `
 
 type GetWorkspacesParams struct {
@@ -6523,9 +6536,9 @@ type GetWorkspacesParams struct {
 	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
-	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
 	Limit                                 int32       `db:"limit_" json:"limit_"`
+	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 }
 
 type GetWorkspacesRow struct {
@@ -6553,9 +6566,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 		arg.HasAgent,
-		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Offset,
 		arg.Limit,
+		arg.AgentInactiveDisconnectTimeoutSeconds,
 	)
 	if err != nil {
 		return nil, err

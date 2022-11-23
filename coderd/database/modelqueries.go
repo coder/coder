@@ -133,9 +133,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 		arg.HasAgent,
-		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Offset,
 		arg.Limit,
+		arg.AgentInactiveDisconnectTimeoutSeconds,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
