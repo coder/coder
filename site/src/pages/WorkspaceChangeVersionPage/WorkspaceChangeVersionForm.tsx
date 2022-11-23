@@ -58,6 +58,7 @@ export const WorkspaceChangeVersionForm: FC<{
         </Stack>
 
         <Autocomplete
+          id="workspaceVersion"
           disableClearable
           options={versions.slice().reverse()}
           value={autocompleteValue}
@@ -69,7 +70,6 @@ export const WorkspaceChangeVersionForm: FC<{
           renderInput={(params) => (
             <TextField
               {...params}
-              {...formik.getFieldProps("versionId")}
               label="Workspace version"
               variant="outlined"
               fullWidth

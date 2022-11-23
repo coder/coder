@@ -37,7 +37,10 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
   rest.get("/api/v2/templates/:templateId/versions", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockTemplateVersion]))
+    return res(
+      ctx.status(200),
+      ctx.json([M.MockTemplateVersion2, M.MockTemplateVersion]),
+    )
   }),
   rest.patch("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
