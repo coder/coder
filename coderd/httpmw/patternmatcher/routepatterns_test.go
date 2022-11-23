@@ -30,6 +30,13 @@ func Test_RoutePatterns(t *testing.T) {
 			output: "^(/api/?)$",
 		},
 		{
+			name: "TrailingSlash",
+			patterns: []string{
+				"/api/",
+			},
+			output: "^(/api/)$",
+		},
+		{
 			name: "Multiple",
 			patterns: []string{
 				"/api",
@@ -61,6 +68,35 @@ func Test_RoutePatterns(t *testing.T) {
 				"/gitauth/*/callback",
 			},
 			output: "^(/api/?|/api/.+/?|/@[^/]+/[^/]+/apps/.+/?|/%40[^/]+/[^/]+/apps/.+/?|/gitauth/[^/]+/callback/?)$",
+		},
+		{
+			name: "Slash",
+			patterns: []string{
+				"/",
+			},
+			output: "^(/)$",
+		},
+		{
+			name: "SlashStar",
+			patterns: []string{
+				"/*",
+			},
+			output: "^(/[^/]+/?)$",
+		},
+		{
+			name: "SlashStarStar",
+			patterns: []string{
+				"/**",
+			},
+			output: "^(/.+/?)$",
+		},
+		{
+			name: "SlashSlash",
+			patterns: []string{
+				"//",
+				"/api//v1",
+			},
+			output: "^(//|/api//v1/?)$",
 		},
 		{
 			name: "Invalid",
