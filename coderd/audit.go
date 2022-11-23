@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -69,7 +71,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-		AuditLogs: convertAuditLogs(dblogs),
+		AuditLogs: api.convertAuditLogs(ctx, dblogs),
 		Count:     dblogs[0].Count,
 	})
 }
@@ -147,17 +149,17 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func convertAuditLogs(dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
+func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
 	alogs := make([]codersdk.AuditLog, 0, len(dblogs))
 
 	for _, dblog := range dblogs {
-		alogs = append(alogs, convertAuditLog(dblog))
+		alogs = append(alogs, api.convertAuditLog(ctx, dblog))
 	}
 
 	return alogs
 }
 
-func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
+func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
 	diff := codersdk.AuditDiff{}
@@ -199,21 +201,60 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		AdditionalFields: dblog.AdditionalFields,
 		Description:      auditLogDescription(dblog),
 		User:             user,
+		ResourceLink:     api.auditLogResourceLink(ctx, dblog),
+	}
+}
+
+type AdditionalFields struct {
+	WorkspaceName string
+	BuildNumber   string
+}
+
+func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
+	switch alog.ResourceType {
+	case database.ResourceTypeOrganization:
+		return ""
+	case database.ResourceTypeTemplate:
+		return ""
+	case database.ResourceTypeTemplateVersion:
+		return ""
+	case database.ResourceTypeUser:
+		return ""
+	case database.ResourceTypeWorkspace:
+		return fmt.Sprintf("/@%s/%s",
+			alog.UserUsername.String, alog.ResourceTarget)
+	case database.ResourceTypeWorkspaceBuild:
+		additionalFieldsBytes := []byte(alog.AdditionalFields)
+		var additionalFields AdditionalFields
+		err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
+		if err != nil {
+			api.Logger.Error(ctx, "could not unmarshal workspace name for friendly string", slog.Error(err))
+		}
+		return fmt.Sprintf("/@%s/%s/builds/%s",
+			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)
+	case database.ResourceTypeGitSshKey:
+		return ""
+	case database.ResourceTypeApiKey:
+		return ""
+	case database.ResourceTypeGroup:
+		return ""
+	default:
+		return ""
 	}
 }
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
-	str := fmt.Sprintf("{user} %s %s",
+	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
-		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
 
 	// Strings for workspace_builds follow the below format:
 	// "{user} started workspace build for {target}"
 	// where target is a workspace instead of the workspace build,
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
-	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
-		str += " for"
+	if alog.ResourceType != database.ResourceTypeWorkspaceBuild {
+		str += fmt.Sprintf(" %s",
+			codersdk.ResourceType(alog.ResourceType).FriendlyString())
 	}
 
 	// We don't display the name for git ssh keys. It's fairly long and doesn't

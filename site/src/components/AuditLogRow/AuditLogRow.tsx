@@ -15,21 +15,45 @@ import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
 import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
+import { Link } from "react-router-dom"
 
-export const readableActionMessage = (auditLog: AuditLog): string => {
+// const determineInitiator = (auditLog: AuditLog): string => {
+//   return auditLog.
+// }
+
+const determineResourceTarget = (auditLog: AuditLog): string => {
   let target = auditLog.resource_target.trim()
 
   // audit logs with a resource_type of workspace build use workspace name as a target
-  if (
-    auditLog.resource_type === "workspace_build" &&
-    auditLog.additional_fields.workspaceName
-  ) {
-    target = auditLog.additional_fields.workspaceName.trim()
+  if (auditLog.resource_type === "workspace_build") {
+    // target = auditLog.additional_fields.workspaceName.trim()
+    target = "build"
   }
 
+  return target
+}
+
+export const readableActionMessage = (auditLog: AuditLog): string => {
+  // let target = auditLog.resource_target.trim()
+
+  // audit logs with a resource_type of workspace build use workspace name as a target
+  // if (
+  //   auditLog.resource_type === "workspace_build" &&
+  //   auditLog.additional_fields.workspaceName
+  // ) {
+  //   target = auditLog.additional_fields.workspaceName.trim()
+  // }
+
   return auditLog.description
-    .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
-    .replace("{target}", `<strong>${target}</strong>`)
+    .replace("{user}", `${auditLog.user?.username.trim()}`)
+    .replace("{target}", "")
+
+  // return auditLog.description
+  //   .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
+  //   .replace(
+  //     "{target}",
+  //     `<Link to=/@${auditLog.user?.username.trim()}/${target}>${target}</Link>`,
+  //   )
 }
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
@@ -119,11 +143,25 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   alignItems="baseline"
                   spacing={1}
                 >
-                  <span
+                  <span>
+                    {readableActionMessage(auditLog)}{" "}
+                    <Link to={auditLog.resource_link}>
+                      {determineResourceTarget(auditLog)}
+                    </Link>
+                    {auditLog.resource_type === "workspace_build" &&
+                      auditLog.additional_fields.workspaceName && (
+                        <span>
+                          {" "}
+                          for workspace{" "}
+                          {auditLog.additional_fields.workspaceName}
+                        </span>
+                      )}
+                  </span>
+                  {/* <span
                     dangerouslySetInnerHTML={{
                       __html: readableActionMessage(auditLog),
                     }}
-                  />
+                  /> */}
                   <span className={styles.auditLogTime}>
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>

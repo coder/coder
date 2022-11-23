@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -541,6 +542,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 				// can form a friendly string for the user.
 				workspaceResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
+					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
 				}
 
 				wriBytes, err := json.Marshal(workspaceResourceInfo)
@@ -756,6 +758,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			// can form a friendly string for the user.
 			workspaceResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
+				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 			}
 
 			wriBytes, err := json.Marshal(workspaceResourceInfo)

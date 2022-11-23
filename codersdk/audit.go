@@ -102,6 +102,7 @@ type AuditLog struct {
 	StatusCode       int32           `json:"status_code"`
 	AdditionalFields json.RawMessage `json:"additional_fields"`
 	Description      string          `json:"description"`
+	ResourceLink     string          `json:"resource_link"`
 
 	User *User `json:"user"`
 }
