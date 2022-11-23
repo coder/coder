@@ -46,6 +46,9 @@ const WorkspaceBuildPage = lazy(
   () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 )
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
+const WorkspaceChangeVersionPage = lazy(
+  () => import("./pages/WorkspaceChangeVersionPage/WorkspaceChangeVersionPage"),
+)
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
@@ -360,6 +363,7 @@ export const AppRouter: FC = () => {
                 </AuthAndFrame>
               }
             />
+
             <Route
               path="schedule"
               element={
@@ -384,6 +388,15 @@ export const AppRouter: FC = () => {
                 <AuthAndFrame>
                   <WorkspaceBuildPage />
                 </AuthAndFrame>
+              }
+            />
+
+            <Route
+              path="change-version"
+              element={
+                <RequireAuth>
+                  <WorkspaceChangeVersionPage />
+                </RequireAuth>
               }
             />
           </Route>
