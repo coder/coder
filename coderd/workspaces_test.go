@@ -302,7 +302,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(int64(0))
 		})
-		// Given: the template has no max TTL set
+		// Given: the template has no default TTL set
 		require.Zero(t, template.DefaultTTLMillis)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -1178,11 +1178,17 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			name:          "disable ttl",
 			ttlMillis:     nil,
 			expectedError: "",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+			},
 		},
 		{
 			name:          "update ttl",
 			ttlMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
 			expectedError: "",
+			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+			},
 		},
 		{
 			name:          "below minimum ttl",
