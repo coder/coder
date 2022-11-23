@@ -6497,7 +6497,7 @@ WHERE
 				WHEN latest_build.agent_last_connected_at IS NOT NULL THEN
 					CASE WHEN $8 :: text = 'connected' THEN true ELSE false END
 				ELSE
-					true
+					false
 			END
 		ELSE true
 	END
