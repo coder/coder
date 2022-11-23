@@ -15,45 +15,25 @@ import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
 import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
-import { Link } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
+import i18next from "i18next"
+import Link from "@material-ui/core/Link"
 
-// const determineInitiator = (auditLog: AuditLog): string => {
-//   return auditLog.
-// }
+const determineResourceLink = (auditLog: AuditLog): string => {
+  const { t } = i18next
+  let linkTarget = auditLog.resource_target.trim()
 
-const determineResourceTarget = (auditLog: AuditLog): string => {
-  let target = auditLog.resource_target.trim()
-
-  // audit logs with a resource_type of workspace build use workspace name as a target
   if (auditLog.resource_type === "workspace_build") {
-    // target = auditLog.additional_fields.workspaceName.trim()
-    target = "build"
+    linkTarget = t("auditLog:table.logRow.buildTarget")
   }
 
-  return target
+  return linkTarget
 }
 
 export const readableActionMessage = (auditLog: AuditLog): string => {
-  // let target = auditLog.resource_target.trim()
-
-  // audit logs with a resource_type of workspace build use workspace name as a target
-  // if (
-  //   auditLog.resource_type === "workspace_build" &&
-  //   auditLog.additional_fields.workspaceName
-  // ) {
-  //   target = auditLog.additional_fields.workspaceName.trim()
-  // }
-
   return auditLog.description
     .replace("{user}", `${auditLog.user?.username.trim()}`)
     .replace("{target}", "")
-
-  // return auditLog.description
-  //   .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
-  //   .replace(
-  //     "{target}",
-  //     `<Link to=/@${auditLog.user?.username.trim()}/${target}>${target}</Link>`,
-  //   )
 }
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
@@ -79,6 +59,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   defaultIsDiffOpen = false,
 }) => {
   const styles = useStyles()
+  const { t } = i18next
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen)
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
@@ -145,23 +126,19 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 >
                   <span>
                     {readableActionMessage(auditLog)}{" "}
-                    <Link to={auditLog.resource_link}>
-                      {determineResourceTarget(auditLog)}
-                    </Link>
+                    {auditLog.resource_link && (
+                      <Link component={RouterLink} to={auditLog.resource_link}>
+                        {determineResourceLink(auditLog)}
+                      </Link>
+                    )}
                     {auditLog.resource_type === "workspace_build" &&
                       auditLog.additional_fields.workspaceName && (
-                        <span>
-                          {" "}
-                          for workspace{" "}
+                        <>
+                          {t("auditLog:table.logRow.buildFriendlyString")}
                           {auditLog.additional_fields.workspaceName}
-                        </span>
+                        </>
                       )}
                   </span>
-                  {/* <span
-                    dangerouslySetInnerHTML={{
-                      __html: readableActionMessage(auditLog),
-                    }}
-                  /> */}
                   <span className={styles.auditLogTime}>
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>
@@ -170,15 +147,18 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 <Stack direction="row" alignItems="center">
                   <Stack direction="row" spacing={1} alignItems="baseline">
                     <span className={styles.auditLogInfo}>
-                      IP: <strong>{auditLog.ip ?? notAvailableLabel}</strong>
+                      <>{t("auditLog:table.logRow.ip")}</>
+                      <strong>{auditLog.ip ?? notAvailableLabel}</strong>
                     </span>
 
                     <span className={styles.auditLogInfo}>
-                      OS: <strong>{os.name ?? notAvailableLabel}</strong>
+                      <>{t("auditLog:table.logRow.os")}</>
+                      <strong>{os.name ?? notAvailableLabel}</strong>
                     </span>
 
                     <span className={styles.auditLogInfo}>
-                      Browser: <strong>{displayBrowserInfo}</strong>
+                      <>{t("auditLog:table.logRow.browser")}</>
+                      <strong>{displayBrowserInfo}</strong>
                     </span>
                   </Stack>
 
