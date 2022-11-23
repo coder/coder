@@ -867,7 +867,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	t.Run("ReconnectAndComplete", func(t *testing.T) {
+	t.Skip("ReconnectAndComplete", func(t *testing.T) {
 		t.Parallel()
 		var (
 			second       atomic.Bool
