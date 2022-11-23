@@ -30,6 +30,9 @@ export const WorkspaceChangeVersionForm: FC<{
     validationSchema,
     onSubmit: ({ versionId }) => onSubmit(versionId),
   })
+  const autocompleteValue = versions.find(
+    (version) => version.id === formik.values.versionId,
+  )
 
   return (
     <form onSubmit={formik.handleSubmit}>
@@ -57,16 +60,19 @@ export const WorkspaceChangeVersionForm: FC<{
         <Autocomplete
           disableClearable
           options={versions.slice().reverse()}
-          defaultValue={versions.find(
-            (version) => version.id === formik.values.versionId,
-          )}
+          value={autocompleteValue}
+          onChange={async (_event, value) => {
+            if (value) {
+              await formik.setFieldValue("versionId", value.id)
+            }
+          }}
           renderInput={(params) => (
             <TextField
               {...params}
+              {...formik.getFieldProps("versionId")}
               label="Workspace version"
               variant="outlined"
               fullWidth
-              {...formik.getFieldProps("versionId")}
             />
           )}
           getOptionLabel={(version: TemplateVersion) => version.name}

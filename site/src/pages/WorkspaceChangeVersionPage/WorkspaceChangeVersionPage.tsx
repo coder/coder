@@ -3,7 +3,7 @@ import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams } from "react-router-dom"
 import { changeWorkspaceVersionMachine } from "xServices/workspace/changeWorkspaceVersionXService"
-import WorkspaceChangeVersionPageView from "./WorkspaceChangeVersionPageView"
+import { WorkspaceChangeVersionPageView } from "./WorkspaceChangeVersionPageView"
 
 export const WorkspaceChangeVersionPage: FC = () => {
   const navigate = useNavigate()
@@ -26,7 +26,7 @@ export const WorkspaceChangeVersionPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>Change version · {workspaceName}</title>
+        <title>{`Change version · ${workspaceName}`}</title>
       </Helmet>
 
       <WorkspaceChangeVersionPageView
@@ -42,3 +42,5 @@ export const WorkspaceChangeVersionPage: FC = () => {
     </>
   )
 }
+
+export default WorkspaceChangeVersionPage

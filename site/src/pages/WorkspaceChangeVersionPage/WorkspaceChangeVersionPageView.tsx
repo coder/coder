@@ -44,5 +44,3 @@ export const WorkspaceChangeVersionPageView: FC<
     </FullPageForm>
   )
 }
-
-export default WorkspaceChangeVersionPageView
