@@ -7,6 +7,7 @@ import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { createDayString } from "util/createDayString"
 import * as Yup from "yup"
 
@@ -23,6 +24,7 @@ export const WorkspaceChangeVersionForm: FC<{
   onCancel: () => void
 }> = ({ isLoading, workspace, template, versions, onSubmit, onCancel }) => {
   const styles = useStyles()
+  const { t } = useTranslation("workspaceChangeVersionPage")
   const formik = useFormik({
     initialValues: {
       versionId: workspace.latest_build.template_version_id,
@@ -70,7 +72,7 @@ export const WorkspaceChangeVersionForm: FC<{
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Workspace version"
+              label={t("labels.workspaceVersion")}
               variant="outlined"
               fullWidth
             />
@@ -81,7 +83,7 @@ export const WorkspaceChangeVersionForm: FC<{
               <div>
                 <div>{version.name}</div>
                 <div className={styles.versionDescription}>
-                  Created by {version.created_by.username}{" "}
+                  {t("labels.createdBy")} {version.created_by.username}{" "}
                   {createDayString(version.created_at)}
                 </div>
               </div>
@@ -89,7 +91,7 @@ export const WorkspaceChangeVersionForm: FC<{
               {template.active_version_id === version.id && (
                 <Pill
                   type="success"
-                  text="Active"
+                  text={t("labels.active")}
                   className={styles.activePill}
                 />
               )}
@@ -101,7 +103,7 @@ export const WorkspaceChangeVersionForm: FC<{
       <FormFooter
         onCancel={onCancel}
         isLoading={isLoading}
-        submitLabel="Update version"
+        submitLabel={t("labels.submit")}
       />
     </form>
   )

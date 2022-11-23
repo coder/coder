@@ -10,6 +10,11 @@ import { screen, waitFor } from "@testing-library/react"
 import * as API from "api/api"
 import userEvent from "@testing-library/user-event"
 import * as CreateDayString from "util/createDayString"
+import i18next from "i18next"
+
+const t = (path: string) => {
+  return i18next.t(path, { ns: "workspaceChangeVersionPage" })
+}
 
 const renderPage = async () => {
   renderWithAuth(<WorkspaceChangeVersionPage />, {
@@ -32,7 +37,9 @@ describe("WorkspaceChangeVersionPage", () => {
     await renderPage()
 
     // Type the version name and select it
-    const autocompleteInput = screen.getByLabelText("Workspace version")
+    const autocompleteInput = screen.getByLabelText(
+      t("labels.workspaceVersion"),
+    )
     await user.clear(autocompleteInput)
     await user.type(autocompleteInput, MockTemplateVersion2.name)
     const newOption = screen.getByRole("option", {
@@ -42,7 +49,9 @@ describe("WorkspaceChangeVersionPage", () => {
     await user.click(newOption)
 
     // Submit the form
-    const submitButton = screen.getByRole("button", { name: "Update version" })
+    const submitButton = screen.getByRole("button", {
+      name: t("labels.submit"),
+    })
     await user.click(submitButton)
 
     await waitFor(() => {
