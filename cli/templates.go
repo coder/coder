@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,6 +66,8 @@ type templateTableRow struct {
 // columns to display
 func displayTemplates(filterColumns []string, templates ...codersdk.Template) (string, error) {
 	rows := make([]templateTableRow, len(templates))
+	// Sort the slice in descending order of creation date.
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].CreatedAt > rows[j].CreatedAt })
 	for i, template := range templates {
 		rows[i] = templateTableRow{
 			Name:            template.Name,
