@@ -6,7 +6,7 @@ The [Sysbox](https://github.com/nestybox/sysbox) container runtime allows unpriv
 
 > Sysbox can also be used to run systemd inside Coder workspaces. See [Systemd in Docker](#systemd-in-docker).
 
-### Use Sysbox in Docker-based templates:
+### Use Sysbox in Docker-based templates
 
 After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on the Coder host, modify your template to use the sysbox-runc runtime:
 
@@ -35,13 +35,23 @@ resource "coder_agent" "main" {
 }
 ```
 
-### Use Sysbox in Kubernetes-based templates:
+### Use Sysbox in Kubernetes-based templates
 
-After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass.
-
-> Currently, the official [Kubernetes Terraform Provider](https://registry.terraform.io/providers/hashicorp/kubernetes/latest) does not support specifying a custom RuntimeClass. [mingfang/k8s](https://registry.terraform.io/providers/mingfang/k8s), a third-party provider, can be used instead.
+After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass. This requires the Kuberentes Terrafom provider version 2.16.0 or greater.
 
 ```hcl
+terraform {
+  required_providers {
+    coder = {
+      source  = "coder/coder"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.16.0"
+    }
+  }
+}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
@@ -56,7 +66,7 @@ resource "coder_agent" "main" {
   EOF
 }
 
-resource "k8s_core_v1_pod" "dev" {
+resource "kubernetes_pod" "dev" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
@@ -66,15 +76,14 @@ resource "k8s_core_v1_pod" "dev" {
     }
   }
 
-
   spec {
   runtime_class_name = "sysbox-runc"
   # Use the Sysbox container runtime (required)
     security_context {
-      run_asuser = 1000
-      fsgroup    = 1000
+      run_as_user = 1000
+      fs_group    = 1000
     }
-    containers {
+    container {
       name = "dev"
       env {
         name  = "CODER_AGENT_TOKEN"
@@ -93,7 +102,7 @@ resource "k8s_core_v1_pod" "dev" {
 
 While less secure, you can attach a [privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) to your templates. This may come in handy if your nodes cannot run Sysbox.
 
-### Use a privileged sidecar container in Docker-based templates:
+### Use a privileged sidecar container in Docker-based templates
 
 ```hcl
 resource "coder_agent" "main" {
@@ -130,9 +139,21 @@ resource "docker_container" "workspace" {
 }
 ```
 
-### Use a privileged sidecar container in Kubernetes-based templates:
+### Use a privileged sidecar container in Kubernetes-based templates
 
 ```hcl
+terraform {
+  required_providers {
+    coder = {
+      source  = "coder/coder"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.16.0"
+    }
+  }
+}
+
 resource "coder_agent" "main" {
   os             = "linux"
   arch           = "amd64"
@@ -179,7 +200,7 @@ resource "kubernetes_pod" "main" {
 
 Additionally, [Sysbox](https://github.com/nestybox/sysbox) can be used to give workspaces full `systemd` capabilities.
 
-### Use systemd in Docker-based templates:
+### Use systemd in Docker-based templates
 
 After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on the Coder host, modify your template to use the sysbox-runc runtime and start systemd:
 
@@ -219,11 +240,10 @@ resource "coder_agent" "main" {
 }
 ```
 
-### Use systemd in Kubernetes-based templates:
+### Use systemd in Kubernetes-based templates
 
-After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass.
-
-> Currently, the official [Kubernetes Terraform Provider](https://registry.terraform.io/providers/hashicorp/kubernetes/latest) does not support specifying a custom RuntimeClass. [mingfang/k8s](https://registry.terraform.io/providers/mingfang/k8s), a third-party provider, can be used instead.
+After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md),
+modify your template to use the sysbox-runc RuntimeClass. This requires the Kuberentes Terrafom provider version 2.16.0 or greater.
 
 ```hcl
 terraform {
@@ -231,12 +251,12 @@ terraform {
     coder = {
       source  = "coder/coder"
     }
-    k8s = {
-      source = "mingfang/k8s"
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.16.0"
     }
   }
 }
-
 
 resource "coder_agent" "main" {
   os   = "linux"
@@ -244,7 +264,7 @@ resource "coder_agent" "main" {
   dir  = "/home/coder"
 }
 
-resource "k8s_core_v1_pod" "dev" {
+resource "kubernetes_pod" "dev" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
@@ -254,7 +274,6 @@ resource "k8s_core_v1_pod" "dev" {
     }
   }
 
-
   spec {
 
     # Use Sysbox container runtime (required)
@@ -262,11 +281,11 @@ resource "k8s_core_v1_pod" "dev" {
 
     # Run as root in order to start systemd (required)
     security_context {
-      run_asuser = 0
-      fsgroup    = 0
+      run_as_user = 0
+      fs_group    = 0
     }
 
-    containers {
+    container {
       name = "dev"
       env {
         name  = "CODER_AGENT_TOKEN"
