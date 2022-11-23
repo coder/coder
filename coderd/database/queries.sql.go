@@ -6492,7 +6492,7 @@ WHERE
 						latest_build.disconnected_at > latest_build.last_connected_at
 					) OR (
 						latest_build.last_connected_at IS NOT NULL AND
-						latest_build.last_connected_at + 6 * INTERVAL '1 second' < NOW() -- FIXME agentInactiveDisconnectTimeout = 6
+						latest_build.last_connected_at + INTERVAL '1 second' * $9 :: bigint < NOW()
 					)
 				WHEN $8 = 'connected' THEN
 					latest_build.last_connected_at IS NOT NULL
@@ -6506,24 +6506,25 @@ ORDER BY
 	last_used_at DESC
 LIMIT
 	CASE
-		WHEN $10 :: integer > 0 THEN
-			$10
+		WHEN $11 :: integer > 0 THEN
+			$11
 	END
 OFFSET
-	$9
+	$10
 `
 
 type GetWorkspacesParams struct {
-	Deleted       bool        `db:"deleted" json:"deleted"`
-	Status        string      `db:"status" json:"status"`
-	OwnerID       uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername string      `db:"owner_username" json:"owner_username"`
-	TemplateName  string      `db:"template_name" json:"template_name"`
-	TemplateIds   []uuid.UUID `db:"template_ids" json:"template_ids"`
-	Name          string      `db:"name" json:"name"`
-	HasAgent      string      `db:"has_agent" json:"has_agent"`
-	Offset        int32       `db:"offset_" json:"offset_"`
-	Limit         int32       `db:"limit_" json:"limit_"`
+	Deleted                        bool        `db:"deleted" json:"deleted"`
+	Status                         string      `db:"status" json:"status"`
+	OwnerID                        uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername                  string      `db:"owner_username" json:"owner_username"`
+	TemplateName                   string      `db:"template_name" json:"template_name"`
+	TemplateIds                    []uuid.UUID `db:"template_ids" json:"template_ids"`
+	Name                           string      `db:"name" json:"name"`
+	HasAgent                       string      `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeout int64       `db:"agent_inactive_disconnect_timeout" json:"agent_inactive_disconnect_timeout"`
+	Offset                         int32       `db:"offset_" json:"offset_"`
+	Limit                          int32       `db:"limit_" json:"limit_"`
 }
 
 type GetWorkspacesRow struct {
@@ -6551,6 +6552,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 		arg.HasAgent,
+		arg.AgentInactiveDisconnectTimeout,
 		arg.Offset,
 		arg.Limit,
 	)
