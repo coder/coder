@@ -1,7 +1,7 @@
 import { useActor, useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import dayjs from "dayjs"
-import { useContext } from "react"
+import { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import {
@@ -63,6 +63,11 @@ export const WorkspaceReadyPage = ({
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
+
+  // keep banner machine in sync with workspace
+  useEffect(() => {
+    bannerSend({ type: "REFRESH_WORKSPACE", workspace })
+  }, [bannerSend, workspace])
 
   return (
     <>
