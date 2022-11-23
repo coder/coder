@@ -4,8 +4,8 @@ import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { FC } from "react"
 import { useLocation } from "react-router-dom"
 import { AuthContext } from "xServices/auth/authXService"
-import { LoginErrors, SignInForm } from "../../components/SignInForm/SignInForm"
-import { retrieveRedirect } from "../../util/redirect"
+import { LoginErrors, SignInForm } from "components/SignInForm/SignInForm"
+import { retrieveRedirect } from "util/redirect"
 
 interface LocationState {
   isRedirect: boolean
