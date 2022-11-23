@@ -6482,29 +6482,21 @@ WHERE
 		WHEN $8 :: text != '' THEN
 			latest_build.transition = 'start'::workspace_transition
 			AND CASE
-				WHEN $8 = 'timeout' THEN
-					latest_build.agent_first_connected_at IS NULL AND
-					(latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
-				WHEN $8 = 'connecting' THEN
-					latest_build.agent_first_connected_at IS NULL AND
-					(latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' >= NOW())
-				WHEN $8 = 'disconnected' THEN
-					(
-						latest_build.agent_disconnected_at IS NOT NULL AND
-						latest_build.agent_disconnected_at > latest_build.agent_last_connected_at
-					) OR (
-						latest_build.agent_last_connected_at IS NOT NULL AND
-						latest_build.agent_last_connected_at + INTERVAL '1 second' * $9 :: bigint < NOW()
-					)
-				WHEN $8 = 'connected' THEN
-					(
-						latest_build.agent_disconnected_at IS NOT NULL AND
-						latest_build.agent_disconnected_at <= latest_build.agent_last_connected_at
-					) OR (
-						latest_build.agent_last_connected_at IS NOT NULL AND
-						latest_build.agent_last_connected_at + INTERVAL '1 second' * $9 :: bigint >= NOW()
-					)
-				ELSE true
+				WHEN latest_build.agent_first_connected_at IS NULL THEN
+					CASE
+						WHEN latest_build.agent_connection_timeout_seconds > 0 AND NOW() - latest_build.agent_created_at > latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' THEN
+							CASE WHEN $8 :: text = 'timeout' THEN true ELSE false END
+						ELSE
+							CASE WHEN $8 :: text = 'connecting' THEN true ELSE false END
+					END
+				WHEN latest_build.agent_disconnected_at > latest_build.agent_last_connected_at THEN
+					CASE WHEN $8 :: text = 'disconnected' THEN true ELSE false END
+				WHEN NOW() - latest_build.agent_last_connected_at > INTERVAL '1 second' * $9 :: bigint THEN
+					CASE WHEN $8 :: text = 'disconnected' THEN true ELSE false END
+				WHEN latest_build.agent_last_connected_at IS NOT NULL THEN
+					CASE WHEN $8 :: text = 'connected' THEN true ELSE false END
+				ELSE
+					true
 			END
 		ELSE true
 	END

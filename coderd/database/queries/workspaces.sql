@@ -184,29 +184,21 @@ WHERE
 		WHEN @has_agent :: text != '' THEN
 			latest_build.transition = 'start'::workspace_transition
 			AND CASE
-				WHEN @has_agent = 'timeout' THEN
-					latest_build.agent_first_connected_at IS NULL AND
-					(latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
-				WHEN @has_agent = 'connecting' THEN
-					latest_build.agent_first_connected_at IS NULL AND
-					(latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' >= NOW())
-				WHEN @has_agent = 'disconnected' THEN
-					(
-						latest_build.agent_disconnected_at IS NOT NULL AND
-						latest_build.agent_disconnected_at > latest_build.agent_last_connected_at
-					) OR (
-						latest_build.agent_last_connected_at IS NOT NULL AND
-						latest_build.agent_last_connected_at + INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint < NOW()
-					)
-				WHEN @has_agent = 'connected' THEN
-					(
-						latest_build.agent_disconnected_at IS NOT NULL AND
-						latest_build.agent_disconnected_at <= latest_build.agent_last_connected_at
-					) OR (
-						latest_build.agent_last_connected_at IS NOT NULL AND
-						latest_build.agent_last_connected_at + INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint >= NOW()
-					)
-				ELSE true
+				WHEN latest_build.agent_first_connected_at IS NULL THEN
+					CASE
+						WHEN latest_build.agent_connection_timeout_seconds > 0 AND NOW() - latest_build.agent_created_at > latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' THEN
+							CASE WHEN @has_agent :: text = 'timeout' THEN true ELSE false END
+						ELSE
+							CASE WHEN @has_agent :: text = 'connecting' THEN true ELSE false END
+					END
+				WHEN latest_build.agent_disconnected_at > latest_build.agent_last_connected_at THEN
+					CASE WHEN @has_agent :: text = 'disconnected' THEN true ELSE false END
+				WHEN NOW() - latest_build.agent_last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint THEN
+					CASE WHEN @has_agent :: text = 'disconnected' THEN true ELSE false END
+				WHEN latest_build.agent_last_connected_at IS NOT NULL THEN
+					CASE WHEN @has_agent :: text = 'connected' THEN true ELSE false END
+				ELSE
+					true
 			END
 		ELSE true
 	END
