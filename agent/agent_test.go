@@ -194,9 +194,8 @@ func TestAgent(t *testing.T) {
 		}
 	})
 
+	//nolint:paralleltest // This test sets an environment variable.
 	t.Run("Session TTY MOTD", func(t *testing.T) {
-		t.Parallel()
-
 		if runtime.GOOS == "windows" {
 			// This might be our implementation, or ConPTY itself.
 			// It's difficult to find extensive tests for it, so
@@ -206,9 +205,13 @@ func TestAgent(t *testing.T) {
 
 		wantMOTD := "Welcome to your Coder workspace!"
 
-		name := filepath.Join(t.TempDir(), "motd")
+		tmpdir := t.TempDir()
+		name := filepath.Join(tmpdir, "motd")
 		err := os.WriteFile(name, []byte(wantMOTD), 0o600)
 		require.NoError(t, err, "write motd file")
+
+		// Set HOME so we can ensure no ~/.hushlogin is present.
+		t.Setenv("HOME", tmpdir)
 
 		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
 			MOTDFile: name,
@@ -246,11 +249,14 @@ func TestAgent(t *testing.T) {
 		name := filepath.Join(tmpdir, "motd")
 		err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
 		require.NoError(t, err, "write motd file")
+
+		// Create hushlogin to silence motd.
 		f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
 		require.NoError(t, err, "create .hushlogin file")
 		err = f.Close()
 		require.NoError(t, err, "close .hushlogin file")
 
+		// Set HOME so we can ensure ~/.hushlogin is present.
 		t.Setenv("HOME", tmpdir)
 
 		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
