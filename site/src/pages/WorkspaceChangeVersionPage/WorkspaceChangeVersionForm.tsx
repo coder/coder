@@ -118,11 +118,11 @@ const useStyles = makeStyles((theme) => ({
   },
 
   workspaceName: {
-    fontSize: 16,
+    fontSize: theme.spacing(2),
   },
 
   workspaceDescription: {
-    fontSize: 14,
+    fontSize: theme.spacing(1.75),
     color: theme.palette.text.secondary,
   },
 
@@ -143,7 +143,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   versionDescription: {
-    fontSize: 12,
+    fontSize: theme.spacing(1.5),
     color: theme.palette.text.secondary,
   },
 
