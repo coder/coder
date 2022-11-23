@@ -37,7 +37,7 @@ resource "coder_agent" "main" {
 
 ### Use Sysbox in Kubernetes-based templates
 
-After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass. This requires the Kuberentes Terrafom provider version 2.16.0 or greater.
+After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md), modify your template to use the sysbox-runc RuntimeClass. This requires the Kubernetes Terraform provider version 2.16.0 or greater.
 
 ```hcl
 terraform {
@@ -243,7 +243,7 @@ resource "coder_agent" "main" {
 ### Use systemd in Kubernetes-based templates
 
 After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md),
-modify your template to use the sysbox-runc RuntimeClass. This requires the Kuberentes Terrafom provider version 2.16.0 or greater.
+modify your template to use the sysbox-runc RuntimeClass. This requires the Kubernetes Terraform provider version 2.16.0 or greater.
 
 ```hcl
 terraform {
