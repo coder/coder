@@ -187,7 +187,7 @@ WHERE
 				WHEN @has_agent = 'timeout' THEN
 					latest_build.agent_first_connected_at IS NULL AND (latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' < NOW())
 				WHEN @has_agent = 'connecting' THEN
-					latest_build.agent_first_connected_at IS NULL
+					latest_build.agent_first_connected_at IS NULL AND (latest_build.agent_created_at + latest_build.agent_connection_timeout_seconds * INTERVAL '1 second' >= NOW())
 				WHEN @has_agent = 'disconnected' THEN
 					(
 						latest_build.agent_disconnected_at IS NOT NULL AND
@@ -197,7 +197,13 @@ WHERE
 						latest_build.agent_last_connected_at + INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint < NOW()
 					)
 				WHEN @has_agent = 'connected' THEN
-					latest_build.agent_last_connected_at IS NOT NULL
+					(
+						latest_build.agent_disconnected_at IS NOT NULL AND
+						latest_build.agent_disconnected_at <= latest_build.agent_last_connected_at
+					) OR (
+						latest_build.agent_last_connected_at IS NOT NULL AND
+						latest_build.agent_last_connected_at + INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint >= NOW()
+					)
 				ELSE true
 			END
 		ELSE true
