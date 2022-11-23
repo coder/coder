@@ -12,15 +12,17 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 
+export interface ChangeWorkspaceVersionContext {
+  owner: string
+  workspaceName: string
+  workspace?: Workspace
+  template?: Template
+  templateVersions?: TemplateVersion[]
+  error?: unknown
+}
+
 interface ChangeWorkspaceVersionSchema {
-  context: {
-    owner: string
-    workspaceName: string
-    workspace?: Workspace
-    template?: Template
-    templateVersions?: TemplateVersion[]
-    error?: unknown
-  }
+  context: ChangeWorkspaceVersionContext
 
   services: {
     getWorkspace: {
