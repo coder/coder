@@ -12,7 +12,7 @@
       "buildFriendlyString": " for workspace ",
       "ip": "IP: ",
       "os": "OS: ",
-      "Browser": "Browser: "
+      "browser": "Browser: "
     }
   }
 }
