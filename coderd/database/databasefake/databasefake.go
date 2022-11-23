@@ -899,9 +899,9 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 			var hasAgentMatched bool
 			for _, wa := range workspaceAgents {
-				mapped := mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds)
-				hasAgentMatched = mapped == arg.HasAgent
-				break // only 1 agent is expected
+				if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
+					hasAgentMatched = true
+				}
 			}
 
 			if !hasAgentMatched {

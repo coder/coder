@@ -103,7 +103,8 @@ LEFT JOIN LATERAL (
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
 		build_number DESC
-	LIMIT 1
+	LIMIT
+		1
 ) latest_build ON TRUE
 WHERE
 	-- Optionally include deleted workspaces
