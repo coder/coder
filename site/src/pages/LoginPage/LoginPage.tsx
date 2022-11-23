@@ -1,6 +1,7 @@
 import { useActor } from "@xstate/react"
 import { FC, useContext } from "react"
 import { Helmet } from "react-helmet-async"
+import { useTranslation } from "react-i18next"
 import { Navigate, useLocation } from "react-router-dom"
 import { retrieveRedirect } from "../../util/redirect"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -11,6 +12,8 @@ export const LoginPage: FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const redirectTo = retrieveRedirect(location.search)
+  const commonTranslation = useTranslation("common")
+  const loginPageTranslation = useTranslation("loginPage")
 
   if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
@@ -20,7 +23,9 @@ export const LoginPage: FC = () => {
     return (
       <>
         <Helmet>
-          <title>Sign in to Coder</title>
+          <title>
+            {loginPageTranslation.t("signInTo")} {commonTranslation.t("coder")}
+          </title>
         </Helmet>
         <LoginPageView
           context={authState.context}

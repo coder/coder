@@ -13,6 +13,7 @@ import { AuthMethods } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -121,7 +122,6 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   initialTouched,
 }) => {
   const styles = useStyles()
-
   const form: FormikContextType<BuiltInAuthFormValues> =
     useFormik<BuiltInAuthFormValues>({
       initialValues: {
@@ -141,11 +141,14 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     form,
     loginErrors.authError,
   )
+  const commonTranslation = useTranslation("common")
+  const loginPageTranslation = useTranslation("loginPage")
 
   return (
     <div className={styles.wrapper}>
       <h1 className={styles.title}>
-        Sign in to <strong>Coder</strong>
+        {loginPageTranslation.t("signInTo")}{" "}
+        <strong>{commonTranslation.t("coder")}</strong>
       </h1>
       <form onSubmit={form.handleSubmit}>
         <Stack>
