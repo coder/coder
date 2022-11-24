@@ -47,9 +47,16 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
 	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
 		_ = logw.Close()
 		_ = logr.Close()
-		<-logDone // Guard against logging after test.
+		select {
+		case <-ctx.Done():
+			fatalf(t, name, "cleanup", "log pipe did not close in time")
+		case <-logDone: // Guard against logging after test.
+		}
 	})
 
 	// Write to log and output buffer.
@@ -62,9 +69,16 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		_ = out.closeErr(err)
 	}()
 	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
 		_ = out.Close()
 		_ = ptty.Close()
-		<-copyDone
+		select {
+		case <-ctx.Done():
+			fatalf(t, name, "cleanup", "copy did not close in time")
+		case <-copyDone:
+		}
 	})
 
 	tpty := &PTY{
@@ -164,20 +178,30 @@ func (p *PTY) WriteLine(str string) {
 
 func (p *PTY) logf(format string, args ...interface{}) {
 	p.t.Helper()
-
-	// Match regular logger timestamp format, we seem to be logging in
-	// UTC in other places as well, so match here.
-	p.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), p.name, fmt.Sprintf(format, args...))
+	logf(p.t, p.name, format, args...)
 }
 
 func (p *PTY) fatalf(reason string, format string, args ...interface{}) {
 	p.t.Helper()
+	fatalf(p.t, p.name, reason, format, args...)
+}
+
+func logf(t *testing.T, name, format string, args ...interface{}) {
+	t.Helper()
+
+	// Match regular logger timestamp format, we seem to be logging in
+	// UTC in other places as well, so match here.
+	t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), name, fmt.Sprintf(format, args...))
+}
+
+func fatalf(t *testing.T, name, reason, format string, args ...interface{}) {
+	t.Helper()
 
 	// Ensure the message is part of the normal log stream before
 	// failing the test.
-	p.logf("%s: %s", reason, fmt.Sprintf(format, args...))
+	logf(t, name, "%s: %s", reason, fmt.Sprintf(format, args...))
 
-	require.FailNowf(p.t, reason, format, args...)
+	require.FailNowf(t, reason, format, args...)
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.
