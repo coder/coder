@@ -504,6 +504,14 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups: true,
 		StatusCode:   http.StatusForbidden,
 	}, {
+		Name: "EmailNotAString",
+		Claims: jwt.MapClaims{
+			"email":          3.14159,
+			"email_verified": false,
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusBadRequest,
+	}, {
 		Name: "EmailNotVerifiedIgnored",
 		Claims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
