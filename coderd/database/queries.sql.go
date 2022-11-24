@@ -6262,8 +6262,8 @@ FROM
 	workspaces
 LEFT JOIN LATERAL (
 	SELECT
-		workspace_builds.build_number,
 		workspace_builds.transition,
+		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
 		provisioner_jobs.canceled_at,
@@ -6387,11 +6387,7 @@ WHERE
 			(
 				SELECT COUNT(*)
 				FROM
-					workspace_builds
-				JOIN
 					provisioner_jobs
-				ON
-					provisioner_jobs.id = workspace_builds.job_id
 				JOIN
 					workspace_resources
 				ON
@@ -6401,9 +6397,8 @@ WHERE
 				ON
 					workspace_agents.resource_id = workspace_resources.id
 				WHERE
-					workspace_builds.workspace_id = workspaces.id AND
-					workspace_builds.build_number = latest_build.build_number AND
-					workspace_builds.transition = 'start'::workspace_transition AND
+					provisioner_jobs.id = latest_build.provisioner_job_id AND
+					latest_build.transition = 'start'::workspace_transition AND
 					$8 = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
