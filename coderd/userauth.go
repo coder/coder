@@ -264,13 +264,16 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	verifiedRaw, ok := claims["email_verified"]
-	if ok && !api.OIDCConfig.IgnoreEmailVerified {
+	if ok {
 		verified, ok := verifiedRaw.(bool)
 		if ok && !verified {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
-			})
-			return
+			if !api.OIDCConfig.IgnoreEmailVerified {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
+				})
+				return
+			}
+			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
 		}
 	}
 	// The username is a required property in Coder. We make a best-effort
