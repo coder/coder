@@ -37,6 +37,11 @@ CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
 CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
 CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 ```
+**Note:** To allow everyone to signup using GitHub, set
+```console
+CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
+CODER_OAUTH2_GITHUB_ALLOWED_ORGS=
+```
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
