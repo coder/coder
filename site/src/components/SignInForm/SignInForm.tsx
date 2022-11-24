@@ -14,6 +14,8 @@ import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ContactlessOutlined } from "@material-ui/icons"
+import { useSearchParams } from "react-router-dom"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -107,6 +109,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   initialTouched,
 }) => {
   const styles = useStyles()
+  const [searchParams] = useSearchParams()
 
   const form: FormikContextType<BuiltInAuthFormValues> =
     useFormik<BuiltInAuthFormValues>({
@@ -128,10 +131,14 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     loginErrors.authError,
   )
 
+  const passwordHidden = authMethods?.password.hidden
+  const urlParamOverride = searchParams.get("auth") === "password"
+  const showPasswordLogin = !passwordHidden || urlParamOverride
+
   return (
     <>
       <Welcome />
-      {!authMethods?.password.hidden && (
+      {showPasswordLogin && (
         <form onSubmit={form.handleSubmit}>
           <Stack>
             {Object.keys(loginErrors).map(
@@ -177,7 +184,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           </Stack>
         </form>
       )}
-      {!authMethods?.password.hidden &&
+      {showPasswordLogin &&
         (authMethods?.github.enabled || authMethods?.oidc.enabled) && (
           <div className={styles.divider}>
             <div className={styles.dividerLine} />
