@@ -1028,13 +1028,12 @@ func isQuietLogin(rawCommand string) bool {
 	// Best effort, if we can't get the home directory,
 	// we can't lookup .hushlogin.
 	homedir, err := getHomeDir()
-	if err == nil {
-		if _, err := os.Stat(filepath.Join(homedir, ".hushlogin")); err == nil {
-			return true
-		}
+	if err != nil {
+		return false
 	}
 
-	return false
+	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	return err == nil
 }
 
 // showMOTD will output the message of the day from
@@ -1077,13 +1076,14 @@ func showMOTD(dest io.Writer, filename string) error {
 func getHomeDir() (string, error) {
 	// First we check the environment.
 	homedir, err := os.UserHomeDir()
-	if err != nil {
-		// As a fallback, we try the user information.
-		u, err := user.Current()
-		if err != nil {
-			return "", xerrors.Errorf("current user: %w", err)
-		}
-		return u.HomeDir, nil
+	if err == nil {
+		return homedir, nil
 	}
-	return homedir, nil
+
+	// As a fallback, we try the user information.
+	u, err := user.Current()
+	if err != nil {
+		return "", xerrors.Errorf("current user: %w", err)
+	}
+	return u.HomeDir, nil
 }
