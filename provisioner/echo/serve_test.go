@@ -23,7 +23,7 @@ func TestEcho(t *testing.T) {
 
 	fs := afero.NewMemMapFs()
 	// Create an in-memory provisioner to communicate with.
-	client, server := provisionersdk.TransportPipe()
+	client, server := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
 		_ = client.Close()
@@ -36,7 +36,7 @@ func TestEcho(t *testing.T) {
 		})
 		assert.NoError(t, err)
 	}()
-	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+	api := proto.NewDRPCProvisionerClient(client)
 
 	t.Run("Parse", func(t *testing.T) {
 		t.Parallel()

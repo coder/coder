@@ -11,9 +11,9 @@ import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
-import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -57,6 +57,27 @@ const validationSchema = Yup.object({
 })
 
 const useStyles = makeStyles((theme) => ({
+  wrapper: {
+    maxWidth: 385,
+    width: "100%",
+
+    [theme.breakpoints.down("sm")]: {
+      maxWidth: "none",
+    },
+  },
+
+  title: {
+    fontSize: theme.spacing(4),
+    fontWeight: 400,
+    margin: 0,
+    marginBottom: theme.spacing(4),
+    lineHeight: 1,
+
+    "& strong": {
+      fontWeight: 600,
+    },
+  },
+
   buttonIcon: {
     width: 14,
     height: 14,
@@ -87,13 +108,7 @@ export interface SignInFormProps {
   redirectTo: string
   loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
-  onSubmit: ({
-    email,
-    password,
-  }: {
-    email: string
-    password: string
-  }) => Promise<void>
+  onSubmit: (credentials: { email: string; password: string }) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
@@ -107,7 +122,6 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   initialTouched,
 }) => {
   const styles = useStyles()
-
   const form: FormikContextType<BuiltInAuthFormValues> =
     useFormik<BuiltInAuthFormValues>({
       initialValues: {
@@ -127,10 +141,15 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     form,
     loginErrors.authError,
   )
+  const commonTranslation = useTranslation("common")
+  const loginPageTranslation = useTranslation("loginPage")
 
   return (
-    <>
-      <Welcome />
+    <div className={styles.wrapper}>
+      <h1 className={styles.title}>
+        {loginPageTranslation.t("signInTo")}{" "}
+        <strong>{commonTranslation.t("coder")}</strong>
+      </h1>
       <form onSubmit={form.handleSubmit}>
         <Stack>
           {Object.keys(loginErrors).map(
@@ -176,7 +195,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         </Stack>
       </form>
       {(authMethods?.github || authMethods?.oidc) && (
-        <>
+        <div>
           <div className={styles.divider}>
             <div className={styles.dividerLine} />
             <div className={styles.dividerLabel}>Or</div>
@@ -222,8 +241,8 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
               </Link>
             )}
           </Box>
-        </>
+        </div>
       )}
-    </>
+    </div>
   )
 }

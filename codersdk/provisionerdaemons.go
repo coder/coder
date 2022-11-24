@@ -212,5 +212,5 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
+	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.MultiplexedConn(session)), nil
 }
