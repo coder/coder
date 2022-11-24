@@ -169,17 +169,13 @@ WHERE
 			(
 				SELECT COUNT(*)
 				FROM
-					provisioner_jobs
-				JOIN
 					workspace_resources
-				ON
-					workspace_resources.job_id = provisioner_jobs.id
 				JOIN
 					workspace_agents
 				ON
 					workspace_agents.resource_id = workspace_resources.id
 				WHERE
-					provisioner_jobs.id = latest_build.provisioner_job_id AND
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
 					@has_agent = (
 						CASE
