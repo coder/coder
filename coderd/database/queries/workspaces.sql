@@ -38,47 +38,6 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
-WITH workspace_builds_agents AS (
-	SELECT
-		workspace_builds.workspace_id AS workspace_id,
-		workspace_builds.build_number AS build_number,
-		workspace_agents.id AS agent_id,
-		(
-			CASE
-				WHEN workspace_agents.first_connected_at IS NULL THEN
-					CASE
-						WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
-							'timeout'
-						ELSE
-							'connecting'
-					END
-				WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
-					'disconnected'
-				WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint THEN
-					'disconnected'
-				WHEN workspace_agents.last_connected_at IS NOT NULL THEN
-					'connected'
-				ELSE
-					NULL
-			END
-		) AS agent_status
-	FROM
-		workspace_builds
-	JOIN
-		provisioner_jobs
-	ON
-		provisioner_jobs.id = workspace_builds.job_id
-	JOIN
-		workspace_resources
-	ON
-		workspace_resources.job_id = provisioner_jobs.id
-	JOIN
-		workspace_agents
-	ON
-		workspace_agents.resource_id = workspace_resources.id
-	WHERE
-		workspace_builds.transition = 'start'::workspace_transition
-)
 SELECT
 	workspaces.*, COUNT(*) OVER () as count
 FROM
@@ -208,11 +167,44 @@ WHERE
 	AND CASE
 		WHEN @has_agent :: text != '' THEN
 			(
-				SELECT COUNT(*) FROM workspace_builds_agents
+				SELECT COUNT(*)
+				FROM
+					workspace_builds
+				JOIN
+					provisioner_jobs
+				ON
+					provisioner_jobs.id = workspace_builds.job_id
+				JOIN
+					workspace_resources
+				ON
+					workspace_resources.job_id = provisioner_jobs.id
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
 				WHERE
-					workspace_builds_agents.workspace_id = workspaces.id AND
-					workspace_builds_agents.build_number = latest_build.build_number AND
-					agent_status = @has_agent
+					workspace_builds.workspace_id = workspaces.id AND
+					workspace_builds.build_number = latest_build.build_number AND
+					workspace_builds.transition = 'start'::workspace_transition AND
+					@has_agent = (
+						CASE
+							WHEN workspace_agents.first_connected_at IS NULL THEN
+								CASE
+									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+										'timeout'
+									ELSE
+										'connecting'
+								END
+							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
+								'disconnected'
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint THEN
+								'disconnected'
+							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
+								'connected'
+							ELSE
+								NULL
+						END
+					)
 			) > 0
 		ELSE true
 	END

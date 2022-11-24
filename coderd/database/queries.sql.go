@@ -6256,47 +6256,6 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
-WITH workspace_builds_agents AS (
-	SELECT
-		workspace_builds.workspace_id AS workspace_id,
-		workspace_builds.build_number AS build_number,
-		workspace_agents.id AS agent_id,
-		(
-			CASE
-				WHEN workspace_agents.first_connected_at IS NULL THEN
-					CASE
-						WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
-							'timeout'
-						ELSE
-							'connecting'
-					END
-				WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
-					'disconnected'
-				WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $11 :: bigint THEN
-					'disconnected'
-				WHEN workspace_agents.last_connected_at IS NOT NULL THEN
-					'connected'
-				ELSE
-					NULL
-			END
-		) AS agent_status
-	FROM
-		workspace_builds
-	JOIN
-		provisioner_jobs
-	ON
-		provisioner_jobs.id = workspace_builds.job_id
-	JOIN
-		workspace_resources
-	ON
-		workspace_resources.job_id = provisioner_jobs.id
-	JOIN
-		workspace_agents
-	ON
-		workspace_agents.resource_id = workspace_resources.id
-	WHERE
-		workspace_builds.transition = 'start'::workspace_transition
-)
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
 FROM
@@ -6426,11 +6385,44 @@ WHERE
 	AND CASE
 		WHEN $8 :: text != '' THEN
 			(
-				SELECT COUNT(*) FROM workspace_builds_agents
+				SELECT COUNT(*)
+				FROM
+					workspace_builds
+				JOIN
+					provisioner_jobs
+				ON
+					provisioner_jobs.id = workspace_builds.job_id
+				JOIN
+					workspace_resources
+				ON
+					workspace_resources.job_id = provisioner_jobs.id
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
 				WHERE
-					workspace_builds_agents.workspace_id = workspaces.id AND
-					workspace_builds_agents.build_number = latest_build.build_number AND
-					agent_status = $8
+					workspace_builds.workspace_id = workspaces.id AND
+					workspace_builds.build_number = latest_build.build_number AND
+					workspace_builds.transition = 'start'::workspace_transition AND
+					$8 = (
+						CASE
+							WHEN workspace_agents.first_connected_at IS NULL THEN
+								CASE
+									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+										'timeout'
+									ELSE
+										'connecting'
+								END
+							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
+								'disconnected'
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $9 :: bigint THEN
+								'disconnected'
+							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
+								'connected'
+							ELSE
+								NULL
+						END
+					)
 			) > 0
 		ELSE true
 	END
@@ -6440,11 +6432,11 @@ ORDER BY
 	last_used_at DESC
 LIMIT
 	CASE
-		WHEN $10 :: integer > 0 THEN
-			$10
+		WHEN $11 :: integer > 0 THEN
+			$11
 	END
 OFFSET
-	$9
+	$10
 `
 
 type GetWorkspacesParams struct {
@@ -6456,9 +6448,9 @@ type GetWorkspacesParams struct {
 	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
 	Limit                                 int32       `db:"limit_" json:"limit_"`
-	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 }
 
 type GetWorkspacesRow struct {
@@ -6486,9 +6478,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		pq.Array(arg.TemplateIds),
 		arg.Name,
 		arg.HasAgent,
+		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.Offset,
 		arg.Limit,
-		arg.AgentInactiveDisconnectTimeoutSeconds,
 	)
 	if err != nil {
 		return nil, err
