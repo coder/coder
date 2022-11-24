@@ -64,15 +64,15 @@ WITH workspace_builds_agents AS (
 		) AS agent_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
-	LEFT JOIN
+	JOIN
 		workspace_resources
 	ON
 		workspace_resources.job_id = provisioner_jobs.id
-	LEFT JOIN
+	JOIN
 		workspace_agents
 	ON
 		workspace_agents.resource_id = workspace_resources.id
