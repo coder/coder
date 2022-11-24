@@ -83,7 +83,7 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
 
 Coder requires all OIDC email addresses to be verified by default. If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
-If you need to modify this behaviour, you can disable this behaviour like so:
+If needed, you can disable this behavior with the following setting:
 
 ```console
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
