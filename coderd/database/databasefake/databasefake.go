@@ -947,6 +947,8 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
 }
 
+// mapAgentStatus determines the agent status based on different timestamps like created_at, last_connected_at, disconnected_at, etc.
+// The function must be in sync with: coderd/workspaceagents.go:convertWorkspaceAgent.
 func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTimeoutSeconds int64) string {
 	var status string
 	connectionTimeout := time.Duration(dbAgent.ConnectionTimeoutSeconds) * time.Second
