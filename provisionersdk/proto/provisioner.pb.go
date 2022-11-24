@@ -1242,6 +1242,7 @@ type Agent struct {
 	MotdFile                    string       `protobuf:"bytes,13,opt,name=motd_file,json=motdFile,proto3" json:"motd_file,omitempty"`
 	LoginBeforeReady            bool         `protobuf:"varint,14,opt,name=login_before_ready,json=loginBeforeReady,proto3" json:"login_before_ready,omitempty"`
 	StartupScriptTimeoutSeconds int32        `protobuf:"varint,15,opt,name=startup_script_timeout_seconds,json=startupScriptTimeoutSeconds,proto3" json:"startup_script_timeout_seconds,omitempty"`
+	ShutdownScript              string       `protobuf:"bytes,16,opt,name=shutdown_script,json=shutdownScript,proto3" json:"shutdown_script,omitempty"`
 }
 
 func (x *Agent) Reset() {
@@ -1386,6 +1387,13 @@ func (x *Agent) GetStartupScriptTimeoutSeconds() int32 {
 		return x.StartupScriptTimeoutSeconds
 	}
 	return 0
+}
+
+func (x *Agent) GetShutdownScript() string {
+	if x != nil {
+		return x.ShutdownScript
+	}
+	return ""
 }
 
 type isAgent_Auth interface {

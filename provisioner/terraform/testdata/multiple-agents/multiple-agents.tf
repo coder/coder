@@ -19,6 +19,7 @@ resource "coder_agent" "dev2" {
   motd_file              = "/etc/motd"
   startup_script_timeout = 30
   login_before_ready     = true
+  shutdown_script        = "echo bye bye"
 }
 
 resource "coder_agent" "dev3" {

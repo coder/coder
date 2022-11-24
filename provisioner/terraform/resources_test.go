@@ -121,6 +121,7 @@ func TestConvertResources(t *testing.T) {
 					MotdFile:                    "/etc/motd",
 					LoginBeforeReady:            true,
 					StartupScriptTimeoutSeconds: 30,
+					ShutdownScript:              "echo bye bye",
 				}, {
 					Name:                        "dev3",
 					OperatingSystem:             "windows",
