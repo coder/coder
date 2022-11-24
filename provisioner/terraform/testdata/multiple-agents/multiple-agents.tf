@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.1"
+      version = "0.6.5"
     }
   }
 }
@@ -16,6 +16,7 @@ resource "coder_agent" "dev2" {
   os                 = "darwin"
   arch               = "amd64"
   connection_timeout = 1
+  shutdown_script    = "echo bye bye"
 }
 
 resource "coder_agent" "dev3" {
