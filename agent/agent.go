@@ -480,7 +480,7 @@ func (a *agent) init(ctx context.Context) {
 				var opts []sftp.ServerOption
 				// Change current working directory to the users home
 				// directory so that SFTP connections land there.
-				homedir, err := getHomeDir()
+				homedir, err := userHomeDir()
 				if err != nil {
 					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
 				} else {
@@ -599,7 +599,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
 		// Default to user home if a directory is not set.
-		homedir, err := getHomeDir()
+		homedir, err := userHomeDir()
 		if err != nil {
 			return nil, xerrors.Errorf("get home dir: %w", err)
 		}
@@ -1027,7 +1027,7 @@ func isQuietLogin(rawCommand string) bool {
 
 	// Best effort, if we can't get the home directory,
 	// we can't lookup .hushlogin.
-	homedir, err := getHomeDir()
+	homedir, err := userHomeDir()
 	if err != nil {
 		return false
 	}
@@ -1071,9 +1071,9 @@ func showMOTD(dest io.Writer, filename string) error {
 	return nil
 }
 
-// getHomeDir returns the home directory of the current user, giving
+// userHomeDir returns the home directory of the current user, giving
 // priority to the $HOME environment variable.
-func getHomeDir() (string, error) {
+func userHomeDir() (string, error) {
 	// First we check the environment.
 	homedir, err := os.UserHomeDir()
 	if err == nil {
