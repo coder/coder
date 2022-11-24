@@ -898,6 +898,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			},
 			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),
 			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
+			MOTDFile:                 prAgent.GetMotdFile(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

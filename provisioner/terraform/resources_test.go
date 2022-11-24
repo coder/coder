@@ -99,6 +99,7 @@ func TestConvertResources(t *testing.T) {
 				Architecture:             "amd64",
 				Auth:                     &proto.Agent_Token{},
 				ConnectionTimeoutSeconds: 1,
+				MotdFile:                 "/etc/motd",
 			}, {
 				Name:                     "dev3",
 				OperatingSystem:          "windows",

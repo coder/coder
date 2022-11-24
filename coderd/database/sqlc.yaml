@@ -53,3 +53,4 @@ rename:
   group_acl: GroupACL
   troubleshooting_url: TroubleshootingURL
   default_ttl: DefaultTTL
+  motd_file: MOTDFile
