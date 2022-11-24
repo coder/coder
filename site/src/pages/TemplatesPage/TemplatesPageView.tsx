@@ -185,7 +185,7 @@ export const TemplatesPageView: FC<
                       cta={<CodeExample code="coder templates init" />}
                       image={
                         <div className={styles.emptyImage}>
-                          <img src="/empty/templates.webp" alt="" />
+                          <img src="/featured/templates.webp" alt="" />
                         </div>
                       }
                     />
