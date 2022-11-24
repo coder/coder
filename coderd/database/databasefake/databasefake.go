@@ -871,6 +871,44 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if arg.HasAgent != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			workspaceResources, err := q.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace resources: %w", err)
+			}
+
+			var workspaceResourceIDs []uuid.UUID
+			for _, wr := range workspaceResources {
+				workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
+			}
+
+			workspaceAgents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, workspaceResourceIDs)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agents: %w", err)
+			}
+
+			var hasAgentMatched bool
+			for _, wa := range workspaceAgents {
+				if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
+					hasAgentMatched = true
+				}
+			}
+
+			if !hasAgentMatched {
+				continue
+			}
+		}
+
 		if len(arg.TemplateIds) > 0 {
 			match := false
 			for _, id := range arg.TemplateIds {
@@ -907,6 +945,40 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 
 	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+}
+
+// mapAgentStatus determines the agent status based on different timestamps like created_at, last_connected_at, disconnected_at, etc.
+// The function must be in sync with: coderd/workspaceagents.go:convertWorkspaceAgent.
+func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTimeoutSeconds int64) string {
+	var status string
+	connectionTimeout := time.Duration(dbAgent.ConnectionTimeoutSeconds) * time.Second
+	switch {
+	case !dbAgent.FirstConnectedAt.Valid:
+		switch {
+		case connectionTimeout > 0 && database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
+			// If the agent took too long to connect the first time,
+			// mark it as timed out.
+			status = "timeout"
+		default:
+			// If the agent never connected, it's waiting for the compute
+			// to start up.
+			status = "connecting"
+		}
+	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
+		// If we've disconnected after our last connection, we know the
+		// agent is no longer connected.
+		status = "disconnected"
+	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > time.Duration(agentInactiveDisconnectTimeoutSeconds)*time.Second:
+		// The connection died without updating the last connected.
+		status = "disconnected"
+	case dbAgent.LastConnectedAt.Valid:
+		// The agent should be assumed connected if it's under inactivity timeouts
+		// and last connected at has been properly set.
+		status = "connected"
+	default:
+		panic("unknown agent status: " + status)
+	}
+	return status
 }
 
 func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {

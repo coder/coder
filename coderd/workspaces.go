@@ -104,7 +104,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr, page)
+	filter, errs := workspaceSearchQuery(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -1091,8 +1091,10 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
+		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
+
 		Offset: int32(page.Offset),
 		Limit:  int32(page.Limit),
 	}
@@ -1139,7 +1141,7 @@ func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetW
 	filter.TemplateName = parser.String(searchParams, "", "template")
 	filter.Name = parser.String(searchParams, "", "name")
 	filter.Status = parser.String(searchParams, "", "status")
-
+	filter.HasAgent = parser.String(searchParams, "", "has-agent")
 	return filter, parser.Errors
 }
 
