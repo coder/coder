@@ -6295,8 +6295,7 @@ WITH workspace_builds_agents AS (
 	ON
 		workspace_agents.resource_id = workspace_resources.id
 	WHERE
-		workspace_builds.transition = 'start'::workspace_transition AND
-		workspace_agents.id IS NOT NULL
+		workspace_builds.transition = 'start'::workspace_transition
 )
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
