@@ -24,6 +24,7 @@ type agentAttributes struct {
 	StartupScript            string            `mapstructure:"startup_script"`
 	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
 	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
+	MOTDFile                 string            `mapstructure:"motd_file"`
 	ShutdownScript           string            `mapstructure:"shutdown_script"`
 }
 
@@ -131,6 +132,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			Directory:                attrs.Directory,
 			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
 			TroubleshootingUrl:       attrs.TroubleshootingURL,
+			MotdFile:                 attrs.MOTDFile,
 			ShutdownScript:           attrs.ShutdownScript,
 		}
 		switch attrs.Auth {

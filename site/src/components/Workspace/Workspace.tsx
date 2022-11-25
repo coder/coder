@@ -45,6 +45,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  handleChangeVersion: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -68,6 +69,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleDelete,
   handleUpdate,
   handleCancel,
+  handleChangeVersion,
   workspace,
   isUpdating,
   resources,
@@ -143,6 +145,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              handleChangeVersion={handleChangeVersion}
               isUpdating={isUpdating}
             />
           </Stack>

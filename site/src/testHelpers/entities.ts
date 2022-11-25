@@ -181,6 +181,23 @@ You can add instructions here
   created_by: MockUser,
 }
 
+export const MockTemplateVersion2: TypesGen.TemplateVersion = {
+  id: "test-template-version-2",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-2",
+  readme: `---
+name:Template test 2
+---
+## Instructions
+You can add instructions here
+
+[Some link info](https://coder.com)`,
+  created_by: MockUser,
+}
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -383,7 +400,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
@@ -406,7 +423,7 @@ export const MockFailedWorkspaceBuild = (
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockFailedProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
   transition: transition,
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",

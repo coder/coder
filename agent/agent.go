@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -479,12 +480,11 @@ func (a *agent) init(ctx context.Context) {
 				var opts []sftp.ServerOption
 				// Change current working directory to the users home
 				// directory so that SFTP connections land there.
-				// https://github.com/coder/coder/issues/3620
-				u, err := user.Current()
+				homedir, err := userHomeDir()
 				if err != nil {
-					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
 				} else {
-					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
+					opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
@@ -598,8 +598,12 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
-		// Default to $HOME if a directory is not set!
-		cmd.Dir = os.Getenv("HOME")
+		// Default to user home if a directory is not set.
+		homedir, err := userHomeDir()
+		if err != nil {
+			return nil, xerrors.Errorf("get home dir: %w", err)
+		}
+		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
@@ -674,6 +678,18 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
 		// See https://github.com/coder/coder/issues/3371.
 		session.DisablePTYEmulation()
+
+		if !isQuietLogin(session.RawCommand()) {
+			metadata, ok := a.metadata.Load().(codersdk.WorkspaceAgentMetadata)
+			if ok {
+				err = showMOTD(session, metadata.MOTDFile)
+				if err != nil {
+					a.logger.Error(ctx, "show MOTD", slog.Error(err))
+				}
+			} else {
+				a.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
+			}
+		}
 
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
@@ -1000,19 +1016,74 @@ func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	}
 }
 
-// ExpandRelativeHomePath expands the tilde at the beginning of a path to the
-// current user's home directory and returns a full absolute path.
-func ExpandRelativeHomePath(in string) (string, error) {
-	usr, err := user.Current()
+// isQuietLogin checks if the SSH server should perform a quiet login or not.
+//
+// https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
+func isQuietLogin(rawCommand string) bool {
+	// We are always quiet unless this is a login shell.
+	if len(rawCommand) != 0 {
+		return true
+	}
+
+	// Best effort, if we can't get the home directory,
+	// we can't lookup .hushlogin.
+	homedir, err := userHomeDir()
 	if err != nil {
-		return "", xerrors.Errorf("get current user details: %w", err)
+		return false
 	}
 
-	if in == "~" {
-		in = usr.HomeDir
-	} else if strings.HasPrefix(in, "~/") {
-		in = filepath.Join(usr.HomeDir, in[2:])
+	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	return err == nil
+}
+
+// showMOTD will output the message of the day from
+// the given filename to dest, if the file exists.
+//
+// https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
+func showMOTD(dest io.Writer, filename string) error {
+	if filename == "" {
+		return nil
 	}
 
-	return filepath.Abs(in)
+	f, err := os.Open(filename)
+	if err != nil {
+		if xerrors.Is(err, os.ErrNotExist) {
+			// This is not an error, there simply isn't a MOTD to show.
+			return nil
+		}
+		return xerrors.Errorf("open MOTD: %w", err)
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		// Carriage return ensures each line starts
+		// at the beginning of the terminal.
+		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
+		if err != nil {
+			return xerrors.Errorf("write MOTD: %w", err)
+		}
+	}
+	if err := s.Err(); err != nil {
+		return xerrors.Errorf("read MOTD: %w", err)
+	}
+
+	return nil
+}
+
+// userHomeDir returns the home directory of the current user, giving
+// priority to the $HOME environment variable.
+func userHomeDir() (string, error) {
+	// First we check the environment.
+	homedir, err := os.UserHomeDir()
+	if err == nil {
+		return homedir, nil
+	}
+
+	// As a fallback, we try the user information.
+	u, err := user.Current()
+	if err != nil {
+		return "", xerrors.Errorf("current user: %w", err)
+	}
+	return u.HomeDir, nil
 }

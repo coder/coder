@@ -131,6 +131,7 @@ type WorkspaceAgentMetadata struct {
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
 	Directory            string            `json:"directory"`
+	MOTDFile             string            `json:"motd_file"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
