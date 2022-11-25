@@ -398,6 +398,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("configure oidc client certificates: %w", err)
 				}
 
+				if cfg.OIDC.IgnoreEmailVerified.Value {
+					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
+				}
+
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)

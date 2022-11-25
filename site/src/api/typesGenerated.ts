@@ -441,6 +441,7 @@ export interface OIDCConfig {
   readonly email_domain: DeploymentConfigField<string>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
+  readonly ignore_email_verified: DeploymentConfigField<boolean>
 }
 
 // From codersdk/organizations.go

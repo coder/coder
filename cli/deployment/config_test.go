@@ -123,22 +123,36 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Trace.HoneycombAPIKey.Value, "my-honeycomb-key")
 		},
 	}, {
+		Name: "OIDC_Defaults",
+		Env:  map[string]string{},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Empty(t, config.OIDC.IssuerURL.Value)
+			require.Empty(t, config.OIDC.EmailDomain.Value)
+			require.Empty(t, config.OIDC.ClientID.Value)
+			require.Empty(t, config.OIDC.ClientSecret.Value)
+			require.True(t, config.OIDC.AllowSignups.Value)
+			require.ElementsMatch(t, config.OIDC.Scopes.Value, []string{"openid", "email", "profile"})
+			require.False(t, config.OIDC.IgnoreEmailVerified.Value)
+		},
+	}, {
 		Name: "OIDC",
 		Env: map[string]string{
-			"CODER_OIDC_ISSUER_URL":    "https://accounts.google.com",
-			"CODER_OIDC_EMAIL_DOMAIN":  "coder.com",
-			"CODER_OIDC_CLIENT_ID":     "client",
-			"CODER_OIDC_CLIENT_SECRET": "secret",
-			"CODER_OIDC_ALLOW_SIGNUPS": "false",
-			"CODER_OIDC_SCOPES":        "something,here",
+			"CODER_OIDC_ISSUER_URL":            "https://accounts.google.com",
+			"CODER_OIDC_EMAIL_DOMAIN":          "coder.com",
+			"CODER_OIDC_CLIENT_ID":             "client",
+			"CODER_OIDC_CLIENT_SECRET":         "secret",
+			"CODER_OIDC_ALLOW_SIGNUPS":         "false",
+			"CODER_OIDC_SCOPES":                "something,here",
+			"CODER_OIDC_IGNORE_EMAIL_VERIFIED": "true",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.OIDC.IssuerURL.Value, "https://accounts.google.com")
 			require.Equal(t, config.OIDC.EmailDomain.Value, "coder.com")
 			require.Equal(t, config.OIDC.ClientID.Value, "client")
 			require.Equal(t, config.OIDC.ClientSecret.Value, "secret")
-			require.Equal(t, config.OIDC.AllowSignups.Value, false)
+			require.False(t, config.OIDC.AllowSignups.Value)
 			require.Equal(t, config.OIDC.Scopes.Value, []string{"something", "here"})
+			require.True(t, config.OIDC.IgnoreEmailVerified.Value)
 		},
 	}, {
 		Name: "GitHub",
