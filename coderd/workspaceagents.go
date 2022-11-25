@@ -686,6 +686,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Apps:                     apps,
 		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       troubleshootingURL,
+		ShutdownScript:           dbAgent.ShutdownScript.String,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
