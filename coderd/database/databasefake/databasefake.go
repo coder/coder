@@ -2436,6 +2436,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       arg.TroubleshootingURL,
 		MOTDFile:                 arg.MOTDFile,
+		ShutdownScript:           arg.ShutdownScript,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)

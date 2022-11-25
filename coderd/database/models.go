@@ -677,6 +677,8 @@ type WorkspaceAgent struct {
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
 	MOTDFile string `db:"motd_file" json:"motd_file"`
+	// Script that is executed before the agent is stopped.
+	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
 }
 
 type WorkspaceApp struct {

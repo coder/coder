@@ -133,6 +133,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		Directory:            apiAgent.Directory,
 		VSCodePortProxyURI:   vscodeProxyURI,
 		MOTDFile:             workspaceAgent.MOTDFile,
+		ShutdownScript:       apiAgent.ShutdownScript,
 	})
 }
 

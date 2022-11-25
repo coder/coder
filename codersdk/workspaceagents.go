@@ -56,6 +56,7 @@ type WorkspaceAgent struct {
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
+	ShutdownScript           string                `json:"shutdown_script,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {
@@ -132,6 +133,7 @@ type WorkspaceAgentMetadata struct {
 	StartupScript        string            `json:"startup_script"`
 	Directory            string            `json:"directory"`
 	MOTDFile             string            `json:"motd_file"`
+	ShutdownScript       string            `json:"shutdown_script"`
 }
 
 // AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to

@@ -414,7 +414,8 @@ CREATE TABLE workspace_agents (
     last_connected_replica_id uuid,
     connection_timeout_seconds integer DEFAULT 0 NOT NULL,
     troubleshooting_url text DEFAULT ''::text NOT NULL,
-    motd_file text DEFAULT ''::text NOT NULL
+    motd_file text DEFAULT ''::text NOT NULL,
+    shutdown_script character varying(65534)
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -424,6 +425,8 @@ COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection tim
 COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
 
 COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
