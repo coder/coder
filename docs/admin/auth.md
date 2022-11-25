@@ -42,7 +42,6 @@ CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 
 ```console
 CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
-CODER_OAUTH2_GITHUB_ALLOWED_ORGS=
 ```
 
 Once complete, run `sudo service coder restart` to reboot Coder.
