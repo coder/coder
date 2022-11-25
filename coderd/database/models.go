@@ -1547,6 +1547,8 @@ type WorkspaceAgent struct {
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
 	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
+	// Script that is executed before the agent is stopped.
+	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
 }
 
 type WorkspaceAgentStat struct {

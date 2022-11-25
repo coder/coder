@@ -153,6 +153,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		VSCodePortProxyURI:   vscodeProxyURI,
 		MOTDFile:             workspaceAgent.MOTDFile,
 		StartupScriptTimeout: time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
+		ShutdownScript:       apiAgent.ShutdownScript,
 	})
 }
 

@@ -78,6 +78,7 @@ type Metadata struct {
 	StartupScriptTimeout time.Duration           `json:"startup_script_timeout"`
 	Directory            string                  `json:"directory"`
 	MOTDFile             string                  `json:"motd_file"`
+	ShutdownScript       string                  `json:"shutdown_script"`
 }
 
 // Metadata fetches metadata for the currently authenticated workspace agent.
