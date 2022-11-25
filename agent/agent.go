@@ -606,14 +606,22 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 }
 
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
+	return a.runScript(ctx, "startup", script)
+}
+
+func (a *agent) runShutdownScript(ctx context.Context, script string) error {
+	return a.runScript(ctx, "shutdown", script)
+}
+
+func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	if script == "" {
 		return nil
 	}
 
-	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	a.logger.Info(ctx, "running script", slog.F("lifecycle", lifecycle), slog.F("script", script))
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return xerrors.Errorf("open startup script log file: %w", err)
+		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
 	}
 	defer func() {
 		_ = writer.Close()
@@ -774,7 +782,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	rawMetadata := a.metadata.Load()
 	if rawMetadata == nil {
-		return nil, xerrors.Errorf("no metadata was provided: %w", err)
+		return nil, xerrors.Errorf("no metadata was provided")
 	}
 	metadata, valid := rawMetadata.(agentsdk.Metadata)
 	if !valid {
@@ -1292,6 +1300,22 @@ func (a *agent) Close() error {
 	}
 	close(a.closed)
 	a.closeCancel()
+
+	rawMetadata := a.metadata.Load()
+	if rawMetadata == nil {
+		return xerrors.Errorf("no metadata was provided")
+	}
+	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
+	if !valid {
+		return xerrors.Errorf("metadata is the wrong type: %T", metadata)
+	}
+
+	ctx := context.Background()
+	err := a.runShutdownScript(ctx, metadata.ShutdownScript)
+	if err != nil {
+		a.logger.Error(ctx, "shutdown script failed", slog.Error(err))
+	}
+
 	if a.network != nil {
 		_ = a.network.Close()
 	}

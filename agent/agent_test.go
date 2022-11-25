@@ -826,6 +826,59 @@ func TestAgent_Lifecycle(t *testing.T) {
 			require.Equal(t, want, got)
 		}
 	})
+
+	t.Run("ShutdownScriptOnce", func(t *testing.T) {
+		t.Parallel()
+
+		expected := "this-is-shutdown"
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: codersdk.WorkspaceAgentMetadata{
+				DERPMap:        tailnettest.RunDERPAndSTUN(t),
+				StartupScript:  "echo 1",
+				ShutdownScript: "echo " + expected,
+			},
+			statsChan:   make(chan *codersdk.AgentStats),
+			coordinator: tailnet.NewCoordinator(),
+		}
+
+		fs := afero.NewMemMapFs()
+		agent := agent.New(agent.Options{
+			Client:     client,
+			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Filesystem: fs,
+		})
+
+		// agent.Close() loads the shutdown script from the agent metadata.
+		// The metadata is populated just before execution of the startup script, so it's mandatory to wait
+		// until the startup starts.
+		require.Eventually(t, func() bool {
+			outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
+			content, err := afero.ReadFile(fs, outputPath)
+			if err != nil {
+				t.Logf("read file %q: %s", outputPath, err)
+				return false
+			}
+			return len(content) > 0 // something is in the startup log file
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		err := agent.Close()
+		require.NoError(t, err, "agent should be closed successfully")
+
+		outputPath := filepath.Join(os.TempDir(), "coder-shutdown-script.log")
+		logFirstRead, err := afero.ReadFile(fs, outputPath)
+		require.NoError(t, err, "log file should be present")
+		require.Equal(t, expected, string(bytes.TrimSpace(logFirstRead)))
+
+		// Make sure that script can't be executed twice.
+		err = agent.Close()
+		require.NoError(t, err, "don't need to close the agent twice, no effect")
+
+		logSecondRead, err := afero.ReadFile(fs, outputPath)
+		require.NoError(t, err, "log file should be present")
+		require.Equal(t, string(bytes.TrimSpace(logFirstRead)), string(bytes.TrimSpace(logSecondRead)))
+	})
 }
 
 func TestAgent_Startup(t *testing.T) {
