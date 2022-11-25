@@ -336,6 +336,7 @@ practices:
 - Manually connect to the resource and check the agent logs (e.g., `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/var/log/coder-startup-script.log`
+  - The Coder agent shutdown script logs are typically stored in `/var/log/coder-shutdown-script.log`
 
 ## Template permissions (enterprise)
 

@@ -84,10 +84,11 @@ coder update <your workspace name> --always-prompt
 
 Coder stores macOS and Linux logs at the following locations:
 
-| Service          | Location                        |
-| ---------------- | ------------------------------- |
-| `startup_script` | `/tmp/coder-startup-script.log` |
-| Agent            | `/tmp/coder-agent.log`          |
+| Service           | Location                         |
+| ----------------- | -------------------------------- |
+| `startup_script`  | `/tmp/coder-startup-script.log`  |
+| `shutdown_script` | `/tmp/coder-shutdown-script.log` |
+| Agent             | `/tmp/coder-agent.log`           |
 
 ---
 
