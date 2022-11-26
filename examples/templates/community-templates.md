@@ -17,4 +17,5 @@ maintained, please submit a pull request to improve this list. Thank you!
 - [sharkymark/v2-templates](https://github.com/sharkymark/v2-templates) - Kubernetes, Docker, AWS, Google Cloud, Azure templates, videos, emoji links, and API examples.
 
 ## Automation
+
 - [Update Coder Template](https://github.com/marketplace/actions/update-coder-template) - A GitHub action to automate coder template changes.
