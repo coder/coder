@@ -784,6 +784,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Info(ctx, "extending workspace", slog.Error(err))
 	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
 }
 
