@@ -739,7 +739,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
-		jobIDs = append(templateVersionIDs, build.TemplateVersionID)
+		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
 	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
