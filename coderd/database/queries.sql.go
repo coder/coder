@@ -3504,48 +3504,6 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
-const getTemplateVersionByIDs = `-- name: GetTemplateVersionByIDs :many
-SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
-FROM
-	template_versions
-WHERE
-	id = ANY($1 :: uuid [ ])
-`
-
-func (q *sqlQuerier) GetTemplateVersionByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateVersionByIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TemplateVersion
-	for rows.Next() {
-		var i TemplateVersion
-		if err := rows.Scan(
-			&i.ID,
-			&i.TemplateID,
-			&i.OrganizationID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Name,
-			&i.Readme,
-			&i.JobID,
-			&i.CreatedBy,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
@@ -3634,6 +3592,48 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.CreatedBy,
 	)
 	return i, err
+}
+
+const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
+SELECT
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+FROM
+	template_versions
+WHERE
+	id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersion
+	for rows.Next() {
+		var i TemplateVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Readme,
+			&i.JobID,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many

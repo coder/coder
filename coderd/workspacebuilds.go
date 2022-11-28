@@ -741,7 +741,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, build := range workspaceBuilds {
 		jobIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
-	templateVersions, err := api.Database.GetTemplateVersionByIDs(ctx, templateVersionIDs)
+	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
 	}

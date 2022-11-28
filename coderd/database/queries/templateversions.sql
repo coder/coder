@@ -69,7 +69,7 @@ FROM
 WHERE
 	id = $1;
 
--- name: GetTemplateVersionByIDs :many
+-- name: GetTemplateVersionsByIDs :many
 SELECT
 	*
 FROM
