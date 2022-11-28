@@ -10,7 +10,7 @@ Coder server exports metrics via the HTTP endpoint, which can be enabled using e
 
 Use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag ` --prometheus-address <network-interface>:<port>` to select a custom endpoint.
 
-Once the `code server --prometheus-enable` is started, you can preview the metrics endpoint: <!-- markdown-link-check-disable -->http://localhost:2112/<!-- markdown-link-check-enable --> (default endpoint).
+For `code server --prometheus-enable` is started locally, you can preview the metrics endpoint: <!-- markdown-link-check-disable -->http://localhost:2112/<!-- markdown-link-check-enable --> (default endpoint).
 
 ```
 # HELP coderd_api_active_users_duration_hour The number of users that have been active within the last hour.
