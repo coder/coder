@@ -1,6 +1,6 @@
 # Prometheus
 
-Coder has support for Prometheus metrics using the dedicated [Go client library](github.com/prometheus/client_golang). The library exposes various [metrics types](https://prometheus.io/docs/concepts/metric_types/), such as gauges, histograms, and timers, that give insight into the live Coder deployment.
+Coder has support for Prometheus metrics using the dedicated [Go client library](https://github.com/prometheus/client_golang). The library exposes various [metrics types](https://prometheus.io/docs/concepts/metric_types/), such as gauges, histograms, and timers, that give insight into the live Coder deployment.
 
 Feel free to browse through the [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide, if you don't have an installation of the Prometheus server.
 
