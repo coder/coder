@@ -41,6 +41,10 @@ func RegoVarPath(path []string, terms []*ast.Term) ([]*ast.Term, error) {
 		return nil, xerrors.Errorf("path %s longer than rego path %s", path, terms)
 	}
 
+	if len(terms) == 0 || len(path) == 0 {
+		return nil, xerrors.Errorf("path %s and rego path %s must not be empty", path, terms)
+	}
+
 	varTerm, ok := terms[0].Value.(ast.Var)
 	if !ok {
 		return nil, xerrors.Errorf("expected var, got %T", terms[0])

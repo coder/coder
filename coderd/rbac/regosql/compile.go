@@ -110,6 +110,10 @@ func convertExpression(cfg ConvertConfig, e *ast.Expr) (sqltypes.BooleanNode, er
 
 // convertCall converts a function call to a SQL expression.
 func convertCall(cfg ConvertConfig, call ast.Call) (sqltypes.Node, error) {
+	if len(call) == 0 {
+		return nil, xerrors.Errorf("empty call")
+	}
+
 	// Operator is the first term
 	op := call[0]
 	var args []*ast.Term
