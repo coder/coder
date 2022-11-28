@@ -13,21 +13,10 @@ The Prometheus endpoint address is `http://localhost:2112/` by default. You can 
 If `coder server --prometheus-enable` is started locally, you can preview the metrics endpoint in your browser or by using curl: <!-- markdown-link-check-disable -->http://localhost:2112/<!-- markdown-link-check-enable -->.
 
 ```
+$ curl http://localhost:2112/
 # HELP coderd_api_active_users_duration_hour The number of users that have been active within the last hour.
 # TYPE coderd_api_active_users_duration_hour gauge
 coderd_api_active_users_duration_hour 0
-# HELP coderd_api_concurrent_requests The number of concurrent API requests
-# TYPE coderd_api_concurrent_requests gauge
-coderd_api_concurrent_requests 2
-# HELP coderd_api_concurrent_websockets The total number of concurrent API websockets
-# TYPE coderd_api_concurrent_websockets gauge
-coderd_api_concurrent_websockets 1
-# HELP coderd_api_request_latencies_ms Latency distribution of requests in milliseconds
-# TYPE coderd_api_request_latencies_ms histogram
-coderd_api_request_latencies_ms_bucket{method="GET",path="",le="1"} 10
-coderd_api_request_latencies_ms_bucket{method="GET",path="",le="5"} 13
-coderd_api_request_latencies_ms_bucket{method="GET",path="",le="10"} 14
-coderd_api_request_latencies_ms_bucket{method="GET",path="",le="25"} 15
 ...
 ```
 
