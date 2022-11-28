@@ -6,7 +6,7 @@ Feel free to browse through the [Getting started](https://prometheus.io/docs/pro
 
 ## Enable Prometheus metrics
 
-Coder server exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag` --prometheus-enable`.
+Coder server exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
 Use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag ` --prometheus-address <network-interface>:<port>` to select a custom endpoint.
 
