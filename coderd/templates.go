@@ -316,25 +316,27 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-		OrganizationID: organization.ID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching templates in organization.",
+			Message: "Internal error preparing sql filter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
 	// Filter templates based on rbac permissions
-	templates, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, templates)
+	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
+		OrganizationID: organization.ID,
+	}, prepared)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching templates.",
+			Message: "Internal error fetching templates in organization.",
 			Detail:  err.Error(),
 		})
 		return
