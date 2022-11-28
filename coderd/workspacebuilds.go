@@ -753,8 +753,9 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			users: users,
-			jobs:  jobs,
+			users:            users,
+			jobs:             jobs,
+			templateVersions: templateVersions,
 		}, nil
 	}
 
