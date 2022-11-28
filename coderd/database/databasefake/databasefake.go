@@ -1666,6 +1666,26 @@ func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionI
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	versions := make([]database.TemplateVersion, 0)
+	for _, version := range q.templateVersions {
+		for _, id := range ids {
+			if id == version.ID {
+				versions = append(versions, version)
+				break
+			}
+		}
+	}
+	if len(versions) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return versions, nil
+}
+
 func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
