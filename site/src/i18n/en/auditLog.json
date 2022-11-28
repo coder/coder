@@ -12,7 +12,8 @@
       "buildFriendlyString": " for workspace ",
       "ip": "IP: ",
       "os": "OS: ",
-      "browser": "Browser: "
+      "browser": "Browser: ",
+      "notAvailable": "Not available"
     }
   }
 }

@@ -64,10 +64,9 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
   const { os, browser } = userAgentParser(auditLog.user_agent)
-  const notAvailableLabel = "Not available"
   const displayBrowserInfo = browser.name
     ? `${browser.name} ${browser.version}`
-    : notAvailableLabel
+    : t("auditLog:table.logRow.notAvailable")
 
   const toggle = () => {
     if (shouldDisplayDiff) {
@@ -148,12 +147,21 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <Stack direction="row" spacing={1} alignItems="baseline">
                     <span className={styles.auditLogInfo}>
                       <>{t("auditLog:table.logRow.ip")}</>
-                      <strong>{auditLog.ip ?? notAvailableLabel}</strong>
+                      <strong>
+                        {auditLog.ip
+                          ? auditLog.ip
+                          : t("auditLog:table.logRow.notAvailable")}
+                      </strong>
                     </span>
 
                     <span className={styles.auditLogInfo}>
                       <>{t("auditLog:table.logRow.os")}</>
-                      <strong>{os.name ?? notAvailableLabel}</strong>
+                      <strong>
+                        {os.name
+                          ? os.name
+                          : // https://github.com/i18next/next-i18next/issues/1795
+                            t<string>("auditLog:table.logRow.notAvailable")}
+                      </strong>
                     </span>
 
                     <span className={styles.auditLogInfo}>
