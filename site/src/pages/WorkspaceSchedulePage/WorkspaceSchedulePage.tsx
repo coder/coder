@@ -1,8 +1,11 @@
-import map from 'lodash/map'
-import some from 'lodash/some'
+import map from "lodash/map"
+import some from "lodash/some"
 import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import { AutoStart, scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
+import {
+  AutoStart,
+  scheduleToAutoStart,
+} from "pages/WorkspaceSchedulePage/schedule"
 import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
@@ -108,14 +111,24 @@ export const WorkspaceSchedulePage: React.FC = () => {
           navigate(`/@${username}/${workspaceName}`)
         }}
         onSubmit={(values) => {
-          const autoStartChanged = some(map({ ...autoStart }, (v: boolean|string, k: keyof AutoStart) => values[k] !== v))
-          const autoStopChanged = some(map({ ...autoStop }, (v: boolean|string, k: keyof AutoStop) => values[k] !== v))
+          const autoStartChanged = some(
+            map(
+              { ...autoStart },
+              (v: boolean | string, k: keyof AutoStart) => values[k] !== v,
+            ),
+          )
+          const autoStopChanged = some(
+            map(
+              { ...autoStop },
+              (v: boolean | string, k: keyof AutoStop) => values[k] !== v,
+            ),
+          )
           scheduleSend({
             type: "SUBMIT_SCHEDULE",
             autoStart: formValuesToAutoStartRequest(values),
             ttl: formValuesToTTLRequest(values),
             autoStartChanged,
-            autoStopChanged
+            autoStopChanged,
           })
         }}
       />
