@@ -212,14 +212,12 @@ type AdditionalFields struct {
 
 func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
 	switch alog.ResourceType {
-	case database.ResourceTypeOrganization:
-		return ""
 	case database.ResourceTypeTemplate:
-		return ""
-	case database.ResourceTypeTemplateVersion:
-		return ""
+		return fmt.Sprintf("/templates/%s",
+			alog.ResourceTarget)
 	case database.ResourceTypeUser:
-		return ""
+		return fmt.Sprintf("/users?filter=%s",
+			alog.ResourceTarget)
 	case database.ResourceTypeWorkspace:
 		return fmt.Sprintf("/@%s/%s",
 			alog.UserUsername.String, alog.ResourceTarget)
@@ -232,12 +230,9 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)
-	case database.ResourceTypeGitSshKey:
-		return ""
-	case database.ResourceTypeApiKey:
-		return ""
 	case database.ResourceTypeGroup:
-		return ""
+		return fmt.Sprintf("/groups/%s",
+			alog.ResourceID)
 	default:
 		return ""
 	}

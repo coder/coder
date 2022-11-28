@@ -19,15 +19,17 @@ import { Link as RouterLink } from "react-router-dom"
 import i18next from "i18next"
 import Link from "@material-ui/core/Link"
 
-const determineResourceLink = (auditLog: AuditLog): string => {
+const determineResourceLink = (auditLog: AuditLog): JSX.Element | undefined => {
   const { t } = i18next
-  let linkTarget = auditLog.resource_target.trim()
+  const linkTarget = auditLog.resource_target.trim()
 
   if (auditLog.resource_type === "workspace_build") {
-    linkTarget = t("auditLog:table.logRow.buildTarget")
+    return <>{t("auditLog:table.logRow.buildTarget")}</>
+  } else if (auditLog.resource_type === "git_ssh_key") {
+    return
+  } else {
+    return <strong>{linkTarget}</strong>
   }
-
-  return linkTarget
 }
 
 export const readableActionMessage = (auditLog: AuditLog): string => {
@@ -125,16 +127,20 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 >
                   <span>
                     {readableActionMessage(auditLog)}{" "}
-                    {auditLog.resource_link && (
+                    {auditLog.resource_link ? (
                       <Link component={RouterLink} to={auditLog.resource_link}>
                         {determineResourceLink(auditLog)}
                       </Link>
+                    ) : (
+                      <strong>{determineResourceLink(auditLog)}</strong>
                     )}
                     {auditLog.resource_type === "workspace_build" &&
                       auditLog.additional_fields.workspaceName && (
                         <>
                           {t("auditLog:table.logRow.buildFriendlyString")}
-                          {auditLog.additional_fields.workspaceName}
+                          <strong>
+                            {auditLog.additional_fields.workspaceName}
+                          </strong>
                         </>
                       )}
                   </span>
