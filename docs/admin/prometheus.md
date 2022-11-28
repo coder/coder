@@ -10,6 +10,8 @@ Coder server exports metrics via the HTTP endpoint, which can be enabled using e
 
 The Prometheus endpoint address is `http://localhost:2112/` by default. You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag ` --prometheus-address <network-interface>:<port>` to select a different listen address.
 
+__Notice__: Prometheus endpoint is not supported by the official Coder Helm chart yet.
+
 If `coder server --prometheus-enable` is started locally, you can preview the metrics endpoint in your browser or by using curl: <!-- markdown-link-check-disable -->http://localhost:2112/<!-- markdown-link-check-enable -->.
 
 ```
