@@ -2,7 +2,7 @@
 
 Coder exposes many metrics which can be consumed by a Prometheus server, and give insight into the current state of a live Coder deployment.
 
-Feel free to browse through the [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide, if you don't have an installation of the Prometheus server.
+If you don't have an Prometheus server installed, you can follow the Prometheus [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
 
 ## Enable Prometheus metrics
 
