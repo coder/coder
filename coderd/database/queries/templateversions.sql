@@ -69,6 +69,14 @@ FROM
 WHERE
 	id = $1;
 
+-- name: GetTemplateVersionByIDs :many
+SELECT
+	*
+FROM
+	template_versions
+WHERE
+	id = ANY(@ids :: uuid [ ]);
+
 -- name: InsertTemplateVersion :one
 INSERT INTO
 	template_versions (
