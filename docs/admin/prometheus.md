@@ -31,7 +31,7 @@ coderd_api_request_latencies_ms_bucket{method="GET",path="",le="25"} 15
 ...
 ```
 
-## Explore collected metrics
+## Available collectors
 
 ### Coderd
 
