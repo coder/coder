@@ -106,8 +106,8 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    padding: theme.spacing(2),
-    paddingTop: theme.spacing(1.75),
+    padding: theme.spacing(1),
+    paddingRight: theme.spacing(2),
     display: "flex",
     alignItems: "baseline",
     gap: theme.spacing(1),
